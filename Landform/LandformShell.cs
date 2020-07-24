@@ -51,6 +51,9 @@ namespace OPS.Landform
         [Option(Default = null, HelpText = "AWS region or omit to use default, e.g. us-west-1, us-gov-west-1 (can be \"none\")")]
         public string AWSRegion { get; set; }
 
+        [Option(HelpText = "Credential refresh period in seconds, -1 for mission default, 0 to disable", Default = -1)]
+        public int CredentialRefreshSec { get; set; }
+
         [Option(Default = -1, HelpText = "RNG seed, -1 to use a time dependent seed")]
         public int RandomSeed { get; set; }
 
@@ -92,6 +95,25 @@ namespace OPS.Landform
 
         protected string awsProfile, originalAWSProfile;
         protected string awsRegion;
+
+        protected double lastCredentialRefreshSecUTC;
+        protected int credentialRefreshSec;
+
+        /// <summary>
+        /// ServiceLoop() acquires credentialRefreshLock before calling RefreshCredentials().
+        /// Other uses of credentials throughout ServiceLoop() (i.e. in the main thread), including in subclass
+        /// implementations of HandleMessage(), are not locked because they cannot overlap with the call to
+        /// RefreshCredentials() which is in the same thread.
+        ///
+        /// Other threads which require credentials should hold credentialRefreshLock (only) while needed.  Not to avoid
+        /// concurrent use of credentials, which is totally fine (and even necessary e.g. for HeartbeatLoop()), but to
+        /// prevent RefreshCredentials() from being called while the credentials may be in use.
+        ///
+        /// For example
+        /// * HeartbeatLoop() acquires credentials when it needs to update SQS message timeouts.
+        /// * ProcessContextual.MasterLoop() acquires credentials while it may use PLACES.
+        /// </summary>
+        protected object credentialRefreshLock = new Object();
 
         private volatile Process currentProcess;
 
@@ -175,6 +197,16 @@ namespace OPS.Landform
 
             originalAWSProfile = awsProfile;
 
+            credentialRefreshSec = lsopts.CredentialRefreshSec >= 0 ? lsopts.CredentialRefreshSec :
+                mission != null ? mission.GetDefaultCredentialRefreshSec() : 0;
+            pipeline.LogInfo("AWS credential refresh: {0}",
+                             credentialRefreshSec > 0 ? Fmt.HMS(credentialRefreshSec * 1e3) : "disabled");
+
+            if (credentialRefreshSec > 0)
+            {
+                RefreshCredentials();
+            }
+
             logFile = Logging.GetLogFile();
             string logPrefix = GetLogFilePrefix();
             if (logFile.IndexOf(logPrefix) >= 0)
@@ -208,11 +240,12 @@ namespace OPS.Landform
         {
             pipeline.LogInfo("refreshing credentials");
 
+            lastCredentialRefreshSecUTC = UTCTime.Now();
+
             if (mission != null)
             {
-                bool quiet = lsopts.Quiet || lsopts.QuietSubcommands;
-                var newProfile = mission.RefreshCredentials(originalAWSProfile, awsRegion, quiet, lsopts.DryRun,
-                                                            throwOnFail: false, logger: pipeline);
+                var newProfile = mission.RefreshCredentials(originalAWSProfile, awsRegion, !pipeline.Verbose,
+                                                            lsopts.DryRun, throwOnFail: false, logger: pipeline);
                 awsProfile = newProfile ?? originalAWSProfile;
             }
 

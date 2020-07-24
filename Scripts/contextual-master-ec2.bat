@@ -33,6 +33,9 @@ if not "%LANDFORM_BIN_DIR%"=="" set bindir=%LANDFORM_BIN_DIR%
 set landform=%bindir%\Landform.exe
 if not "%LANDFORM_BIN%"=="" set landform=%LANDFORM_BIN%
 
+set credentialrefresh=
+if not "%LANDFORM_CREDENTIAL_REFRESH_SEC%"=="" set credentialrefresh=--credentialrefreshsec=%CREDENTIAL_REFRESH_SEC%
+
 rem --- end service boilerplate, begin service specific boilerplate ---
 
 set queue=m20-ids-g-landform-contextual-master
@@ -105,7 +108,7 @@ if not "%LANDFORM_CONTEXTUAL_MAX_SOL_RANGE%"=="" (
 set stdopts=--configdir=%cfgdir% --configfolder=%cfgfolder% --logdir=%logdir% --tempdir=%tmpdir%
 set cfgopts=%stdopts% --venue=%venue% --maxcores=0 --randomseed=-1 --storagedir=%storagedir%
 set svcopts=%stdopts% --stacktraces --master --mission=%mission% --queuename=%queue% --failqueuename=%failqueue%
-set svcopts=%svcopts% --awsprofile=%awsprofile% --awsregion=%awsregion%  
+set svcopts=%svcopts% --awsprofile=%awsprofile% --awsregion=%awsregion% %credentialrefresh
 
 set appsdir=%bindir%\ExternalApps
 if exist %appsdir%\opengl32-for-ivcat.dll (

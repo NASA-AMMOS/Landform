@@ -770,7 +770,7 @@ namespace OPS.Pipeline
         /// Uses the default profile and region for the mission by default.
         /// Returns new profile name or null if failed or unchanged.
         /// </summary>
-        public virtual string RefreshCredentials(string awsProfile = null, string awsRegion = null, bool quiet = false,
+        public virtual string RefreshCredentials(string awsProfile = null, string awsRegion = null, bool quiet = true,
                                                  bool dryRun = false, bool throwOnFail = false, ILogger logger = null)
         {
             return null;

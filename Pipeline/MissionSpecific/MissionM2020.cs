@@ -29,7 +29,7 @@ namespace OPS.Pipeline
             return Mission.M2020;
         }
 
-        public override string RefreshCredentials(string awsProfile = null, string awsRegion = null, bool quiet = false,
+        public override string RefreshCredentials(string awsProfile = null, string awsRegion = null, bool quiet = true,
                                                   bool dryRun = false, bool throwOnFail = false, ILogger logger = null)
         {
             void error(string msg)
@@ -56,18 +56,42 @@ namespace OPS.Pipeline
             }
 
             string user = null, pass = null;
-            using (var ps = new ParameterStore(awsProfile, awsRegion))
+            try
             {
-                user = ps.GetParameter($"/m20/{venue}/ids/pipeline/csso_username");
-                pass = ps.GetParameter($"/m20/{venue}/ids/pipeline/csso_password");
+                using (var ps = new ParameterStore(awsProfile, awsRegion))
+                {
+                    string keyBase = $"/m20/{venue}/ids/pipeline/csso_";
+                    
+                    string userKey = keyBase + "username";
+                    user = ps.GetParameter(userKey);
+                    if (string.IsNullOrEmpty(user))
+                    {
+                        error($"failed to get \"{userKey}\" from SSM");
+                        return null;
+                    }
+                    
+                    string passKey = keyBase + "password";
+                    pass = ps.GetParameter(passKey);
+                    if (string.IsNullOrEmpty(user))
+                    {
+                        error($"failed to get \"{passKey}\" from SSM");
+                        return null;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                error("error getting credentials from SSM: " + ex.Message);
+                return null;
             }
 
-            string credssExe = StringHelper.NormalizeSlashes(PathHelper.GetExe("credss.exe"));
+            string credssFilename = "credss.exe";
+            string credssExe = StringHelper.NormalizeSlashes(PathHelper.GetExe(credssFilename));
             string origCredssExe = credssExe;
             while (!File.Exists(credssExe) && credssExe.LastIndexOf('/') >= 0)
             {
                 string dir = StringHelper.StripLastUrlPathSegment(credssExe);
-                string tryUtils = $"{dir}/Utils/credss.exe";
+                string tryUtils = $"{dir}/Utils/{credssFilename}";
                 if (File.Exists(tryUtils))
                 {
                     credssExe = tryUtils;
@@ -78,16 +102,21 @@ namespace OPS.Pipeline
                 {
                     break;
                 }
-                credssExe = $"{parent}/credss.exe";
+                credssExe = $"{parent}/{credssFilename}";
             }
 
             if (!File.Exists(credssExe))
             {
-                error($"credss.exe not found, searched based on {origCredssExe}");
-                return null;
+                
+                if (logger != null)
+                {
+                    logger.LogWarn("{0} not found, searched based on {1}, trying system installed {0}",
+                                   credssFilename, origCredssExe);
+                }
+                credssExe = credssFilename;
             }
 
-            string cmd = $"--venue {venue} --app-account -d {duration} -a -s {section} -u USER -p PASS";
+            string cmd = $"--venue {venue} --app-account -d {duration} -s {section} -u USER -p PASS";
 
             if (logger != null)
             {
@@ -100,17 +129,30 @@ namespace OPS.Pipeline
 
             if (!dryRun)
             {
-                var runner = new ProgramRunner(credssExe, cmd, captureOutput: quiet);
-                int code = runner.Run(); //blocks until process exits or dies
-                if (code != 0)
+                try
                 {
-                    string msg = (runner.ErrorText ?? "").TrimEnd('\r', '\n');
-                    error(string.Format("{0} failed with code {1}{2}{3}", credssExe, code,
-                                        code == -1 ? " (killed)" : "", msg != "" ? (Environment.NewLine + msg) : ""));
+                    var runner = new ProgramRunner(credssExe, cmd, captureOutput: quiet);
+                    int code = runner.Run(); //blocks until process exits or dies
+                    if (code == 0)
+                    {
+                        return section;
+                    }
+                    else
+                    {
+                        string msg = (runner.ErrorText ?? "").TrimEnd('\r', '\n');
+                        error(string.Format("{0} failed with code {1}{2}{3}", credssExe, code,
+                                            code == -1 ? " (killed)" : "",
+                                            msg != "" ? (Environment.NewLine + msg) : ""));
+                        return null;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    error("error running {credssFilename}: " + ex.Message);
+                    return null;
                 }
             }
-
-            return section;
+            return null;
         }
 
         public override int GetDefaultCredentialRefreshSec()

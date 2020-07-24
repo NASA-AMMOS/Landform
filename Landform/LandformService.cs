@@ -75,9 +75,6 @@ namespace OPS.Landform
 
         [Option(Required = false, Default = 0, HelpText = "Maximum unhandled message age, nonpositive to use default")]
         public int MaxMessageAgeSec { get; set; }
-
-        [Option(HelpText = "Credential refresh period in seconds, -1 for mission default, 0 to disable", Default = -1)]
-        public int CredentialRefreshSec { get; set; }
     }
     
     public abstract class LandformService : LandformShell
@@ -97,25 +94,6 @@ namespace OPS.Landform
 
         private QueueMessage currentMessage;
         private double messageStartSec;
-
-        private int credentialRefreshSec;
-        private double lastCredentialRefreshSecUTC;
-
-        /// <summary>
-        /// ServiceLoop() acquires credentialRefreshLock before calling RefreshCredentials().
-        /// Other uses of credentials throughout ServiceLoop() (i.e. in the main thread), including in subclass
-        /// implementations of HandleMessage(), are not locked because they cannot overlap with the call to
-        /// RefreshCredentials() which is in the same thread.
-        ///
-        /// Other threads which require credentials should hold credentialRefreshLock (only) while needed.  Not to avoid
-        /// concurrent use of credentials, which is totally fine (and even necessary e.g. for HeartbeatLoop()), but to
-        /// prevent RefreshCredentials() from being called while the credentials may be in use.
-        ///
-        /// For example
-        /// * HeartbeatLoop() acquires credentials when it needs to update SQS message timeouts.
-        /// * ProcessContextual.MasterLoop() acquires credentials while it may use PLACES.
-        /// </summary>
-        protected object credentialRefreshLock = new Object();
 
         public LandformService(LandformServiceOptions options) : base(options)
         {
@@ -192,11 +170,6 @@ namespace OPS.Landform
             {
                 return false; //e.g. --help
             }
-
-            credentialRefreshSec = lvopts.CredentialRefreshSec >= 0 ? lvopts.CredentialRefreshSec :
-                mission != null ? mission.GetDefaultCredentialRefreshSec() : 0;
-            pipeline.LogInfo("AWS credential refresh: {0}",
-                             credentialRefreshSec > 0 ? Fmt.HMS(credentialRefreshSec * 1e3) : "disabled");
 
             lvopts.LandformOwnedQueue |= lvopts.LandformOwnedQueues;
             lvopts.LandformOwnedFailQueue |= lvopts.LandformOwnedQueues;
@@ -541,15 +514,14 @@ namespace OPS.Landform
             {
                 try
                 {
-                    double now = UTCTime.Now();
-                    if (credentialRefreshSec > 0 && (lastCredentialRefreshSecUTC <= 0 ||
-                                                     (now - lastCredentialRefreshSecUTC) > credentialRefreshSec))
+                    if (credentialRefreshSec > 0 &&
+                        (lastCredentialRefreshSecUTC <= 0 ||
+                         (UTCTime.Now() - lastCredentialRefreshSecUTC) > credentialRefreshSec))
                     {
                         lock (credentialRefreshLock)
                         {
                             RefreshCredentials();
                         }
-                        lastCredentialRefreshSecUTC = now;
                     }
                     
                     double startSec = UTCTime.Now();
