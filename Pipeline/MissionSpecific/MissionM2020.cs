@@ -32,6 +32,18 @@ namespace OPS.Pipeline
         public override string RefreshCredentials(string awsProfile = null, string awsRegion = null, bool quiet = false,
                                                   bool dryRun = false, bool throwOnFail = false, ILogger logger = null)
         {
+            void error(string msg)
+            {
+                if (throwOnFail)
+                {
+                    throw new Exception(msg);
+                }
+                else if (logger != null)
+                {
+                    logger.LogError(msg);
+                }
+            }
+
             int duration = 8 * 60 * 60; //8h
             string section = "credss-app";
 
@@ -50,7 +62,31 @@ namespace OPS.Pipeline
                 pass = ps.GetParameter($"/m20/{venue}/ids/pipeline/csso_password");
             }
 
-            string credssExe = PathHelper.GetExe("credss.exe");
+            string credssExe = StringHelper.NormalizeSlashes(PathHelper.GetExe("credss.exe"));
+            string origCredssExe = credssExe;
+            while (!File.Exists(credssExe) && credssExe.LastIndexOf('/') >= 0)
+            {
+                string dir = StringHelper.StripLastUrlPathSegment(credssExe);
+                string tryUtils = $"{dir}/Utils/credss.exe";
+                if (File.Exists(tryUtils))
+                {
+                    credssExe = tryUtils;
+                    break;
+                }
+                string parent = dir.LastIndexOf('/') > 0 ? StringHelper.StripLastUrlPathSegment(dir) : null;
+                if (parent == null)
+                {
+                    break;
+                }
+                credssExe = $"{parent}/credss.exe";
+            }
+
+            if (!File.Exists(credssExe))
+            {
+                error($"credss.exe not found, searched based on {origCredssExe}");
+                return null;
+            }
+
             string cmd = $"--venue {venue} --app-account -d {duration} -a -s {section} -u USER -p PASS";
 
             if (logger != null)
@@ -61,24 +97,6 @@ namespace OPS.Pipeline
             //avoid plaintexting credentials in log
             cmd = cmd.Replace("USER", user);
             cmd = cmd.Replace("PASS", pass);
-
-            void error(string msg)
-            {
-                if (throwOnFail)
-                {
-                    throw new Exception(msg);
-                }
-                else if (logger != null)
-                {
-                    logger.LogError(msg);
-                }
-            }
-
-            if (!File.Exists(credssExe))
-            {
-                error($"\"{credssExe}\" not found");
-                return null;
-            }
 
             if (!dryRun)
             {
