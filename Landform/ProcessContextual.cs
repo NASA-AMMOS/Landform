@@ -565,12 +565,12 @@ namespace OPS.Landform
             return "log-Landform-process-contextual";
         }
 
-        protected override string GetConfigSuffix()
+        protected override string GetSubcommandConfigFolder()
         {
-            return "-contextual";
+            return "contextual-subcommands";
         }
 
-        protected override string GetCacheDir()
+        protected override string GetSubcommandCacheDir()
         {
             return "contextual";
         }

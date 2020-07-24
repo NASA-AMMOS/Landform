@@ -323,12 +323,12 @@ namespace OPS.Landform
             return "log-Landform-process-tactical";
         }
 
-        protected override string GetConfigSuffix()
+        protected override string GetSubcommandConfigFolder()
         {
-            return "-tactical";
+            return "tactical-subcommands";
         }
 
-        protected override string GetCacheDir()
+        protected override string GetSubcommandCacheDir()
         {
             return "tactical";
         }

@@ -88,10 +88,10 @@ namespace OPS.Landform
 
         protected string storageDir;
 
-        protected string logFile;
+        protected string subcommandLogFile;
 
-        protected string configFolder;
-        protected string configFile;
+        protected string subcommandConfigFolder;
+        protected string subcommandConfigFile;
 
         protected string awsProfile, originalAWSProfile;
         protected string awsRegion;
@@ -207,21 +207,24 @@ namespace OPS.Landform
                 RefreshCredentials();
             }
 
-            logFile = Logging.GetLogFile();
+            string logFile = Logging.GetLogFile();
             string logPrefix = GetLogFilePrefix();
             if (logFile.IndexOf(logPrefix) >= 0)
             {
-                logFile = logFile.Replace(logPrefix, logPrefix + "-subcommands");
+                subcommandLogFile = logFile.Replace(logPrefix, logPrefix + "-subcommands");
             }
             else
             {
-                logFile = Path.Combine(Path.GetDirectoryName(logFile), "subcommands-" + Path.GetFileName(logFile));
+                subcommandLogFile = Path.Combine(Path.GetDirectoryName(logFile),
+                                                 Path.GetFileNameWithoutExtension(logFile) + "-subcommands" +
+                                                 Path.GetExtension(logFile));
             }
-            pipeline.LogInfo("subcommand log file: {0}", logFile);
+            pipeline.LogInfo("subcommand log file: {0}", subcommandLogFile);
 
-            configFolder = Config.ConfigFolder + GetConfigSuffix();
-            configFile = Path.Combine(Config.GetConfigDir(), configFolder, pipeline.Config.ConfigFileName() + ".json");
-            pipeline.LogInfo("subcommand config file: {0}", configFile);
+            subcommandConfigFolder = GetSubcommandConfigFolder();
+            subcommandConfigFile = Path.Combine(Config.GetConfigDir(), subcommandConfigFolder,
+                                                pipeline.Config.ConfigFileName() + ".json");
+            pipeline.LogInfo("subcommand config file: {0}", subcommandConfigFile);
 
             return true;
         }
@@ -254,9 +257,9 @@ namespace OPS.Landform
 
         protected abstract string GetLogFilePrefix();
 
-        protected abstract string GetConfigSuffix();
+        protected abstract string GetSubcommandConfigFolder();
         
-        protected abstract string GetCacheDir();
+        protected abstract string GetSubcommandCacheDir();
 
         protected bool FileExists(string url)
         {
@@ -273,7 +276,7 @@ namespace OPS.Landform
 
         protected string GetFile(string url, bool filenameUnique = true)
         {
-            return GetFile(pipeline, () => storageHelper, url, GetCacheDir(), filenameUnique,
+            return GetFile(pipeline, () => storageHelper, url, GetSubcommandCacheDir(), filenameUnique,
                            lsopts.MaxRetries, lsopts.DryRun);
         }
 
@@ -416,9 +419,10 @@ namespace OPS.Landform
             }
             var stdArgs = new Dictionary<string, string>()
                 {
-                    { "--logfile", logFile }, //already handles --logdir
+                    { "--logfile", subcommandLogFile }, //already handles --logdir
                     { "--tempdir", lsopts.TempDir },
-                    { "--configfolder", configFolder }
+                    { "--configdir", Config.GetConfigDir() },
+                    { "--configfolder", subcommandConfigFolder }
                 };
             foreach (var entry in stdArgs)
             {
@@ -495,9 +499,9 @@ namespace OPS.Landform
                     Directory.Delete(venueDir, recursive: true);
                 }
                 
-                if (File.Exists(configFile))
+                if (File.Exists(subcommandConfigFile))
                 {
-                    File.Delete(configFile);
+                    File.Delete(subcommandConfigFile);
                 }
                 
                 pipeline.DeleteDownloadCache();
