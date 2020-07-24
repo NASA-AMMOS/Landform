@@ -706,7 +706,8 @@ namespace OPS.Landform
             }
             rdrDir = StringHelper.NormalizeUrl(rdrDir, preserveTrailingSlash: false);
 
-            string missionStr = mission != null ? mission.GetMissionWithVenue() : "None";
+            string missionStr = mission != null ? mission.GetMission().ToString() : "None";
+            string fullMissionStr = mission != null ? mission.GetMissionWithVenue() : "None";
             string sdStr = primarySiteDrive.ToString();
             string solStr = string.Format("{0:D4}", primarySol);
             string sdsStr = string.Join(",", siteDrives.ToArray());
@@ -775,7 +776,7 @@ namespace OPS.Landform
                     {
                         throw new NotImplementedException("ingestion from multi-sol s3 wildcard not implemented");
                     }
-                    RunCommand("ingest", project, "--mission", missionStr, "--onlyforsitedrives", sdsStr,
+                    RunCommand("ingest", project, "--mission", fullMissionStr, "--onlyforsitedrives", sdsStr,
                                "--inputpath", ingestDir + "/" + (options.RecursiveSearch ? "**" : "*"),
                                noOrbital, noSurface, "--orbitaldem", orbitalDEMFile, "--orbitalimage", orbitalImageFile,
                                "--orbitalframe", sdStr);
