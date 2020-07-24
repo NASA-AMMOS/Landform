@@ -574,7 +574,13 @@ namespace OPS.Landform
                         {
                             try
                             {
-                                messageQueue.DeleteMessage(msg);
+                                lock (credentialRefreshLock)
+                                {
+                                    //the reason we hold credentialRefreshLock here is to make sure that
+                                    //the call to UpdateTimeout() in HeartbeatLoop() can't overlap with
+                                    //this call to DeleteMessage()
+                                    messageQueue.DeleteMessage(msg);
+                                }
                             }
                             catch (Exception deleteException)
                             {
@@ -629,17 +635,7 @@ namespace OPS.Landform
                              targetPeriod, timeoutSec, Fmt.HMS(1000 * maxHandlerSec));
             while (true)
             {
-                if (lastHeartbeatSec >= 0)
-                {
-                    //try to maintain heartbeat period proportional to queue timout
-                    double actualPeriod = UTCTime.Now() - lastHeartbeatSec;
-                    SleepSec(targetPeriod - actualPeriod);
-                }
-                
-                double startSec = UTCTime.Now();
-
-                var msg = currentMessage;
-                if (msg != null)
+                if (currentMessage != null)
                 {
                     var totalSec = UTCTime.Now() - messageStartSec;
                     if (totalSec > maxHandlerSec)
@@ -647,15 +643,38 @@ namespace OPS.Landform
                         pipeline.LogError("handler has run for {0} > {1}, killing",
                                           Fmt.HMS(1000 * totalSec), Fmt.HMS(1000 * maxHandlerSec));
                         KillCurrentCommand(); //swallows exceptions, but handler will throw exception if killed
+                        SleepSec(targetPeriod);
+                        lastHeartbeatSec = -1;
                     }
-                    else
+                    else //still processing message, increase SQS visiblity timeout
                     {
                         try
                         {
+                            if (lastHeartbeatSec >= 0)
+                            {
+                                //try to maintain heartbeat period proportional to queue timout
+                                SleepSec(targetPeriod - (UTCTime.Now() - lastHeartbeatSec)); //ignores negative
+                            }
+
                             lock (credentialRefreshLock)
                             {
-                                messageQueue.UpdateTimeout(msg, timeoutSec);
+                                if (currentMessage != null) //message may have finished processing while we were waiting
+                                {
+                                    messageQueue.UpdateTimeout(currentMessage, timeoutSec);
+                                }
                             }
+                            
+                            if (lastHeartbeatSec >= 0)
+                            {
+                                //upper bound on time between visibility update
+                                double heartbeatPeriod = UTCTime.Now() - lastHeartbeatSec;
+                                if (heartbeatPeriod > timeoutSec)
+                                {
+                                    pipeline.LogError("heartbeat {0:F3}s exceeded visibility timeout {1:F3}s",
+                                                      heartbeatPeriod, timeoutSec);
+                                }
+                            }
+                            lastHeartbeatSec = UTCTime.Now();
                         }
                         catch (Exception ex)
                         {
@@ -663,18 +682,11 @@ namespace OPS.Landform
                         }
                     }
                 }
-
-                if (lastHeartbeatSec >= 0)
+                else //no current message
                 {
-                    //upper bound on time between visibility update: end of this heartbeat - start of previous
-                    double bound = UTCTime.Now() - lastHeartbeatSec;
-                    if (bound > timeoutSec)
-                    {
-                        pipeline.LogError("heartbeat {0:F3}s exceeded visibility timeout {1:F3}s", bound, timeoutSec);
-                    }
+                    SleepSec(targetPeriod);
+                    lastHeartbeatSec = -1;
                 }
-                
-                lastHeartbeatSec = startSec;
             }
         }
     }
