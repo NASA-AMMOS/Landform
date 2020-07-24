@@ -825,41 +825,51 @@ namespace OPS.Landform
                 var idToPDSFile = new Dictionary<string, string>();
                 var idToUrl = new Dictionary<string, string>();
 
-                bool update(string id, string url)
+                bool update(string idStr, string url)
                 {
-                    if (id == contextualId)
+                    if (idStr == contextualId)
                     {
                         return false;
                     }
-                    if (RoverProductId.Parse(id, mission, throwOnFail: false) == null)
+
+                    var id = RoverProductId.Parse(idStr, mission, throwOnFail: false);
+                    if (id == null)
                     {
-                        pipeline.LogWarn("not recognized as a tactical mesh tileset: \"{0}\"", id);
+                        pipeline.LogWarn("not recognized as a tactical mesh tileset: \"{0}\"", idStr);
                         return false;
                     }
+
+                    //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/951
+                    //see comments in ProcessTactical.cs AddImage()
+                    
                     string pdsFile = null;
-                    if (rdrs.ContainsKey(id))
+                    foreach (string tryId in id.DescendingVersions(10))
                     {
-                        var rdrSet = rdrs[id];
-                        foreach (var ext in pdsExts)
+                        if (rdrs.ContainsKey(tryId))
                         {
-                            if (rdrSet.HasUrlExtension(ext))
+                            var rdrSet = rdrs[tryId];
+                            foreach (var ext in pdsExts)
                             {
-                                pdsFile = rdrSet.GetUrlWithExtension(ext);
-                                break;
+                                if (rdrSet.HasUrlExtension(ext))
+                                {
+                                    pdsFile = rdrSet.GetUrlWithExtension(ext);
+                                    break;
+                                }
                             }
                         }
                     }
+
                     if (pdsFile != null)
                     {
-                        idToPDSFile[id] = pdsFile;
-                        idToUrl[id] = url;
+                        idToPDSFile[idStr] = pdsFile;
+                        idToUrl[idStr] = url;
                         return true;
                     }
                     else
                     {
-                        bool removed = sceneManifest.RemoveTileset(id);
+                        bool removed = sceneManifest.RemoveTileset(idStr);
                         pipeline.LogWarn("no PDS RDR found for {0} in any of the following formats: {1}{2}",
-                                         id, string.Join(", ", pdsExts), removed ? " (removed from manifest)" : "");
+                                         idStr, string.Join(", ", pdsExts), removed ? " (removed from manifest)" : "");
                         return false;
                     }
                 }
@@ -909,7 +919,7 @@ namespace OPS.Landform
                 {
                     if (keepers.Contains(id))
                     {
-                        UpdateTacticalMeshManifest(idToPDSFile[id], !options.NoURLs ? idToUrl[id] : null);
+                        UpdateTacticalMeshManifest(idToPDSFile[id], !options.NoURLs ? idToUrl[id] : null, id);
                     }
                     else
                     {
@@ -955,7 +965,7 @@ namespace OPS.Landform
             }
         }
 
-        private void UpdateTacticalMeshManifest(string pdsFile, string tilesetUrl = null)
+        private void UpdateTacticalMeshManifest(string pdsFile, string tilesetUrl = null, string tilesetId = null)
         {
             if (!FileExists(pdsFile))
             {
@@ -964,17 +974,17 @@ namespace OPS.Landform
             pipeline.LogInfo("loading PDS metadata from {0}", pdsFile);
             var metadata = new PDSMetadata(GetFile(pdsFile));
             var parser = new PDSParser(metadata);
-            string productId = parser.ProductIdString;
+            tilesetId = tilesetId ?? parser.ProductIdString;
 
             if (!string.IsNullOrEmpty(options.SiteDrive) && options.SiteDrive != parser.SiteDrive)
             {
-                bool removed = sceneManifest.RemoveTileset(productId);
-                pipeline.LogWarn("tactical mesh tileset {0} sitedrive {1} != {2}{3}", productId, parser.SiteDrive,
+                bool removed = sceneManifest.RemoveTileset(tilesetId);
+                pipeline.LogWarn("tactical mesh tileset {0} sitedrive {1} != {2}{3}", tilesetId, parser.SiteDrive,
                                  options.SiteDrive, removed ? " (removed from manifest)" : "");
                 return;
             }
 
-            sceneManifest.AddOrUpdateTacticalTileset(tilesetUrl, parser, mission, pipeline);
+            sceneManifest.AddOrUpdateTacticalTileset(tilesetUrl, parser, mission, tilesetId, pipeline);
         }
 
         private void UpdateURLs()

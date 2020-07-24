@@ -286,6 +286,24 @@ namespace OPS.Pipeline
             return StringHelper.RemoveMultiple(FullId, spans);
         }
 
+        //enumerate all possible IDs matching this one with lesser or equal versions
+        //in order of descending version (higher versions first)
+        public IEnumerable<string> DescendingVersions(int offset = 0)
+        {
+            if (!GetVersionSpan(out int vs, out int vl))
+            {
+                yield return FullId;
+                yield break;
+            }
+            string pfx = FullId.Substring(0, vs);
+            string suffix = FullId.Substring(vs + vl);
+            string fmt = "d" + vl;
+            for (int v = int.Parse(FullId.Substring(vs, vl)) + offset; v >= 0; v--)
+            {
+                yield return pfx + v.ToString(fmt) + suffix;
+            }
+        }
+
         public virtual bool HasSol()
         {
             return false;

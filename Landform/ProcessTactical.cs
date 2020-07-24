@@ -182,6 +182,19 @@ namespace OPS.Landform
 
         protected override bool AcceptMessage(QueueMessage msg, out string reason)
         {
+            //Filter out some subfolders on S3.
+            //https://github.jpl.nasa.gov/OnSight/Landform/issues/1110
+            bool acceptBucketPath(string url)
+            {
+                string path = (new S3Url(url)).Path.ToLower();
+                return !path.StartsWith("/ids-pipeline/") &&
+                    path.Contains("/rdr/") &&
+                    !path.Contains("/rdr/browse/") &&
+                    !path.Contains("/rdr/mosaic/") &&
+                    !path.Contains("/rdr/mesh/") &&
+                    !path.Contains("/rdr/tileset/");
+            }
+
             reason = null;
             try
             {
@@ -194,6 +207,11 @@ namespace OPS.Landform
                 if (StringHelper.GetUrlExtension(url).ToLower() != meshExt)
                 {
                     reason = "unhandled file type: " + url;
+                    return false;
+                }
+                if (!acceptBucketPath(url))
+                {
+                    reason = "rejected bucket path: " + url;
                     return false;
                 }
                 var idStr = StringHelper.GetLastUrlPathSegment(url, stripExtension: true);
@@ -388,12 +406,66 @@ namespace OPS.Landform
 
         private bool AddImage(MeshImagePair pair)
         {
-            foreach (var ext in new string[] { imageExt, imageExt.ToUpper() })
+            //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/951
+            //the product ID of a tactical mesh tileset comes from the source .iv or .obj mesh filename
+            //but matching a corresponding best .IMG is tricky
+            //
+            //it is not the case that FOO.iv always simply matches with FOO.IMG
+            //because they are versioned separately
+            //FOO.iv will generally have a corresponding FOO.rgb
+            //and furthermore FOO.iv will in its metadata refer to FOO.rgb
+            //but none of that means that FOO.IMG exists
+            //I believe this is because FOO.iv and FOO.rgb are generated from source .VIC files
+            //and the .IMG versions are later transcoded from the .VIC and may have different versions
+            //(that may suggest using the .VIC for metadata instead of the .IMG, but M20 is considering not
+            //copying the .VIC to S3...)
+            //so when the tactical mesh comes from and iv, the best thing I can currently think of doing
+            //is just searching for any .IMG with an ID that matches except for version number
+            //and then taking the highest version number of those
+            //this code does almost that, except it is limited to finding .IMG with version
+            //at most 10 more than the .IV (to bound the search)
+            //
+            //the situation should be better for .obj which we are expecting to switch to
+            //FOO.mtl is supposed to definitely exist as a sibling of FOO.obj
+            //FOO.mtl will refer to BAR.png
+            //but BAR.IMG is supposed to also definitely exist
+
+            bool tryImage(string imageUrl)
             {
-                string imageUrl = StringHelper.StripUrlExtension(pair.mesh) + ext;
                 if (FileExists(imageUrl))
                 {
                     pair.image = imageUrl;
+                    return true;
+                }
+                return false;
+            }
+
+            foreach (var ext in new string[] { imageExt, imageExt.ToUpper() })
+            {
+                string folder = StringHelper.StripLastUrlPathSegment(pair.mesh);
+                if (folder == pair.mesh) //pair.mesh was a bare filename
+                {
+                    folder = "";
+                }
+                else
+                {
+                    folder += "/";
+                }
+                string idStr = StringHelper.GetLastUrlPathSegment(pair.mesh, stripExtension: true);
+                var id = RoverProductId.Parse(idStr, mission, throwOnFail: false);
+                if (id != null)
+                {
+                    foreach (string tryId in id.DescendingVersions(10))
+                    {
+                        if (tryImage(folder + tryId + ext))
+                        {
+                            return true;
+                        }
+                    }
+                }
+
+                if (tryImage(StringHelper.StripUrlExtension(pair.mesh) + ext))
+                {
                     return true;
                 }
             }

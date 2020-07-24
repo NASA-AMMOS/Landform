@@ -216,16 +216,19 @@ for f in `find ${indir} -name '*'.${meshext}`; do
     #
     # aaand this is still broken in a few ways
     # * it's M2020 mission specific
-    # * it will only find .IMG with version numbers less than or equal to the version of the .iv
+    # * it will only find .IMG with version numbers no greater than the version of the .iv plus 10
 
     id=${bn##*/}
     ver=${id:52:2}
+    ver=`printf "%02d" $((10#$ver+10))`
     while [ ! -f $img ] && [ $ver -ge 0 ]; do
         ver=`printf "%02d" $((10#$ver-1))`
         img=${f%/*}/${id:0:52}${ver}.${imgext}
     done
 
     if [ -f $mesh -a -f $img ]; then
+
+        SECONDS=0
 
         if [ "$dry" ]; then log=; else mkdir -p $logdir; printf "${cmdline}\r\n" > $log; fi
 
