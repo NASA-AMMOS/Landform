@@ -47,8 +47,8 @@ namespace OPS.Pipeline
             int duration = 8 * 60 * 60; //8h
             string section = "credss-app";
 
-            awsProfile = GetDefaultAWSProfile();
-            awsRegion = GetDefaultAWSRegion();
+            awsProfile = awsProfile ?? GetDefaultAWSProfile();
+            awsRegion = awsRegion ?? GetDefaultAWSRegion();
 
             if (venue == "sops")
             {
