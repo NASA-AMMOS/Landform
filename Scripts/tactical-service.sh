@@ -15,13 +15,13 @@
 #
 # ./Scripts/m20-credss.sh
 #
-# ./Scripts/tactical-service.sh ROASTT20 --queuename=m20-ids-g-landform-tactical-$USERNAME \
+# ./Scripts/tactical-service.sh ROASTT20 --queuename=m20-ids-g-sqs-landform-tactical-$USERNAME \
 #     --landformownedqueues --service 
 #
-# ./Scripts/tactical-service.sh ROASTT20 --queuename=m20-ids-g-landform-tactical-$USERNAME \
+# ./Scripts/tactical-service.sh ROASTT20 --queuename=m20-ids-g-sqs-landform-tactical-$USERNAME \
 #    --sendmessage TestData/TestData/json/m2020-tactical-navcam-downsample1-event.json
 #
-# ./Scripts/tactical-service.sh ROASTT20 --queuename=m20-ids-g-landform-tactical-$USERNAME \
+# ./Scripts/tactical-service.sh ROASTT20 --queuename=m20-ids-g-sqs-landform-tactical-$USERNAME \
 #     --landformownedqueues --deletequeues
 
 if [ $# -lt 1 ]; then

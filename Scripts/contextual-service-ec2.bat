@@ -38,7 +38,7 @@ if not "%LANDFORM_CREDENTIAL_REFRESH_SEC%"=="" set credentialrefresh=--credentia
 
 rem --- end service boilerplate, begin service specific boilerplate ---
 
-set queue=m20-ids-g-landform-contextual-worker
+set queue=m20-ids-g-sqs-landform-contextual-worker
 if not "%LANDFORM_CONTEXTUAL_WORKER_QUEUE%"=="" set queue=%LANDFORM_CONTEXTUAL_WORKER_QUEUE%
 
 set failqueue=auto

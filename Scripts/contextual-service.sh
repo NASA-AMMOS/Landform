@@ -15,13 +15,13 @@
 #
 # ./Scripts/m20-credss.sh
 #
-# ./Scripts/contextual-service.sh ROASTT20 --queuename=m20-ids-g-landform-contextual-$USERNAME \
+# ./Scripts/contextual-service.sh ROASTT20 --queuename=m20-ids-g-sqs-landform-contextual-$USERNAME \
 #     --landformownedqueues --service 
 #
-# ./Scripts/contextual-service.sh ROASTT20 --queuename=m20-ids-g-landform-contextual-$USERNAME \
+# ./Scripts/contextual-service.sh ROASTT20 --queuename=m20-ids-g-sqs-landform-contextual-$USERNAME \
 #    --sendmessage TestData/TestData/json/roastt20-sol403-contextual-event.json
 #
-# ./Scripts/contextual-service.sh ROASTT20 --queuename=m20-ids-g-landform-contextual-$USERNAME \
+# ./Scripts/contextual-service.sh ROASTT20 --queuename=m20-ids-g-sqs-landform-contextual-$USERNAME \
 #     --landformownedqueues --deletequeues
 
 if [ $# -lt 1 ]; then

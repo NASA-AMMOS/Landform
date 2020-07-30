@@ -17,8 +17,8 @@
 # ./Scripts/m20-credss.sh
 #
 # ./Scripts/contextual-master.sh M2020 --landformownedqueues \
-#     --queuename=m20-ids-g-landform-contextual-master-$USERNAME \
-#     --workerqueuename=m20-ids-g-landform-contextual-$USERNAME
+#     --queuename=m20-ids-g-sqs-landform-contextual-master-$USERNAME \
+#     --workerqueuename=m20-ids-g-sqs-landform-contextual-$USERNAME
 
 if [ $# -lt 1 ]; then
     echo "USAGE: contextual-master.sh MISSION ..."
