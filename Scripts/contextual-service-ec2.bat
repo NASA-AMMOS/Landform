@@ -99,7 +99,7 @@ set svcopts=%stdopts% --stacktraces --service --mission=%mission% --queuename=%q
 set svcopts=%svcopts% --awsprofile=%awsprofile% --awsregion=%awsregion% %credentialrefresh%
 
 set contextualopts=--maxfetch=%maxfetch% --maxorbital=%maxorbital% %nocombinedmanifest% %noorbital% %nosky% %skymode%
-set contextualopts=%contextualopts% %indices% --extent %extent% --surfaceextent %surfaceextent%
+set contextualopts=%contextualopts% %indices% --extent=%extent% --surfaceextent=%surfaceextent%
 
 set appsdir=%bindir%\ExternalApps
 if exist %appsdir%\opengl32-for-ivcat.dll (
