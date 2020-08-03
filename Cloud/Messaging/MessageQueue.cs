@@ -35,7 +35,7 @@ namespace OPS.Cloud
 
     public class MessageQueue
     {
-        public const int DEF_TIMEOUT_SEC = 20;
+        public const int DEF_TIMEOUT_SEC = 30;
 
         public string Name { get; private set; }
         public int TimeoutSec { get; private set; }
