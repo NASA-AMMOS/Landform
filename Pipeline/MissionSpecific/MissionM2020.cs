@@ -108,7 +108,7 @@ namespace OPS.Pipeline
             }
             catch (Exception ex)
             {
-                error("error getting credentials from SSM: " + ex.Message);
+                error("error getting credentials from SSM: " + ex.Message.Replace("{", "{{").Replace("}", "}}"));
                 return null;
             }
 
