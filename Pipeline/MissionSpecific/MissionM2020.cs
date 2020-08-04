@@ -89,6 +89,10 @@ namespace OPS.Pipeline
                 {
                     string userKey = cfg.CSSOUsernameParameterInSSM.Replace("{venue}", venue);
                     bool userEncrypted = cfg.CSSOUsernameParameterInSSMEncrypted;
+                    if (logger != null)
+                    {
+                        logger.LogInfo("fetching CSSO username from {0}, encrypted={1}", userKey, userEncrypted);
+                    }
                     user = ps.GetParameter(userKey, userEncrypted);
                     if (string.IsNullOrEmpty(user))
                     {
@@ -98,6 +102,10 @@ namespace OPS.Pipeline
                     
                     string passKey = cfg.CSSOPasswordParameterInSSM.Replace("{venue}", venue);
                     bool passEncrypted = cfg.CSSOPasswordParameterInSSMEncrypted;
+                    if (logger != null)
+                    {
+                        logger.LogInfo("fetching CSSO password from {0}, encrypted={1}", passKey, passEncrypted);
+                    }
                     pass = ps.GetParameter(passKey);
                     if (string.IsNullOrEmpty(user))
                     {
