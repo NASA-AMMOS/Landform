@@ -10,7 +10,7 @@ dir=$1
 if [ $# -gt 1 ]; then
     products=$2
 else
-    products="RAS|MXY|XYZ|UVW"
+    products="RAS|RZS|CPG|MXY|XYZ|UVW"
 fi
 
 if [ $# -gt 2 ]; then
