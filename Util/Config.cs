@@ -222,18 +222,18 @@ namespace OPS.Util
             Func<string, bool> parseBool = str => !string.IsNullOrEmpty(str) && str.ToLower() == "true";
 
             new TypeDispatcher()
-                .Case<string>(v => setValue(value))
-                .Case<int>(v => setValue(int.Parse(value)))
-                .Case<byte>(v => setValue(byte.Parse(value)))
-                .Case<short>(v => setValue(short.Parse(value)))
-                .Case<long>(v => setValue(long.Parse(value)))
-                .Case<uint>(v => setValue(uint.Parse(value)))
-                .Case<ushort>(v => setValue(ushort.Parse(value)))
-                .Case<ulong>(v => setValue(ulong.Parse(value)))
-                .Case<float>(v => setValue(float.Parse(value)))
-                .Case<double>(v => setValue(double.Parse(value)))
-                .Case<bool>(v => setValue(parseBool(value)))
-                .Handle(type, value);
+                .Case<string>(_ => setValue(value))
+                .Case<int>(_ => setValue(int.Parse(value)))
+                .Case<byte>(_ => setValue(byte.Parse(value)))
+                .Case<short>(_ => setValue(short.Parse(value)))
+                .Case<long>(_ => setValue(long.Parse(value)))
+                .Case<uint>(_ => setValue(uint.Parse(value)))
+                .Case<ushort>(_ => setValue(ushort.Parse(value)))
+                .Case<ulong>(_ => setValue(ulong.Parse(value)))
+                .Case<float>(_ => setValue(float.Parse(value)))
+                .Case<double>(_ => setValue(double.Parse(value)))
+                .Case<bool>(_ => setValue(parseBool(value)))
+                .Handle(type);
         }
     }
 }
