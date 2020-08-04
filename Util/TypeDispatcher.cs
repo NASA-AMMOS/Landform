@@ -15,7 +15,7 @@ namespace OPS.Util
 
         public TypeDispatcher Case<T>(Action<T> action)
         {
-            handlers.Add(typeof(T), (x) => action((T)x));
+            handlers.Add(typeof(T), (x) => action(x == null ? default(T) : (T)x));
             return this;
         } 
         
@@ -39,6 +39,11 @@ namespace OPS.Util
                 }
                 return false;
             }
+        }
+
+        public bool Handle(Type t)
+        {
+            return Handle(t, null);
         }
     }
 }
