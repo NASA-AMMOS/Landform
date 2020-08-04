@@ -12,6 +12,31 @@ using Microsoft.Xna.Framework;
 
 namespace OPS.Pipeline
 {
+    public class MissionM2020Config : SingletonConfig<MissionM2020Config>
+    {
+        public const string CONFIG_FILENAME = "mission-m2020"; //config file will be ~/.landform/mission-m2020.json
+        public override string ConfigFileName()
+        {
+            return CONFIG_FILENAME;
+        }
+
+        //CSSO credentials uername parameter in SSM, {venue} will be replaced
+        [ConfigEnvironmentVariable("LANDFORM_CSSO_USERNAME_PARAMETER_IN_SSM")]
+        public string CSSOUsernameParameterInSSM { get; set; } = "/m20/{venue}/ids/pipeline/csso_username";
+
+        //whether CSSO credentials username parameter in SSM is encrypted
+        [ConfigEnvironmentVariable("LANDFORM_CSSO_USERNAME_PARAMETER_IN_SSM_ENCRYPTED")]
+        public bool CSSOUsernameParameterInSSMEncrypted { get; set; } = true;
+
+        //CSSO credentials password parameter in SSM, {venue} will be replaced
+        [ConfigEnvironmentVariable("LANDFORM_CSSO_PASSWORD_PARAMETER_IN_SSM")]
+        public string CSSOPasswordParameterInSSM { get; set; } = "/m20/{venue}/ids/pipeline/csso_password";
+
+        //whether CSSO credentials password parameter in SSM is encrypted
+        [ConfigEnvironmentVariable("LANDFORM_CSSO_PASSWORD_PARAMETER_IN_SSM_ENCRYPTED")]
+        public bool CSSOPasswordParameterInSSMEncrypted { get; set; } = true;
+    }
+    
     public class MissionM2020 : MissionSpecific
     {
         public const int EECAM_DOWNSAMPLE_FIELD = 46;
@@ -58,23 +83,25 @@ namespace OPS.Pipeline
             string user = null, pass = null;
             try
             {
+                var cfg = MissionM2020Config.Instance;
+
                 using (var ps = new ParameterStore(awsProfile, awsRegion))
                 {
-                    string keyBase = $"/m20/{venue}/ids/pipeline/csso_";
-                    
-                    string userKey = keyBase + "username";
-                    user = ps.GetParameter(userKey);
+                    string userKey = cfg.CSSOUsernameParameterInSSM.Replace("{venue}", venue);
+                    bool userEncrypted = cfg.CSSOUsernameParameterInSSMEncrypted;
+                    user = ps.GetParameter(userKey, userEncrypted);
                     if (string.IsNullOrEmpty(user))
                     {
-                        error($"failed to get \"{userKey}\" from SSM");
+                        error($"failed to get \"{userKey}\" from SSM, encrypted={userEncrypted}");
                         return null;
                     }
                     
-                    string passKey = keyBase + "password";
+                    string passKey = cfg.CSSOPasswordParameterInSSM.Replace("{venue}", venue);
+                    bool passEncrypted = cfg.CSSOPasswordParameterInSSMEncrypted;
                     pass = ps.GetParameter(passKey);
                     if (string.IsNullOrEmpty(user))
                     {
-                        error($"failed to get \"{passKey}\" from SSM");
+                        error($"failed to get \"{passKey}\" from SSM, encrypted={passEncrypted}");
                         return null;
                     }
                 }

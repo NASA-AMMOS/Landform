@@ -52,9 +52,9 @@ namespace OPS.Cloud
             client = null;
         }
 
-        public string GetParameter(string name)
+        public string GetParameter(string name, bool decrypt = false)
         {
-            var response = client.GetParameter(new GetParameterRequest() { Name = name });
+            var response = client.GetParameter(new GetParameterRequest() { Name = name, WithDecryption = decrypt });
             if (response.HttpStatusCode != HttpStatusCode.OK)
             {
                 throw new CloudException($"failed to get SSM parameter {name}: http status {response.HttpStatusCode}");
