@@ -106,7 +106,7 @@ namespace OPS.Pipeline
                     {
                         logger.LogInfo("fetching CSSO password from {0}, encrypted={1}", passKey, passEncrypted);
                     }
-                    pass = ps.GetParameter(passKey);
+                    pass = ps.GetParameter(passKey, passEncrypted);
                     if (string.IsNullOrEmpty(user))
                     {
                         error($"failed to get \"{passKey}\" from SSM, encrypted={passEncrypted}");
