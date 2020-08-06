@@ -187,7 +187,7 @@ namespace OPS.Landform
             bool acceptBucketPath(string url)
             {
                 string path = (new S3Url(url)).Path.ToLower();
-                return !path.StartsWith("/ids-pipeline/") &&
+                return !path.Contains("/ids-pipeline/") &&
                     path.Contains("/rdr/") &&
                     !path.Contains("/rdr/browse/") &&
                     !path.Contains("/rdr/mosaic/") &&
