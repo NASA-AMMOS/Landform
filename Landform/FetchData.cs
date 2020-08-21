@@ -1039,7 +1039,7 @@ namespace OPS.Landform
                         solToProducts.TryAdd(sol, prods);
                     });
                     
-                    if (!options.NoUnifiedMeshes && (mission == null || mission.AllowMultiFrameProducts()))
+                    if (!options.NoUnifiedMeshes && (mission == null || mission.AllowMultiFrame()))
                     {
                         var urls = new List<string>();
                         if (!string.IsNullOrEmpty(options.UnifiedMeshes))

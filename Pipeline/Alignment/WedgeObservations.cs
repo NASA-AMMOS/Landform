@@ -212,7 +212,7 @@ namespace OPS.Pipeline
                 }
             }
 
-            private static RoverProductGeometry[] GetLinearPreference(Mission mission)
+            private static RoverProductGeometry[] GetLinearPreference(MissionSpecific mission)
             {
                 if (!mission.AllowLinear() && !mission.AllowNonlinear())
                 {
