@@ -497,21 +497,11 @@ namespace OPS.Pipeline
                 "}";
         }
 
-        public override bool AllowPlacesDB()
-        {
-            return false; //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/535
-        }
-
         public override string GetPlacesConfigDefaults()
         {
             //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/725#issuecomment-267319
-            //per Kevin Grimes on 3/18/20 M20 dev CWS data will soon be available at
-            //https://places-pipeline.dev.m20.jpl.nasa.gov
-
-            //though that'd just be for dev, still TBD what the places instance will be for flight
-
             return "{\n" +
-                $"\"Url\": \"https://places-pipeline.{venue}.m20.jpl.nasa.gov\",\n" +
+                $"\"Url\": \"https://places.{venue}.m20.jpl.nasa.gov\",\n" +
                 "\"View\": \"best_tactical\",\n" +
                 "\"AuthCookieName\": \"ssosession\",\n" +
                 $"\"AuthCookieFile\": \"~/.cssotoken/{venue}/ssosession\"\n" +
@@ -781,7 +771,6 @@ namespace OPS.Pipeline
             //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/725#issuecomment-267319
             //per Kevin Grimes on 3/18/20 ROASTT20 data will soon move to
             //https://places-roastt.dev.m20.jpl.nasa.gov
-
             return "{\n" +
                 $"\"Url\": \"https://places-rocs.{venue}.m20.jpl.nasa.gov\",\n" +
                 "\"View\": \"best_tactical\",\n" +
@@ -810,22 +799,6 @@ namespace OPS.Pipeline
                 "\"ImageStoragePath\": \"\",\n" +
                 "\"DEMPlacesDBIndex\": -1,\n" +
                 "\"ImagePlacesDBIndex\": -1\n" +
-                "}";
-        }
-
-        public override bool AllowPlacesDB()
-        {
-            return false; //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/535
-        }
-
-        public override string GetPlacesConfigDefaults()
-        {
-            //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/535
-            return "{\n" +
-                $"\"Url\": \"https://places.{venue}.m20.jpl.nasa.gov\",\n" +
-                "\"View\": \"best_tactical\",\n" +
-                "\"AuthCookieName\": \"ssosession\",\n" +
-                $"\"AuthCookieFile\": \"~/.cssotoken/{venue}/ssosession\"\n" +
                 "}";
         }
     }
