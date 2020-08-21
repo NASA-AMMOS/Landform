@@ -207,9 +207,34 @@ namespace OPS.Pipeline
                 if (mission != null)
                 {
                     Comparator =  mission.GetRoverObservationComparator();
-                    LinearPreference = mission.GetLinearPreference();
+                    LinearPreference = GetLinearPreference(mission);
                     MeshExts = new string[] { mission.GetTacticalMeshExt().ToLower().TrimStart('.') };
                 }
+            }
+
+            private static RoverProductGeometry[] GetLinearPreference(Mission mission)
+            {
+                if (!mission.AllowLinear() && !mission.AllowNonlinear())
+                {
+                    return new RoverProductGeometry[] {}; //yeah...
+                }
+                
+                if (!mission.AllowLinear())
+                {
+                    return new RoverProductGeometry[] { RoverProductGeometry.Raw };
+                }
+                
+                if (!mission.AllowNonlinear())
+                {
+                    return new RoverProductGeometry[] { RoverProductGeometry.Linearized };
+                }
+                
+                if (mission.PreferLinearToNonlinear())
+                {
+                    return new RoverProductGeometry[] { RoverProductGeometry.Linearized, RoverProductGeometry.Raw };
+                }
+                
+                return new RoverProductGeometry[] { RoverProductGeometry.Raw, RoverProductGeometry.Linearized };
             }
         }
 

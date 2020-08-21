@@ -11,6 +11,24 @@ using Microsoft.Xna.Framework;
 
 namespace OPS.Pipeline
 {
+    public class MissionMSLConfig : SingletonConfig<MissionMSLConfig>
+    {
+        public const string CONFIG_FILENAME = "mission-msl"; //config file will be ~/.landform/mission-msl.json
+        public override string ConfigFileName()
+        {
+            return CONFIG_FILENAME;
+        }
+        
+        [ConfigEnvironmentVariable("LANDFORM_ALLOW_PDS_LABEL_FILES")]
+        public bool AllowPDSLabelFiles { get; set; } = true;
+        
+        [ConfigEnvironmentVariable("LANDFORM_ALLOW_LOCATIONS_DB")]
+        public bool AllowLocationsDB { get; set; } = true;
+        
+        [ConfigEnvironmentVariable("LANDFORM_ALLOW_LEGACY_MANIFEST_DB")]
+        public bool AllowLegacyManifestDB { get; set; } = true;
+    }
+
     public class MissionMSL : MissionSpecific
     {
         public const int MIN_HAZ_EXPOSURE = 80;
@@ -123,17 +141,17 @@ namespace OPS.Pipeline
 
         public override bool AllowPDSLabelFiles()
         {
-            return true;
+            return MissionMSLConfig.Instance.AllowPDSLabelFiles;
         }
 
         public override bool AllowLocationsDB()
         {
-            return true;
+            return MissionMSLConfig.Instance.AllowLocationsDB;
         }
 
         public override bool AllowLegacyManifestDB()
         {
-            return true;
+            return MissionMSLConfig.Instance.AllowLegacyManifestDB;
         }
 
         public override RoverProductId ParseProductId(string id)
