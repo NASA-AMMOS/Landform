@@ -35,6 +35,10 @@ namespace OPS.Pipeline
         //whether CSSO credentials password parameter in SSM is encrypted
         [ConfigEnvironmentVariable("LANDFORM_CSSO_PASSWORD_PARAMETER_IN_SSM_ENCRYPTED")]
         public bool CSSOPasswordParameterInSSMEncrypted { get; set; } = true;
+
+        //{venue} will be replaced with mission venue
+        [ConfigEnvironmentVariable("LANDFORM_S3_DATA_PROXY")]
+        public string S3Proxy { get; set; } = "https://data.{venue}.m20.jpl.nasa.gov";
     }
     
     public class MissionM2020 : MissionSpecific
@@ -480,7 +484,7 @@ namespace OPS.Pipeline
 
         public override string GetS3Proxy()
         {
-            return $"https://data.{venue}.m20.jpl.nasa.gov";
+            return MissionM2020Config.Instance.S3Proxy.Replace("{venue}", venue);
         }
 
         public override string GetOrbitalConfigDefaults()
