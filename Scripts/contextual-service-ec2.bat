@@ -71,25 +71,25 @@ set maxorbital=20G
 if not "%LANDFORM_CONTEXTUAL_MAX_ORBITAL%"=="" set maxorbital=%LANDFORM_CONTEXTUAL_MAX_ORBITAL%
 
 set nocombinedmanifest=
-if not "%LANDFORM_CONTEXTUAL_NO_COMBINED_MANIFEST%"=="" set nocombinedmanifest==--nocombinedmanifest
+if not "%LANDFORM_CONTEXTUAL_NO_COMBINED_MANIFEST%"=="" set nocombinedmanifest=--nocombinedmanifest
 
 set noorbital=
-if not "%LANDFORM_CONTEXTUAL_NO_ORBITAL%"=="" set noorbital==--noorbital
+if not "%LANDFORM_CONTEXTUAL_NO_ORBITAL%"=="" set noorbital=--noorbital
 
 set nosky=
-if not "%LANDFORM_CONTEXTUAL_NO_SKY%"=="" set nosky==--nosky
+if not "%LANDFORM_CONTEXTUAL_NO_SKY%"=="" set nosky=--nosky
 
 set skymode=
-if not "%LANDFORM_CONTEXTUAL_SKY_MODE%"=="" set skymode==--skymode=%LANDFORM_CONTEXTUAL_SKY_MODE%
+if not "%LANDFORM_CONTEXTUAL_SKY_MODE%"=="" set skymode=--skymode=%LANDFORM_CONTEXTUAL_SKY_MODE%
 
 set indices=
-if not "%LANDFORM_CONTEXTUAL_INDICES%"=="" set indices==--publishindeximages
+if not "%LANDFORM_CONTEXTUAL_INDICES%"=="" set indices=--publishindeximages
 
 set extent=32
-if not "%LANDFORM_CONTEXTUAL_EXTENT%"=="" set extent==%LANDFORM_CONTEXTUAL_EXTENT%
+if not "%LANDFORM_CONTEXTUAL_EXTENT%"=="" set extent=%LANDFORM_CONTEXTUAL_EXTENT%
 
 set surfaceextent=64
-if not "%LANDFORM_CONTEXTUAL_SURFACE_EXTENT%"=="" set surfaceextent==%LANDFORM_CONTEXTUAL_SURFACE_EXTENT%
+if not "%LANDFORM_CONTEXTUAL_SURFACE_EXTENT%"=="" set surfaceextent=%LANDFORM_CONTEXTUAL_SURFACE_EXTENT%
 
 rem --- end service specific ---
 
