@@ -14,6 +14,106 @@ namespace OPS.Pipeline
 {
     public enum Mission { None, MSL, M2020, ROASTT19, TT4, ScarecrowEECAM, ROASTT20, M20SOPS }
 
+    public class MissionConfig : SingletonConfig<MissionConfig>
+    {
+        public const string CONFIG_FILENAME = "mission"; //config file will be ~/.landform/mission.json
+        public override string ConfigFileName()
+        {
+            return CONFIG_FILENAME;
+        }
+
+        [ConfigEnvironmentVariable("LANDFORM_ALLOW_PDS_LABEL_FILES")]
+        public bool AllowPDSLabelFiles { get; set; } = false;
+
+        [ConfigEnvironmentVariable("LANDFORM_ALLOW_LOCATIONS_DB")]
+        public bool AllowLocationsDB { get; set; } = false;
+
+        [ConfigEnvironmentVariable("LANDFORM_ALLOW_PLACES_DB")]
+        public bool AllowPlacesDB { get; set; } = true;
+
+        [ConfigEnvironmentVariable("LANDFORM_ALLOW_LEGACY_MANIFEST_DB")]
+        public bool AllowLegacyManifestDB { get; set; } = false;
+
+        [ConfigEnvironmentVariable("LANDFORM_ALLOW_OPGS")]
+        public bool AllowOPGS { get; set; } = true;
+
+        [ConfigEnvironmentVariable("LANDFORM_ALLOW_MSSS")]
+        public bool AllowMSSS { get; set; } = true;
+
+        [ConfigEnvironmentVariable("LANDFORM_ALLOW_THUMBNAILS")]
+        public bool AllowThumbnails { get; set; } = false;
+
+        [ConfigEnvironmentVariable("LANDFORM_ALLOW_PARTIAL_PRODUCTS")]
+        public bool AllowPartialProducts { get; set; } = false;
+
+        [ConfigEnvironmentVariable("LANDFORM_ALLOW_SUN_FINDING")]
+        public bool AllowSunFinding { get; set; } = false;
+
+        [ConfigEnvironmentVariable("LANDFORM_ALLOW_LINEAR")]
+        public bool AllowLinear { get; set; } = true;
+
+        [ConfigEnvironmentVariable("LANDFORM_ALLOW_NONLINEAR")]
+        public bool AllowNonLinear { get; set; } = true;
+
+        [ConfigEnvironmentVariable("LANDFORM_ALLOW_MULTI_FRAME")]
+        public bool AllowMultiFrame { get; set; } = true;
+
+        [ConfigEnvironmentVariable("LANDFORM_PREFER_MSSS_TO_OPGS")]
+        public bool PreferMSSSToOPGS { get; set; } = false;
+
+        [ConfigEnvironmentVariable("LANDFORM_PREFER_LINEAR_TO_NONLINEAR")]
+        public bool PreferLinearToNonlinear { get; set; } = true;
+
+        [ConfigEnvironmentVariable("LANDFORM_PREFER_COLOR_TO_GRAYSCALE")]
+        public bool PreferColorToGrayscale { get; set; } = true;
+
+        [ConfigEnvironmentVariable("LANDFORM_USE_ROVER_MASKS")]
+        public bool UseRoverMasks { get; set; } = true;
+
+        //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/500
+        [ConfigEnvironmentVariable("LANDFORM_USE_ERROR_MAPS")]
+        public bool UseErrorMaps { get; set; } = false;
+
+        [ConfigEnvironmentVariable("LANDFORM_USE_HAZCAM_FOR_ALIGNMENT")]
+        public bool UseHazcamForAlignment { get; set; } = true;
+
+        [ConfigEnvironmentVariable("LANDFORM_USE_HAZCAM_FOR_MESHING")]
+        public bool UseHazcamForMeshing { get; set; } = true;
+
+        [ConfigEnvironmentVariable("LANDFORM_USE_HAZCAM_FOR_TEXTURING")]
+        public bool UseHazcamForTexturing { get; set; } = true;
+
+        [ConfigEnvironmentVariable("LANDFORM_USE_NAVCAM_FOR_ALIGNMENT")]
+        public bool UseNavcamForAlignment { get; set; } = true;
+
+        [ConfigEnvironmentVariable("LANDFORM_USE_NAVCAM_FOR_MESHING")]
+        public bool UseNavcamForMeshing { get; set; } = true;
+
+        [ConfigEnvironmentVariable("LANDFORM_USE_NAVCAM_FOR_TEXTURING")]
+        public bool UseNavcamForTexturing { get; set; } = true;
+
+        //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/261
+        [ConfigEnvironmentVariable("LANDFORM_USE_MASTCAM_FOR_ALIGNMENT")]
+        public bool UseMastcamForAlignment { get; set; } = false;
+
+        //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/261
+        [ConfigEnvironmentVariable("LANDFORM_USE_MASTCAM_FOR_MESHING")]
+        public bool UseMastcamForMeshing { get; set; } = false;
+
+        [ConfigEnvironmentVariable("LANDFORM_USE_MASTCAM_FOR_TEXTURING")]
+        public bool UseMastcamForTexturing { get; set; } = true;
+
+        [ConfigEnvironmentVariable("LANDFORM_USE_ARMCAM_FOR_ALIGNMENT")]
+        public bool UseArmcamForAlignment { get; set; } = false;
+
+        [ConfigEnvironmentVariable("LANDFORM_USE_ARMCAM_FOR_MESHING")]
+        public bool UseArmcamForMeshing { get; set; } = false;
+
+        //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/756
+        [ConfigEnvironmentVariable("LANDFORM_USE_ARMCAM_FOR_TEXTURING")]
+        public bool UseArmcamForTexturing { get; set; } = false;
+    }
+
     public abstract class MissionSpecific : ConfigDefaultsProvider
     {
         protected readonly string venue;
@@ -171,31 +271,6 @@ namespace OPS.Pipeline
             return products;
         }
 
-        public virtual RoverProductGeometry[] GetLinearPreference()
-        {
-            if (!AllowLinear() && !AllowNonlinear())
-            {
-                return new RoverProductGeometry[] {}; //yeah...
-            }
-
-            if (!AllowLinear())
-            {
-                return new RoverProductGeometry[] { RoverProductGeometry.Raw };
-            }
-
-            if (!AllowNonlinear())
-            {
-                return new RoverProductGeometry[] { RoverProductGeometry.Linearized };
-            }
-
-            if (PreferLinearToNonlinear())
-            {
-                return new RoverProductGeometry[] { RoverProductGeometry.Linearized, RoverProductGeometry.Raw };
-            }
-
-            return new RoverProductGeometry[] { RoverProductGeometry.Raw, RoverProductGeometry.Linearized };
-        }
-
         public virtual RoverStereoEye PreferEyeForGeometry()
         {
             return RoverStereoEye.Left;
@@ -263,7 +338,7 @@ namespace OPS.Pipeline
         /// </summary>
         public virtual bool AllowPDSLabelFiles()
         {
-            return false;
+            return MissionConfig.Instance.AllowPDSLabelFiles;
         }
 
         /// <summary>
@@ -271,7 +346,7 @@ namespace OPS.Pipeline
         /// </summary>
         public virtual bool AllowLocationsDB()
         {
-            return false;
+            return MissionConfig.Instance.AllowLocationsDB;
         }
 
         /// <summary>
@@ -279,7 +354,7 @@ namespace OPS.Pipeline
         /// </summary>
         public virtual bool AllowPlacesDB()
         {
-            return true;
+            return MissionConfig.Instance.AllowPlacesDB;
         }
              
         /// <summary>
@@ -287,7 +362,7 @@ namespace OPS.Pipeline
         /// </summary>
         public virtual bool AllowLegacyManifestDB()
         {
-            return false;
+            return MissionConfig.Instance.AllowLegacyManifestDB;
         }
 
         /// <summary>
@@ -295,7 +370,7 @@ namespace OPS.Pipeline
         /// </summary>
         public virtual bool AllowOPGS()
         {
-            return true;
+            return MissionConfig.Instance.AllowOPGS;
         }
 
         /// <summary>
@@ -303,7 +378,7 @@ namespace OPS.Pipeline
         /// </summary>
         public virtual bool AllowMSSS()
         {
-            return true;
+            return MissionConfig.Instance.AllowMSSS;
         }
 
         /// <summary>
@@ -311,15 +386,15 @@ namespace OPS.Pipeline
         /// </summary>
         public virtual bool AllowThumbnails()
         {
-            return false;
+            return MissionConfig.Instance.AllowThumbnails;
         }
 
         /// <summary>
         /// whether to ingest partially downloaded images
         /// </summary>
-        public virtual bool AllowPartialDownloads()
+        public virtual bool AllowPartialProducts()
         {
-            return false;
+            return MissionConfig.Instance.AllowPartialProducts;
         }
 
         /// <summary>
@@ -327,7 +402,7 @@ namespace OPS.Pipeline
         /// </summary>
         public virtual bool AllowSunFinding()
         {
-            return false;
+            return MissionConfig.Instance.AllowSunFinding;
         }
 
         /// <summary>
@@ -335,7 +410,7 @@ namespace OPS.Pipeline
         /// </summary>
         public virtual bool AllowLinear()
         {
-            return true;
+            return MissionConfig.Instance.AllowLinear;
         }
 
         /// <summary>
@@ -344,15 +419,15 @@ namespace OPS.Pipeline
         /// </summary>
         public virtual bool AllowNonlinear()
         {
-            return true;
+            return MissionConfig.Instance.AllowNonLinear;
         }
 
         /// <summary>
         /// whether to allow multi-frame products such as unified meshes
         /// </summary>
-        public virtual bool AllowMultiFrameProducts()
+        public virtual bool AllowMultiFrame()
         {
-            return true;
+            return MissionConfig.Instance.AllowMultiFrame;
         }
 
         /// <summary>
@@ -360,15 +435,17 @@ namespace OPS.Pipeline
         /// </summary>
         public virtual bool PreferMSSSToOPGS()
         {
-            return false;
+            return MissionConfig.Instance.PreferMSSSToOPGS;
         }
 
         /// <summary>
         /// whether to prefer linear to nonlinear images when both are available
+        /// note this is mainly used when collecting WedgeObservations for alignment and geometry stages
+        /// texturing is separately controlled, see TextureCommandOptions.PreferLinearToNonlinear
         /// </summary>
         public virtual bool PreferLinearToNonlinear()
         {
-            return true;
+            return MissionConfig.Instance.PreferLinearToNonlinear;
         }
 
         /// <summary>
@@ -376,77 +453,77 @@ namespace OPS.Pipeline
         /// </summary>
         public virtual bool PreferColorToGrayscale()
         {
-            return true;
+            return MissionConfig.Instance.PreferColorToGrayscale;
         }
 
         public virtual bool UseRoverMasks()
         {
-            return true; //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/755
+            return MissionConfig.Instance.UseRoverMasks;
         }
 
         public virtual bool UseErrorMaps()
         {
-            return false; //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/500
+            return MissionConfig.Instance.UseErrorMaps;
         }
 
         public virtual bool UseHazcamForAlignment()
         {
-            return true; //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/328
+            return MissionConfig.Instance.UseHazcamForAlignment;
         }
 
         public virtual bool UseHazcamForMeshing()
         {
-            return true;
+            return MissionConfig.Instance.UseHazcamForMeshing;
         }
 
         public virtual bool UseHazcamForTexturing()
         {
-            return true; //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/729
+            return MissionConfig.Instance.UseHazcamForTexturing;
         }
 
         public virtual bool UseNavcamForAlignment()
         {
-            return true;
+            return MissionConfig.Instance.UseNavcamForAlignment;
         }
 
         public virtual bool UseNavcamForMeshing()
         {
-            return true;
+            return MissionConfig.Instance.UseNavcamForMeshing;
         }
 
         public virtual bool UseNavcamForTexturing()
         {
-            return true;
+            return MissionConfig.Instance.UseNavcamForTexturing;
         }
 
         public virtual bool UseMastcamForAlignment()
         {
-            return false; //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/261
+            return MissionConfig.Instance.UseMastcamForAlignment;
         }
 
         public virtual bool UseMastcamForMeshing()
         {
-            return false; //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/261
+            return MissionConfig.Instance.UseMastcamForMeshing;
         }
 
         public virtual bool UseMastcamForTexturing()
         {
-            return true;
+            return MissionConfig.Instance.UseMastcamForTexturing;
         }
 
         public virtual bool UseArmcamForAlignment()
         {
-            return false;
+            return MissionConfig.Instance.UseArmcamForAlignment;
         }
 
         public virtual bool UseArmcamForMeshing()
         {
-            return false;
+            return MissionConfig.Instance.UseArmcamForMeshing;
         }
 
         public virtual bool UseArmcamForTexturing()
         {
-            return false; //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/756
+            return MissionConfig.Instance.UseArmcamForTexturing;
         }
 
         public bool UseForAlignment(PDSParser parser)
@@ -567,7 +644,7 @@ namespace OPS.Pipeline
                 return false;
             }
 
-            if (!id.IsSingleFrame() && !AllowMultiFrameProducts())
+            if (!id.IsSingleFrame() && !AllowMultiFrame())
             {
                 reason = "multi frame products (e.g. unified meshes) not allowed";
                 return false;
@@ -694,9 +771,9 @@ namespace OPS.Pipeline
                 return false;
             }
 
-            if (!AllowPartialDownloads() && parser.IsPartial)
+            if (!AllowPartialProducts() && parser.IsPartial)
             {
-                reason = "partial downloads not allowed";
+                reason = "partial products not allowed";
                 return false;
             }
 
