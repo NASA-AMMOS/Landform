@@ -765,11 +765,6 @@ namespace OPS.Pipeline
                 "}";
         }
 
-        public override bool AllowPlacesDB()
-        {
-            return true;
-        }
-
         public override string GetPlacesConfigDefaults()
         {
             //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/725#issuecomment-267319
