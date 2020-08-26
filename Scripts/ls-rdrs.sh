@@ -28,8 +28,10 @@ while read line; do
     path=${words[3]}
     file=${path##*/}
     id=${file%.*}
+    id=${id%_tileset}
+    id=${id%_scene}
     ext=${file##*.}
     results[$id]="${results[$id]} ${ext}"
-done < <($s3ls $dir --recursive | grep -E -i ".*(${products}).*\.(${exts})" | tr -d '\r')
+done < <($s3ls $dir --recursive | grep -E -i "^.*(${products}).*\.(${exts})$" | tr -d '\r')
 
 sort <(for id in "${!results[@]}"; do echo "$id:${results[$id]}"; done)
