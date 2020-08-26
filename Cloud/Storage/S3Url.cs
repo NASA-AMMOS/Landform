@@ -11,9 +11,10 @@ namespace OPS.Cloud
     /// </summary>
     public class S3Url
     {
+        public string BucketName { get; set; } //does not include s3:// or trailing slash
 
-        public string BucketName { get; set; }
-        public string Path { get; set; }
+        public string Path { get; set; } //does not include leading slash
+
         public string Url
         {
             get
