@@ -5,7 +5,7 @@ if [ $# -lt 1 ]; then
     exit 1
 fi
 
-dir=$1
+url=$1
 
 if [ $# -gt 1 ]; then
     products=$2
@@ -32,6 +32,6 @@ while read line; do
     id=${id%_scene}
     ext=${file##*.}
     results[$id]="${results[$id]} ${ext}"
-done < <($s3ls $dir --recursive | grep -E -i "^.*(${products}).*\.(${exts})$" | tr -d '\r')
+done < <($s3ls $url --recursive | grep -E -i ".*(${products}).*\.(${exts})" | tr -d '\r')
 
 sort <(for id in "${!results[@]}"; do echo "$id:${results[$id]}"; done)

@@ -16,4 +16,4 @@ while read line; do
     words=($line)
     path=${words[3]}
     echo s3://$bucket/$path
-done < <($s3ls $url --recursive | grep -E -i "tileset.json$" | tr -d '\r')
+done < <($s3ls $url --recursive | grep -E -i "tileset.json" | tr -d '\r')
