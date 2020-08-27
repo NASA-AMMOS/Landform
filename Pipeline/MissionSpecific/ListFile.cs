@@ -73,6 +73,10 @@ namespace OPS.Pipeline
                     {
                         line = line.Trim();
                         lineNumber++;
+                        if (string.IsNullOrEmpty(line) || line.StartsWith("#"))
+                        {
+                            continue; //https://github.jpl.nasa.gov/OnSight/Landform/issues/1125
+                        }
                         var idStr = StringHelper.GetLastUrlPathSegment(line, stripExtension: true);
                         var id = RoverProductId.Parse(idStr, mission, throwOnFail: false);
                         if (id == null || !(id is OPGSProductId))
