@@ -92,6 +92,33 @@ namespace OPS.Landform
         protected MessageQueue messageQueue;
         protected MessageQueue failMessageQueue;
 
+        /// <summary>
+        /// ServiceLoop() acquires credentialRefreshLock before calling RefreshCredentials().
+        /// Other uses of credentials throughout ServiceLoop() (i.e. in the main thread), including in subclass
+        /// implementations of HandleMessage(), are not locked because they cannot overlap with the call to
+        /// RefreshCredentials() which is in the same thread.
+        ///
+        /// Other threads which require credentials should hold credentialRefreshLock (only) while needed.  Not to avoid
+        /// concurrent use of credentials, which is totally fine (and even necessary e.g. for HeartbeatLoop()), but to
+        /// prevent RefreshCredentials() from being called while the credentials may be in use.
+        ///
+        /// For example
+        /// * HeartbeatLoop() acquires credentials when it needs to update SQS message timeouts.
+        /// * ProcessContextual.MasterLoop() acquires credentials while it may use PLACES.
+        /// </summary>
+        protected object credentialRefreshLock = new Object();
+
+        /// <summary>
+        /// ServiceLoop() acquires deleteMessageLock while deleting messages from the SQS queue.
+        /// HeartbeatLoop() also acquires it while updating the message timeout.
+        /// This avoids overlaps between deleting the message and updating its timeout.
+        /// HeartbeatLoop() actually needs both credentialRefreshLock and deleteMessageLock while updating the timeout,
+        /// but that's OK.  It's the only thing that should acquire both at the same time.  Should anything else also
+        /// ever need to acquire both at the same time, the order must be 1) credentialRefreshLock; 2) deleteMessageLock
+        /// else deadlock can occur.
+        /// </summary>
+        private object deleteMessageLock = new Object();
+
         private QueueMessage currentMessage;
         private double messageStartSec;
 
@@ -574,9 +601,9 @@ namespace OPS.Landform
                         {
                             try
                             {
-                                lock (credentialRefreshLock)
+                                lock (deleteMessageLock)
                                 {
-                                    //the reason we hold credentialRefreshLock here is to make sure that
+                                    //the reason we hold deleteMessageLock here is to make sure that
                                     //the call to UpdateTimeout() in HeartbeatLoop() can't overlap with
                                     //this call to DeleteMessage()
                                     messageQueue.DeleteMessage(msg);
@@ -658,9 +685,16 @@ namespace OPS.Landform
 
                             lock (credentialRefreshLock)
                             {
-                                if (currentMessage != null) //message may have finished processing while we were waiting
+                                //specifically using two locks here, see
+                                //https://github.jpl.nasa.gov/OnSight/Landform/issues/1120
+                                //acquistion order to avoid deadlock: 1) credentialRefreshLock, 2) deleteMessageLock
+                                lock (deleteMessageLock)
                                 {
-                                    messageQueue.UpdateTimeout(currentMessage, timeoutSec);
+                                    //message may have finished processing while we were waiting
+                                    if (currentMessage != null)
+                                    {
+                                        messageQueue.UpdateTimeout(currentMessage, timeoutSec);
+                                    }
                                 }
                             }
                             
