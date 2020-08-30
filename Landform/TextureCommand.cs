@@ -222,8 +222,6 @@ namespace OPS.Landform
 
         protected virtual void FilterRoverImages()
         {
-            //the observation selection strategy has an opportunity to independently define its preference
-            //for linear or nonlinear images
             var comparator = new RoverObservationComparator(mission.GetRoverObservationComparator());
             comparator.logger = pipeline.Verbose ? pipeline : null;
             comparator.SetPreferLinearToNonlinear(tcopts.PreferLinearToNonlinear);

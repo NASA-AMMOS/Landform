@@ -142,7 +142,7 @@ namespace OPS.Cloud
         {
             S3Url location = new S3Url(s3url);
             var opts = ignoreCase ? RegexOptions.IgnoreCase : RegexOptions.None;
-            var regex = StringHelper.WildCardToRegularExression(pattern, opts);
+            var regex = StringHelper.WildcardToRegularExpression(pattern, opts);
             using (var client = GetClient(s3url))
             {
                 var request = new ListObjectsV2Request { BucketName = location.BucketName };

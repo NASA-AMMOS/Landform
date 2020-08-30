@@ -51,7 +51,7 @@ namespace OPS.Cloud
         //glacierEventData
     }
 
-    public class S3EventMessage
+    public class S3EventMessage : QueueMessage
     {
         public List<S3EventRecord> Records;
 
@@ -63,7 +63,7 @@ namespace OPS.Cloud
             }
 
             var record = msg.Records[0];
-            if (!record.eventName.StartsWith(eventType))
+            if (!string.IsNullOrEmpty(eventType) && !record.eventName.StartsWith(eventType))
             {
                 throw new Exception(string.Format("S3 event message {0} is not {1}", record.eventName, eventType));
             }

@@ -69,12 +69,20 @@ if not "%LANDFORM_CONTEXTUAL_WORKER_QUEUE%"=="" set workerqueue=%LANDFORM_CONTEX
 
 set masteropts=--workerqueuename=%workerqueue%
 
-if not "%LANDFORM_CONTEXTUAL_LIST_FORMAT%"=="" (
-   set masteropts=%masteropts% --listformat=%LANDFORM_CONTEXTUAL_LIST_FORMAT%
+if not "%LANDFORM_CONTEXTUAL_LIST_PATTERN%"=="" (
+   set masteropts=%masteropts% --listpattern=%LANDFORM_CONTEXTUAL_LIST_PATTERN%
 )
 
-if not "%LANDFORM_CONTEXTUAL_LIST_PREFIX%"=="" (
-   set masteropts=%masteropts% --listprefix=%LANDFORM_CONTEXTUAL_LIST_PREFIX%
+if not "%LANDFORM_CONTEXTUAL_WEDGE_PATTERN%"=="" (
+   set masteropts=%masteropts% --wedgepattern=%LANDFORM_CONTEXTUAL_WEDGE_PATTERN%
+)
+
+if not "%LANDFORM_CONTEXTUAL_SEARCH_FOR_ADDITIONAL_LISTS%"=="" (
+   set masteropts=%masteropts% --searchforadditionallists=%LANDFORM_CONTEXTUAL_SEARCH_FOR_ADDITIONAL_LISTS%
+)
+
+if not "%LANDFORM_CONTEXTUAL_SEARCH_FOR_ADDITIONAL_WEDGES%"=="" (
+   set masteropts=%masteropts% --searchforadditionalwedges=%LANDFORM_CONTEXTUAL_SEARCH_FOR_ADDITIONAL_WEDGES%
 )
 
 if not "%LANDFORM_CONTEXTUAL_MASTER_DEBOUNCE_SEC%"=="" (

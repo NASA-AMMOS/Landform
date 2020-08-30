@@ -112,6 +112,12 @@ namespace OPS.Pipeline
         //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/756
         [ConfigEnvironmentVariable("LANDFORM_USE_ARMCAM_FOR_TEXTURING")]
         public bool UseArmcamForTexturing { get; set; } = false;
+
+        [ConfigEnvironmentVariable("LANDFORM_USE_UNIFIED_MESHES")]
+        public bool UseUnifiedMeshes { get; set; } = true;
+
+        [ConfigEnvironmentVariable("LANDFORM_UNIFIED_MESH_PRODUCT_TYPE")]
+        public string UnifiedMeshProductType { get; set; } = "RAS";
     }
 
     public abstract class MissionSpecific : ConfigDefaultsProvider
@@ -524,6 +530,16 @@ namespace OPS.Pipeline
         public virtual bool UseArmcamForTexturing()
         {
             return MissionConfig.Instance.UseArmcamForTexturing;
+        }
+
+        public virtual bool UseUnifiedMeshes()
+        {
+            return MissionConfig.Instance.UseUnifiedMeshes;
+        }
+
+        public virtual string GetUnifiedMeshProductType()
+        {
+            return MissionConfig.Instance.UnifiedMeshProductType;
         }
 
         public bool UseForAlignment(PDSParser parser)

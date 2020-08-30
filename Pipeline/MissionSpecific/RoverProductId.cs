@@ -229,6 +229,12 @@ namespace OPS.Pipeline
             return false;
         }
 
+        public virtual bool GetSizeSpan(out int start, out int length)
+        {
+            start = length = -1;
+            return false;
+        }
+
         public string GetPartialId(int start, int length)
         {
             return FullId.Substring(start, length);
@@ -237,20 +243,21 @@ namespace OPS.Pipeline
         public virtual string GetPartialId(bool includeVersion = true, bool includeProductType = true,
                                            bool includeGeometry = true, bool includeColorFilter = true,
                                            bool includeInstrument = true, bool includeVariants = true,
-                                           bool includeStereoEye = true)
+                                           bool includeStereoEye = true, bool includeStereoPartner = true,
+                                           bool includeSize = true)
         {
             return GetPartialId(null,
-                                includeVersion, includeProductType,
-                                includeGeometry, includeColorFilter,
-                                includeInstrument, includeVariants,
-                                includeStereoEye);
+                                includeVersion, includeProductType, includeGeometry, includeColorFilter,
+                                includeInstrument, includeVariants, includeStereoEye, includeStereoPartner,
+                                includeSize);
         }
 
         public virtual string GetPartialId(MissionSpecific mission,
                                            bool includeVersion = true, bool includeProductType = true,
                                            bool includeGeometry = true, bool includeColorFilter = true,
                                            bool includeInstrument = true, bool includeVariants = true,
-                                           bool includeStereoEye = true)
+                                           bool includeStereoEye = true, bool includeStereoPartner = true,
+                                           bool includeSize = true)
         {
             string ret = FullId;
             int start, length;
@@ -280,6 +287,14 @@ namespace OPS.Pipeline
                 spans.Add(new int[] { start, length });
             }
             if (includeInstrument && !includeStereoEye && GetStereoEyeSpan(out start, out length))
+            {
+                spans.Add(new int[] { start, length });
+            }
+            if (!includeStereoPartner && GetStereoPartnerSpan(out start, out length))
+            {
+                spans.Add(new int[] { start, length });
+            }
+            if (!includeSize && GetSizeSpan(out start, out length))
             {
                 spans.Add(new int[] { start, length });
             }
@@ -335,12 +350,6 @@ namespace OPS.Pipeline
         {
             this.Size = ParseSize(size);
             this.SiteDrive = new SiteDrive(site, drive);
-        }
-
-        public virtual bool GetSizeSpan(out int start, out int length)
-        {
-            start = length = -1;
-            return false;
         }
 
         public virtual string AsThumbnail()

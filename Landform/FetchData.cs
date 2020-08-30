@@ -125,14 +125,17 @@ namespace OPS.Landform
         [Option(Default = null, HelpText = "Comma separated list of unified mesh filenames or URLs to use (overrides default algorithm to select lastest for each sitedrive)")]
         public string UnifiedMeshes { get; set; }
 
-        [Option(Default = false, HelpText = "Don't download and use unified meshes for filtering")]
-        public bool NoUnifiedMeshes { get; set; }
+        [Option(Default = "auto", HelpText = "Download and use unified meshes for filtering, true, false, or auto to use default for mission")]
+        public string UseUnifiedMeshes { get; set; }
+
+        [Option(Default = "auto", HelpText = "Product type to expect in unified meshes, or auto to use default for mission")]
+        public string UnifiedMeshProductType { get; set; }
 
         [Option(Default = false, HelpText = "Don't limit products from cameras used for geometry to only sitedrives with unified meshes for that camera")]
         public bool NoLimitGeometryCamerasToSiteDrivesWithUnifiedMeshes { get; set; }
 
-        [Option(Default = false, HelpText = "Don't use unified meshes to filter raster products")]
-        public bool NoFilterRasterProductsByUnifiedMesh { get; set; }
+        [Option(Default = false, HelpText = "Use unified meshes to filter raster products")]
+        public bool FilterRasterProductsByUnifiedMesh { get; set; }
 
         [Option(Default = false, HelpText = "Don't generalize unified meshes to both eyes")]
         public bool RespectUnifiedMeshStereoEye { get; set; }
@@ -359,11 +362,11 @@ namespace OPS.Landform
             }
 
             var includeRegex = StringHelper.ParseList(options.IncludePattern)
-                .Select(s => StringHelper.WildCardToRegularExression(s))
+                .Select(s => StringHelper.WildcardToRegularExpression(s))
                 .ToList();
 
             var excludeRegex = StringHelper.ParseList(options.ExcludePattern)
-                .Select(s => StringHelper.WildCardToRegularExression(s))
+                .Select(s => StringHelper.WildcardToRegularExpression(s))
                 .ToList();
 
             var acceptedExtensions = new HashSet<string>();
@@ -413,6 +416,17 @@ namespace OPS.Landform
                 acceptedExtensions.Add(".IV");
             }
 
+            //e.g. MSL unified meshes always have RAS products in them
+            string umProductType = null;
+            if (!string.IsNullOrEmpty(options.UnifiedMeshProductType))
+            {
+                umProductType = options.UnifiedMeshProductType;
+                if (string.Equals(umProductType, "auto", StringComparison.OrdinalIgnoreCase))
+                {
+                    umProductType = mission != null ? mission.GetUnifiedMeshProductType() : "RAS";
+                }
+            }
+
             bool checkUnifiedMeshes(RoverProductId id)
             {
                 if (unifiedMeshes.Count == 0 || !(id is OPGSProductId))
@@ -428,7 +442,7 @@ namespace OPS.Landform
 
                 //the mission uses geometry products from this camera
                 //apply the unified mesh filter to raster products from the camera as well
-                if (options.NoFilterRasterProductsByUnifiedMesh && RoverProduct.IsRaster(id.ProductType))
+                if (!options.FilterRasterProductsByUnifiedMesh && RoverProduct.IsRaster(id.ProductType))
                 {
                     return true;
                 }
@@ -441,10 +455,11 @@ namespace OPS.Landform
                     return options.NoLimitGeometryCamerasToSiteDrivesWithUnifiedMeshes;
                 }
 
-                string idStr = id.FullId; //replace product type with "RAS" - unified mesh entries are always RAS
-                if (id.GetProductTypeSpan(out int pts, out int ptl) && ptl == 3)
+                string idStr = id.FullId;
+
+                if (umProductType != null && id.GetProductTypeSpan(out int pts, out int ptl))
                 {
-                    idStr = id.FullId.Substring(0, pts) + "RAS" + id.FullId.Substring(pts + ptl);
+                    idStr = id.FullId.Substring(0, pts) + umProductType + id.FullId.Substring(pts + ptl);
                 }
                 else
                 {
@@ -1038,8 +1053,14 @@ namespace OPS.Landform
                         }
                         solToProducts.TryAdd(sol, prods);
                     });
-                    
-                    if (!options.NoUnifiedMeshes && (mission == null || mission.AllowMultiFrame()))
+
+                    bool useUnifiedMeshes = !string.IsNullOrEmpty(options.UseUnifiedMeshes) &&
+                        (mission == null || mission.AllowMultiFrame()) &&
+                        (string.Equals(options.UseUnifiedMeshes, "true", StringComparison.OrdinalIgnoreCase)) ||
+                        (string.Equals(options.UseUnifiedMeshes, "auto", StringComparison.OrdinalIgnoreCase) &&
+                         mission != null && mission.UseUnifiedMeshes());
+                        
+                    if (useUnifiedMeshes)
                     {
                         var urls = new List<string>();
                         if (!string.IsNullOrEmpty(options.UnifiedMeshes))

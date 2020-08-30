@@ -17,63 +17,65 @@ using OPS.Pipeline.AlignmentServer;
 
 namespace OPS.Landform
 {
+    public enum MessageType { Generic, S3Event, SNSWrappedS3Event }
+
     public class LandformServiceOptions : LandformShellOptions
     {
         [Value(0, Required = false, HelpText = "project name, must omit if running as service", Default = null)]
         public override string ProjectName { get; set; }
 
-        [Option(Required = false, Default = false, HelpText = "run as service")]
+        [Option(Default = false, HelpText = "run as service")]
         public bool Service { get; set; }
 
-        [Option(Required = false, Default = null, HelpText = "Message queue name, required with --service")]
+        [Option(Default = null, HelpText = "Message queue name, required with --service")]
         public string QueueName { get; set; }
 
-        [Option(Required = false, Default = "auto", HelpText = "Fail queue name, null, empty, or \"none\" to disable, \"auto\" to append suffix \"-fail\" to --queuename")]
+        [Option(Default = "auto", HelpText = "Fail queue name, null, empty, or \"none\" to disable, \"auto\" to append suffix \"-fail\" to --queuename")]
         public string FailQueueName { get; set; }
 
-        [Option(Required = false, Default = false, HelpText = "Message queue is Landform owned")]
+        [Option(Default = false, HelpText = "Message queue is Landform owned")]
         public bool LandformOwnedQueue { get; set; }
 
-        [Option(Required = false, Default = false, HelpText = "Fail message queue is Landform owned")]
+        [Option(Default = false, HelpText = "Fail message queue is Landform owned")]
         public bool LandformOwnedFailQueue { get; set; }
 
-        [Option(Required = false, Default = false, HelpText = "All queues are Landform owned")]
+        [Option(Default = false, HelpText = "All queues are Landform owned")]
         public bool LandformOwnedQueues { get; set; }
 
-        [Option(Required = false, Default = false, HelpText = "Use generic message type")]
-        public bool UseGenericMessageType { get; set; }
+        [Option(Default = MessageType.SNSWrappedS3Event, HelpText = "Message type (Generic, S3Event, SNSWrappedS3Event")]
+        public MessageType MessageType { get; set; }
 
-        [Option(Required = false, Default = null, HelpText = "JSON file of message to send")]
+        [Option(Default = null, HelpText = "JSON file or raw URL of message to send")]
         public string SendMessage { get; set; }
 
-        [Option(Required = false, Default = 0, HelpText = "Peek messages in message queue")]
+        [Option(Default = 0, HelpText = "Peek messages in message queue")]
         public int PeekMessages { get; set; }
 
-        [Option(Required = false, Default = 0, HelpText = "Peek messages in fail queue")]
+        [Option(Default = 0, HelpText = "Peek messages in fail queue")]
         public int PeekFailedMessages { get; set; }
 
-        [Option(Required = false, Default = 0, HelpText = "Move messages from fail queue to message queue")]
+        [Option(Default = 0, HelpText = "Move messages from fail queue to message queue")]
         public int RetryMessages { get; set; }
 
-        [Option(Required = false, Default = 0, HelpText = "Move messages from message queue to fail queue")]
+        [Option(Default = 0, HelpText = "Move messages from message queue to fail queue")]
         public int FailMessages { get; set; }
 
-        [Option(Required = false, Default = 0, HelpText = "Drop messages")]
+        [Option(Default = 0, HelpText = "Drop messages")]
         public int DropMessages { get; set; }
 
-        [Option(Required = false, Default = 0, HelpText = "Drop failed messages")]
+        [Option(Default = 0, HelpText = "Drop failed messages")]
         public int DropFailedMessages { get; set; }
 
-        [Option(Required = false, Default = false, HelpText = "Delete message and fail queues iff Landform owned")]
+        [Option(Default = false, HelpText = "Delete message and fail queues iff Landform owned")]
         public bool DeleteQueues { get; set; }
 
-        [Option(Required = false, Default = 0, HelpText = "SQS queue message timeout, nonpositive to use default")]
+        [Option(Default = 0, HelpText = "SQS queue message timeout, nonpositive to use default")]
         public int MessageTimeoutSec { get; set; }
 
-        [Option(Required = false, Default = 0, HelpText = "Maximum handler runtime, nonpositive to use default")]
+        [Option(Default = 0, HelpText = "Maximum handler runtime, nonpositive to use default")]
         public int MaxHandlerSec { get; set; }
 
-        [Option(Required = false, Default = 0, HelpText = "Maximum unhandled message age, nonpositive to use default")]
+        [Option(Default = 0, HelpText = "Maximum unhandled message age, nonpositive to use default")]
         public int MaxMessageAgeSec { get; set; }
     }
     
@@ -85,12 +87,17 @@ namespace OPS.Landform
 
         public const int SERVICE_LOOP_RETRY_SEC = 60;
 
+        public const int DEF_MAX_HANDLER_SEC = 10 * 60; //10 minutes
+        public const int DEF_MAX_MESSAGE_AGE_SEC = 60 * 60; //1 hour
+
         protected LandformServiceOptions lvopts;
 
         protected bool serviceMode, serviceUtilMode;
 
         protected MessageQueue messageQueue;
         protected MessageQueue failMessageQueue;
+
+        protected int defMaxHandlerSec, defMaxMessageAgeSec;
 
         /// <summary>
         /// ServiceLoop() acquires credentialRefreshLock before calling RefreshCredentials().
@@ -122,9 +129,24 @@ namespace OPS.Landform
         private QueueMessage currentMessage;
         private double messageStartSec;
 
+        /// <summary>
+        /// Simple JSON message for testing or in workflows not involving [SNS wrapped] S3 event messages.
+        /// </summary>
+        private class GenericMessage : QueueMessage
+        {
+            public string url;
+
+            public GenericMessage(string url)
+            {
+                this.url = url;
+            }
+        }
+
         public LandformService(LandformServiceOptions options) : base(options)
         {
             this.lvopts = options;
+            defMaxHandlerSec = DEF_MAX_HANDLER_SEC;
+            defMaxMessageAgeSec = DEF_MAX_MESSAGE_AGE_SEC;
         }
 
         public int Run()
@@ -279,17 +301,68 @@ namespace OPS.Landform
 
         protected abstract void RunBatch();
 
-        protected abstract QueueMessage DequeueOneMessage(MessageQueue queue, int overrideVisibilityTimeout = -1);
+        protected virtual QueueMessage DequeueOneMessage(MessageQueue queue, int overrideVisibilityTimeout = -1)
+        {
+            int ovt = overrideVisibilityTimeout;
+            switch (lvopts.MessageType)
+            {
+                case MessageType.Generic: return queue.DequeueOne<GenericMessage>(overrideVisibilityTimeout: ovt);
+                case MessageType.S3Event: return queue.DequeueOne<S3EventMessage>(overrideVisibilityTimeout: ovt);
+                case MessageType.SNSWrappedS3Event:
+                    return queue.DequeueOne<SNSMessageWrapper>(overrideVisibilityTimeout: ovt);
+                default: throw new ArgumentException("unhandled messsage type " + lvopts.MessageType);
+            }
+        }
 
         /// <summary>
         /// Used only by SendMessage().
         /// </summary>
-        protected abstract QueueMessage ParseMessage(string json);
+        protected virtual QueueMessage ParseMessage(string json)
+        {
+            switch (lvopts.MessageType)
+            {
+                case MessageType.Generic: return JsonHelper.FromJson<GenericMessage>(json, autoTypes: false);
+                case MessageType.S3Event: return JsonHelper.FromJson<S3EventMessage>(json, autoTypes: false);
+                case MessageType.SNSWrappedS3Event:
+                    return JsonHelper.FromJson<SNSMessageWrapper>(json, autoTypes: false);
+                default: throw new ArgumentException("unhandled messsage type " + lvopts.MessageType);
+            }
+        }
 
+        protected virtual string GetUrlFromMessage(QueueMessage msg)
+        {
+            if (msg is GenericMessage)
+            {
+                return (msg as GenericMessage).url;
+            }
+            else if (msg is S3EventMessage)
+            {
+                return S3EventMessage.GetUrl(msg as S3EventMessage, "ObjectCreated");
+            }
+            else if (msg is SNSMessageWrapper)
+            {
+                return S3EventMessage.GetUrl(msg as SNSMessageWrapper, "ObjectCreated");
+            }
+            else
+            {
+                throw new Exception("cannot get URL, unhandled queue message type " + msg.GetType().Name);
+            }
+        }
+            
         /// <summary>
         /// Should not throw.  
         /// </summary>
-        protected abstract string DescribeMessage(QueueMessage msg, bool verbose = false);
+        protected virtual string DescribeMessage(QueueMessage msg, bool verbose = false)
+        {
+            try
+            {
+                return GetUrlFromMessage(msg);
+            }
+            catch
+            {
+                return "unknown message type " + msg.GetType().Name;
+            }
+        }
 
         /// <summary>
         /// Should not throw.  
@@ -300,6 +373,20 @@ namespace OPS.Landform
         /// Can throw.  
         /// </summary>
         protected abstract bool HandleMessage(QueueMessage msg);
+
+        //Filter out some subfolders on S3.
+        protected virtual bool AcceptBucketPath(string url, bool allowInternal = false)
+        {
+            url = url.ToLower();
+            return
+                //https://github.jpl.nasa.gov/OnSight/Landform/issues/1110
+                (allowInternal || !url.Contains("/ids-pipeline/")) &&
+                url.Contains("/rdr/") &&
+                !url.Contains("/rdr/browse/") &&
+                !url.Contains("/rdr/mosaic/") &&
+                !url.Contains("/rdr/mesh/") &&
+                !url.Contains("/rdr/tileset/");
+        }
 
         /// <summary>
         /// When we dequeue a message SQS will prevent it from also being received by another worker for this long.
@@ -320,7 +407,10 @@ namespace OPS.Landform
         /// <summary>
         /// Message handlers that run longer than this will be killed.  
         /// </summary>
-        protected abstract int GetMaxHandlerSec();
+        protected virtual int GetMaxHandlerSec()
+        {
+            return lvopts.MaxHandlerSec > 0 ? lvopts.MaxHandlerSec : defMaxHandlerSec;
+        }
 
         /// <summary>
         /// Messages that keep being received longer than this many seconds
@@ -328,7 +418,10 @@ namespace OPS.Landform
         /// (e.g. because they keep failing to be processed)
         /// will be culled from the queue.
         /// </summary>
-        protected abstract int GetMaxMessageAgeSec();
+        protected virtual int GetMaxMessageAgeSec()
+        {
+            return lvopts.MaxMessageAgeSec > 0 ? lvopts.MaxMessageAgeSec : defMaxMessageAgeSec;
+        }
 
         protected virtual int GetDequeueThrottleMS()
         {
@@ -401,7 +494,8 @@ namespace OPS.Landform
             pipeline.LogInfo("{0}sending message to queue {1}", lvopts.DryRun ? "dry " : "", messageQueue.Name);
             if (!lvopts.DryRun)
             {
-                messageQueue.Enqueue(ParseMessage(File.ReadAllText(lvopts.SendMessage)));
+                messageQueue.Enqueue(lvopts.SendMessage.IndexOf("://") >= 0 ? new GenericMessage(lvopts.SendMessage)
+                                     : ParseMessage(File.ReadAllText(lvopts.SendMessage)));
             }
         }
 
