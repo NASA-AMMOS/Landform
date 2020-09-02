@@ -749,7 +749,7 @@ namespace OPS.Landform
                 {
                     ingestDir = fetchDir + "/rdrs";
                     Fetch(options.MaxFetch, MakeSolRanges(sols, primarySol), ingestDir, rdrDir,
-                          "--onlyforsitedrives", sdsStr, "--summary");
+                          "--onlyforsitedrives", sdsStr, "--nomeshes", "--summary");
                 }
 
                 if (!options.NoFetch && !options.NoOrbital)

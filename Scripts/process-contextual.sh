@@ -101,7 +101,7 @@
 # ./Scripts/m20-credss.sh
 #
 # ./Landform/bin/Release/Landform.exe fetch $sols out/$run/rdrs \
-#     s3://$bucket/$mission/ods/surface/sol/#####/opgs/rdr --mission $mission --summary $fetchargs
+#     s3://$bucket/$mission/ods/surface/sol/#####/opgs/rdr --mission $mission --nomeshes --summary $fetchargs
 #
 # ./Landform/bin/Release/Landform.exe fetch \
 #     s3://$bucket/$mission/orbital/$dem,s3://$bucket/$mission/orbital/$ortho out/$mission/orbital --mission $mission \

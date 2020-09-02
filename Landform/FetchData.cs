@@ -110,11 +110,14 @@ namespace OPS.Landform
         [Option(Default = false, HelpText = "Download RGB products")]
         public bool WithRGB { get; set; }
 
-        [Option(Default = false, HelpText = "Don't download OBJ products")]
+        [Option(Default = false, HelpText = "Don't download OBJ mesh products")]
         public bool NoOBJ { get; set; }
 
-        [Option(Default = false, HelpText = "Don't download IV products")]
+        [Option(Default = false, HelpText = "Don't download IV mesh products")]
         public bool NoIV { get; set; }
+
+        [Option(Default = false, HelpText = "Don't download any mesh products")]
+        public bool NoMeshes { get; set; }
 
         [Option(Default = false, HelpText = "Download VIC products")]
         public bool WithVIC { get; set; }
@@ -252,6 +255,12 @@ namespace OPS.Landform
             options.DryRun |= options.NoSave;
 
             options.Overwrite |= options.ForceOverwrite;
+
+            if (options.NoMeshes)
+            {
+                options.NoIV = true;
+                options.NoOBJ = true;
+            }
 
             traceExts = StringHelper.ParseList(options.TraceExts);
             tracePrefixes = StringHelper.ParseList(options.Trace);
