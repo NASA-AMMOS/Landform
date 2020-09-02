@@ -161,6 +161,9 @@ namespace OPS.Landform
         [Option(Default = false, HelpText = "Delete least recently used files recursively under output directory to enforce --maxdownload, requires --accountexisting")]
         public bool DeleteLRU { get; set; }
        
+        [Option(Default = false, HelpText = "Download in batches and delete least recently used after each batch, requires --deletelru")]
+        public bool IncrementalDeleteLRU { get; set; }
+
         [Option(Default = -1, HelpText = "Limit the number of concurrent downloads, negative to use all available cores")]
         public int ConcurrentDownloads { get; set; }
 
@@ -843,53 +846,123 @@ namespace OPS.Landform
                 }
             }
 
-            //download in parallel groups of up to maxBatch files or maxBatchBytes, whichever is reached first
-            long maxBatchBytes = (long)1e9;
-            var po = new ParallelOptions() { MaxDegreeOfParallelism = maxBatch };
-            int total = remaining.Count, done = 0, skipped = 0, failed = 0;
-            var batch = new List<string>();
-            long batchBytes = 0;
-            while (remaining.Count > 0)
+            if (options.IncrementalDeleteLRU)
             {
-                batch.Clear();
-                while (remaining.Count > 0 && batch.Count < maxBatch && batchBytes < maxBatchBytes)
+                //download in parallel groups of up to maxBatch files or maxBatchBytes, whichever is reached first
+                long maxBatchBytes = (long)1e9;
+                var po = new ParallelOptions() { MaxDegreeOfParallelism = maxBatch };
+                int total = remaining.Count, done = 0, skipped = 0, failed = 0;
+                var batch = new List<string>();
+                long batchBytes = 0;
+                while (remaining.Count > 0)
                 {
-                    var url = remaining.Dequeue();
-                    if (!ShouldDownload(url, ref batchBytes))
+                    batch.Clear();
+                    while (remaining.Count > 0 && batch.Count < maxBatch && batchBytes < maxBatchBytes)
                     {
-                        skipped++;
-                        continue;
+                        var url = remaining.Dequeue();
+                        if (!ShouldDownload(url, ref batchBytes))
+                        {
+                            skipped++;
+                            continue;
+                        }
+                        batch.Add(url);
                     }
-                    batch.Add(url);
+                    
+                    logger.InfoFormat("{0:f2}%: {1} downloaded, {2} skipped, {3} failed, {4} to go, " +
+                                      "downloading batch of {5} files ({6} bytes) in parallel",
+                                      (done + skipped + failed) * 100.0 / total, done, skipped, failed, remaining.Count,
+                                      batch.Count, Fmt.DiskBytes(batchBytes));
+                    
+                    //batchBytes can actually be greater than maxBatchBytes here because we download whole files
+                    //also, if there are any https (vs s3) URLs, batchBytes will be an underestimate
+                    //because we currently only implmement such accounting for s3
+                    
+                    if (options.DeleteLRU && maxBytes > 0 && batchBytes > 0 && diskBytes + batchBytes > maxBytes)
+                    {
+                        DeleteLRUDownloads(batchBytes); //free up at least batchBytes
+                    }
+                    
+                    batchBytes = 0; //now we'll re-account the actual downloaded bytes
+                    var batchFiles = new ConcurrentBag<FileInfo>(); //ConcurrentBag has no Clear()
+                    int np = 0;
+                    CoreLimitedParallel.ForEach(batch, po, url =>
+                    {
+                        Interlocked.Increment(ref np);
+                        long bytes = DownloadFile(url);
+                        Interlocked.Decrement(ref np);
+                        if (bytes >= 0)
+                        {
+                            Interlocked.Add(ref batchBytes, bytes);
+                            Interlocked.Increment(ref done);
+                            batchFiles.Add(new FileInfo(LocalPath(url)));
+                        }
+                        else
+                        {
+                            Interlocked.Increment(ref failed);
+                        }
+                        if (!options.DryRun)
+                        {
+                            string msg = string.Format("{0:f2}%: ({1} active downloads) {2} {3}",
+                                                       (done + skipped + failed) * 100.0 / total, np,
+                                                       bytes >= 0 ? "downloaded" : "failed to download",
+                                                       StringHelper.GetLastUrlPathSegment(url));
+                            if (bytes >= 0)
+                            {
+                                logger.Info(msg);
+                            }
+                            else
+                            {
+                                logger.Warn(msg);
+                            }
+                        }
+                    });
+                    
+                    downloadedBytes += batchBytes;
+                    
+                    if (options.AccountExisting && batchFiles.Count > 0)
+                    {
+                        IndexExistingDownloads(batchFiles); //will update diskBytes, accounting for replaces
+                        if (options.DeleteLRU && maxBytes > 0 && diskBytes > maxBytes)
+                        {
+                            DeleteLRUDownloads();
+                        }
+                    }
                 }
-
-                logger.InfoFormat("{0:f2}%: {1} downloaded, {2} skipped, {3} failed, {4} to go, " +
-                                  "downloading batch of {5} files ({6} bytes) in parallel",
-                                  (done + skipped + failed) * 100.0 / total, done, skipped, failed, remaining.Count,
-                                  batch.Count, Fmt.DiskBytes(batchBytes));
-
-                //batchBytes can actually be greater than maxBatchBytes here because we download whole files
-                //also, if there are any https (vs s3) URLs, batchBytes will be an underestimate
-                //because we currently only implmement such accounting for s3
-
-                if (options.DeleteLRU && maxBytes > 0 && batchBytes > 0 && diskBytes + batchBytes > maxBytes)
+            }
+            else
+            {
+                long batchBytes = 0;
+                var batch = new HashSet<string>();
+                foreach (var url in remaining)
                 {
-                    DeleteLRUDownloads(batchBytes); //free up at least batchBytes
+                    if (ShouldDownload(url, ref batchBytes))
+                    {
+                        batch.Add(url);
+                    }
                 }
 
-                batchBytes = 0; //now we'll re-account the actual downloaded bytes
-                var batchFiles = new ConcurrentBag<FileInfo>(); //ConcurrentBag has no Clear()
-                int np = 0;
-                CoreLimitedParallel.ForEach(batch, po, url =>
+                //at this point url is in batch only if
+                //* it does not exist locally, or its remote size differs, or options.Overwrite=true
+                //* downloading it would not exceed options.MaxDownload (considering that LRU downloads may be deleted)
+                //also, batchBytes is the expected number of new bytes that will be downloaded
+                //(note that download sizing is currently only implemented for s3 not https downloads as of 9/2/20)
+
+                if (options.DeleteLRU && maxBytes > 0 && (diskBytes + batchBytes) > maxBytes)
+                {
+                    var keep = new HashSet<string>(remaining.Select(url => LocalPath(url)));
+                    keep.ExceptWith(batch.Select(url => LocalPath(url)));
+                    DeleteLRUDownloads(batchBytes, keep);
+                }
+
+                int np = 0, total = batch.Count, done = 0, failed = 0;
+                CoreLimitedParallel.ForEach(batch, url =>
                 {
                     Interlocked.Increment(ref np);
                     long bytes = DownloadFile(url);
                     Interlocked.Decrement(ref np);
                     if (bytes >= 0)
                     {
-                        Interlocked.Add(ref batchBytes, bytes);
                         Interlocked.Increment(ref done);
-                        batchFiles.Add(new FileInfo(LocalPath(url)));
                     }
                     else
                     {
@@ -898,7 +971,7 @@ namespace OPS.Landform
                     if (!options.DryRun)
                     {
                         string msg = string.Format("{0:f2}%: ({1} active downloads) {2} {3}",
-                                                   (done + skipped + failed) * 100.0 / total, np,
+                                                   (done + failed) * 100.0 / total, np,
                                                    bytes >= 0 ? "downloaded" : "failed to download",
                                                    StringHelper.GetLastUrlPathSegment(url));
                         if (bytes >= 0)
@@ -911,17 +984,6 @@ namespace OPS.Landform
                         }
                     }
                 });
-
-                downloadedBytes += batchBytes;
-
-                if (options.AccountExisting && batchFiles.Count > 0)
-                {
-                    IndexExistingDownloads(batchFiles); //will update diskBytes, accounting for replaces
-                    if (options.DeleteLRU && maxBytes > 0 && diskBytes > maxBytes)
-                    {
-                        DeleteLRUDownloads();
-                    }
-                }
             }
         }
 
@@ -946,11 +1008,23 @@ namespace OPS.Landform
             lruDownloads = new Queue<FileInfo>(existing.Values.OrderBy(file => file.LastAccessTime));
         }
 
-        private void DeleteLRUDownloads(long minFreeBytes = 0)
+        private void DeleteLRUDownloads(long minFreeBytes = 0, HashSet<string> keep = null)
         {
-            while (maxBytes > 0 && lruDownloads.Count > 0 && diskBytes > (maxBytes - minFreeBytes))
+            long target = maxBytes - minFreeBytes;
+            bool summarized = false;
+            while (maxBytes > 0 && lruDownloads.Count > 0 && diskBytes > target)
             {
+                if (!summarized)
+                {
+                    logger.InfoFormat("deleting least-recently used downloads, current disk usage {0}, target {1}",
+                                      Fmt.DiskBytes(diskBytes), Fmt.DiskBytes(target));
+                    summarized = true;
+                }
                 var file = lruDownloads.Dequeue();
+                if (keep != null && keep.Contains(file.FullName))
+                {
+                    continue;
+                }
                 try
                 {
                     long bytes = file.Length;
