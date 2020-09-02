@@ -164,11 +164,8 @@ namespace OPS.Landform
         [Option(Default = -1, HelpText = "Limit the number of concurrent downloads, negative to use all available cores")]
         public int ConcurrentDownloads { get; set; }
 
-        [Option(Default = false, HelpText = "Overwrite existing files")]
-        public bool Overwrite { get; set; }
-
         [Option(Default = false, HelpText = "Overwrite existing files even if they are the same size")]
-        public bool ForceOverwrite { get; set; }
+        public bool Overwrite { get; set; }
 
         [Option(Default = 3, HelpText = "Max retries for each download")]
         public int MaxRetries { get; set; }
@@ -253,8 +250,6 @@ namespace OPS.Landform
             options = opts;
 
             options.DryRun |= options.NoSave;
-
-            options.Overwrite |= options.ForceOverwrite;
 
             if (options.NoMeshes)
             {
@@ -702,7 +697,8 @@ namespace OPS.Landform
             {
                 dir = StringHelper.StripProtocol(StringHelper.StripLastUrlPathSegment(StringHelper.NormalizeUrl(url)));
             }
-            return Path.Combine(options.OutputDir, dir, StringHelper.GetLastUrlPathSegment(url));
+            string path = Path.Combine(options.OutputDir, dir, StringHelper.GetLastUrlPathSegment(url));
+            return StringHelper.NormalizeSlashes(path).Replace('/', Path.PathSeparator);
         }
 
         private long DownloadFile(string url)
@@ -800,7 +796,7 @@ namespace OPS.Landform
             long localBytes = File.Exists(localPath) ? new FileInfo(localPath).Length : -1;
             if (localBytes >= 0)
             {
-                if (remoteBytes >= 0 && localBytes == remoteBytes && !options.ForceOverwrite)
+                if (remoteBytes >= 0 && localBytes == remoteBytes && !options.Overwrite)
                 {
                     if (options.Verbose)
                     {
@@ -809,19 +805,17 @@ namespace OPS.Landform
                     }
                     return false; //already downloaded
                 }
-                if (!options.Overwrite)
-                {
-                    logger.InfoFormat("not downloading {0}: cannot overwrite local file {1}", url, localPath);
-                    return false;
-                }
+                string msg = string.Format("downloading {0} ({1} bytes) to overwrite {2} ({3} bytes)",
+                                           url, Fmt.DiskBytes(remoteBytes), localPath, Fmt.DiskBytes(localBytes));
                 if (maxBytes > 0 && remoteBytes > 0 && options.AccountExisting && !options.DeleteLRU &&
                     (diskBytes + batchBytes - localBytes + remoteBytes) > maxBytes)
                 {
-                    logger.InfoFormat("not downloading {0}: {1} + {2} bytes > max disk usage {3}", url,
+                    logger.InfoFormat("not " + msg + ": {1} + {2} bytes > max disk usage {3}", url,
                                       Fmt.DiskBytes(diskBytes + batchBytes - localBytes),
                                       Fmt.DiskBytes(remoteBytes), Fmt.DiskBytes(maxBytes));
                     return false; //replacing existing file would exceed allowed disk space
                 }
+                logger.InfoFormat(msg);
             }
             if (remoteBytes >= 0)
             {
