@@ -609,7 +609,7 @@ namespace OPS.Pipeline
 
             protected ScarecrowEECAMUnifiedMesh(string fullId, int site, int drive)
                 : base(fullId, RoverProductProducer.OPGS, RoverProductType.Points, camera: "NL", geometry: "L",
-                       color: "", version: "0", size: "", site: site, drive: drive) 
+                       color: "", version: "0", size: "", site: site, drive: drive, spec: "_") 
             { }
 
             public static ScarecrowEECAMUnifiedMesh Parse(string id)

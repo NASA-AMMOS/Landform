@@ -1162,6 +1162,8 @@ namespace OPS.Landform
                             .Where(path => !options.DryRun || File.Exists(path))
                             .ToList();
                         unifiedMeshes = UnifiedMesh.LoadAll(files, mission);
+                        logger.InfoFormat("loaded {0} nonempty unified meshes for {1} sitedrives",
+                                          unifiedMeshes.Values.Sum(d => d.Count), unifiedMeshes.Count);
                     }
                     
                     foreach (var sol in sols)
