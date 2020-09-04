@@ -200,7 +200,7 @@ namespace OPS.Landform
         [Option(Default = false, HelpText = "Run as contextual mesh master service")]
         public bool Master { get; set; }
 
-        [Option(Default = "xyz_*.lis", HelpText = "Master service list filename pattern, case insensitive, null, empty, or \"none\" to reject list files")]
+        [Option(Default = null, HelpText = "Master service list filename pattern, case insensitive, e.g. xyz_*.lis, null, empty, or \"none\" to reject list files")]
         public string ListPattern { get; set; }
 
         [Option(Default = "*XYZ*.IMG", HelpText = "Master service wedge filename pattern, case insensitive, null, empty,or \"none\" to reject wedge files")]
