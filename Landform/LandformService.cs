@@ -406,7 +406,6 @@ namespace OPS.Landform
             return
                 //https://github.jpl.nasa.gov/OnSight/Landform/issues/1110
                 (allowInternal || !url.Contains("/ids-pipeline/")) &&
-                url.Contains("/rdr/") &&
                 !url.Contains("/rdr/browse/") &&
                 !url.Contains("/rdr/mosaic/") &&
                 !url.Contains("/rdr/mesh/") &&
