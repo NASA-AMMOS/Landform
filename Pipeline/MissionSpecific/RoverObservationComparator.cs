@@ -268,20 +268,24 @@ namespace OPS.Pipeline
                         //if there is an observation in the group that differs only from the best one in linearness
                         //(and also possibly in version, because all product types are versioned independently)
                         //then include the best one of those as well
+                        var id = RoverProductId.Parse(best.Name, mission, throwOnFail: false);
+                        string bestPartial =
+                            id != null ? id.GetPartialId(mission, includeGeometry: false, includeVersion: false) : null;
                         var bestOtherLin = group
+                            .Where(obs => {
+                                    var i = RoverProductId.Parse(obs.Name, mission, throwOnFail: false);
+                                    if (i == null)
+                                    {
+                                        return false;
+                                    }
+                                    return i.GetPartialId(includeGeometry: false, includeVersion: false) == bestPartial;
+                                })
                             .Where(o => o.IsLinear != best.IsLinear)
                             .OrderBy(o => o, this)
                             .FirstOrDefault();
                         if (bestOtherLin != null)
                         {
-                            string bestPartial = RoverProductId.Parse(best.Name, mission)
-                                .GetPartialId(mission, includeGeometry: false, includeVersion: false);
-                            string bestOtherLinPartial = RoverProductId.Parse(bestOtherLin.Name, mission)
-                                .GetPartialId(mission, includeGeometry: false, includeVersion: false);
-                            if (bestPartial == bestOtherLinPartial)
-                            {
-                                keepers.Add(bestOtherLin);
-                            }
+                            keepers.Add(bestOtherLin);
                         }
                     }
 
