@@ -73,6 +73,9 @@ if not "%LANDFORM_TACTICAL_MAX_RECEIVE_COUNT%"=="" (
     set msgopts=%msgopts% --maxreceivecount=%LANDFORM_TACTICAL_MAX_RECEIVE_COUNT%
 )
 
+set svcextra=
+if not "%LANDFORM_TACTICAL_OPTS%"=="" set svcextra=%LANDFORM_TACTICAL_OPTS%
+
 rem --- end service specific boilerplate, begin service specific ---
 
 set meshformat=mission
@@ -95,11 +98,11 @@ set appsdir=%bindir%\ExternalApps
 if exist %appsdir%\opengl32-for-ivcat.dll (
 @echo on
 move /Y %appsdir%\opengl32-for-ivcat.dll %appsdir%\opengl32.dll
+@echo off
 )
-
-@echo on
 
 rem note %quiet% must always be last, it's a redirect not an option
 
+@echo on
 %landform% configure-local %cfgopts% %quiet%
-%landform% process-%service% %svcopts% %tacticalopts% %quiet% 
+%landform% process-%service% %svcopts% %tacticalopts% %svcextra% %quiet% 

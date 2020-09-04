@@ -73,6 +73,9 @@ if not "%LANDFORM_CONTEXTUAL_MASTER_MAX_RECEIVE_COUNT%"=="" (
     set msgopts=%msgopts% --maxreceivecount=%LANDFORM_CONTEXTUAL_MASTER_MAX_RECEIVE_COUNT%
 )
 
+set svcextra=
+if not "%LANDFORM_CONTEXTUAL_MASTER_OPTS%"=="" set svcextra=%LANDFORM_CONTEXTUAL_MASTER_OPTS%
+
 rem --- end service specific boilerplate, begin service specific ---
 
 set workerqueue=m20-ids-g-sqs-landform-contextual-worker
@@ -134,11 +137,11 @@ set appsdir=%bindir%\ExternalApps
 if exist %appsdir%\opengl32-for-ivcat.dll (
 @echo on
 move /Y %appsdir%\opengl32-for-ivcat.dll %appsdir%\opengl32.dll
+@echo off
 )
-
-@echo on
 
 rem note %quiet% must always be last, it's a redirect not an option
 
+@echo on
 %landform% configure-local %cfgopts% %quiet%
-%landform% process-contextual %svcopts% %masteropts% %quiet% 
+%landform% process-contextual %svcopts% %masteropts% %svcextra% %quiet% 

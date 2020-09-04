@@ -83,7 +83,8 @@ if [ "$using_dproxy" ]; then
     echo "0) clear cookies for $domain"
     echo "1) make sure you've logged in at $dproxy"
     echo "2) check bucket(s) have CORS configured (see $docurl)"
-    echo "3) sacrifice chicken"
+    echo "3) view page source and make sure the shim script has been injected before the unity loader (if not rm -rf $out/$viewer $out/${viewer}.zip and try again)"
+    echo "4) sacrifice chicken"
 fi
 
 python $scriptdir/python-https.py $port $out $pem
