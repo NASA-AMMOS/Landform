@@ -682,7 +682,9 @@ namespace OPS.Landform
                     {
                         string desc = DescribeMessage(msg);
                         int ageSec = (int)(0.001 * (msg.ApproxReceiveMS - msg.ApproxFirstReceiveMS));
-                        bool tooOld = ageSec > maxAgeSec || msg.ApproxReceiveCount > maxReceiveCount;
+                        int totalAgeSec = (int)(0.001 * (msg.ApproxReceiveMS - msg.SentMS));
+                        int receiveCount = msg.ApproxReceiveCount;
+                        bool tooOld = ageSec > maxAgeSec || receiveCount > maxReceiveCount;
                         bool accepted = AcceptMessage(msg, out string rejectionReason);
                         bool handled = false;
 
@@ -693,7 +695,8 @@ namespace OPS.Landform
                             currentMessage = msg;
                             messageStartSec = UTCTime.Now();
                             
-                            pipeline.LogInfo("processing {0}", desc);
+                            pipeline.LogInfo("processing {0} (age {1}, {2} since first receive, {3} receives)", desc,
+                                             Fmt.HMS(1000 * totalAgeSec), Fmt.HMS(1000 * ageSec), receiveCount);
 
                             try
                             {
@@ -713,7 +716,7 @@ namespace OPS.Landform
                         {
                             string reason = ageSec > maxAgeSec ?
                                 string.Format("too old {0} > {1}", Fmt.HMS(1000 * ageSec), Fmt.HMS(1000 * maxAgeSec)) :
-                                string.Format("too many retries {0} > {1}", msg.ApproxReceiveCount, maxReceiveCount);
+                                string.Format("too many retries {0} > {1}", receiveCount, maxReceiveCount);
                             pipeline.LogError("{0} {1}, removing from queue, {2} fail queue", desc, reason,
                                               failMessageQueue != null ? "adding to" : "no");
                         }
