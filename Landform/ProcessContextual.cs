@@ -332,22 +332,23 @@ namespace OPS.Landform
 
         protected override string DescribeMessage(QueueMessage msg, bool verbose = false)
         {
-            if (options.Master)
-            {
-                return base.DescribeMessage(msg, verbose);
-            }
-            else if (msg is ContextualMeshMessage)
+            if (msg is ContextualMeshMessage)
             {
                 try
                 {
                     var cmm = (msg as ContextualMeshMessage);
                     var parameters = MakeParameters(cmm);
 
+                    if (parameters == null)
+                    {
+                        return "(invalid contextual mesh message)";
+                    }
+
                     var desc = string.Format("contextual mesh {0}_{1}",
                                              SolToString(parameters.PrimarySol), parameters.PrimarySiteDrive);
                     if (verbose)
                     {
-                        desc += string.Format(" for {0}; sols {1}; sitedrives {2}, {3} wedges, {4} UTC",
+                        desc += string.Format(" for {0}; sols {1}; sitedrives {2}, {3} wedges, timestamp {4} UTC",
                                               parameters.RDRDir, MakeSolRanges(parameters.Sols),
                                               string.Join(",", parameters.SiteDrives),
                                               cmm.numWedges >= 0 ? cmm.numWedges.ToString() : "??",
@@ -363,7 +364,7 @@ namespace OPS.Landform
             }
             else
             {
-                return "unknown message type " + msg.GetType().Name;
+                return base.DescribeMessage(msg, verbose);
             }
         }
 
@@ -641,6 +642,11 @@ namespace OPS.Landform
 
         private ContextualMeshParameters MakeParameters(ContextualMeshMessage msg)
         {
+            if (msg.primarySol < 0 || string.IsNullOrEmpty(msg.primarySiteDrive))
+            {
+                return null;
+            }
+
             var ret = new ContextualMeshParameters();
 
             ret.RDRDir = !string.IsNullOrEmpty(msg.rdrDir) ? msg.rdrDir : options.RDRDir;
@@ -885,9 +891,9 @@ namespace OPS.Landform
 
         private void LoadList(SiteDriveList sdList, String url)
         {
-            //here we are inferring that the entries in a list file
-            //are paths relative to the root of the same S3 bucket that contains the list file
-            sdList.LoadListFile(GetFile(url), "s3://" + (new S3Url(url).BucketName));
+            int split = url.LastIndexOf("/ids-pipeline/");
+            string baseUrl = split > 0 ? url.Substring(0, split) : ("s3://" + (new S3Url(url).BucketName));
+            sdList.LoadListFile(GetFile(url), baseUrl);
         }
 
         private Dictionary<SiteDrive, Stamped<SiteDriveList>>
@@ -915,29 +921,22 @@ namespace OPS.Landform
             bool filterLists()
             {
                 pipeline.LogInfo("filtering {0} sitedrive wedge lists", ret.Count);
-                var culled = new List<SiteDrive>();
+                var filtered = new Dictionary<SiteDrive, Stamped<SiteDriveList>>();
                 foreach (var sd in ret.Keys)
                 {
-                    var sdList = ret[sd].Value;
-                    sdList = sdList
+                    var sdList = ret[sd].Value
                         .FilterProductIDs(ids => RoverObservationComparator.FilterProductIdGroups(ids, mission));
                     if (sdList.NumWedges > 0)
                     {
-                        ret[sd] = new Stamped<SiteDriveList>(sdList, ret[sd].Timestamp);
-                    }
-                    else
-                    {
-                        culled.Add(sd);
+                        filtered[sd] = new Stamped<SiteDriveList>(sdList, ret[sd].Timestamp);
                     }
                 }
-                foreach (var dead in culled)
-                {
-                    ret.Remove(dead);
-                }
-                if (culled.Count > 0)
+                int culled = ret.Count - filtered.Count;
+                ret = filtered;
+                if (culled > 0)
                 {
                     pipeline.LogInfo("culled {0} sitedrive wedge lists that were empty after filtering, {1} remain",
-                                     culled.Count, ret.Count);
+                                     culled, ret.Count);
                 }
                 return ret.Count > 0;
             }
@@ -978,7 +977,7 @@ namespace OPS.Landform
                 }
             }
 
-            pipeline.LogInfo("registered {0} changed lists in {1} dirs, changes", listURLs.Count, listDirs.Count);
+            pipeline.LogInfo("registered {0} changed lists in {1} dirs", listURLs.Count, listDirs.Count);
             pipeline.LogInfo("registered {0} changed wedges", wedgeURLs.Count);
 
             if (!filterLists())
@@ -986,16 +985,29 @@ namespace OPS.Landform
                 return ret;
             }
 
+            if (pipeline.Verbose)
+            {
+                foreach (var sd in ret.Keys.OrderBy(sd => sd))
+                {
+                    pipeline.LogVerbose("changed sitedrive {0}: {1} wedges after filtering, before additions:\n  {2}",
+                                        sd, ret[sd].Value.NumWedges,
+                                        string.Join("\n  ", ret[sd].Value.IDToURL.Values.OrderBy(url => url)));
+                }
+            }
+
             int minPrimarySol = ret.Values.Select(sl => sl.Value.MinSol).Min();
             int maxPrimarySol = ret.Values.Select(sl => sl.Value.MaxSol).Max();
-            int minSol = minPrimarySol - solRange, maxSol = maxPrimarySol + solRange;
+            int minSol = Math.Max(0, minPrimarySol - solRange), maxSol = maxPrimarySol + solRange;
 
             pipeline.LogInfo("primary sol range {0}-{1}, sol search range {2}-{3}",
                              minPrimarySol, maxPrimarySol, minSol, maxSol);
 
-            int additionalLists = 0, additionalListSitedrives = 0;
-            if (options.SearchForAdditionalLists && !string.IsNullOrEmpty(options.ListPattern))
+            bool reFilter = false;
+
+            if (options.SearchForAdditionalLists && listRegex != null) //handle options.ListPattern=none
             {
+                int additionalLists = 0, additionalListSitedrives = 0;
+
                 foreach (var listDir in listDirs)
                 {
                     pipeline.LogInfo("searching for additional list files in {0}", listDir);
@@ -1032,13 +1044,17 @@ namespace OPS.Landform
                         }
                     }
                 }
-            }
-            pipeline.LogInfo("loaded {0} additional lists ({1} additional sitedrives)",
-                             additionalLists, additionalListSitedrives);
 
-            int additionalWedges = 0, additionalWedgeSitedrives = 0;
-            if (options.SearchForAdditionalWedges && !string.IsNullOrEmpty(options.WedgePattern))
+                reFilter |= additionalLists > 0;
+
+                pipeline.LogInfo("loaded {0} additional lists ({1} additional sitedrives)",
+                                 additionalLists, additionalListSitedrives);
+            }
+
+            if (options.SearchForAdditionalWedges && wedgeRegex != null) //handle options.WedgePattern=none
             {
+                int additionalWedges = 0, additionalWedgeSitedrives = 0;
+
                 var solDirs = new List<string>();
                 if (SiteDriveList.GetSolSpan(rdrDir, out int start, out int len))
                 {
@@ -1073,26 +1089,50 @@ namespace OPS.Landform
                             if (FilterWedge(id) == null)
                             {
                                 var sd = (id as OPGSProductId).SiteDrive;
-                                if (!ret.ContainsKey(sd))
+                                var sdl = ret.ContainsKey(sd) ? ret[sd].Value : makeList(sd);
+                                int nw = sdl.NumWedges;
+                                if (sdl.Add(url) == null && sdl.NumWedges > nw) //not rejected and not duplicate
                                 {
-                                    ret[sd] = new Stamped<SiteDriveList>(makeList(sd));
-                                    Interlocked.Increment(ref additionalWedgeSitedrives);
+                                    //this new URL might still get filtered out below
+                                    //e.g. if it's an older version of something that's already in the list
+                                    pipeline.LogVerbose("found additional wedge product {0} in sitedrive {1}", url, sd);
+                                    Interlocked.Increment(ref additionalWedges);
+                                    if (!ret.ContainsKey(sd))
+                                    {
+                                        ret[sd] = new Stamped<SiteDriveList>(sdl);
+                                        Interlocked.Increment(ref additionalWedgeSitedrives);
+                                    }
                                 }
-                                ret[sd].Value.Add(url);
-                                Interlocked.Increment(ref additionalWedges);
                             }
                         }
                     }
                 }
+
+                reFilter |= additionalWedges > 0;
+
+                pipeline.LogInfo("found {0} additional wedge products ({1} additional sitedrives)",
+                                 additionalWedges, additionalWedgeSitedrives);
             }
-            pipeline.LogInfo("loaded {0} additional wedge products ({1} additional sitedrives)",
-                             additionalWedges, additionalWedgeSitedrives);
 
-            filterLists();
+            if (reFilter)
+            {
+                filterLists();
+            }
 
-            pipeline.LogInfo("loaded {0} filtered sitedrive lists for RDR dir {1}", ret.Count, rdrDir);
+            pipeline.LogInfo("{0} filtered sitedrive lists for RDR dir {1}", ret.Count, rdrDir);
 
-            var changedSDs = urls.Keys.Where(sd => ret.ContainsKey(sd)).ToList();
+            var changedSDs = new HashSet<SiteDrive>(urls.Keys.Where(sd => ret.ContainsKey(sd)).ToList());
+
+            if (pipeline.Verbose)
+            {
+                foreach (var sd in ret.Keys.OrderBy(sd => sd))
+                {
+                    pipeline.LogVerbose("{0}changed sitedrive {1}: {2} wedges after filtering and additions:\n  {3}",
+                                        changedSDs.Contains(sd) ? "" : "un", sd, ret[sd].Value.NumWedges,
+                                        string.Join("\n  ", ret[sd].Value.IDToURL.Values.OrderBy(url => url)));
+                }
+            }
+
             pipeline.LogInfo("{0} filtered changed sitedrives: {1}", changedSDs.Count, String.Join(",", changedSDs));
 
             return ret;
@@ -1352,14 +1392,10 @@ namespace OPS.Landform
                             if (lastChange >= 0 && (debounceMS <= 0 || lastChange <= (now - debounceMS)))
                             {
                                 urlsToProcess[rdrDir] = changedURLs[rdrDir];
-                                pipeline.LogInfo("processing RDR dir {0} with {1} changed sitedrives in sol(s) {2} " +
-                                                 "at {3}, last change at {4}, {5:F3}s debounce",
-                                                 rdrDir, urlsToProcess[rdrDir].Count,
-                                                 MakeSolRanges(new HashSet<int>(urlsToProcess[rdrDir].Values
-                                                                                .SelectMany(d => d.Keys)
-                                                                                .Select(u => SiteDriveList.GetSol(u))
-                                                                                .Where(sol => sol >= 0))),
-                                                 ToLocalTime(now), ToLocalTime(lastChange), debounceMS / 1000);
+                                pipeline.LogInfo("processing RDR dir {0} with {1} changed sitedrives, " +
+                                                 "last change at {2}, {3:F3}s debounce",
+                                                 rdrDir, urlsToProcess[rdrDir].Count, ToLocalTime(lastChange),
+                                                 debounceMS / 1000);
 
                             }
                         }

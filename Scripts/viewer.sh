@@ -6,6 +6,10 @@
 # opens tabs
 # launches localhost web server
 #
+# DEPENDENCIES (all platforms): CS3 credss, python 3.7+, aws CLI, sed, openssl
+# DEPENDENCIES (Windows): powershell, MinGW
+# DEPENDENCIES (non-Windows): unzip
+#
 # EXAMPLES:
 #
 # view one tileset on S3:
@@ -47,7 +51,11 @@ scriptdir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
 if [ ! -f $out/$viewer/index.html ]; then
     aws --profile=credss-default s3 cp s3://$lfbucket/$viewer.zip $out/$viewer.zip
-    powershell $scriptdir/unzip.ps1 ./$out/$viewer.zip ./$out
+    if [[ `uname -s` == MINGW* ]]; then
+        powershell $scriptdir/unzip.ps1 ./$out/$viewer.zip ./$out
+    else
+        unzip ./$out/$viewer.zip -d ./$out
+    fi
     # see $docurl...
     sed -i '/<script.*UnityLoader.js.*script>/i <script>XMLHttpRequest.prototype.originalOpen = XMLHttpRequest.prototype.open; var newOpen = function(_, url) { var original = this.originalOpen.apply(this, arguments); if (url.indexOf("m20.jpl.nasa.gov") >= 0) this.withCredentials = true; return original; }; XMLHttpRequest.prototype.open = newOpen;</script>' $out/$viewer/index.html
 fi
@@ -84,7 +92,8 @@ if [ "$using_dproxy" ]; then
     echo "1) make sure you've logged in at $dproxy"
     echo "2) check bucket(s) have CORS configured (see $docurl)"
     echo "3) view page source and make sure the shim script has been injected before the unity loader (if not rm -rf $out/$viewer $out/${viewer}.zip and try again)"
-    echo "4) sacrifice chicken"
+    echo "4) make sure you have acquired valid credentials with credss to read s3://$lfbucket"
+    echo "5) sacrifice chicken"
 fi
 
 python $scriptdir/python-https.py $port $out $pem

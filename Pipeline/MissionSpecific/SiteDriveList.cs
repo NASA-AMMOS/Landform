@@ -38,6 +38,8 @@ namespace OPS.Pipeline
 
         private ILogger logger; //optional
 
+        private string[] pdsExts; //iff mission != null
+
         //(url, id) => rejection reason
         private Func<string, RoverProductId, string> extraCheck; //optional
 
@@ -47,6 +49,14 @@ namespace OPS.Pipeline
             this.mission = mission;
             this.logger = logger;
             this.extraCheck = extraCheck;
+            if (mission != null)
+            {
+                string exts = mission.GetPDSExts(); //comma separated, in order of highest to lowest priority
+                if (!string.IsNullOrEmpty(exts))
+                {
+                    pdsExts = StringHelper.ParseList(exts).Select(ext => ext.TrimStart('.').ToLower()).ToArray();
+                }
+            }
         }
 
         public SiteDriveList(string rdrDir, SiteDrive siteDrive, MissionSpecific mission = null, ILogger logger = null,
@@ -82,8 +92,8 @@ namespace OPS.Pipeline
                         string rejectionReason = Add(url);
                         if (logger != null && !string.IsNullOrEmpty(rejectionReason))
                         {
-                            logger.LogError("rejected list file entry {0} on line {1}: {2}",
-                                            url, lineNumber, rejectionReason);
+                            logger.LogWarn("rejected list file entry {0} on line {1}: {2}",
+                                           url, lineNumber, rejectionReason);
                         }
                     }
                 }
@@ -178,7 +188,21 @@ namespace OPS.Pipeline
                 {
                     return null; //duplicate: same id and URL
                 }
-                else if (logger != null)
+                bool sameBase =
+                    StringHelper.StripUrlExtension(StringHelper.NormalizeUrl(url)) ==
+                    StringHelper.StripUrlExtension(StringHelper.NormalizeUrl(IDToURL[id]));
+                if (sameBase)
+                {
+                    string curExt = StringHelper.GetUrlExtension(IDToURL[id]).TrimStart('.').ToLower();
+                    string newExt = StringHelper.GetUrlExtension(url).TrimStart('.').ToLower();
+                    int curPDSPriority = Array.FindIndex(pdsExts, ext => curExt == ext);
+                    int newPDSPriority = Array.FindIndex(pdsExts, ext => newExt == ext);
+                    if (curPDSPriority >= 0 && newPDSPriority >= 0 && newPDSPriority > curPDSPriority)
+                    {
+                        return null; //new url only differs in ext, both are PDS, and new is a lower priority type
+                    }
+                }
+                else if (logger != null) //don't warn if e.g. replacing foo.VIC with foo.IMG
                 {
                     logger.LogWarn("duplicate product ID {0}, replacing URL {1} with {2}", idStr, IDToURL[id], url);
                 }
