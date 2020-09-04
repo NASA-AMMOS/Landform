@@ -77,6 +77,9 @@ namespace OPS.Landform
 
         [Option(Default = 0, HelpText = "Maximum unhandled message age, nonpositive to use default")]
         public int MaxMessageAgeSec { get; set; }
+
+        [Option(Default = LandformService.DEF_MAX_RECEIVE_COUNT, HelpText = "Maximum message receive count, nonpositive for unlimited")]
+        public int MaxReceiveCount { get; set; }
     }
     
     public abstract class LandformService : LandformShell
@@ -89,6 +92,25 @@ namespace OPS.Landform
 
         public const int DEF_MAX_HANDLER_SEC = 10 * 60; //10 minutes
         public const int DEF_MAX_MESSAGE_AGE_SEC = 60 * 60; //1 hour
+
+        //there is an interplay between the max message age and the max receive count
+        //because each time a message is received it becomes invisible for at least the visibility timeout of the queue
+        //which is typically 30s
+        //(our heartbeat loop may further extend the visibility timeout, but it is always at least that)
+        //so e.g. 10 receives should mean that the message is at least 300s (5 min) old
+        //
+        //if the max message age is e.g. 1 hour, and there are active and available consumers on the queue,
+        //then a bad message might typically get culled due to max receive count well before it reaches max age
+        //
+        //note that message "age" is actually computed as the time since the first receive of the message
+        //so messages posted to queues while there are no active or available consumers can wait in the queue
+        //for an arbitrary amount of time before they are first received
+        //
+        //so if max message age is 1 hour, max receive count is 10, and queue visibility timeout is 30s
+        //under what circumstances can a messge possibly be culled due to max age?
+        //one case is if workers actually spend more than an hour in aggegate trying to process the message,
+        //making fewer than 10 total attempts, but always fail
+        public const int DEF_MAX_RECEIVE_COUNT = 10;
 
         protected LandformServiceOptions lvopts;
 
@@ -276,6 +298,9 @@ namespace OPS.Landform
             pipeline.LogInfo("max handler time: {0}", Fmt.HMS(GetMaxHandlerSec() * 1000));
             pipeline.LogInfo("max message age: {0}", Fmt.HMS(GetMaxMessageAgeSec() * 1000));
 
+            int mrc = GetMaxReceiveCount();
+            pipeline.LogInfo("max receive count: {0}", mrc < int.MaxValue ? ("" + mrc) : "unlimited");
+
             return true;
         }
 
@@ -421,6 +446,11 @@ namespace OPS.Landform
         protected virtual int GetMaxMessageAgeSec()
         {
             return lvopts.MaxMessageAgeSec > 0 ? lvopts.MaxMessageAgeSec : defMaxMessageAgeSec;
+        }
+
+        protected virtual int GetMaxReceiveCount()
+        {
+            return lvopts.MaxReceiveCount > 0 ? lvopts.MaxReceiveCount : int.MaxValue;
         }
 
         protected virtual int GetDequeueThrottleMS()
@@ -629,6 +659,7 @@ namespace OPS.Landform
         {
             int throttleMS = GetDequeueThrottleMS();
             int maxAgeSec = GetMaxMessageAgeSec();
+            int maxReceiveCount = GetMaxReceiveCount();
             pipeline.LogInfo("running service loop on queue {0}, throttle {1}ms", messageQueue.Name, throttleMS);
 
             while (true)
@@ -652,7 +683,7 @@ namespace OPS.Landform
                     {
                         string desc = DescribeMessage(msg);
                         int ageSec = (int)(0.001 * (msg.ApproxReceiveMS - msg.ApproxFirstReceiveMS));
-                        bool tooOld = ageSec > maxAgeSec;
+                        bool tooOld = ageSec > maxAgeSec || msg.ApproxReceiveCount > maxReceiveCount;
                         bool accepted = AcceptMessage(msg, out string rejectionReason);
                         bool handled = false;
 
@@ -681,8 +712,10 @@ namespace OPS.Landform
 
                         if (accepted && tooOld)
                         {
-                            pipeline.LogError("{0} too old ({1} > {2}), removing from queue, {3} fail queue",
-                                              desc, Fmt.HMS(1000 * ageSec), Fmt.HMS(1000 * maxAgeSec),
+                            string reason = ageSec > maxAgeSec ?
+                                string.Format("too old {0} > {1}", Fmt.HMS(1000 * ageSec), Fmt.HMS(1000 * maxAgeSec)) :
+                                string.Format("too many retries {0} > {1}", msg.ApproxReceiveCount, maxReceiveCount);
+                            pipeline.LogError("{0} {1}, removing from queue, {2} fail queue", desc, reason,
                                               failMessageQueue != null ? "adding to" : "no");
                         }
 

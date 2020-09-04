@@ -62,6 +62,17 @@ if not "%LANDFORM_CONTEXTUAL_CONFIG_FOLDER%"=="" set cfgfolder=%LANDFORM_CONTEXT
 set venue=%service%-service
 if not "%LANDFORM_CONTEXTUAL_VENUE%"=="" set venue=%LANDFORM_CONTEXTUAL_VENUE%
 
+set msgopts=
+if not "%LANDFORM_CONTEXTUAL_MASTER_MAX_HANDLER_SEC%"=="" (
+    set msgopts=--maxhandlersec=%LANDFORM_CONTEXTUAL_MASTER_MAX_HANDLER_SEC%
+)
+if not "%LANDFORM_CONTEXTUAL_MASTER_MAX_MESSAGE_AGE_SEC%"=="" (
+    set msgopts=%msgopts% --maxmessageagesec=%LANDFORM_CONTEXTUAL_MASTER_MAX_MESSAGE_AGE_SEC%
+)
+if not "%LANDFORM_CONTEXTUAL_MASTER_MAX_RECEIVE_COUNT%"=="" (
+    set msgopts=%msgopts% --maxreceivecount=%LANDFORM_CONTEXTUAL_MASTER_MAX_RECEIVE_COUNT%
+)
+
 rem --- end service specific boilerplate, begin service specific ---
 
 set workerqueue=m20-ids-g-sqs-landform-contextual-worker
@@ -117,6 +128,7 @@ set stdopts=--configdir=%cfgdir% --configfolder=%cfgfolder% --logdir=%logdir% --
 set cfgopts=%stdopts% --venue=%venue% --maxcores=0 --randomseed=-1 --storagedir=%storagedir%
 set svcopts=%stdopts% --stacktraces --master --mission=%mission% --queuename=%queue% --failqueuename=%failqueue%
 set svcopts=%svcopts% --awsprofile=%awsprofile% --awsregion=%awsregion% %credentialrefresh%
+set svcopts=%svcopts% %msgopts%
 
 set appsdir=%bindir%\ExternalApps
 if exist %appsdir%\opengl32-for-ivcat.dll (

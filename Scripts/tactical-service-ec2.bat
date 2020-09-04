@@ -62,6 +62,17 @@ if not "%LANDFORM_TACTICAL_CONFIG_FOLDER%"=="" set cfgfolder=%LANDFORM_TACTICAL_
 set venue=%service%-service
 if not "%LANDFORM_TACTICAL_VENUE%"=="" set venue=%LANDFORM_TACTICAL_VENUE%
 
+set msgopts=
+if not "%LANDFORM_TACTICAL_MAX_HANDLER_SEC%"=="" (
+    set msgopts=--maxhandlersec=%LANDFORM_TACTICAL_MAX_HANDLER_SEC%
+)
+if not "%LANDFORM_TACTICAL_MAX_MESSAGE_AGE_SEC%"=="" (
+    set msgopts=%msgopts% --maxmessageagesec=%LANDFORM_TACTICAL_MAX_MESSAGE_AGE_SEC%
+)
+if not "%LANDFORM_TACTICAL_MAX_RECEIVE_COUNT%"=="" (
+    set msgopts=%msgopts% --maxreceivecount=%LANDFORM_TACTICAL_MAX_RECEIVE_COUNT%
+)
+
 rem --- end service specific boilerplate, begin service specific ---
 
 set meshformat=mission
@@ -76,6 +87,7 @@ set stdopts=--configdir=%cfgdir% --configfolder=%cfgfolder% --logdir=%logdir% --
 set cfgopts=%stdopts% --venue=%venue% --maxcores=0 --randomseed=-1 --storagedir=%storagedir%
 set svcopts=%stdopts% --stacktraces --service --mission=%mission% --queuename=%queue% --failqueuename=%failqueue%
 set svcopts=%svcopts% --awsprofile=%awsprofile% --awsregion=%awsregion% %credentialrefresh%
+set svcopts=%svcopts% %msgopts%
 
 set tacticalopts=--meshformat=%meshformat% %indices%
 

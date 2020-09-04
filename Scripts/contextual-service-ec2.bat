@@ -91,12 +91,24 @@ if not "%LANDFORM_CONTEXTUAL_EXTENT%"=="" set extent=%LANDFORM_CONTEXTUAL_EXTENT
 set surfaceextent=64
 if not "%LANDFORM_CONTEXTUAL_SURFACE_EXTENT%"=="" set surfaceextent=%LANDFORM_CONTEXTUAL_SURFACE_EXTENT%
 
+set msgopts=
+if not "%LANDFORM_CONTEXTUAL_MAX_HANDLER_SEC%"=="" (
+    set msgopts=--maxhandlersec=%LANDFORM_CONTEXTUAL_MAX_HANDLER_SEC%
+)
+if not "%LANDFORM_CONTEXTUAL_MAX_MESSAGE_AGE_SEC%"=="" (
+    set msgopts=%msgopts% --maxmessageagesec=%LANDFORM_CONTEXTUAL_MAX_MESSAGE_AGE_SEC%
+)
+if not "%LANDFORM_CONTEXTUAL_MAX_RECEIVE_COUNT%"=="" (
+    set msgopts=%msgopts% --maxreceivecount=%LANDFORM_CONTEXTUAL_MAX_RECEIVE_COUNT%
+)
+
 rem --- end service specific ---
 
 set stdopts=--configdir=%cfgdir% --configfolder=%cfgfolder% --logdir=%logdir% --tempdir=%tmpdir%
 set cfgopts=%stdopts% --venue=%venue% --maxcores=0 --randomseed=-1 --storagedir=%storagedir%
 set svcopts=%stdopts% --stacktraces --service --mission=%mission% --queuename=%queue% --failqueuename=%failqueue%
 set svcopts=%svcopts% --awsprofile=%awsprofile% --awsregion=%awsregion% %credentialrefresh%
+set svcopts=%svcopts% %msgopts%
 
 set contextualopts=--maxfetch=%maxfetch% --maxorbital=%maxorbital% %nocombinedmanifest% %noorbital% %nosky% %skymode%
 set contextualopts=%contextualopts% %indices% --extent=%extent% --surfaceextent=%surfaceextent%
