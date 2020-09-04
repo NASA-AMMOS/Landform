@@ -20,7 +20,7 @@ if not "%LANDFORM_MISSION%"=="" set mission=%LANDFORM_MISSION%
 set awsprofile=none
 if not "%LANDFORM_AWS_PROFILE%"=="" set awsprofile=%LANDFORM_AWS_PROFILE%
 
-set awsregion=none
+set awsregion=us-gov-west-1
 if not "%LANDFORM_AWS_REGION%"=="" set awsregion=%LANDFORM_AWS_REGION%
 
 rem direct stdout and stderr to nul by default so that the EC2 userdata script log doesn't get spammed
