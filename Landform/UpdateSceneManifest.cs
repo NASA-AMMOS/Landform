@@ -444,8 +444,8 @@ namespace OPS.Landform
                 else if (!string.IsNullOrEmpty(options.TilesetDir) && options.Sol >= 0 &&
                          SiteDrive.IsSiteDriveString(options.SiteDrive))
                 {
-                    options.ManifestFile = string.Format("{0}{1:D4}_{2}{3}.json", options.TilesetDir, options.Sol,
-                                                         options.SiteDrive, SCENE_SUFFIX);
+                    options.ManifestFile = string.Format("{0}{1}_{2}{3}.json", options.TilesetDir,
+                                                         SolToString(options.Sol), options.SiteDrive, SCENE_SUFFIX);
                 }
                 else
                 {
@@ -669,7 +669,7 @@ namespace OPS.Landform
             //but for variant processing there might be e.g. an extra suffix
             //so rather than rigidly assume that it's always TTTT_SSSDDDD
             //use the project name which would include any variant suffix
-            //string tilesetId = string.Format("{0:D4}_{1}", options.Sol, options.SiteDrive);
+            //string tilesetId = string.Format("{0}_{1}", SolToString(options.Sol), options.SiteDrive);
             string tilesetId = project.Name;
 
             string tilesetUrl = null;
@@ -819,7 +819,7 @@ namespace OPS.Landform
                 string contextualId = null;
                 if (options.Sol >= 0 && !string.IsNullOrEmpty(options.SiteDrive))
                 {
-                    contextualId = string.Format("{0:D4}_{1}", options.Sol, options.SiteDrive);
+                    contextualId = string.Format("{0}_{1}", SolToString(options.Sol), options.SiteDrive);
                 }
 
                 var idToPDSFile = new Dictionary<string, string>();

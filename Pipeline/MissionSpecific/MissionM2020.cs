@@ -511,6 +511,11 @@ namespace OPS.Pipeline
                 $"\"AuthCookieFile\": \"~/.cssotoken/{venue}/ssosession\"\n" +
                 "}";
         }
+
+        public override string SolToString(int sol)
+        {
+            return M2020OPGSProductId.SolToString(sol);
+        }
     }
 
     public class MissionROASTT19 : MissionM2020 

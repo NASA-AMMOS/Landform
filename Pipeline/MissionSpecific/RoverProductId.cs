@@ -420,6 +420,146 @@ namespace OPS.Pipeline
                 default: return RoverProductGeometry.Unknown;
             }
         }
+
+        //parse 3 character site string
+        //returns an integer in the range [0,32767], -1 if invalid, 32768 if out of range
+        public static int ParseSite(string str)
+        {
+            if (string.IsNullOrEmpty(str) || str.Length != 3)
+            {
+                return -1;
+            }
+            if (str.All(c => c == '_'))
+            {
+                return 32768;
+            }
+            if (char.IsLetter(str[0]) && char.IsDigit(str[1]) && char.IsDigit(str[2])) //1000-3599
+            {
+                if (int.TryParse(str.Substring(1), out int s))
+                {
+                    char c = char.ToUpper(str[0]);
+                    return 1000 + (c - 'A') * 100 + s;
+                }
+                return -1;
+            }
+            if (char.IsLetter(str[0]) && char.IsLetter(str[1]) && char.IsDigit(str[2])) //3600-10359
+            {
+                if (int.TryParse(str.Substring(2), out int s))
+                {
+                    char c0 = char.ToUpper(str[0]);
+                    char c1 = char.ToUpper(str[1]);
+                    return 3600 + ((c0 - 'A') * 26 + (c1 - 'A')) * 10 + s;
+                }
+            }
+            if (char.IsLetter(str[0]) && char.IsLetter(str[1]) && char.IsLetter(str[2])) //10360-27935
+            {
+                char c0 = char.ToUpper(str[0]);
+                char c1 = char.ToUpper(str[1]);
+                char c2 = char.ToUpper(str[2]);
+                return 10360 + (c0 - 'A') * 26 * 26 + (c1 - 'A') * 26 + (c2 - 'A');
+            }
+            if (char.IsDigit(str[0]) && char.IsLetter(str[1]) && char.IsLetter(str[2])) //27936-32767
+            {
+                char c0 = str[0];
+                char c1 = char.ToUpper(str[1]);
+                char c2 = char.ToUpper(str[2]);
+                return 27936 + (c0 - '0') * 26 * 26 + (c1 - 'A') * 26 + (c2 - 'A');
+            }
+            return int.TryParse(str, out int site) ? site : -1; //0-999
+        }
+
+        //parse 4 character drive string
+        //returns an integer in the range [0,65535], -1 if invalid, 65536 if out of range
+        public static int ParseDrive(string str)
+        { 
+            if (string.IsNullOrEmpty(str) || str.Length != 4)
+            {
+                return -1;
+            }
+            if (str.All(c => c == '_'))
+            {
+                return 65536;
+            }
+            if (char.IsLetter(str[0]) && char.IsDigit(str[1]) && char.IsDigit(str[2]) && char.IsDigit(str[3]))
+            {
+                //10000-35999
+                char c = char.ToUpper(str[0]);
+                if (int.TryParse(str.Substring(1), out int d))
+                {
+                    return 10000 + (c - 'A') * 1000 + d;
+                }
+            }
+            if (char.IsLetter(str[0]) && char.IsLetter(str[1]) && char.IsDigit(str[2]) && char.IsDigit(str[3]))
+            {
+                //36000-65535
+                char c0 = char.ToUpper(str[0]);
+                char c1 = char.ToUpper(str[1]);
+                if (int.TryParse(str.Substring(2), out int d))
+                {
+                    return 36000 + ((c0 - 'A') * 26 + (c1 - 'A')) * 100 + d;
+                }
+            }
+            return int.TryParse(str, out int drive) ? drive : -1; //0-9999
+        }
+
+        //returns 3 character site string for input site in the range [0,32767]
+        //returns 3 underscores if out of range
+        public static string SiteToString(int site)
+        {
+            if (site < 0 || site > 32767)
+            {
+                return "___";
+            }
+            if (site >= 10360)
+            {
+                int s = site - (site >= 27936 ? 27936 : 10360);
+                char c = site >= 27936 ? '0' : 'A';
+                int s0 = s / (26 * 26);
+                int s1 = (s - s0 * (26 * 26)) / 26;
+                int s2 = s - s0 * (26 * 26) - s1 * 26;
+                return string.Format("{0}{1}{2}", (char)(c + s0), (char)('A' + s1), (char)('A' + s2));
+            }
+            if (site >= 3600)
+            {
+                int d = (site / 10) - 360;
+                int s0 = d / 26;
+                int s1 = d - s0 * 26;
+                int s = site - (3600 + (s0 * 26 + s1) * 10);
+                return string.Format("{0}{1}{2:D1}", (char)('A' + s0), (char)('A' + s1), s);
+            }
+            if (site >= 1000)
+            {
+                int h = (site / 100) - 10;
+                int s = site - (1000 + h * 100);
+                return string.Format("{0}{1:D2}", (char)('A' + h), s);
+            }
+            return string.Format("{0:D3}", site);
+        }
+
+        //returns 4 character drive string for input drive in the range [0,65535]
+        //returns 4 underscores if out of range
+        public static string DriveToString(int drive)
+        {
+            if (drive < 0 || drive > 65535)
+            {
+                return "____";
+            }
+            if (drive >= 36000)
+            {
+                int h = (drive / 100) - 360;
+                int h0 = h / 26;
+                int h1 = h - h0 * 26;
+                int d = drive - (36000 + (h0 * 26 + h1) * 100);
+                return string.Format("{0}{1}{2:D2}", (char)('A' + h0), (char)('A' + h1), d);
+            }
+            if (drive >= 10000)
+            {
+                int k = (drive / 1000) - 10;
+                int d = drive - (10000 + k * 1000);
+                return string.Format("{0}{1:D3}", (char)('A' + k), d);
+            }
+            return string.Format("{0:D4}", drive);
+        }
     }
 
     public class MSLOPGSProductId : OPGSProductId
@@ -461,9 +601,14 @@ namespace OPS.Pipeline
             string venue = productId.Substring(34, 1);
             string ver = productId.Substring(35, 1);
 
-            if (!int.TryParse(sclkStr, out int sclk) ||
-                !int.TryParse(siteStr, out int site) ||
-                !int.TryParse(driveStr, out int drive))
+            int site = ParseSite(siteStr);
+            int drive = ParseSite(driveStr);
+            if (site < 0 || drive < 0)
+            {
+                return null;
+            }
+
+            if (!int.TryParse(sclkStr, out int sclk))
             {
                 return null;
             }
@@ -738,9 +883,10 @@ namespace OPS.Pipeline
             string venue = productId.Substring(us + 29, 1);
             string ver = productId.Substring(us + 30, 1);
 
-            int sol = parseSol(solStr);
-
-            if (!int.TryParse(siteStr, out int site) || !int.TryParse(driveStr, out int drive))
+            int sol = ParseSol(solStr);
+            int site = ParseSite(siteStr);
+            int drive = ParseDrive(driveStr);
+            if (sol < 0 || site < 0 || drive < 0)
             {
                 return null;
             }
@@ -760,37 +906,43 @@ namespace OPS.Pipeline
                                                meshId: meshId);
         }
 
-        private static int parseSol(string solStr)
+        //parse a 4 character sol string
+        //returns integer in range [0,33999], -1 if invalid, 34000 if out of range
+        //note: overflow above sol 9999 occurs after about 28 Earth years of operations
+        public static int ParseSol(string str)
         {
-            if (string.IsNullOrEmpty(solStr))
+            if (string.IsNullOrEmpty(str))
             {
-                return 0;
+                return -1;
             }
-            if (solStr.All(c => c == '_'))
+            if (str.All(c => c == '_'))
             {
-                return int.MaxValue;
+                return 34000;
             }
-            if (Char.IsLetter(solStr, 0))
+            if (Char.IsLetter(str, 0))
             {
-                char c = char.ToUpper(solStr[0]);
-                if (!int.TryParse(solStr.Substring(1), out int s))
+                char c = char.ToUpper(str[0]);
+                if (!int.TryParse(str.Substring(1), out int s))
                 {
-                    return 0;
+                    return -1;
                 }
                 if (c == 'Y' || c == 'Z')
                 {
-                    return 365 * (c - 'Y') + s;
+                    return 365 * (c - 'Y') + s; //0-730 (testbed activity)
                 }
                 else
                 {
-                    return 10000 * (c - 'A') + s;
+                    return 10000 + (c - 'A') * 1000 + s; //10000-33999
                 }
             }
-            if (int.TryParse(solStr, out int sol))
-            {
-                return sol;
-            }
-            return 0;
+            return int.TryParse(str, out int sol) ? sol : -1; //0-9999
+        }
+
+        //format sol as a 4 digit number
+        //note: if sol is greater than 9999 the return will have more than 4 digits
+        public static string SolToString(int sol)
+        {
+            return string.Format("{0:D4}", sol);
         }
 
         public override bool GetVersionSpan(out int start, out int length)
@@ -1016,12 +1168,15 @@ namespace OPS.Pipeline
             string producer = productId.Substring(51, 1);
             string version = productId.Substring(52, 2);
 
-            int ts0 = parseSol(ts0Str);
+            int ts0 = ParseSol(ts0Str);
+            int site = ParseSite(siteStr);
+            int drive = ParseDrive(driveStr);
+            if (ts0 < 0 || site < 0 || drive < 0)
+            {
+                return null;
+            }
 
-            if (!int.TryParse(ts1Str, out int ts1) ||
-                !int.TryParse(ts2Str, out int ts2) ||
-                !int.TryParse(siteStr, out int site) |
-                !int.TryParse(driveStr, out int drive))
+            if (!int.TryParse(ts1Str, out int ts1) || !int.TryParse(ts2Str, out int ts2))
             {
                 return null;
             }
@@ -1033,34 +1188,40 @@ namespace OPS.Pipeline
                                           compression: compression);
         }
 
-        private static int parseSol(string solStr)
+        //parse a 4 character sol string
+        //returns integer in range [0,9999], -1 if invalid, 10000 if out of range
+        //note: overflow above sol 9999 occurs after about 28 Earth years of operations
+        public static int ParseSol(string str)
         {
-            if (string.IsNullOrEmpty(solStr))
+            if (string.IsNullOrEmpty(str))
             {
-                return 0;
+                return -1;
             }
-            if (solStr.All(c => c == '_'))
+            if (str.All(c => c == '_'))
             {
-                return int.MaxValue;
+                return 10000;
             }
             int offset = 0;
-            if (Char.IsLetter(solStr, 0))
+            if (Char.IsLetter(str, 0))
             {
-                char c = char.ToUpper(solStr[0]);
+                char c = char.ToUpper(str[0]);
                 offset = 365 * (c - 'A');
-                solStr = solStr.Substring(1);
+                str = str.Substring(1);
             }
-            if (Char.IsLetter(solStr, solStr.Length - 1))
+            else if (Char.IsLetter(str, str.Length - 1))
             {
-                char c = char.ToUpper(solStr[solStr.Length - 1]);
+                char c = char.ToUpper(str[str.Length - 1]);
                 offset = 365 * (c - 'A');
-                solStr = solStr.Substring(0, solStr.Length - 1);
+                str = str.Substring(0, str.Length - 1);
             }
-            if (int.TryParse(solStr, out int sol))
-            {
-                return offset + sol;
-            }
-            return 0;
+            return Math.Min(int.TryParse(str, out int sol) ? offset + sol : -1, 10000);
+        }
+
+        //format sol as a 4 digit number
+        //note: if sol is greater than 9999 the return will have more than 4 digits
+        public static string SolToString(int sol)
+        {
+            return string.Format("{0:D4}", sol);
         }
 
         public string GetConcatenatedTimeString()
@@ -1226,10 +1387,15 @@ namespace OPS.Pipeline
             string producer = productId.Substring(us + 36, 1);
             string ver = productId.Substring(us + 37, 2);
 
-            int sol = parseSol(solStr);
+            int sol = M2020OPGSProductId.ParseSol(solStr);
+            int site = ParseSite(siteStr);
+            int drive = ParseDrive(driveStr);
+            if (sol < 0 || site < 0 || drive < 0)
+            {
+                return null;
+            }
 
-            if (!int.TryParse(siteStr, out int site) || !int.TryParse(driveStr, out int drive) ||
-                !int.TryParse(pyramidStr, out int pyramid))
+            if (!int.TryParse(pyramidStr, out int pyramid))
             {
                 return null;
             }
@@ -1250,32 +1416,29 @@ namespace OPS.Pipeline
                                                  resolution: resolution, pyramid: pyramid);
         }
 
-        private static int parseSol(string solStr)
+        /* Technically as of version 2020714 the M2020 camera SIS states that the sol string in unified mesh product IDs
+           should be parsed like this.  But that may be incorrect.  The topic is currently under discussion with the
+           stakeholders.  For now parsing unified mesh sol strings the same as for single frame M2020 product ID.
+
+        private static int ParseSol(string str)
         {
-            if (string.IsNullOrEmpty(solStr))
+            if (string.IsNullOrEmpty(str) || str.All(c => c == '_'))
             {
-                return 0;
+                return -1;
             }
-            if (solStr.All(c => c == '_'))
+            if (Char.IsLetter(str, 0))
             {
-                return int.MaxValue;
-            }
-            if (Char.IsLetter(solStr, 0))
-            {
-                char c = char.ToUpper(solStr[0]);
-                solStr = solStr.Substring(1);
-                if (c == 'Y' && int.TryParse(solStr, out int year))
+                char c = char.ToUpper(str[0]);
+                str = str.Substring(1);
+                if (c == 'Y' && int.TryParse(str, out int year))
                 {
                     return 2000 + year;
                 }
-                return 0;
+                return -1;
             }
-            if (int.TryParse(solStr, out int sol))
-            {
-                return sol;
-            }
-            return 0;
+            return int.TryParse(str, out int sol) ? sol : -1;
         }
+        */
 
         public override bool GetVersionSpan(out int start, out int length)
         {

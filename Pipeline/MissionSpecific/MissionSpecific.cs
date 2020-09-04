@@ -979,5 +979,20 @@ namespace OPS.Pipeline
         {
             return 2; //MSL and M2020 rover mast height is about 2m above bottom of wheels on flat surface
         }
+
+        public virtual string SolToString(int sol)
+        {
+            return string.Format("{0:D4}", sol);
+        }
+
+        public virtual string SiteToString(int site)
+        {
+            return OPGSProductId.SiteToString(site);
+        }
+
+        public virtual string DriveToString(int drive)
+        {
+            return OPGSProductId.DriveToString(drive);
+        }
     }
 }

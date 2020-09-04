@@ -307,7 +307,6 @@ namespace OPS.Landform
             public HashSet<int> Sols = new HashSet<int>();
             public SiteDrive PrimarySiteDrive;
             public HashSet<SiteDrive> SiteDrives = new HashSet<SiteDrive>();
-            public string TilesetName { get { return string.Format("{0:D4}_{1}", PrimarySol, PrimarySiteDrive); } }
         }
 
         //RDR directory -> sitedrive -> list or wedge URL -> last changed UTC milliseconds
@@ -343,7 +342,9 @@ namespace OPS.Landform
                 {
                     var cmm = (msg as ContextualMeshMessage);
                     var parameters = MakeParameters(cmm);
-                    var desc = "contextual mesh " + parameters.TilesetName;
+
+                    var desc = string.Format("contextual mesh {0}_{1}",
+                                             SolToString(parameters.PrimarySol), parameters.PrimarySiteDrive);
                     if (verbose)
                     {
                         desc += string.Format(" for {0}; sols {1}; sitedrives {2}, {3} wedges, {4} UTC",
@@ -712,7 +713,7 @@ namespace OPS.Landform
             string missionStr = mission != null ? mission.GetMission().ToString() : "None";
             string fullMissionStr = mission != null ? mission.GetMissionWithVenue() : "None";
             string sdStr = primarySiteDrive.ToString();
-            string solStr = string.Format("{0:D4}", primarySol);
+            string solStr = string.Format("{0}", SolToString(primarySol));
             string sdsStr = string.Join(",", siteDrives.ToArray());
             string project = string.Format("{0}_{1}", solStr, sdStr);
             string venue = string.Format("contextual_{0}_{1}", missionStr, project);
@@ -1110,7 +1111,7 @@ namespace OPS.Landform
             int primarySol = primarySDList.MaxSol;
             SiteDrive primarySD = primarySDList.SiteDrive;
 
-            string name = string.Format("{0:D4}_{1}", primarySol, primarySD.ToString());
+            string name = string.Format("{0}_{1}", SolToString(primarySol), primarySD.ToString());
 
             double maxDistance = options.MaxSiteDriveDistance;
 
