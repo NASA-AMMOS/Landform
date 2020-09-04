@@ -151,7 +151,7 @@ namespace OPS.Pipeline
         protected abstract RoverProductColor ParseColor(string color, string camera);
 
         /// <summary>
-        /// MSL OPGS version is one digit in the range 1-9A-Z, or _ for 
+        /// MSL OPGS version is one digit in the range 1-9A-Z, or _ for overflow
         /// MSL MSSS version is one digit in the range 0-9A-Z, or _ for overflow
         /// M2020 OPGS version is two digits in the range '00'-'99''A0'-'ZZ' or '__' for overflow
         /// </summary>
@@ -602,7 +602,7 @@ namespace OPS.Pipeline
             string ver = productId.Substring(35, 1);
 
             int site = ParseSite(siteStr);
-            int drive = ParseSite(driveStr);
+            int drive = ParseDrive(driveStr);
             if (site < 0 || drive < 0)
             {
                 return null;
