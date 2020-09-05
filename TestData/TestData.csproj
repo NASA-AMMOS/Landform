@@ -79,6 +79,9 @@
     <None Include="TestData\json\m2020-contextual-event-example.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <None Include="TestData\json\m2020-contextual-event-example2.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
     <None Include="TestData\json\m2020-contextual-master-g66bt-lis-event.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>

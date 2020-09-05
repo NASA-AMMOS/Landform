@@ -164,7 +164,7 @@ namespace OPS.Landform
         [Option(Default = false, HelpText = "Download in batches and delete least recently used after each batch, requires --deletelru")]
         public bool IncrementalDeleteLRU { get; set; }
 
-        [Option(Default = -1, HelpText = "Limit the number of concurrent downloads, negative to use all available cores")]
+        [Option(Default = 20, HelpText = "Limit the number of concurrent downloads, negative to use all available cores")]
         public int ConcurrentDownloads { get; set; }
 
         [Option(Default = false, HelpText = "Overwrite existing files even if they are the same size")]
@@ -701,7 +701,7 @@ namespace OPS.Landform
                 dir = StringHelper.StripProtocol(StringHelper.StripLastUrlPathSegment(StringHelper.NormalizeUrl(url)));
             }
             string path = Path.Combine(options.OutputDir, dir, StringHelper.GetLastUrlPathSegment(url));
-            return StringHelper.NormalizeSlashes(path).Replace('/', Path.PathSeparator);
+            return StringHelper.NormalizeSlashes(path).Replace('/', Path.DirectorySeparatorChar);
         }
 
         private long DownloadFile(string url)
@@ -715,6 +715,10 @@ namespace OPS.Landform
             PathHelper.EnsureExists(Path.GetDirectoryName(localPath));
             bool s3 = url.ToLower().StartsWith("s3");
             string filename = StringHelper.GetLastUrlPathSegment(url);
+            if (options.Verbose)
+            {
+                logger.InfoFormat("downloading {0} -> {1}", url, localPath);
+            }
             TemporaryFile.GetAndMove(localPath, f =>
             {
                 bool success = false;
@@ -834,6 +838,8 @@ namespace OPS.Landform
             {
                 maxBatch = Math.Max(CoreLimitedParallel.GetMaxCores(), 1);
             }
+            logger.InfoFormat("downloading up to {0} files in parallel ({1} cores)",
+                              maxBatch, CoreLimitedParallel.GetAvailableCores());
 
             var remaining = new Queue<string>();
             var unique = new HashSet<string>();
@@ -854,6 +860,7 @@ namespace OPS.Landform
                 int total = remaining.Count, done = 0, skipped = 0, failed = 0;
                 var batch = new List<string>();
                 long batchBytes = 0;
+                var sw = Stopwatch.StartNew();
                 while (remaining.Count > 0)
                 {
                     batch.Clear();
@@ -881,7 +888,8 @@ namespace OPS.Landform
                     {
                         DeleteLRUDownloads(batchBytes); //free up at least batchBytes
                     }
-                    
+
+                    long expectedBytes = batchBytes;
                     batchBytes = 0; //now we'll re-account the actual downloaded bytes
                     var batchFiles = new ConcurrentBag<FileInfo>(); //ConcurrentBag has no Clear()
                     int np = 0;
@@ -893,6 +901,7 @@ namespace OPS.Landform
                         if (bytes >= 0)
                         {
                             Interlocked.Add(ref batchBytes, bytes);
+                            Interlocked.Add(ref downloadedBytes, bytes);
                             Interlocked.Increment(ref done);
                             batchFiles.Add(new FileInfo(LocalPath(url)));
                         }
@@ -902,10 +911,17 @@ namespace OPS.Landform
                         }
                         if (!options.DryRun)
                         {
-                            string msg = string.Format("{0:f2}%: ({1} active downloads) {2} {3}",
-                                                       (done + skipped + failed) * 100.0 / total, np,
-                                                       bytes >= 0 ? "downloaded" : "failed to download",
+                            long bb = Interlocked.Read(ref batchBytes);
+                            long db = Interlocked.Read(ref downloadedBytes);
+                            double ts = 0.001 * sw.ElapsedMilliseconds;
+                            string msg = string.Format("{0:f2}% {1} total {2}/{3} in batch {4}/s: " +
+                                                       "({5} active downloads) {6} {7}",
+                                                       (done + failed) * 100.0 / total, Fmt.DiskBytes(db),
+                                                       Fmt.DiskBytes(bb), Fmt.DiskBytes(expectedBytes),
+                                                       Fmt.DiskBytes(db / ts),
+                                                       np, bytes >= 0 ? "downloaded" : "failed to download",
                                                        StringHelper.GetLastUrlPathSegment(url));
+
                             if (bytes >= 0)
                             {
                                 logger.Info(msg);
@@ -917,8 +933,6 @@ namespace OPS.Landform
                         }
                     });
                     
-                    downloadedBytes += batchBytes;
-                    
                     if (options.AccountExisting && batchFiles.Count > 0)
                     {
                         IndexExistingDownloads(batchFiles); //will update diskBytes, accounting for replaces
@@ -928,9 +942,14 @@ namespace OPS.Landform
                         }
                     }
                 }
+                sw.Stop();
+                logger.InfoFormat("downloaded {0} bytes, {1} files, {2} failed, total time {3}, {4}/s",
+                                  Fmt.DiskBytes(downloadedBytes), done, failed, Fmt.HMS(sw),
+                                  Fmt.DiskBytes(downloadedBytes / (0.001 * sw.ElapsedMilliseconds)));
             }
             else
             {
+                logger.InfoFormat("collecting download info");
                 long batchBytes = 0;
                 var batch = new HashSet<string>();
                 foreach (var url in remaining)
@@ -939,6 +958,12 @@ namespace OPS.Landform
                     {
                         batch.Add(url);
                     }
+                }
+                logger.InfoFormat("downloading {0} files, {1} bytes", batch.Count, Fmt.DiskBytes(batchBytes));
+
+                if (batch.Count == 0)
+                {
+                    return;
                 }
 
                 //at this point url is in batch only if
@@ -954,8 +979,11 @@ namespace OPS.Landform
                     DeleteLRUDownloads(batchBytes, keep);
                 }
 
+                logger.Info("beginning downloads");
+                var sw = Stopwatch.StartNew();
+                var po = new ParallelOptions() { MaxDegreeOfParallelism = maxBatch };
                 int np = 0, total = batch.Count, done = 0, failed = 0;
-                CoreLimitedParallel.ForEach(batch, url =>
+                CoreLimitedParallel.ForEach(batch, po, url =>
                 {
                     Interlocked.Increment(ref np);
                     long bytes = DownloadFile(url);
@@ -963,6 +991,7 @@ namespace OPS.Landform
                     if (bytes >= 0)
                     {
                         Interlocked.Increment(ref done);
+                        Interlocked.Add(ref downloadedBytes, bytes);
                     }
                     else
                     {
@@ -970,9 +999,12 @@ namespace OPS.Landform
                     }
                     if (!options.DryRun)
                     {
-                        string msg = string.Format("{0:f2}%: ({1} active downloads) {2} {3}",
-                                                   (done + failed) * 100.0 / total, np,
-                                                   bytes >= 0 ? "downloaded" : "failed to download",
+                        long db = Interlocked.Read(ref downloadedBytes);
+                        double ts = 0.001 * sw.ElapsedMilliseconds;
+                        string msg = string.Format("{0:f2}% {1}/{2} {3}/s: ({4} active downloads) {5} {6}",
+                                                   (done + failed) * 100.0 / total,
+                                                   Fmt.DiskBytes(db), Fmt.DiskBytes(batchBytes), Fmt.DiskBytes(db / ts),
+                                                   np, bytes >= 0 ? "downloaded" : "failed to download",
                                                    StringHelper.GetLastUrlPathSegment(url));
                         if (bytes >= 0)
                         {
@@ -984,6 +1016,10 @@ namespace OPS.Landform
                         }
                     }
                 });
+                sw.Stop();
+                logger.InfoFormat("downloaded {0} bytes, {1} files, {2} failed, total time {3}, {4}/s",
+                                  Fmt.DiskBytes(downloadedBytes), done, failed, Fmt.HMS(sw),
+                                  Fmt.DiskBytes(downloadedBytes / (0.001 * sw.ElapsedMilliseconds)));
             }
         }
 
@@ -1047,6 +1083,17 @@ namespace OPS.Landform
                 {
                     logger.ErrorFormat("error deleting LRU download {0}: {1}", file.FullName, ex.Message);
                 }
+            }
+            if (deletedFiles > 0)
+            {
+                logger.InfoFormat("deleted {0} LRU files, {1} bytes, {2}/{3} bytes free",
+                                  Fmt.DiskBytes(deletedFiles), Fmt.DiskBytes(deletedBytes),
+                                  Fmt.DiskBytes(maxBytes - diskBytes), //may be negative
+                                  Fmt.DiskBytes(maxBytes));
+            }
+            if (deletedDirectories > 0)
+            {
+                logger.InfoFormat("deleted {0} empty directories", Fmt.KMG(deletedDirectories));
             }
         }
 
@@ -1194,17 +1241,6 @@ namespace OPS.Landform
                 }
                 logger.InfoFormat("downloaded {0} files ({1} bytes), total time: {2}",
                                   Fmt.DiskBytes(downloadedFiles), Fmt.DiskBytes(downloadedBytes), Fmt.HMS(stopwatch));
-                if (deletedFiles > 0)
-                {
-                    logger.InfoFormat("deleted {0} LRU files, {1} bytes, {2}/{3} bytes free",
-                                      Fmt.DiskBytes(deletedFiles), Fmt.DiskBytes(deletedBytes),
-                                      Fmt.DiskBytes(maxBytes - diskBytes), //may be negative
-                                      Fmt.DiskBytes(maxBytes));
-                }
-                if (deletedDirectories > 0)
-                {
-                    logger.InfoFormat("deleted {0} empty directories", Fmt.KMG(deletedDirectories));
-                }
             }
             catch (Exception ex)
             {

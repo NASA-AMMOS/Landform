@@ -1,5 +1,5 @@
 {
-  "rdrDir" : "s3://m20-ids-g-landform/TestData/roastt-dev-0205/ods/roastt/sol/#####/ids/rdr",
+  "rdrDir" : "s3://m20-ids-g-landform/ROASTT20/ods/roastt/sol/#####/ids/rdr",
   "primarySol" : 403,
   "primarySiteDrive" : "0200010"
 }
