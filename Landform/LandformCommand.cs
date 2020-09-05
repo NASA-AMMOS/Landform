@@ -271,5 +271,20 @@ namespace OPS.Landform
             }
             mesh.Save(meshFile, texture);
         }
+
+        protected string SolToString(int sol)
+        {
+            return mission != null ? mission.SolToString(sol) : string.Format("{0:D4}", sol);
+        }
+
+        protected string SiteToString(int site)
+        {
+            return mission != null ? mission.SiteToString(site) : string.Format("{0:D3}", site);
+        }
+
+        protected string DriveToString(int drive)
+        {
+            return mission != null ? mission.DriveToString(drive) : string.Format("{0:D4}", drive);
+        }
     }
 }

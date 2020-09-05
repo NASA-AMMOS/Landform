@@ -73,7 +73,11 @@ namespace OPS.Pipeline
                 {
                     unifiedMeshes[sd] = new Dictionary<RoverProductCamera, UnifiedMesh>();
                 }
-                unifiedMeshes[sd][id.Camera] = Load(path);
+                var um = Load(path);
+                if (um.Wedges.Count > 0) //in some test datasets there are empty unified meshes
+                {
+                    unifiedMeshes[sd][id.Camera] = um;
+                }
             }
             return unifiedMeshes;
         }

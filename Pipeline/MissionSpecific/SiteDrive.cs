@@ -19,35 +19,25 @@ namespace OPS.Pipeline
 
         public static bool IsSiteDriveString(string sd)
         {
-            return sd != null && ((new Regex("^\\d{10}$")).IsMatch(sd) || (new Regex("^\\d{7}$")).IsMatch(sd));
+            if (string.IsNullOrEmpty(sd) || (sd.Length != 10 && sd.Length != 7))
+            {
+                return false;
+            }
+            if (sd.All(c => char.IsDigit(c)))
+            {
+                return true;
+            }
+            return sd.Length == 7 &&
+                OPGSProductId.ParseSite(sd.Substring(0, 3)) >= 0 && OPGSProductId.ParseDrive(sd.Substring(3, 4)) >= 0;
         }
 
         public static bool TryParse(string name, out SiteDrive sd)
         {
             sd = new SiteDrive(0, 0);
 
-            if (!IsSiteDriveString(name))
+            if (string.IsNullOrEmpty(name))
             {
                 return false;
-            }
-
-            string site = null;
-            string drive = null;
-            switch (name.Length)
-            {
-                case 10: //5 char site, 5 char drive
-                {
-                    site = name.Substring(0, 5);
-                    drive = name.Substring(5, 5);
-                    break;
-                }
-                case 7: //3 char site, 4 char drive as in MSL & M2020 product ID
-                {
-                    site = name.Substring(0, 3);
-                    drive = name.Substring(3, 4);
-                    break;
-                }
-                default: return false;
             }
 
             bool isWildcard(string s)
@@ -56,7 +46,55 @@ namespace OPS.Pipeline
                 return a.All(c => c == 'x') || a.All(c => c == '#') || a.All(c => c == '?');
             }
 
-            sd = new SiteDrive(isWildcard(site) ? -1 : int.Parse(site), isWildcard(drive) ? -1 : int.Parse(drive));
+            int site = -1, drive = -1;
+            switch (name.Length)
+            {
+                case 10: //5 char site, 5 char drive
+                {
+                    string siteStr = name.Substring(0, 5);
+                    if (!isWildcard(siteStr))
+                    {
+                        if (!int.TryParse(siteStr, out site))
+                        {
+                            return false;
+                        }
+                    }
+                    string driveStr = name.Substring(5, 5);
+                    if (!isWildcard(driveStr))
+                    {
+                        if (!int.TryParse(driveStr, out drive))
+                        {
+                            return false;
+                        }
+                    }
+                    break;
+                }
+                case 7: //3 char site, 4 char drive as in MSL & M2020 product ID
+                {
+                    string siteStr = name.Substring(0, 3);
+                    if (!isWildcard(siteStr))
+                    {
+                        site = OPGSProductId.ParseSite(siteStr);
+                        if (site < 0)
+                        {
+                            return false;
+                        }
+                    }
+                    string driveStr = name.Substring(3, 4);
+                    if (!isWildcard(driveStr))
+                    {
+                        drive = OPGSProductId.ParseDrive(driveStr);
+                        if (drive < 0)
+                        {
+                            return false;
+                        }
+                    }
+                    break;
+                }
+                default: return false;
+            }
+
+            sd = new SiteDrive(site, drive);
             return true;
         }
         
@@ -84,14 +122,14 @@ namespace OPS.Pipeline
         }
 
         /// <summary>
-        /// Return a 7 digit string representing this site drive (as in MSL & M2020 product ID)
-        /// First 3 digits are 0 left padded site number
-        /// Last 4 digits are 0 left padded drive number
+        /// Return a 7 character string representing this site drive as in MSL & M2020 product ID.
+        /// First 3 characters are 0 left padded site specifier.
+        /// Last 4 characters are 0 left padded drive specifier.
         /// </summary>
         /// <returns></returns>
         public override string ToString()
         {
-            return string.Format("{0:D3}{1:D4}", Site, Drive);            
+            return string.Format("{0}{1}", OPGSProductId.SiteToString(Site), OPGSProductId.DriveToString(Drive));
         }
 
         /// <summary>

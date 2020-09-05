@@ -110,11 +110,14 @@ namespace OPS.Landform
         [Option(Default = false, HelpText = "Download RGB products")]
         public bool WithRGB { get; set; }
 
-        [Option(Default = false, HelpText = "Don't download OBJ products")]
+        [Option(Default = false, HelpText = "Don't download OBJ mesh products")]
         public bool NoOBJ { get; set; }
 
-        [Option(Default = false, HelpText = "Don't download IV products")]
+        [Option(Default = false, HelpText = "Don't download IV mesh products")]
         public bool NoIV { get; set; }
+
+        [Option(Default = false, HelpText = "Don't download any mesh products")]
+        public bool NoMeshes { get; set; }
 
         [Option(Default = false, HelpText = "Download VIC products")]
         public bool WithVIC { get; set; }
@@ -125,14 +128,17 @@ namespace OPS.Landform
         [Option(Default = null, HelpText = "Comma separated list of unified mesh filenames or URLs to use (overrides default algorithm to select lastest for each sitedrive)")]
         public string UnifiedMeshes { get; set; }
 
-        [Option(Default = false, HelpText = "Don't download and use unified meshes for filtering")]
-        public bool NoUnifiedMeshes { get; set; }
+        [Option(Default = "auto", HelpText = "Download and use unified meshes for filtering, true, false, or auto to use default for mission")]
+        public string UseUnifiedMeshes { get; set; }
+
+        [Option(Default = "auto", HelpText = "Product type to expect in unified meshes, or auto to use default for mission")]
+        public string UnifiedMeshProductType { get; set; }
 
         [Option(Default = false, HelpText = "Don't limit products from cameras used for geometry to only sitedrives with unified meshes for that camera")]
         public bool NoLimitGeometryCamerasToSiteDrivesWithUnifiedMeshes { get; set; }
 
-        [Option(Default = false, HelpText = "Don't use unified meshes to filter raster products")]
-        public bool NoFilterRasterProductsByUnifiedMesh { get; set; }
+        [Option(Default = false, HelpText = "Use unified meshes to filter raster products")]
+        public bool FilterRasterProductsByUnifiedMesh { get; set; }
 
         [Option(Default = false, HelpText = "Don't generalize unified meshes to both eyes")]
         public bool RespectUnifiedMeshStereoEye { get; set; }
@@ -155,14 +161,14 @@ namespace OPS.Landform
         [Option(Default = false, HelpText = "Delete least recently used files recursively under output directory to enforce --maxdownload, requires --accountexisting")]
         public bool DeleteLRU { get; set; }
        
-        [Option(Default = -1, HelpText = "Limit the number of concurrent downloads, negative to use all available cores")]
+        [Option(Default = false, HelpText = "Download in batches and delete least recently used after each batch, requires --deletelru")]
+        public bool IncrementalDeleteLRU { get; set; }
+
+        [Option(Default = 20, HelpText = "Limit the number of concurrent downloads, negative to use all available cores")]
         public int ConcurrentDownloads { get; set; }
 
-        [Option(Default = false, HelpText = "Overwrite existing files")]
-        public bool Overwrite { get; set; }
-
         [Option(Default = false, HelpText = "Overwrite existing files even if they are the same size")]
-        public bool ForceOverwrite { get; set; }
+        public bool Overwrite { get; set; }
 
         [Option(Default = 3, HelpText = "Max retries for each download")]
         public int MaxRetries { get; set; }
@@ -248,7 +254,11 @@ namespace OPS.Landform
 
             options.DryRun |= options.NoSave;
 
-            options.Overwrite |= options.ForceOverwrite;
+            if (options.NoMeshes)
+            {
+                options.NoIV = true;
+                options.NoOBJ = true;
+            }
 
             traceExts = StringHelper.ParseList(options.TraceExts);
             tracePrefixes = StringHelper.ParseList(options.Trace);
@@ -359,11 +369,11 @@ namespace OPS.Landform
             }
 
             var includeRegex = StringHelper.ParseList(options.IncludePattern)
-                .Select(s => StringHelper.WildCardToRegularExression(s))
+                .Select(s => StringHelper.WildcardToRegularExpression(s))
                 .ToList();
 
             var excludeRegex = StringHelper.ParseList(options.ExcludePattern)
-                .Select(s => StringHelper.WildCardToRegularExression(s))
+                .Select(s => StringHelper.WildcardToRegularExpression(s))
                 .ToList();
 
             var acceptedExtensions = new HashSet<string>();
@@ -413,6 +423,17 @@ namespace OPS.Landform
                 acceptedExtensions.Add(".IV");
             }
 
+            //e.g. MSL unified meshes always have RAS products in them
+            string umProductType = null;
+            if (!string.IsNullOrEmpty(options.UnifiedMeshProductType))
+            {
+                umProductType = options.UnifiedMeshProductType;
+                if (string.Equals(umProductType, "auto", StringComparison.OrdinalIgnoreCase))
+                {
+                    umProductType = mission != null ? mission.GetUnifiedMeshProductType() : "RAS";
+                }
+            }
+
             bool checkUnifiedMeshes(RoverProductId id)
             {
                 if (unifiedMeshes.Count == 0 || !(id is OPGSProductId))
@@ -428,7 +449,7 @@ namespace OPS.Landform
 
                 //the mission uses geometry products from this camera
                 //apply the unified mesh filter to raster products from the camera as well
-                if (options.NoFilterRasterProductsByUnifiedMesh && RoverProduct.IsRaster(id.ProductType))
+                if (!options.FilterRasterProductsByUnifiedMesh && RoverProduct.IsRaster(id.ProductType))
                 {
                     return true;
                 }
@@ -441,10 +462,11 @@ namespace OPS.Landform
                     return options.NoLimitGeometryCamerasToSiteDrivesWithUnifiedMeshes;
                 }
 
-                string idStr = id.FullId; //replace product type with "RAS" - unified mesh entries are always RAS
-                if (id.GetProductTypeSpan(out int pts, out int ptl) && ptl == 3)
+                string idStr = id.FullId;
+
+                if (umProductType != null && id.GetProductTypeSpan(out int pts, out int ptl))
                 {
-                    idStr = id.FullId.Substring(0, pts) + "RAS" + id.FullId.Substring(pts + ptl);
+                    idStr = id.FullId.Substring(0, pts) + umProductType + id.FullId.Substring(pts + ptl);
                 }
                 else
                 {
@@ -678,7 +700,8 @@ namespace OPS.Landform
             {
                 dir = StringHelper.StripProtocol(StringHelper.StripLastUrlPathSegment(StringHelper.NormalizeUrl(url)));
             }
-            return Path.Combine(options.OutputDir, dir, StringHelper.GetLastUrlPathSegment(url));
+            string path = Path.Combine(options.OutputDir, dir, StringHelper.GetLastUrlPathSegment(url));
+            return StringHelper.NormalizeSlashes(path).Replace('/', Path.DirectorySeparatorChar);
         }
 
         private long DownloadFile(string url)
@@ -692,6 +715,10 @@ namespace OPS.Landform
             PathHelper.EnsureExists(Path.GetDirectoryName(localPath));
             bool s3 = url.ToLower().StartsWith("s3");
             string filename = StringHelper.GetLastUrlPathSegment(url);
+            if (options.Verbose)
+            {
+                logger.InfoFormat("downloading {0} -> {1}", url, localPath);
+            }
             TemporaryFile.GetAndMove(localPath, f =>
             {
                 bool success = false;
@@ -776,7 +803,7 @@ namespace OPS.Landform
             long localBytes = File.Exists(localPath) ? new FileInfo(localPath).Length : -1;
             if (localBytes >= 0)
             {
-                if (remoteBytes >= 0 && localBytes == remoteBytes && !options.ForceOverwrite)
+                if (remoteBytes >= 0 && localBytes == remoteBytes && !options.Overwrite)
                 {
                     if (options.Verbose)
                     {
@@ -785,19 +812,17 @@ namespace OPS.Landform
                     }
                     return false; //already downloaded
                 }
-                if (!options.Overwrite)
-                {
-                    logger.InfoFormat("not downloading {0}: cannot overwrite local file {1}", url, localPath);
-                    return false;
-                }
+                string msg = string.Format("downloading {0} ({1} bytes) to overwrite {2} ({3} bytes)",
+                                           url, Fmt.DiskBytes(remoteBytes), localPath, Fmt.DiskBytes(localBytes));
                 if (maxBytes > 0 && remoteBytes > 0 && options.AccountExisting && !options.DeleteLRU &&
                     (diskBytes + batchBytes - localBytes + remoteBytes) > maxBytes)
                 {
-                    logger.InfoFormat("not downloading {0}: {1} + {2} bytes > max disk usage {3}", url,
+                    logger.InfoFormat("not " + msg + ": {1} + {2} bytes > max disk usage {3}", url,
                                       Fmt.DiskBytes(diskBytes + batchBytes - localBytes),
                                       Fmt.DiskBytes(remoteBytes), Fmt.DiskBytes(maxBytes));
                     return false; //replacing existing file would exceed allowed disk space
                 }
+                logger.InfoFormat(msg);
             }
             if (remoteBytes >= 0)
             {
@@ -813,6 +838,8 @@ namespace OPS.Landform
             {
                 maxBatch = Math.Max(CoreLimitedParallel.GetMaxCores(), 1);
             }
+            logger.InfoFormat("downloading up to {0} files in parallel ({1} cores)",
+                              maxBatch, CoreLimitedParallel.GetAvailableCores());
 
             var remaining = new Queue<string>();
             var unique = new HashSet<string>();
@@ -825,43 +852,137 @@ namespace OPS.Landform
                 }
             }
 
-            //download in parallel groups of up to maxBatch files or maxBatchBytes, whichever is reached first
-            long maxBatchBytes = (long)1e9;
-            var po = new ParallelOptions() { MaxDegreeOfParallelism = maxBatch };
-            int total = remaining.Count, done = 0, skipped = 0, failed = 0;
-            var batch = new List<string>();
-            long batchBytes = 0;
-            while (remaining.Count > 0)
+            if (options.IncrementalDeleteLRU)
             {
-                batch.Clear();
-                while (remaining.Count > 0 && batch.Count < maxBatch && batchBytes < maxBatchBytes)
+                //download in parallel groups of up to maxBatch files or maxBatchBytes, whichever is reached first
+                long maxBatchBytes = (long)1e9;
+                var po = new ParallelOptions() { MaxDegreeOfParallelism = maxBatch };
+                int total = remaining.Count, done = 0, skipped = 0, failed = 0;
+                var batch = new List<string>();
+                long batchBytes = 0;
+                var sw = Stopwatch.StartNew();
+                while (remaining.Count > 0)
                 {
-                    var url = remaining.Dequeue();
-                    if (!ShouldDownload(url, ref batchBytes))
+                    batch.Clear();
+                    while (remaining.Count > 0 && batch.Count < maxBatch && batchBytes < maxBatchBytes)
                     {
-                        skipped++;
-                        continue;
+                        var url = remaining.Dequeue();
+                        if (!ShouldDownload(url, ref batchBytes))
+                        {
+                            skipped++;
+                            continue;
+                        }
+                        batch.Add(url);
                     }
-                    batch.Add(url);
+                    
+                    logger.InfoFormat("{0:f2}%: {1} downloaded, {2} skipped, {3} failed, {4} to go, " +
+                                      "downloading batch of {5} files ({6} bytes) in parallel",
+                                      (done + skipped + failed) * 100.0 / total, done, skipped, failed, remaining.Count,
+                                      batch.Count, Fmt.DiskBytes(batchBytes));
+                    
+                    //batchBytes can actually be greater than maxBatchBytes here because we download whole files
+                    //also, if there are any https (vs s3) URLs, batchBytes will be an underestimate
+                    //because we currently only implmement such accounting for s3
+                    
+                    if (options.DeleteLRU && maxBytes > 0 && batchBytes > 0 && diskBytes + batchBytes > maxBytes)
+                    {
+                        DeleteLRUDownloads(batchBytes); //free up at least batchBytes
+                    }
+
+                    long expectedBytes = batchBytes;
+                    batchBytes = 0; //now we'll re-account the actual downloaded bytes
+                    var batchFiles = new ConcurrentBag<FileInfo>(); //ConcurrentBag has no Clear()
+                    int np = 0;
+                    CoreLimitedParallel.ForEach(batch, po, url =>
+                    {
+                        Interlocked.Increment(ref np);
+                        long bytes = DownloadFile(url);
+                        Interlocked.Decrement(ref np);
+                        if (bytes >= 0)
+                        {
+                            Interlocked.Add(ref batchBytes, bytes);
+                            Interlocked.Add(ref downloadedBytes, bytes);
+                            Interlocked.Increment(ref done);
+                            batchFiles.Add(new FileInfo(LocalPath(url)));
+                        }
+                        else
+                        {
+                            Interlocked.Increment(ref failed);
+                        }
+                        if (!options.DryRun)
+                        {
+                            long bb = Interlocked.Read(ref batchBytes);
+                            long db = Interlocked.Read(ref downloadedBytes);
+                            double ts = 0.001 * sw.ElapsedMilliseconds;
+                            string msg = string.Format("{0:f2}% {1} total {2}/{3} in batch {4}/s: " +
+                                                       "({5} active downloads) {6} {7}",
+                                                       (done + failed) * 100.0 / total, Fmt.DiskBytes(db),
+                                                       Fmt.DiskBytes(bb), Fmt.DiskBytes(expectedBytes),
+                                                       Fmt.DiskBytes(db / ts),
+                                                       np, bytes >= 0 ? "downloaded" : "failed to download",
+                                                       StringHelper.GetLastUrlPathSegment(url));
+
+                            if (bytes >= 0)
+                            {
+                                logger.Info(msg);
+                            }
+                            else
+                            {
+                                logger.Warn(msg);
+                            }
+                        }
+                    });
+                    
+                    if (options.AccountExisting && batchFiles.Count > 0)
+                    {
+                        IndexExistingDownloads(batchFiles); //will update diskBytes, accounting for replaces
+                        if (options.DeleteLRU && maxBytes > 0 && diskBytes > maxBytes)
+                        {
+                            DeleteLRUDownloads();
+                        }
+                    }
                 }
-
-                logger.InfoFormat("{0:f2}%: {1} downloaded, {2} skipped, {3} failed, {4} to go, " +
-                                  "downloading batch of {5} files ({6} bytes) in parallel",
-                                  (done + skipped + failed) * 100.0 / total, done, skipped, failed, remaining.Count,
-                                  batch.Count, Fmt.DiskBytes(batchBytes));
-
-                //batchBytes can actually be greater than maxBatchBytes here because we download whole files
-                //also, if there are any https (vs s3) URLs, batchBytes will be an underestimate
-                //because we currently only implmement such accounting for s3
-
-                if (options.DeleteLRU && maxBytes > 0 && batchBytes > 0 && diskBytes + batchBytes > maxBytes)
+                sw.Stop();
+                logger.InfoFormat("downloaded {0} bytes, {1} files, {2} failed, total time {3}, {4}/s",
+                                  Fmt.DiskBytes(downloadedBytes), done, failed, Fmt.HMS(sw),
+                                  Fmt.DiskBytes(downloadedBytes / (0.001 * sw.ElapsedMilliseconds)));
+            }
+            else
+            {
+                logger.InfoFormat("collecting download info");
+                long batchBytes = 0;
+                var batch = new HashSet<string>();
+                foreach (var url in remaining)
                 {
-                    DeleteLRUDownloads(batchBytes); //free up at least batchBytes
+                    if (ShouldDownload(url, ref batchBytes))
+                    {
+                        batch.Add(url);
+                    }
+                }
+                logger.InfoFormat("downloading {0} files, {1} bytes", batch.Count, Fmt.DiskBytes(batchBytes));
+
+                if (batch.Count == 0)
+                {
+                    return;
                 }
 
-                batchBytes = 0; //now we'll re-account the actual downloaded bytes
-                var batchFiles = new ConcurrentBag<FileInfo>(); //ConcurrentBag has no Clear()
-                int np = 0;
+                //at this point url is in batch only if
+                //* it does not exist locally, or its remote size differs, or options.Overwrite=true
+                //* downloading it would not exceed options.MaxDownload (considering that LRU downloads may be deleted)
+                //also, batchBytes is the expected number of new bytes that will be downloaded
+                //(note that download sizing is currently only implemented for s3 not https downloads as of 9/2/20)
+
+                if (options.DeleteLRU && maxBytes > 0 && (diskBytes + batchBytes) > maxBytes)
+                {
+                    var keep = new HashSet<string>(remaining.Select(url => LocalPath(url)));
+                    keep.ExceptWith(batch.Select(url => LocalPath(url)));
+                    DeleteLRUDownloads(batchBytes, keep);
+                }
+
+                logger.Info("beginning downloads");
+                var sw = Stopwatch.StartNew();
+                var po = new ParallelOptions() { MaxDegreeOfParallelism = maxBatch };
+                int np = 0, total = batch.Count, done = 0, failed = 0;
                 CoreLimitedParallel.ForEach(batch, po, url =>
                 {
                     Interlocked.Increment(ref np);
@@ -869,9 +990,8 @@ namespace OPS.Landform
                     Interlocked.Decrement(ref np);
                     if (bytes >= 0)
                     {
-                        Interlocked.Add(ref batchBytes, bytes);
                         Interlocked.Increment(ref done);
-                        batchFiles.Add(new FileInfo(LocalPath(url)));
+                        Interlocked.Add(ref downloadedBytes, bytes);
                     }
                     else
                     {
@@ -879,9 +999,12 @@ namespace OPS.Landform
                     }
                     if (!options.DryRun)
                     {
-                        string msg = string.Format("{0:f2}%: ({1} active downloads) {2} {3}",
-                                                   (done + skipped + failed) * 100.0 / total, np,
-                                                   bytes >= 0 ? "downloaded" : "failed to download",
+                        long db = Interlocked.Read(ref downloadedBytes);
+                        double ts = 0.001 * sw.ElapsedMilliseconds;
+                        string msg = string.Format("{0:f2}% {1}/{2} {3}/s: ({4} active downloads) {5} {6}",
+                                                   (done + failed) * 100.0 / total,
+                                                   Fmt.DiskBytes(db), Fmt.DiskBytes(batchBytes), Fmt.DiskBytes(db / ts),
+                                                   np, bytes >= 0 ? "downloaded" : "failed to download",
                                                    StringHelper.GetLastUrlPathSegment(url));
                         if (bytes >= 0)
                         {
@@ -893,17 +1016,10 @@ namespace OPS.Landform
                         }
                     }
                 });
-
-                downloadedBytes += batchBytes;
-
-                if (options.AccountExisting && batchFiles.Count > 0)
-                {
-                    IndexExistingDownloads(batchFiles); //will update diskBytes, accounting for replaces
-                    if (options.DeleteLRU && maxBytes > 0 && diskBytes > maxBytes)
-                    {
-                        DeleteLRUDownloads();
-                    }
-                }
+                sw.Stop();
+                logger.InfoFormat("downloaded {0} bytes, {1} files, {2} failed, total time {3}, {4}/s",
+                                  Fmt.DiskBytes(downloadedBytes), done, failed, Fmt.HMS(sw),
+                                  Fmt.DiskBytes(downloadedBytes / (0.001 * sw.ElapsedMilliseconds)));
             }
         }
 
@@ -928,11 +1044,23 @@ namespace OPS.Landform
             lruDownloads = new Queue<FileInfo>(existing.Values.OrderBy(file => file.LastAccessTime));
         }
 
-        private void DeleteLRUDownloads(long minFreeBytes = 0)
+        private void DeleteLRUDownloads(long minFreeBytes = 0, HashSet<string> keep = null)
         {
-            while (maxBytes > 0 && lruDownloads.Count > 0 && diskBytes > (maxBytes - minFreeBytes))
+            long target = maxBytes - minFreeBytes;
+            bool summarized = false;
+            while (maxBytes > 0 && lruDownloads.Count > 0 && diskBytes > target)
             {
+                if (!summarized)
+                {
+                    logger.InfoFormat("deleting least-recently used downloads, current disk usage {0}, target {1}",
+                                      Fmt.DiskBytes(diskBytes), Fmt.DiskBytes(target));
+                    summarized = true;
+                }
                 var file = lruDownloads.Dequeue();
+                if (keep != null && keep.Contains(file.FullName))
+                {
+                    continue;
+                }
                 try
                 {
                     long bytes = file.Length;
@@ -955,6 +1083,17 @@ namespace OPS.Landform
                 {
                     logger.ErrorFormat("error deleting LRU download {0}: {1}", file.FullName, ex.Message);
                 }
+            }
+            if (deletedFiles > 0)
+            {
+                logger.InfoFormat("deleted {0} LRU files, {1} bytes, {2}/{3} bytes free",
+                                  Fmt.DiskBytes(deletedFiles), Fmt.DiskBytes(deletedBytes),
+                                  Fmt.DiskBytes(maxBytes - diskBytes), //may be negative
+                                  Fmt.DiskBytes(maxBytes));
+            }
+            if (deletedDirectories > 0)
+            {
+                logger.InfoFormat("deleted {0} empty directories", Fmt.KMG(deletedDirectories));
             }
         }
 
@@ -1038,8 +1177,14 @@ namespace OPS.Landform
                         }
                         solToProducts.TryAdd(sol, prods);
                     });
-                    
-                    if (!options.NoUnifiedMeshes && (mission == null || mission.AllowMultiFrame()))
+
+                    bool useUnifiedMeshes = !string.IsNullOrEmpty(options.UseUnifiedMeshes) &&
+                        (mission == null || mission.AllowMultiFrame()) &&
+                        (string.Equals(options.UseUnifiedMeshes, "true", StringComparison.OrdinalIgnoreCase)) ||
+                        (string.Equals(options.UseUnifiedMeshes, "auto", StringComparison.OrdinalIgnoreCase) &&
+                         mission != null && mission.UseUnifiedMeshes());
+                        
+                    if (useUnifiedMeshes)
                     {
                         var urls = new List<string>();
                         if (!string.IsNullOrEmpty(options.UnifiedMeshes))
@@ -1064,6 +1209,8 @@ namespace OPS.Landform
                             .Where(path => !options.DryRun || File.Exists(path))
                             .ToList();
                         unifiedMeshes = UnifiedMesh.LoadAll(files, mission);
+                        logger.InfoFormat("loaded {0} nonempty unified meshes for {1} sitedrives",
+                                          unifiedMeshes.Values.Sum(d => d.Count), unifiedMeshes.Count);
                     }
                     
                     foreach (var sol in sols)
@@ -1094,17 +1241,6 @@ namespace OPS.Landform
                 }
                 logger.InfoFormat("downloaded {0} files ({1} bytes), total time: {2}",
                                   Fmt.DiskBytes(downloadedFiles), Fmt.DiskBytes(downloadedBytes), Fmt.HMS(stopwatch));
-                if (deletedFiles > 0)
-                {
-                    logger.InfoFormat("deleted {0} LRU files, {1} bytes, {2}/{3} bytes free",
-                                      Fmt.DiskBytes(deletedFiles), Fmt.DiskBytes(deletedBytes),
-                                      Fmt.DiskBytes(maxBytes - diskBytes), //may be negative
-                                      Fmt.DiskBytes(maxBytes));
-                }
-                if (deletedDirectories > 0)
-                {
-                    logger.InfoFormat("deleted {0} empty directories", Fmt.KMG(deletedDirectories));
-                }
             }
             catch (Exception ex)
             {

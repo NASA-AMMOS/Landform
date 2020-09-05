@@ -40,7 +40,7 @@ namespace OPS.Util
         }
     }
 
-    public class Stamped<T> where T : new()
+    public class Stamped<T>
     {
         public readonly T Value;
         
@@ -53,11 +53,7 @@ namespace OPS.Util
             this._timestamp = now;
         }
         
-        public Stamped(long now) : this(new T(), now) { }
-        
         public Stamped(T obj) : this(obj, (long)UTCTime.NowMS()) { }
-        
-        public Stamped() : this(new T()) { }
         
         public void Touch(long now)
         {

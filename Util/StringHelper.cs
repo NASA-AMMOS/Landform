@@ -15,14 +15,14 @@ namespace OPS.Util
         /// </summary>
         /// <param name="value"></param>
         /// <returns></returns>
-        public static string WildCardToRegularExressionString(string value)
+        public static string WildcardToRegularExpressionString(string value)
         {
             return "^" + Regex.Escape(value).Replace("\\?", ".").Replace("\\*", ".*") + "$";
         }
 
-        public static Regex WildCardToRegularExression(string value, RegexOptions opts = RegexOptions.None)
+        public static Regex WildcardToRegularExpression(string value, RegexOptions opts = RegexOptions.None)
         {
-            return new Regex(WildCardToRegularExressionString(value), opts);
+            return new Regex(WildcardToRegularExpressionString(value), opts);
         }
 
         public static string ReplaceFixedWidthIntWildcard(string str, string wildcard, int value)
@@ -101,6 +101,11 @@ namespace OPS.Util
             }
         }
 
+        /// <summary>
+        /// Normalizes slashes and optionally preserves or removes trailing slash.
+        /// Lowercases protocol and host.
+        /// Optionally ensures given protocol.
+        /// </summary>
         public static string NormalizeUrl(string url, string protocol = null, bool preserveTrailingSlash = false)
         {
             url = NormalizeSlashes(url, preserveTrailingSlash);
@@ -113,8 +118,12 @@ namespace OPS.Util
                 int sep = url.IndexOf("://");
                 if (sep >= 0)
                 {
-                    string proto = url.Substring(0, sep);
-                    return proto.ToLower() + url.Substring(sep);
+                    int nextSlash = url.IndexOf("/", sep + 3);
+                    if (nextSlash > sep + 3)
+                    {
+                        sep = nextSlash;
+                    }
+                    return url.Substring(0, sep).ToLower() + url.Substring(sep);
                 }
                 else
                 {

@@ -205,7 +205,7 @@
     <Compile Include="DataProducts\ImageStats.cs" />
     <Compile Include="DataProducts\TileList.cs" />
     <Compile Include="DataProducts\PlyGZDataProduct.cs" />
-    <Compile Include="MissionSpecific\ListFile.cs" />
+    <Compile Include="MissionSpecific\SiteDriveList.cs" />
     <Compile Include="OrbitalConfig.cs" />
     <Compile Include="MissionSpecific\MissionM2020.cs" />
     <Compile Include="MissionSpecific\MissionMSL.cs" />

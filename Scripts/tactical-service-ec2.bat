@@ -20,7 +20,7 @@ if not "%LANDFORM_MISSION%"=="" set mission=%LANDFORM_MISSION%
 set awsprofile=none
 if not "%LANDFORM_AWS_PROFILE%"=="" set awsprofile=%LANDFORM_AWS_PROFILE%
 
-set awsregion=none
+set awsregion=us-gov-west-1
 if not "%LANDFORM_AWS_REGION%"=="" set awsregion=%LANDFORM_AWS_REGION%
 
 rem direct stdout and stderr to nul by default so that the EC2 userdata script log doesn't get spammed
@@ -62,6 +62,20 @@ if not "%LANDFORM_TACTICAL_CONFIG_FOLDER%"=="" set cfgfolder=%LANDFORM_TACTICAL_
 set venue=%service%-service
 if not "%LANDFORM_TACTICAL_VENUE%"=="" set venue=%LANDFORM_TACTICAL_VENUE%
 
+set msgopts=
+if not "%LANDFORM_TACTICAL_MAX_HANDLER_SEC%"=="" (
+    set msgopts=--maxhandlersec=%LANDFORM_TACTICAL_MAX_HANDLER_SEC%
+)
+if not "%LANDFORM_TACTICAL_MAX_MESSAGE_AGE_SEC%"=="" (
+    set msgopts=%msgopts% --maxmessageagesec=%LANDFORM_TACTICAL_MAX_MESSAGE_AGE_SEC%
+)
+if not "%LANDFORM_TACTICAL_MAX_RECEIVE_COUNT%"=="" (
+    set msgopts=%msgopts% --maxreceivecount=%LANDFORM_TACTICAL_MAX_RECEIVE_COUNT%
+)
+
+set svcextra=
+if not "%LANDFORM_TACTICAL_OPTS%"=="" set svcextra=%LANDFORM_TACTICAL_OPTS%
+
 rem --- end service specific boilerplate, begin service specific ---
 
 set meshformat=mission
@@ -76,6 +90,7 @@ set stdopts=--configdir=%cfgdir% --configfolder=%cfgfolder% --logdir=%logdir% --
 set cfgopts=%stdopts% --venue=%venue% --maxcores=0 --randomseed=-1 --storagedir=%storagedir%
 set svcopts=%stdopts% --stacktraces --service --mission=%mission% --queuename=%queue% --failqueuename=%failqueue%
 set svcopts=%svcopts% --awsprofile=%awsprofile% --awsregion=%awsregion% %credentialrefresh%
+set svcopts=%svcopts% %msgopts%
 
 set tacticalopts=--meshformat=%meshformat% %indices%
 
@@ -83,11 +98,11 @@ set appsdir=%bindir%\ExternalApps
 if exist %appsdir%\opengl32-for-ivcat.dll (
 @echo on
 move /Y %appsdir%\opengl32-for-ivcat.dll %appsdir%\opengl32.dll
+@echo off
 )
-
-@echo on
 
 rem note %quiet% must always be last, it's a redirect not an option
 
+@echo on
 %landform% configure-local %cfgopts% %quiet%
-%landform% process-%service% %svcopts% %tacticalopts% %quiet% 
+%landform% process-%service% %svcopts% %tacticalopts% %svcextra% %quiet% 

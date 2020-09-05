@@ -79,7 +79,31 @@
     <None Include="TestData\json\m2020-contextual-event-example.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Include="TestData\json\m2020-contextual-master-event-example.json">
+    <None Include="TestData\json\m2020-contextual-event-example2.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="TestData\json\m2020-contextual-master-g66bt-lis-event.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="TestData\json\m2020-contextual-master-g66bt-xyz-event.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="TestData\json\m2020-contextual-master-roastt20-lis-event.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="TestData\json\m2020-contextual-master-roastt20-xyz-event.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="TestData\json\m2020-contextual-master-roastt20-xyz-event2.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="TestData\json\m2020-tactical-navcam-downsample0-event.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="TestData\json\m2020-tactical-navcam-downsample1-event.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="TestData\json\m2020-tactical-navcam-downsample2-event.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <None Include="TestData\mesh\blender_ascii_nct.ply">

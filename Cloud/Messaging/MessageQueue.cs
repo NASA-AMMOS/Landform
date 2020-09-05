@@ -31,6 +31,16 @@ namespace OPS.Cloud
         //ms since UTC epoch
         [JsonIgnore]
         public double ApproxReceiveMS = -1;
+
+        //time message was sent
+        //ms since UTC epoch
+        [JsonIgnore]
+        public double SentMS = -1;
+
+        //approximate number of times this message has been received
+        //this may be a lower bounds
+        [JsonIgnore]
+        public int ApproxReceiveCount = -1;
     }
 
     public class MessageQueue
@@ -208,11 +218,21 @@ namespace OPS.Cloud
                         var qm = m as QueueMessage;
                         qm.MessageId = msg.MessageId;
                         qm.ReceiptHandle = msg.ReceiptHandle;
-                        string ts = null;
-                        if (msg.Attributes != null &&
-                            msg.Attributes.TryGetValue("ApproximateFirstReceiveTimestamp", out ts))
+                        //https://docs.aws.amazon.com/sdkfornet/v3/apidocs/items/SQS/TMessage.html
+                        if (msg.Attributes != null)
                         {
-                            double.TryParse(ts, out qm.ApproxFirstReceiveMS);
+                            if (msg.Attributes.TryGetValue("ApproximateFirstReceiveTimestamp", out string frt))
+                            {
+                                double.TryParse(frt, out qm.ApproxFirstReceiveMS);
+                            }
+                            if (msg.Attributes.TryGetValue("SentTimestamp", out string st))
+                            {
+                                double.TryParse(st, out qm.SentMS);
+                            }
+                            if (msg.Attributes.TryGetValue("ApproximateReceiveCount", out string rc))
+                            {
+                                int.TryParse(rc, out qm.ApproxReceiveCount);
+                            }
                         }
                         qm.ApproxReceiveMS = Math.Max(now, qm.ApproxFirstReceiveMS);
                     }

@@ -66,7 +66,7 @@ namespace OPS.Util
 
         public static int GetMaxCores()
         {
-            return maxParallelism < 0 ? GetAvailableCores() : maxParallelism;
+            return maxParallelism <= 0 ? GetAvailableCores() : maxParallelism;
         }
 
         //0 to use all available cores, N to use up to N, -M to reserve M
@@ -102,7 +102,7 @@ namespace OPS.Util
             {
                 options.MaxDegreeOfParallelism = maxParallelism;
             }
-            else
+            else if (maxParallelism > 0)
             {
                 options.MaxDegreeOfParallelism = Math.Min(options.MaxDegreeOfParallelism, maxParallelism);
             }

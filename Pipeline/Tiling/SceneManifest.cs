@@ -444,7 +444,7 @@ namespace OPS.Pipeline
 
             var camera = RoverStereoPair.GetStereoCamera(RoverCamera.FromPDSInstrumentID(parser.InstrumentId));
 
-            var meshFrameId = string.Format("site_{0:D3}", parser.Site);
+            var meshFrameId = string.Format("site_{0}", OPGSProductId.SiteToString(parser.Site));
             var imageFrameId = mission.GetObservationFrameName(parser);
 
             var tileset = GetOrAddTileset(tilesetId);

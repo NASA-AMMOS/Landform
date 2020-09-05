@@ -78,6 +78,8 @@ logdir=`pwd`/log
 tmpdir=`pwd`/tmp
 cfgdir=`pwd`/cfg
 
+lfbucket=m20-ids-g-landform
+
 # https://stackoverflow.com/a/246128
 scriptdir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 for d in . .. ../Landform/bin/Release ../Landform/bin/Debug; do

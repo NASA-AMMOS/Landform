@@ -101,7 +101,7 @@
 # ./Scripts/m20-credss.sh
 #
 # ./Landform/bin/Release/Landform.exe fetch $sols out/$run/rdrs \
-#     s3://$bucket/$mission/ods/surface/sol/#####/opgs/rdr --mission $mission --summary $fetchargs
+#     s3://$bucket/$mission/ods/surface/sol/#####/opgs/rdr --mission $mission --nomeshes --summary $fetchargs
 #
 # ./Landform/bin/Release/Landform.exe fetch \
 #     s3://$bucket/$mission/orbital/$dem,s3://$bucket/$mission/orbital/$ortho out/$mission/orbital --mission $mission \
@@ -149,6 +149,8 @@ storagedir=`pwd`/storage
 logdir=`pwd`/log
 tmpdir=`pwd`/tmp
 cfgdir=`pwd`/cfg
+
+lfbucket=m20-ids-g-landform
 
 # https://stackoverflow.com/a/246128
 scriptdir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
@@ -222,8 +224,6 @@ if [[ $# -gt 0 ]] && [[ $1 != -* ]]; then
     outdir=$1
     shift
 fi
-
-lfbucket=m20-ids-g-landform
 
 combined_manifest=true
 copy_combined_manifest=

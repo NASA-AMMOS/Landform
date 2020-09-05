@@ -71,22 +71,22 @@ namespace OPS.Landform
         [Value(0, Required = false, HelpText = "project name, empty to infer, must omit if processing more than one mesh", Default = null)]
         public override string ProjectName { get; set; }
 
-        [Option(Required = false, Default = "mission", HelpText = "Tactical mesh filename extension, or \"mission\"")]
+        [Option(Default = "mission", HelpText = "Tactical mesh filename extension, or \"mission\"")]
         public override string MeshFormat { get; set; }
 
-        [Option(Required = false, Default = "img", HelpText = "Tactical mesh texture filename extension")]
+        [Option(Default = "img", HelpText = "Tactical mesh texture filename extension")]
         public override string ImageFormat { get; set; }
 
-        [Option(Required = false, Default = null, HelpText = "Output directory or S3 folder, if unset use same folder as input")]
+        [Option(Default = null, HelpText = "Output directory or S3 folder, if unset use same folder as input")]
         public override string OutputFolder { get; set; }
 
-        [Option(Required = false, Default = null, HelpText = "Comma separated list of input mesh files/folders or S3 paths, when run without --service")]
+        [Option(Default = null, HelpText = "Comma separated list of input mesh files/folders or S3 paths, when run without --service")]
         public string InputPath { get; set; }
 
-        [Option(Required = false, Default = "*", HelpText = "Comma separated list of wildcard patterns for input folders")]
+        [Option(Default = "*", HelpText = "Comma separated list of wildcard patterns for input folders")]
         public string SearchPattern { get; set; }
 
-        [Option(Required = false, Default = false, HelpText = "Don't generate tileset")]
+        [Option(Default = false, HelpText = "Don't generate tileset")]
         public bool NoTileset { get; set; }
     }
 
@@ -94,20 +94,10 @@ namespace OPS.Landform
     {
         public const string MESH_FRAME = "passthrough";
 
-        public const int DEF_MAX_HANDLER_SEC = 10 * 60; //10 minutes
-        public const int DEF_MAX_MESSAGE_AGE_SEC = 60 * 60; //1 hour
-
         protected ProcessTacticalOptions options;
 
         private List<string> inputPaths;
         private List<string> searchPatterns;
-
-        private class GenericTacticalMeshMessage : QueueMessage
-        {
-#pragma warning disable 0649
-            public string meshUrl;
-#pragma warning restore 0649
-        }
 
         private class MeshImagePair
         {
@@ -134,67 +124,8 @@ namespace OPS.Landform
             }
         }
 
-        protected override int GetMaxHandlerSec()
-        {
-            return options.MaxHandlerSec > 0 ? options.MaxHandlerSec : DEF_MAX_HANDLER_SEC;
-        }
-
-        protected override int GetMaxMessageAgeSec()
-        {
-            return options.MaxMessageAgeSec > 0 ? options.MaxMessageAgeSec : DEF_MAX_MESSAGE_AGE_SEC;
-        }
-
-        protected override string DescribeMessage(QueueMessage msg, bool verbose = false)
-        {
-            string url = null;
-            try
-            {
-                url = GetUrlFromMessage(msg);
-            }
-            catch {} //ignore
-            return "tactical mesh " + (url ?? "(unknown)");
-        }
-
-        protected override QueueMessage DequeueOneMessage(MessageQueue queue, int overrideVisibilityTimeout = -1)
-        {
-            int ovt = overrideVisibilityTimeout;
-            if (options.UseGenericMessageType)
-            {
-                return queue.DequeueOne<GenericTacticalMeshMessage>(overrideVisibilityTimeout: ovt);
-            }
-            else
-            {
-                return queue.DequeueOne<SNSMessageWrapper>(overrideVisibilityTimeout: ovt);
-            }
-        }
-
-        protected override QueueMessage ParseMessage(string json)
-        {
-            if (options.UseGenericMessageType)
-            {
-                return JsonHelper.FromJson<GenericTacticalMeshMessage>(json, autoTypes: false);
-            }
-            else
-            {
-                return JsonHelper.FromJson<SNSMessageWrapper>(json, autoTypes: false);
-            }
-        }
-
         protected override bool AcceptMessage(QueueMessage msg, out string reason)
         {
-            //Filter out some subfolders on S3.
-            //https://github.jpl.nasa.gov/OnSight/Landform/issues/1110
-            bool acceptBucketPath(string url)
-            {
-                string path = (new S3Url(url)).Path.ToLower();
-                return !path.Contains("/ids-pipeline/") &&
-                    path.Contains("/rdr/") &&
-                    !path.Contains("/rdr/browse/") &&
-                    !path.Contains("/rdr/mosaic/") &&
-                    !path.Contains("/rdr/mesh/") &&
-                    !path.Contains("/rdr/tileset/");
-            }
-
             reason = null;
             try
             {
@@ -209,7 +140,7 @@ namespace OPS.Landform
                     reason = "unhandled file type: " + url;
                     return false;
                 }
-                if (!acceptBucketPath(url))
+                if (!AcceptBucketPath(url))
                 {
                     reason = "rejected bucket path: " + url;
                     return false;
@@ -333,22 +264,6 @@ namespace OPS.Landform
             return "tactical";
         }
 
-        private string GetUrlFromMessage(QueueMessage msg)
-        {
-            if (options.UseGenericMessageType)
-            {
-                return (msg as GenericTacticalMeshMessage).meshUrl;
-            }
-            else
-            {
-                if (!(msg is SNSMessageWrapper))
-                {
-                    throw new Exception("tactical mesh queue message does not have SNS wrapper");
-                }
-                return S3EventMessage.GetUrl(msg as SNSMessageWrapper, "ObjectCreated");
-            }
-        }
-            
         private void IndexMeshes()
         {
             foreach (var path in inputPaths)

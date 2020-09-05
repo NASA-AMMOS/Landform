@@ -68,8 +68,9 @@ namespace OPS.Pipeline
         public string AuthCookieFile { get; set; }
 
         //default may be overridden by MissionSpecific.GetPlacesConfigDefaults()
+        //application/xml or application/json (experimental)
         [ConfigEnvironmentVariable("LANDFORM_PLACES_RESPONSE_TYPE")]
-        public string ResponseType { get; set; } = "application/xml"; //application/xml or application/json (experimental)
+        public string ResponseType { get; set; } = "application/xml";
     }
 
     /// <summary>
@@ -550,9 +551,16 @@ namespace OPS.Pipeline
             return new Vector2(col, row);
         }
 
+        /// <summary>
+        /// Formulate a PlacesDB query reference for the given sitedrive (S,D).
+        /// If D=0 then the query will be of the form site(S), because queries like rover(S,0) generally don't work.
+        /// Otherwise the query will be of the form rover(S,D,^), meaning the frame of the latest available pose (^)
+        /// in that site and drive.  Note that in some venues queries like rover(S,D) work but in others they don't,
+        /// but adding the carat should work in all cases (per Kevin Grimes).
+        /// </summary>
         private static string SDRef(SiteDrive sd)
         {
-            return sd.Drive > 0 ? $"rover({sd.Site},{sd.Drive})" : $"site({sd.Site})";
+            return sd.Drive > 0 ? $"rover({sd.Site},{sd.Drive},^)" : $"site({sd.Site})";
         }
 
         /// <summary>

@@ -511,6 +511,11 @@ namespace OPS.Pipeline
                 $"\"AuthCookieFile\": \"~/.cssotoken/{venue}/ssosession\"\n" +
                 "}";
         }
+
+        public override string SolToString(int sol)
+        {
+            return M2020OPGSProductId.SolToString(sol);
+        }
     }
 
     public class MissionROASTT19 : MissionM2020 
@@ -609,7 +614,7 @@ namespace OPS.Pipeline
 
             protected ScarecrowEECAMUnifiedMesh(string fullId, int site, int drive)
                 : base(fullId, RoverProductProducer.OPGS, RoverProductType.Points, camera: "NL", geometry: "L",
-                       color: "", version: "0", size: "", site: site, drive: drive) 
+                       color: "", version: "0", size: "", site: site, drive: drive, spec: "_") 
             { }
 
             public static ScarecrowEECAMUnifiedMesh Parse(string id)

@@ -20,7 +20,7 @@ if not "%LANDFORM_MISSION%"=="" set mission=%LANDFORM_MISSION%
 set awsprofile=none
 if not "%LANDFORM_AWS_PROFILE%"=="" set awsprofile=%LANDFORM_AWS_PROFILE%
 
-set awsregion=none
+set awsregion=us-gov-west-1
 if not "%LANDFORM_AWS_REGION%"=="" set awsregion=%LANDFORM_AWS_REGION%
 
 rem direct stdout and stderr to nul by default so that the EC2 userdata script log doesn't get spammed
@@ -62,6 +62,20 @@ if not "%LANDFORM_CONTEXTUAL_CONFIG_FOLDER%"=="" set cfgfolder=%LANDFORM_CONTEXT
 set venue=%service%-service
 if not "%LANDFORM_CONTEXTUAL_VENUE%"=="" set venue=%LANDFORM_CONTEXTUAL_VENUE%
 
+set msgopts=
+if not "%LANDFORM_CONTEXTUAL_MASTER_MAX_HANDLER_SEC%"=="" (
+    set msgopts=--maxhandlersec=%LANDFORM_CONTEXTUAL_MASTER_MAX_HANDLER_SEC%
+)
+if not "%LANDFORM_CONTEXTUAL_MASTER_MAX_MESSAGE_AGE_SEC%"=="" (
+    set msgopts=%msgopts% --maxmessageagesec=%LANDFORM_CONTEXTUAL_MASTER_MAX_MESSAGE_AGE_SEC%
+)
+if not "%LANDFORM_CONTEXTUAL_MASTER_MAX_RECEIVE_COUNT%"=="" (
+    set msgopts=%msgopts% --maxreceivecount=%LANDFORM_CONTEXTUAL_MASTER_MAX_RECEIVE_COUNT%
+)
+
+set svcextra=
+if not "%LANDFORM_CONTEXTUAL_MASTER_OPTS%"=="" set svcextra=%LANDFORM_CONTEXTUAL_MASTER_OPTS%
+
 rem --- end service specific boilerplate, begin service specific ---
 
 set workerqueue=m20-ids-g-sqs-landform-contextual-worker
@@ -69,12 +83,20 @@ if not "%LANDFORM_CONTEXTUAL_WORKER_QUEUE%"=="" set workerqueue=%LANDFORM_CONTEX
 
 set masteropts=--workerqueuename=%workerqueue%
 
-if not "%LANDFORM_CONTEXTUAL_LIST_FORMAT%"=="" (
-   set masteropts=%masteropts% --listformat=%LANDFORM_CONTEXTUAL_LIST_FORMAT%
+if not "%LANDFORM_CONTEXTUAL_LIST_PATTERN%"=="" (
+   set masteropts=%masteropts% --listpattern=%LANDFORM_CONTEXTUAL_LIST_PATTERN%
 )
 
-if not "%LANDFORM_CONTEXTUAL_LIST_PREFIX%"=="" (
-   set masteropts=%masteropts% --listprefix=%LANDFORM_CONTEXTUAL_LIST_PREFIX%
+if not "%LANDFORM_CONTEXTUAL_WEDGE_PATTERN%"=="" (
+   set masteropts=%masteropts% --wedgepattern=%LANDFORM_CONTEXTUAL_WEDGE_PATTERN%
+)
+
+if not "%LANDFORM_CONTEXTUAL_SEARCH_FOR_ADDITIONAL_LISTS%"=="" (
+   set masteropts=%masteropts% --searchforadditionallists=%LANDFORM_CONTEXTUAL_SEARCH_FOR_ADDITIONAL_LISTS%
+)
+
+if not "%LANDFORM_CONTEXTUAL_SEARCH_FOR_ADDITIONAL_WEDGES%"=="" (
+   set masteropts=%masteropts% --searchforadditionalwedges=%LANDFORM_CONTEXTUAL_SEARCH_FOR_ADDITIONAL_WEDGES%
 )
 
 if not "%LANDFORM_CONTEXTUAL_MASTER_DEBOUNCE_SEC%"=="" (
@@ -109,16 +131,17 @@ set stdopts=--configdir=%cfgdir% --configfolder=%cfgfolder% --logdir=%logdir% --
 set cfgopts=%stdopts% --venue=%venue% --maxcores=0 --randomseed=-1 --storagedir=%storagedir%
 set svcopts=%stdopts% --stacktraces --master --mission=%mission% --queuename=%queue% --failqueuename=%failqueue%
 set svcopts=%svcopts% --awsprofile=%awsprofile% --awsregion=%awsregion% %credentialrefresh%
+set svcopts=%svcopts% %msgopts%
 
 set appsdir=%bindir%\ExternalApps
 if exist %appsdir%\opengl32-for-ivcat.dll (
 @echo on
 move /Y %appsdir%\opengl32-for-ivcat.dll %appsdir%\opengl32.dll
+@echo off
 )
-
-@echo on
 
 rem note %quiet% must always be last, it's a redirect not an option
 
+@echo on
 %landform% configure-local %cfgopts% %quiet%
-%landform% process-contextual %svcopts% %masteropts% %quiet% 
+%landform% process-contextual %svcopts% %masteropts% %svcextra% %quiet% 
