@@ -413,12 +413,17 @@ namespace OPS.Pipeline
 
         protected override RoverProductGeometry ParseGeometry(string geometry)
         {
-            switch (geometry.ToUpper())
-            {
-                case "L": return RoverProductGeometry.Linearized;
-                case "_": return RoverProductGeometry.Raw;
-                default: return RoverProductGeometry.Unknown;
+            if (string.IsNullOrEmpty(geometry) || geometry.Length != 1) {
+                return RoverProductGeometry.Unknown;
             }
+
+            //MSL cam SIS: If value is any alpha character "A - Z", then product is "linearized" using one of the two
+            //modes (nominal or actual) ... If value is not any alpha character, then product is "non-linearized".
+
+            //M20 cam SIS: _ : Non-linearized (raw geometry), L : Product has been linearized with nominal stereo
+            //partner, A : Product has been linearized with an actual stereo partner
+
+            return char.IsLetter(geometry[0]) ? RoverProductGeometry.Linearized : RoverProductGeometry.Raw;
         }
 
         //parse 3 character site string
@@ -1236,16 +1241,6 @@ namespace OPS.Pipeline
                 case "N": case "": return RoverProductSize.Regular;
                 case "T": return RoverProductSize.Thumbnail;
                 default: return RoverProductSize.Unknown;
-            }
-        }
-
-        protected override RoverProductGeometry ParseGeometry(string geometry)
-        {
-            switch (geometry.ToUpper())
-            {
-                case "L": case "A": return RoverProductGeometry.Linearized;
-                case "_": return RoverProductGeometry.Raw;
-                default: return RoverProductGeometry.Unknown;
             }
         }
 
