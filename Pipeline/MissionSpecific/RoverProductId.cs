@@ -1411,30 +1411,6 @@ namespace OPS.Pipeline
                                                  resolution: resolution, pyramid: pyramid);
         }
 
-        /* Technically as of version 2020714 the M2020 camera SIS states that the sol string in unified mesh product IDs
-           should be parsed like this.  But that may be incorrect.  The topic is currently under discussion with the
-           stakeholders.  For now parsing unified mesh sol strings the same as for single frame M2020 product ID.
-
-        private static int ParseSol(string str)
-        {
-            if (string.IsNullOrEmpty(str) || str.All(c => c == '_'))
-            {
-                return -1;
-            }
-            if (Char.IsLetter(str, 0))
-            {
-                char c = char.ToUpper(str[0]);
-                str = str.Substring(1);
-                if (c == 'Y' && int.TryParse(str, out int year))
-                {
-                    return 2000 + year;
-                }
-                return -1;
-            }
-            return int.TryParse(str, out int sol) ? sol : -1;
-        }
-        */
-
         public override bool GetVersionSpan(out int start, out int length)
         {
             return GetSpan(37, 2, out start, out length);
