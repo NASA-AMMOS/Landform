@@ -272,19 +272,30 @@ namespace OPS.Landform
             mesh.Save(meshFile, texture);
         }
 
-        protected string SolToString(int sol)
+        //sol can typically range from 0 to 9999
+        //note: overflow above sol 9999 occurs after about 28 Earth years of operations
+        //also, during ground tests sol can actually be the day of an Earth year
+        //when forceNumeric=true the output will be a 5 digit string to match RDR paths in the form
+        //s3://BUCKET/ods/VER/sol/TTTTT/ids/rdr/
+        protected string SolToString(int sol, bool forceNumeric = false)
         {
-            return mission != null ? mission.SolToString(sol) : string.Format("{0:D4}", sol);
+            return (mission != null && !forceNumeric) ? mission.SolToString(sol) : string.Format("{0:D5}", sol);
         }
 
-        protected string SiteToString(int site)
+        //site can typically range from 0 to 32767
+        //missions typically encode in 3 alphanumeric characters
+        //for site < 1000 the numeric and mission encodings are typically same except for leading zeros
+        protected string SiteToString(int site, bool forceNumeric = false)
         {
-            return mission != null ? mission.SiteToString(site) : string.Format("{0:D3}", site);
+            return (mission != null && !forceNumeric) ? mission.SiteToString(site) : string.Format("{0:D5}", site);
         }
 
-        protected string DriveToString(int drive)
+        //drive can typically range from 0 to 65535
+        //missions typically encode in 4 alphanumeric characters
+        //for drive < 10000 the numeric and mission encodings are typically same except for leading zeros
+        protected string DriveToString(int drive, bool forceNumeric = false)
         {
-            return mission != null ? mission.DriveToString(drive) : string.Format("{0:D4}", drive);
+            return (mission != null && !forceNumeric) ? mission.DriveToString(drive) : string.Format("{0:D5}", drive);
         }
     }
 }

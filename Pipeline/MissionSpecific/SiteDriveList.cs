@@ -3,12 +3,16 @@ using System.Collections.Generic;
 using System.Collections.Concurrent;
 using System.Linq;
 using System.IO;
+using System.Text;
+using System.Text.RegularExpressions;
 using OPS.Util;
 
 namespace OPS.Pipeline
 {
     public class SiteDriveList
     {
+        private static readonly Regex YEAR_DOY_REGEX = new Regex(@"/(\D{4})/\D{3}/");
+
         public readonly Dictionary<RoverProductId, string> IDToURL = new Dictionary<RoverProductId, string>();
 
         public readonly Dictionary<int, HashSet<RoverProductId>> SolToIDs =
@@ -237,17 +241,30 @@ namespace OPS.Pipeline
         }
 
         /// <summary>
-        /// Find a path segment like "/sol/#####/" where ##### is any number of non-slash characters.
-        /// Returns true and the start and length of the ##### substring if found.
+        /// Find a path segment like "/sol/#####/" or "/YYYY/###/" where ##### is any number of non-slash characters and
+        /// YYYY is a valid year.  Returns true and the start and length of the ##### substring iff found.
         /// </summary>
         public static bool GetSolSpan(string url, out int start, out int len)
         {
             start = -1;
             len = 0;
             int solSeg = url.ToLower().IndexOf("/sol/");
+            int offset = 5;
+            if (solSeg < 0)
+            {
+                var m = YEAR_DOY_REGEX.Match(url);
+                if (m.Success)
+                {
+                    if (int.TryParse(m.Groups[1].Value, out int year) && year > 1990)
+                    {
+                        solSeg = m.Index;
+                        offset = 6;
+                    }
+                }
+            }
             if (solSeg >= 0)
             {
-                start = solSeg + 5;
+                start = solSeg + offset;
                 if (start < url.Length)
                 {
                     int end = url.IndexOf("/", start) - 1;
@@ -282,7 +299,8 @@ namespace OPS.Pipeline
         /// <summary>
         /// Return the shortest prefix of url ending with "/rdr/", case insensitive, or null if none.
         /// Replaces the sol span with the equivalent number of # characters (see GetSolSpan()).
-        /// e.g. s3://BUCKET/ods/VENUE/sol/#####/ids/rdr/
+        /// e.g. s3://BUCKET/ods/VER/sol/#####/ids/rdr/
+        /// e.g. s3://BUCKET/ods/VER/YYYY/###/ids/rdr/
         /// </summary>
         public static string GetRDRDir(string url)
         {

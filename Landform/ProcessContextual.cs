@@ -60,7 +60,8 @@ using OPS.Pipeline.AlignmentServer;
 /// number.
 ///
 /// Example RDR directory specifiers:
-/// * "s3://BUCKET/ods/g64/sol/#####/ids/rdr"
+/// * "s3://BUCKET/ods/VER/sol/#####/ids/rdr"
+/// * "s3://BUCKET/ods/VER/YYYY/###/ids/rdr"
 /// * "s3://BUCKET/foo/bar"
 /// * "c:/foo/bar"
 /// * "./foo/bar"
@@ -272,7 +273,7 @@ namespace OPS.Landform
         {
             //designed for serialization to JSON so using camelCase not StudlyCaps
 #pragma warning disable 0649
-            public string rdrDir; //e.g. s3://BUCKET/ods/g64/sol/#####/ids/rdr; if null or empty then use options.RDRDir
+            public string rdrDir; //e.g. s3://BUCKET/ods/VER/sol/#####/ids/rdr; if null or empty then use options.RDRDir
             public int primarySol;
             public string sols; //e.g. 2,3,4-9,14; if null or empty then use primarySol
             public string primarySiteDrive;
@@ -656,7 +657,7 @@ namespace OPS.Landform
             
             if (!string.IsNullOrEmpty(msg.sols))
             {
-                ret.Sols.UnionWith(FetchData.ExpandSolSpecifier(msg.sols).Select(sol => int.Parse(sol)));
+                ret.Sols.UnionWith(FetchData.ExpandSolSpecifier(msg.sols));
             }
             
             ret.PrimarySiteDrive = new SiteDrive(msg.primarySiteDrive);
@@ -676,7 +677,7 @@ namespace OPS.Landform
             ret.RDRDir = rdrDir;
             int sep = Math.Max(sols.Length, Math.Min(sols.IndexOf('-'), sols.IndexOf(',')));
             ret.PrimarySol = int.Parse(sols.Substring(0, sep));
-            ret.Sols.UnionWith(FetchData.ExpandSolSpecifier(sols).Select(sol => int.Parse(sol)));
+            ret.Sols.UnionWith(FetchData.ExpandSolSpecifier(sols));
             var sds = SiteDrive.ParseList(siteDrives);
             ret.PrimarySiteDrive = sds[0];
             ret.SiteDrives.UnionWith(sds);
@@ -690,7 +691,8 @@ namespace OPS.Landform
 
         /// <summary>
         /// rdrDir is e.g.
-        /// * "s3://BUCKET/ods/g64/sol/#####/ids/rdr"
+        /// * "s3://BUCKET/ods/VER/sol/#####/ids/rdr"
+        /// * "s3://BUCKET/ods/VER/YYYY/###/ids/rdr"
         /// * "s3://BUCKET/foo/bar"
         /// * "c:/foo/bar"
         /// * "./foo/bar"
@@ -719,12 +721,12 @@ namespace OPS.Landform
             string missionStr = mission != null ? mission.GetMission().ToString() : "None";
             string fullMissionStr = mission != null ? mission.GetMissionWithVenue() : "None";
             string sdStr = primarySiteDrive.ToString();
-            string solStr = string.Format("{0}", SolToString(primarySol));
+            string solStr = SolToString(primarySol, forceNumeric: true);
             string sdsStr = string.Join(",", siteDrives.ToArray());
-            string project = string.Format("{0}_{1}", solStr, sdStr);
+            string project = string.Format("{0}_{1}", SolToString(primarySol), sdStr);
             string venue = string.Format("contextual_{0}_{1}", missionStr, project);
             string venueDir = storageDir + "/" + venue;
-            string solDir = StringHelper.ReplaceFixedWidthIntWildcard(rdrDir, FetchData.SOL_WILDCARD, primarySol);
+            string solDir = StringHelper.ReplaceIntWildcards(rdrDir, primarySol);
             string ingestDir = solDir;
             string fetchDir = !string.IsNullOrEmpty(options.FetchDir) ? options.FetchDir : storageDir + "/" + FETCH_DIR;
             string tilesetDir = GetTilesetDir(venue, sdStr, project);

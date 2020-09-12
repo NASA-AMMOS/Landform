@@ -914,6 +914,8 @@ namespace OPS.Pipeline
         //parse a 4 character sol string
         //returns integer in range [0,33999], -1 if invalid, 34000 if out of range
         //note: overflow above sol 9999 occurs after about 28 Earth years of operations
+        //for testbed activities this will return the day of Earth year (DOY)
+        //which can be substituted into paths like s3://BUCKET/ods/VER/YYYY/DOY/...
         public static int ParseSol(string str)
         {
             if (string.IsNullOrEmpty(str))
@@ -931,9 +933,9 @@ namespace OPS.Pipeline
                 {
                     return -1;
                 }
-                if (c == 'Y' || c == 'Z')
+                if (c == 'Y' || c == 'Z') //testbed activity
                 {
-                    return 365 * (c - 'Y') + s; //0-730 (testbed activity)
+                    return /* 365 * (c - 'Y') + */ s; //just return day of year
                 }
                 else
                 {
@@ -1196,6 +1198,8 @@ namespace OPS.Pipeline
         //parse a 4 character sol string
         //returns integer in range [0,9999], -1 if invalid, 10000 if out of range
         //note: overflow above sol 9999 occurs after about 28 Earth years of operations
+        //for cruise and ground tests this will return the day of Earth year (DOY)
+        //which can be substituted into paths like s3://BUCKET/ods/VER/YYYY/DOY/...
         public static int ParseSol(string str)
         {
             if (string.IsNullOrEmpty(str))
@@ -1207,16 +1211,16 @@ namespace OPS.Pipeline
                 return 10000;
             }
             int offset = 0;
-            if (Char.IsLetter(str, 0))
+            if (Char.IsLetter(str, 0)) //cruise or ground test in which SCLK is not reset
             {
                 char c = char.ToUpper(str[0]);
-                offset = 365 * (c - 'A');
+                //offset = 365 * (c - 'A'); //just return day of year
                 str = str.Substring(1);
             }
-            else if (Char.IsLetter(str, str.Length - 1))
+            else if (Char.IsLetter(str, str.Length - 1)) //ground test in which SCLK is reset
             {
                 char c = char.ToUpper(str[str.Length - 1]);
-                offset = 365 * (c - 'A');
+                //offset = 365 * (c - 'A'); //just return day of year
                 str = str.Substring(0, str.Length - 1);
             }
             return Math.Min(int.TryParse(str, out int sol) ? offset + sol : -1, 10000);

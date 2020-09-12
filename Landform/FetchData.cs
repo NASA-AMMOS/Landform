@@ -36,9 +36,11 @@ using OPS.Pipeline;
 /// The --trace, --traceexts, --summary, and --dryrun options can be helpful to understand what products will be
 /// downloaded, and why certian products are rejected.
 ///
-/// When downloading RDRs the source location URL may contain a wildcard consisting of 5 hashes (#####), enabling
-/// download for multiple sols (NOTE: sol directory in S3 is typically 5 chars but sol string in product IDs is 4
-/// chars).
+/// When downloading RDRs the source location URL may contain a wildcard consisting of any number of #####, enabling
+/// download for multiple sols.  Note: the sol folder in S3 paths is typically 5 digits but the sol string in product
+/// IDs is typically 4 alphanumeric characters.  Also, S3 paths during surface operations are typically of the form
+/// s3://BUCKET/ods/VER/sol/TTTTT/ids/rdr but during ground tests can be in the form
+/// s3://BUCKET/ods/VER/YYYY/DDD/ids/rdr.
 ///
 /// Fetching RDRs for windjana contextual mesh:
 ///
@@ -215,9 +217,6 @@ namespace OPS.Landform
 
     public class FetchData
     {
-        //NOTE: sol directory in S3 is typically 5 chars but sol string in product IDs is 4 chars
-        public const string SOL_WILDCARD = "#####";
-
         private FetchDataOptions options;
         private MissionSpecific mission;
 
@@ -317,7 +316,7 @@ namespace OPS.Landform
             }
         }
 
-        public static string[] ExpandSolSpecifier(string solString)
+        public static int[] ExpandSolSpecifier(string solString)
         {
             string[] parts = solString.Split(',');
             List<int> sols = new List<int>();
@@ -341,7 +340,6 @@ namespace OPS.Landform
             return sols
                 .Distinct()
                 .OrderBy(sol => sol)
-                .Select(sol => StringHelper.FixedWidthInt(SOL_WILDCARD, sol))
                 .ToArray();
         }
 
@@ -1165,14 +1163,13 @@ namespace OPS.Landform
                     logger.InfoFormat("seaching sols {0} in {1}", string.Join(", ", sols),
                                       string.Join(", ", locations));
                     
-                    var solToProducts = new ConcurrentDictionary<string, List<string>>();
+                    var solToProducts = new ConcurrentDictionary<int, List<string>>();
                     CoreLimitedParallel.ForEach(sols, sol =>
                     {
                         var prods = new List<string>();
                         foreach (var location in locations)
                         {
-                            var solLocation = StringHelper.ReplaceFixedWidthIntWildcard(location, SOL_WILDCARD,
-                                                                                        int.Parse(sol));
+                            var solLocation = StringHelper.ReplaceIntWildcards(location, sol);
                             prods.AddRange(IndexFiles(solLocation));
                         }
                         solToProducts.TryAdd(sol, prods);
