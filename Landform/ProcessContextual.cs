@@ -873,7 +873,7 @@ namespace OPS.Landform
         //RRR_[TTTT]SSSDDDD[I][_VV].lis
         //where RRR is e.g. xyz, xym, iv, etc; TTTT is sol; SSS site; DDDD drive; I instrument; VV version
         private static readonly Regex LIST_FILENAME_REGEX =
-            new Regex(@"(?:\D)+_(\d{7,})\D*(?:_[0-9A-Z]{1,2})?\.lis$", RegexOptions.IgnoreCase);
+            new Regex(@"[^_]+_(?:\d{4})?([0-9A-Z]{7})[A-Z]?(?:_[0-9A-Z]{1,2})?\.lis$", RegexOptions.IgnoreCase);
 
         private SiteDrive? GetSiteDrive(string url)
         {
@@ -886,7 +886,7 @@ namespace OPS.Landform
             var m = LIST_FILENAME_REGEX.Match(url);
             if (m.Success)
             {
-                return new SiteDrive(m.Groups[1].Value.Substring(m.Groups[1].Length - 7));
+                return new SiteDrive(m.Groups[1].Value);
             }
             return null;
         }
