@@ -972,11 +972,17 @@ namespace OPS.Landform
                 logger.InfoFormat("collecting download info");
                 long batchBytes = 0;
                 var batch = new HashSet<string>();
+                int i = 0;
                 foreach (var url in remaining)
                 {
                     if (ShouldDownload(url, ref batchBytes))
                     {
                         batch.Add(url);
+                    }
+                    if (i%100 == 0)
+                    {
+                        logger.InfoFormat("collected info for {0}/{1} downloads, downloading {2} files, {3} bytes",
+                                          i, remaining.Count, batch.Count, Fmt.DiskBytes(batchBytes));
                     }
                 }
                 logger.InfoFormat("downloading {0} files, {1} bytes", batch.Count, Fmt.DiskBytes(batchBytes));
