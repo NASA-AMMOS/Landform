@@ -979,7 +979,7 @@ namespace OPS.Landform
                     {
                         batch.Add(url);
                     }
-                    if (i%100 == 0)
+                    if ((++i)%100 == 0)
                     {
                         logger.InfoFormat("collected info for {0}/{1} downloads, downloading {2} files, {3} bytes",
                                           i, remaining.Count, batch.Count, Fmt.DiskBytes(batchBytes));
