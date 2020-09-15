@@ -21,7 +21,7 @@ rm -rf out/$run/rdrs
 rm -rf out/$run/orbital
 rm -rf out/$run/tilesets
 
-$landform fetch $sols out/$run/rdrs s3://$bucket/$mission/$ods/$ver/sol/#####/$ids/rdr --mission $mission --summary
+$landform fetch $sols out/$run/rdrs s3://$bucket/$mission/$ods/$ver/sol/#####/$ids/rdr --mission $mission --nomeshes --summary
 
 $landform fetch s3://$bucket/$mission/orbital/$dem,s3://$bucket/MSL/orbital/$ortho out/$mission/orbital --mission $mission --raw --nosubdirs
 
@@ -36,4 +36,4 @@ mkdir -p out/$run/tilesets
 # to build a monolithic PLY
 # you can also build it for the larger size, but in that case also add "--geometryargs --surfaceuvmode=Heightmap"
 # to colorize monochrome images append "--blendargs --colorize"
-./Scripts/process-contextual.sh out/$run/rdrs $mission $sol $sds out/$run/meshes --orbitaldem out/$mission/orbital/$dem --orbitalimage out/$mission/orbital/$ortho --notileset
+#./Scripts/process-contextual.sh out/$run/rdrs $mission $sol $sds out/$run/meshes --orbitaldem out/$mission/orbital/$dem --orbitalimage out/$mission/orbital/$ortho --notileset
