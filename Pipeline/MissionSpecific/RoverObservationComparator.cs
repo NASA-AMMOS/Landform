@@ -15,10 +15,10 @@ namespace OPS.Pipeline
             XYZ_RNG,
             Producer,
             Color_Grayscale,
-            Linear_NonLinear,
             SameObsTypeAndProducer,
             StereoEye,
             SameCameraAndColor,
+            Linear_NonLinear,
             ExtendedCompare,
             Version,
             Name,
@@ -29,18 +29,19 @@ namespace OPS.Pipeline
 
         public ILogger logger;
 
-        private bool preferMSSSToOPGS, preferLinearToNonlinear, preferColorToGrayscale;
+        private bool preferMSSSToOPGS, preferLinearGeometryProducts, preferLinearRasterProducts, preferColorToGrayscale;
         private RoverStereoEye preferEyeForGeometry;
         private Func<RoverObservation, RoverObservation, int> ext;
         private MissionSpecific mission;
 
-        public RoverObservationComparator(bool preferMSSS, bool preferLinear, bool preferColor,
-                                          RoverStereoEye preferEyeForGeometry,
-                                          MissionSpecific mission,
+        public RoverObservationComparator(bool preferMSSS, bool preferLinearGeometryProducts,
+                                          bool preferLinearRasterProducts, bool preferColor,
+                                          RoverStereoEye preferEyeForGeometry, MissionSpecific mission,
                                           Func<RoverObservation, RoverObservation, int> ext = null)
         {
             this.preferMSSSToOPGS = preferMSSS;
-            this.preferLinearToNonlinear = preferLinear;
+            this.preferLinearGeometryProducts = preferLinearGeometryProducts;
+            this.preferLinearRasterProducts = preferLinearRasterProducts;
             this.preferColorToGrayscale = preferColor;
             this.preferEyeForGeometry = preferEyeForGeometry;
             this.mission = mission;
@@ -48,20 +49,26 @@ namespace OPS.Pipeline
         }
 
         public RoverObservationComparator()
-            : this(preferMSSS: false, preferLinear: true, preferColor: true, preferEyeForGeometry: RoverStereoEye.Left,
-                   mission: null)
+            : this(preferMSSS: false, preferLinearGeometryProducts: true, preferLinearRasterProducts: false,
+                   preferColor: true, preferEyeForGeometry: RoverStereoEye.Left, mission: null)
         { }
 
         public RoverObservationComparator(RoverObservationComparator other)
-            : this(preferMSSS: other.preferMSSSToOPGS, preferLinear: other.preferLinearToNonlinear, 
-                  preferColor: other.preferColorToGrayscale, preferEyeForGeometry: other.preferEyeForGeometry,
+            : this(preferMSSS: other.preferMSSSToOPGS, preferLinearGeometryProducts: other.preferLinearGeometryProducts,
+                   preferLinearRasterProducts: other.preferLinearRasterProducts,
+                   preferColor: other.preferColorToGrayscale, preferEyeForGeometry: other.preferEyeForGeometry,
                    mission: other.mission, ext: other.ext)
         { }
 
 
-        public void SetPreferLinearToNonlinear(bool preferLinear)
+        public void SetPreferLinearGeometryProducts(bool preferLinear)
         {
-            preferLinearToNonlinear = preferLinear;
+            preferLinearGeometryProducts = preferLinear;
+        }
+
+        public void SetPreferLinearRasterProducts(bool preferLinear)
+        {
+            preferLinearRasterProducts = preferLinear;
         }
 
         /// <summary>
@@ -96,7 +103,7 @@ namespace OPS.Pipeline
                 }
             }
 
-            //sort next by producer
+            //sort by producer
             if (!exceptCrit.Contains(CompareCriteria.Producer))
             {
                 reason = CompareCriteria.Producer;
@@ -130,21 +137,6 @@ namespace OPS.Pipeline
                 }
             }
 
-            //sort next by linear-ness
-            if (!exceptCrit.Contains(CompareCriteria.Linear_NonLinear))
-            {
-                reason = CompareCriteria.Linear_NonLinear;
-                bool linearA = a.IsLinear, linearB = b.IsLinear;
-                if (linearA && !linearB)
-                {
-                    return preferLinearToNonlinear ? -1 : 1;
-                }
-                if (!linearA && linearB)
-                {
-                    return preferLinearToNonlinear ? 1 : -1;
-                }
-            }
-
             //fine-grained comparisons from here down
             //but allow comparing between eyes, e.g. NavcamLeft to NavcamRight and colors
             if (!exceptCrit.Contains(CompareCriteria.SameObsTypeAndProducer) && 
@@ -172,6 +164,27 @@ namespace OPS.Pipeline
             {
                 reason = CompareCriteria.SameCameraAndColor;
                 return 0;
+            }
+
+            //sort by linear-ness
+            //note mask products are considered both geometry and raster
+            if (!exceptCrit.Contains(CompareCriteria.Linear_NonLinear) && a.ObservationType == b.ObservationType &&
+                (RoverProduct.IsGeometry(a.ObservationType) || RoverProduct.IsRaster(a.ObservationType)) &&
+                (preferLinearGeometryProducts == preferLinearRasterProducts ||
+                 !(RoverProduct.IsGeometry(a.ObservationType) && RoverProduct.IsRaster(a.ObservationType))))
+            {
+                reason = CompareCriteria.Linear_NonLinear;
+                bool linearA = a.IsLinear, linearB = b.IsLinear;
+                bool preferLinear = RoverProduct.IsGeometry(a.ObservationType)
+                    ? preferLinearGeometryProducts : preferLinearRasterProducts;
+                if (linearA && !linearB)
+                {
+                    return preferLinear ? -1 : 1;
+                }
+                if (!linearA && linearB)
+                {
+                    return preferLinear ? 1 : -1;
+                }
             }
 
             if (!exceptCrit.Contains(CompareCriteria.ExtendedCompare) && ext != null)
@@ -379,6 +392,7 @@ namespace OPS.Pipeline
         /// </summary>
         public static IEnumerable<string>
             FilterProductIdGroups(IEnumerable<string> products, MissionSpecific mission = null,
+                                  LinearVariants linVars = LinearVariants.Best,
                                   Action<string> log = null, Func<string, bool> logFilter = null)
         {
             var idToProducts = new Dictionary<RoverProductId, List<string>>();
@@ -412,7 +426,7 @@ namespace OPS.Pipeline
                 }
             }
 
-            foreach (var id in FilterProductIdGroups(idToProducts.Keys, mission, logFunc))
+            foreach (var id in FilterProductIdGroups(idToProducts.Keys, mission, linVars, logFunc))
             {
                 foreach (var product in idToProducts[id])
                 {
@@ -426,6 +440,7 @@ namespace OPS.Pipeline
         /// </summary>
         public static IEnumerable<RoverProductId>
             FilterProductIdGroups(IEnumerable<RoverProductId> products, MissionSpecific mission = null,
+                                  LinearVariants linVars = LinearVariants.Best,
                                   Action<IEnumerable<RoverProductId>, IEnumerable<RoverProductId>> log = null)
         {
             //given a set of ids that only differ in product type and version
@@ -463,6 +478,16 @@ namespace OPS.Pipeline
                 return RoverProduct.IsGeometry(id.ProductType) && !RoverProduct.IsRaster(id.ProductType);
             }
 
+            bool isMask(RoverProductId id)
+            {
+                return id.ProductType == RoverProductType.RoverMask;
+            }
+
+            bool isLin(RoverProductId id, bool lin)
+            {
+                return id.Geometry == (lin ? RoverProductGeometry.Linearized : RoverProductGeometry.Raw);
+            }
+
             //given a set of ids that only differ in stereo eye and version
             //if the product type is strictly geometry
             //and both stereo eyes are present
@@ -470,7 +495,7 @@ namespace OPS.Pipeline
             //then remove products of the non-preferred eye
             IEnumerable<RoverProductId> filterEye(IEnumerable<RoverProductId> ids, RoverStereoEye preferEyeForGeometry)
             {
-                var gids = ids.Where(id => isGeom(id)).ToList(); //should be redundant, but ok
+                var gids = ids.Where(id => isGeom(id)).ToList();
                 bool hasLeft = gids.Any(id => RoverStereoPair.IsStereoEye(id.Camera, RoverStereoEye.Left));
                 bool hasRight = gids.Any(id => RoverStereoPair.IsStereoEye(id.Camera, RoverStereoEye.Right));
                 if (hasLeft && hasRight)
@@ -483,20 +508,51 @@ namespace OPS.Pipeline
             }
 
             //given a set of ids that only differ in linearness and version
-            //if the product type is strictly geometry
-            //and both linearnesses present
+            //if both linearnesses present
             //then remove products of the non-preferred linearness
-            IEnumerable<RoverProductId> filterLinear(IEnumerable<RoverProductId> ids, bool preferLinear)
+            //note mask products are both geometry and raster
+            IEnumerable<RoverProductId> filterLinear(IEnumerable<RoverProductId> ids)
             {
-                var gids = ids.Where(id => isGeom(id)).ToList(); //should be redundant, but ok
-                bool hasLinear = gids.Any(id => id.Geometry == RoverProductGeometry.Linearized);
-                bool hasRaw = gids.Any(id => id.Geometry == RoverProductGeometry.Raw);
+                //all ids should be of same product type here, but ids could be empty
+                bool hasGeometry = ids.Any(id => RoverProduct.IsGeometry(id.ProductType)); //include masks
+                bool hasRaster = ids.Any(id => RoverProduct.IsRaster(id.ProductType)); //include masks
+                if (hasGeometry && hasRaster &&
+                    mission.PreferLinearGeometryProducts() != mission.PreferLinearRasterProducts())
+                {
+                    return ids;
+                }
+                var lin = hasGeometry ? mission.PreferLinearGeometryProducts() : mission.PreferLinearRasterProducts();
+                bool hasLinear = ids.Any(id => isLin(id, true));
+                bool hasRaw = ids.Any(id => isLin(id, false));
                 if (hasLinear && hasRaw)
                 {
-                    var preferred = preferLinear ? RoverProductGeometry.Linearized : RoverProductGeometry.Raw;
-                    return gids
-                        .Where(id => id.Geometry == preferred)
-                        .Concat(ids.Where(id => !isGeom(id)));
+                    return ids.Where(id => isLin(id, lin));
+                }
+                return ids;
+            }
+
+            //given a set of ids that only differ in product type, linearness, and version
+            //then keep only the masks with linearity matching non-mask products in the set
+            IEnumerable<RoverProductId> filterLinearMasks(IEnumerable<RoverProductId> ids)
+            {
+                bool hasMasks = ids.Any(id => isMask(id));
+                if (!hasMasks)
+                {
+                    return ids;
+                }
+                bool hasLinNonMask = ids.Any(id => !isMask(id) && isLin(id, true));
+                bool hasRawNonMask = ids.Any(id => !isMask(id) && isLin(id, false));
+                if (hasLinNonMask == hasRawNonMask) //both true or both false
+                {
+                    return ids;
+                }
+                var mids = ids.Where(id => isMask(id)).ToList();
+                bool hasLinMask = mids.Any(id => isLin(id, true));
+                bool hasRawMask = mids.Any(id => isLin(id, false));
+                if (hasLinMask && hasRawMask)
+                {
+                    var ret = mids.Where(id => isLin(id, hasLinNonMask)).Concat(ids.Where(id => !isMask(id)));
+                    return ret;
                 }
                 return ids;
             }
@@ -564,11 +620,19 @@ namespace OPS.Pipeline
                                 .ToList();
                         }
                         
-                        //keep preferred linearness for geometry products
-                        filtered = filtered
-                            .GroupBy(id => id.GetPartialId(mission, includeGeometry: false, includeVersion: false))
-                            .SelectMany(ids => filterLinear(ids, mission.PreferLinearToNonlinear()))
-                            .ToList();
+                        //keep preferred linearness
+                        if (linVars == LinearVariants.Best)
+                        {
+                            filtered = filtered
+                                .GroupBy(id => id.GetPartialId(mission, includeGeometry: false, includeVersion: false))
+                                .SelectMany(ids => filterLinear(ids))
+                                .ToList();
+                            filtered = filtered
+                                .GroupBy(id => id.GetPartialId(mission, includeProductType: false,
+                                                               includeGeometry: false, includeVersion: false))
+                                .SelectMany(ids => filterLinearMasks(ids))
+                                .ToList();
+                        }
                         
                         //apply any mission specific filtering (e.g. may handle variants)
                         filtered = mission.FilterProductIdGroups(filtered).ToList();

@@ -111,7 +111,7 @@ namespace OPS.Pipeline
                             var oldUrl = latest[sd][id.Camera];
                             var oldStr = StringHelper.GetLastUrlPathSegment(oldUrl, stripExtension: true);
                             var oldId = RoverProductId.Parse(oldStr, mission);
-                            bool preferLinear = mission == null || mission.PreferLinearToNonlinear();
+                            bool preferLinear = mission == null || mission.PreferLinearGeometryProducts();
                             if (oldId.Geometry != id.Geometry &&
                                 ((preferLinear && id.Geometry == RoverProductGeometry.Linearized) ||
                                  (!preferLinear && id.Geometry == RoverProductGeometry.Raw)))

@@ -2,8 +2,8 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 using System.Security.Cryptography;
 
 namespace OPS.Util
@@ -25,14 +25,15 @@ namespace OPS.Util
             return new Regex(WildcardToRegularExpressionString(value), opts);
         }
 
-        public static string ReplaceFixedWidthIntWildcard(string str, string wildcard, int value)
+        public static string ReplaceIntWildcards(string str, int value, char wildcardChar = '#')
         {
-            return str.Replace(wildcard, FixedWidthInt(wildcard, value));
-        }
-
-        public static string FixedWidthInt(string wildcard, int value)
-        {
-            return string.Format("{0:D" + wildcard.Length + "}", value);
+            var r = new Regex(wildcardChar + "+");
+            foreach (Match m in r.Matches(str)) {
+                int start = m.Index;
+                int len = m.Length;
+                str = str.Substring(0, start) + string.Format("{0:D" + len + "}", value) + str.Substring(start + len);
+            }
+            return str;
         }
 
         public static string EnsureTrailingSlash(string str)

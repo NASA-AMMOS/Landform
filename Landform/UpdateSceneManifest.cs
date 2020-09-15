@@ -108,7 +108,7 @@ namespace OPS.Landform
         [Option(HelpText = "Path/URL to directory containing existing tilesets, can be inferred from --manifestfile", Default = null)]
         public string TilesetDir { get; set; }
 
-        [Option(HelpText = "Path/URL to existing RDRs with sol replaced with #####, required unless both --nourls and --tacticalpdsfile are specified", Default = null)]
+        [Option(HelpText = "Path/URL to existing RDRs with sol replaced with #####, required without --nourls or --tacticalpdsfile", Default = null)]
         public string RDRDir { get; set; }
 
         [Option(HelpText = "Sol of manifest to update", Default = -1)]
@@ -173,6 +173,12 @@ namespace OPS.Landform
 
         [Option(HelpText = "Don't filter tactical meshes to the best ID in each equivalency group of version-like variants", Default = false)]
         public bool NoFilterTacticalMeshIDs { get; set; }
+
+        [Option(HelpText = "Min year to search for YYYY/DOY style RDR paths when --rdrdir doesn't contain a ### wildcard", Default = 2020)]
+        public int YearDOYSearchYearMin { get; set; }
+
+        [Option(HelpText = "Max year to search for YYYY/DOY style RDR paths when --rdrdir doesn't contain a ### wildcard", Default = 2021)]
+        public int YearDOYSearchYearMax { get; set; }
 
         [Option(HelpText = "Option disabled for this command", Default = null)]
         public override string OnlyForSiteDrives { get; set; }
@@ -379,12 +385,6 @@ namespace OPS.Landform
 
             if (!string.IsNullOrEmpty(options.RDRDir))
             {
-                int firstWildcard = options.RDRDir.IndexOf(FetchData.SOL_WILDCARD);
-                int lastWildcard = options.RDRDir.LastIndexOf(FetchData.SOL_WILDCARD);
-                if (firstWildcard >= 0 && firstWildcard != lastWildcard)
-                {
-                    throw new Exception("--rdrdir must contain up to one wildcard " + FetchData.SOL_WILDCARD); 
-                }
                 options.RDRDir = StringHelper.NormalizeUrl(options.RDRDir, preserveTrailingSlash: false) + "/";
                 pipeline.LogInfo("RDR dir: {0}", options.RDRDir);
             }
@@ -572,8 +572,6 @@ namespace OPS.Landform
         {
             var exts = imageExts.Concat(pdsExts).ToList(); //includes leading dot
 
-            int wildcardIndex = options.RDRDir.IndexOf(FetchData.SOL_WILDCARD);
-
             int total = 0;
 
             void addRDR(string id, string url)
@@ -616,26 +614,43 @@ namespace OPS.Landform
                 rdrSols.UnionWith(tileset.sols);
             }
 
+            int firstHash = options.RDRDir.IndexOf('#');
+
             if (rdrSols.Count == 0)
             {
-                searchRDRs(options.RDRDir, "*");
+                string dir = options.RDRDir;
+                string pat = "*";
+                if (firstHash >= 0)
+                {
+                    /// s3://BUCKET/ods/VER/sol/#####/ids/rdr/ -> dir=s3://BUCKET/ods/VER/sol/, pat=*/ids/rdr/*
+                    /// s3://BUCKET/ods/VER/YYYY/###/ids/rdr/ -> dir=s3://BUCKET/ods/VER/YYYY/, pat=*/ids/rdr/*
+                    /// s3://BUCKET/ods/VER/YYYY/###/ -> dir=s3://BUCKET/ods/VER/YYYY/, pat=*
+                    int lastHash = dir.LastIndexOf('#');
+                    pat = dir.Substring(lastHash + 1).TrimStart('/').TrimEnd('/');
+                    pat = pat.Length > 0 ? ("*/" + pat + "/*") : "*";
+                    dir = dir.Substring(0, firstHash);
+                }
+                searchRDRs(dir, pat);
             }
             else
             {
                 foreach (int sol in rdrSols.OrderBy(sol => sol))
                 {
-                    string dir = options.RDRDir;
-                    string pat = "*";
-                    if (wildcardIndex >= 0)
+                    if (firstHash >= 0)
                     {
-                        dir = StringHelper.ReplaceFixedWidthIntWildcard(dir, FetchData.SOL_WILDCARD, sol);
+                        searchRDRs(StringHelper.ReplaceIntWildcards(options.RDRDir, sol), "*");
                     }
-                    else
+                    else //options.RDRDir is a base directory, e.g. s3://BUCKET/ods/
                     {
-                        //handle case where options.RDRDir is a base directory
-                        pat = string.Format("*/sol/{0}/*", StringHelper.FixedWidthInt(FetchData.SOL_WILDCARD, sol));
+                        searchRDRs(options.RDRDir, string.Format("*/sol/{0}/*", SolToString(sol, forceNumeric: true)));
+                        if (sol < 365)
+                        {
+                            for (int y = options.YearDOYSearchYearMin; y <= options.YearDOYSearchYearMax; y++)
+                            {
+                                searchRDRs(options.RDRDir, string.Format("*/{0:D4}/{1:D3}/*", y, sol));
+                            }
+                        }
                     }
-                    searchRDRs(dir, pat);
                 }
             }
 
@@ -908,7 +923,9 @@ namespace OPS.Landform
                     {
                         log = msg => pipeline.LogInfo(msg);
                     }
-                    keepers = new HashSet<string>(RoverObservationComparator.FilterProductIdGroups(ids, mission, log));
+                    var lp = RoverObservationComparator.LinearVariants.Best;
+                    keepers =
+                        new HashSet<string>(RoverObservationComparator.FilterProductIdGroups(ids, mission, lp, log));
                 }
                 else
                 {

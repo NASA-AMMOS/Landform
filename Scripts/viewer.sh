@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# view one or more tilesets in Unity3DTiles in web browser tab(s)
+# view one or more tilesets or scenes in Unity3DTiles in web browser tab(s)
 # downloads Unity3DTilexWeb.zip and unpacks it in out/ if necessary
 # creates localhost.pem if necessary
 # opens tabs
@@ -35,10 +35,8 @@ pem=localhost.pem
 openurl="python -m webbrowser"
 docurl=https://github.jpl.nasa.gov/OnSight/Landform/wiki/M2020-Data-Notes#data-proxy
 
-baseurl=$hproxy:$port/$viewer/index.html?Tileset=
-
 if [ $# -lt 1 ]; then
-    echo "viewer.sh s3://BUCKET/PATH/*tileset.json|$out/PATH/*tileset.json ..."
+    echo "viewer.sh s3://BUCKET/PATH/*{tileset|scene}.json|$out/PATH/*{tileset|scene}.json ..."
     exit 1
 fi
 
@@ -46,6 +44,8 @@ if [[ `python --version` != *3.?.? ]]; then
     echo "python 3.7+ required"
     exit 1
 fi
+
+baseurl=$hproxy:$port/$viewer/index.html
 
 scriptdir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
@@ -69,16 +69,18 @@ if [ ! -f $pem ]; then
 fi
 
 for url in "$@"; do
+    query="?Tileset="
+    if [[ $url == *_scene.json ]]; then query="?Scene="; fi
     if [[ $url == s3://* ]]; then
         url=${url#s3://}
         bucket=${url%%/*}
         key=${url#*/}
-        url=${baseurl}${dproxy}/$bucket/$key
+        url=${baseurl}${query}${dproxy}/$bucket/$key
         if [ ! "$using_dproxy" ]; then $openurl $dproxy; using_dproxy=true; fi
     elif [[ "$url" ==  $out/* ]] || [[ "$url" == ./$out/* ]]; then
         url=${url#$out/}
         url=${url#./$out/}
-        url=${baseurl}../$url
+        url=${baseurl}${query}../$url
     else
         echo "unsupported URL, only s3:// and local files $out/* supported"
         exit 1
@@ -91,8 +93,8 @@ if [ "$using_dproxy" ]; then
     echo "0) clear cookies for $domain"
     echo "1) make sure you've logged in at $dproxy"
     echo "2) check bucket(s) have CORS configured (see $docurl)"
-    echo "3) view page source and make sure the shim script has been injected before the unity loader (if not rm -rf $out/$viewer $out/${viewer}.zip and try again)"
-    echo "4) make sure you have acquired valid credentials with credss to read s3://$lfbucket"
+    echo "3) view page source and make sure the shim script has been injected before the unity loader (if not rm -rf $out/$viewer $out/${viewer}.zip, make sure you have credss credentials to read s3://$lfbucket, and try again)"
+    echo "4) note that if you are trying to view a scene.json on S3 there is currently a known bug, see ticket for workaround: https://github.jpl.nasa.gov/OnSight/Landform/issues/1136"
     echo "5) sacrifice chicken"
 fi
 

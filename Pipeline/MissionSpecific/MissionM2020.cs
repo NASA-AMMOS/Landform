@@ -20,6 +20,9 @@ namespace OPS.Pipeline
             return CONFIG_FILENAME;
         }
 
+        [ConfigEnvironmentVariable("LANDFORM_PREFER_LINEAR_GEOMETRY_PRODUCTS")]
+        public bool PreferLinearGeometryProducts { get; set; } = false;
+
         //CSSO credentials uername parameter in SSM, {venue} will be replaced
         [ConfigEnvironmentVariable("LANDFORM_CSSO_USERNAME_PARAMETER_IN_SSM")]
         public string CSSOUsernameParameterInSSM { get; set; } = "/m20/{venue}/ids/pipeline/csso_username";
@@ -244,6 +247,11 @@ namespace OPS.Pipeline
             throw new NotImplementedException("max focus distance not implemented for 2020 instruments yet");
         }
 
+        public override bool PreferLinearGeometryProducts()
+        {
+            return MissionM2020Config.Instance.PreferLinearGeometryProducts;
+        }
+
         public override RoverObservationComparator GetRoverObservationComparator()
         {
             // 0 if a and b are equivalently good
@@ -290,12 +298,9 @@ namespace OPS.Pipeline
                 return 0;
             }
 
-            return new RoverObservationComparator(PreferMSSSToOPGS(),
-                                                  PreferLinearToNonlinear(),
-                                                  PreferColorToGrayscale(),
-                                                  PreferEyeForGeometry(),
-                                                  this,
-                                                  ext);
+            return new RoverObservationComparator(PreferMSSSToOPGS(), PreferLinearGeometryProducts(),
+                                                  PreferLinearRasterProducts(), PreferColorToGrayscale(),
+                                                  PreferEyeForGeometry(), this, ext);
         }
 
         public override IEnumerable<RoverProductId> FilterProductIdGroups(IEnumerable<RoverProductId> products)
@@ -540,6 +545,11 @@ namespace OPS.Pipeline
             return TranslateCamera(ParseProductId(parser.ProductIdString).Camera);
         }
 
+        public override bool PreferLinearGeometryProducts()
+        {
+            return true;
+        }
+
         public override string GetOrbitalConfigDefaults()
         {
             return null; //don't have orbital for ROASTT19
@@ -572,6 +582,11 @@ namespace OPS.Pipeline
         public override Mission GetMission()
         {
             return Mission.TT4;
+        }
+
+        public override bool PreferLinearGeometryProducts()
+        {
+            return true;
         }
 
         //TT4: sequence number is bumped for different variants
@@ -684,6 +699,11 @@ namespace OPS.Pipeline
             return base.ParseProductId(id);
         }
 
+        public override bool PreferLinearGeometryProducts()
+        {
+            return true;
+        }
+
         public override string GetOrbitalConfigDefaults()
         {
             //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/1004
@@ -748,6 +768,11 @@ namespace OPS.Pipeline
             }
 
             return prodSize;
+        }
+
+        public override bool PreferLinearGeometryProducts()
+        {
+            return true;
         }
 
         public override string GetS3Proxy()

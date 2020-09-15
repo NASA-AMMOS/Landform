@@ -331,7 +331,9 @@ namespace OPS.Pipeline
             {
                 log = msg => pipeline.LogInfo(msg);
             }
-            var filteredUrls = RoverObservationComparator.FilterProductIdGroups(acceptedUrls, mission, log).ToList();
+            var filteredUrls = RoverObservationComparator
+                .FilterProductIdGroups(acceptedUrls, mission, RoverObservationComparator.LinearVariants.Both, log)
+                .ToList();
             pipeline.LogInfo("culled {0} -> {1} observations by product ID groups", na, filteredUrls.Count);
 
             var filteredObs = filteredUrls
