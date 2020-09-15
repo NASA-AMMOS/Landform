@@ -11,7 +11,7 @@ namespace OPS.Pipeline
 {
     public class SiteDriveList
     {
-        private static readonly Regex YEAR_DOY_REGEX = new Regex(@"/(\D{4})/\D{3}/");
+        private static readonly Regex YEAR_DOY_REGEX = new Regex(@"/(\d{4})/\d{3}/");
 
         public readonly Dictionary<RoverProductId, string> IDToURL = new Dictionary<RoverProductId, string>();
 
