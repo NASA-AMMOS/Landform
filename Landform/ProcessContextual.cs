@@ -1073,8 +1073,8 @@ namespace OPS.Landform
                 }
                 else
                 {
-                    pipeline.LogWarn("could not find sol span, " +
-                                     "recursively searching entire RDR dir {0} for additional wedges", rdrDir);
+                    pipeline.LogWarn("could not find sol span, recursively searching RDR dir {0} for additional wedges",
+                                     rdrDir);
                     solDirs.Add(rdrDir);
                 }
 
