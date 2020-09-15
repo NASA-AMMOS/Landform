@@ -94,7 +94,8 @@ if [ "$using_dproxy" ]; then
     echo "1) make sure you've logged in at $dproxy"
     echo "2) check bucket(s) have CORS configured (see $docurl)"
     echo "3) view page source and make sure the shim script has been injected before the unity loader (if not rm -rf $out/$viewer $out/${viewer}.zip, make sure you have credss credentials to read s3://$lfbucket, and try again)"
-    echo "4) sacrifice chicken"
+    echo "4) note that if you are trying to view a scene.json on S3 there is currently a known bug, see ticket for workaround: https://github.jpl.nasa.gov/OnSight/Landform/issues/1136"
+    echo "5) sacrifice chicken"
 fi
 
 python $scriptdir/python-https.py $port $out $pem
