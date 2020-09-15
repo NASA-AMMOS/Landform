@@ -290,12 +290,9 @@ namespace OPS.Pipeline
                 return 0;
             }
 
-            return new RoverObservationComparator(PreferMSSSToOPGS(),
-                                                  PreferLinearToNonlinear(),
-                                                  PreferColorToGrayscale(),
-                                                  PreferEyeForGeometry(),
-                                                  this,
-                                                  ext);
+            return new RoverObservationComparator(PreferMSSSToOPGS(), PreferLinearGeometryProducts(),
+                                                  PreferLinearRasterProducts(), PreferColorToGrayscale(),
+                                                  PreferEyeForGeometry(), this, ext);
         }
 
         public override IEnumerable<RoverProductId> FilterProductIdGroups(IEnumerable<RoverProductId> products)

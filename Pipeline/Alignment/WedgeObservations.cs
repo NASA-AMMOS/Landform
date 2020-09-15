@@ -229,7 +229,7 @@ namespace OPS.Pipeline
                     return new RoverProductGeometry[] { RoverProductGeometry.Linearized };
                 }
                 
-                if (mission.PreferLinearToNonlinear())
+                if (mission.PreferLinearGeometryProducts())
                 {
                     return new RoverProductGeometry[] { RoverProductGeometry.Linearized, RoverProductGeometry.Raw };
                 }

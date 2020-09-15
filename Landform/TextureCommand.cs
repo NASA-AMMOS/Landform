@@ -86,9 +86,6 @@ namespace OPS.Landform
         [Option(HelpText = "Prefer color images (Never, Always, EquivalentScores)", Default = PreferColorMode.EquivalentScores)]
         public virtual PreferColorMode PreferColor { get; set; }
 
-        [Option(HelpText = "Prefer linearized version of images for texturing", Default = false)]
-        public bool PreferLinearToNonlinear { get; set; }
-
         [Option(HelpText = "Colorize mono images to median chrominance", Default = false)]
         public virtual bool Colorize { get; set; }
 
@@ -224,7 +221,7 @@ namespace OPS.Landform
         {
             var comparator = new RoverObservationComparator(mission.GetRoverObservationComparator());
             comparator.logger = pipeline.Verbose ? pipeline : null;
-            comparator.SetPreferLinearToNonlinear(tcopts.PreferLinearToNonlinear);
+            comparator.SetPreferLinearRasterProducts(mission.PreferLinearRasterProducts());
             roverImages = comparator
                 .KeepBestRoverObservations(roverImages, RoverObservationComparator.LinearVariants.Best,
                                            RoverProductType.Image)
@@ -657,7 +654,7 @@ namespace OPS.Landform
             backprojectStrategy.Quality = tcopts.BackprojectQuality;
             backprojectStrategy.PreferColor = tcopts.PreferColor;
             backprojectStrategy.RaycastTolerance = tcopts.RaycastTolerance;
-            backprojectStrategy.PreferNonlinear = !tcopts.PreferLinearToNonlinear;
+            backprojectStrategy.PreferNonlinear = !mission.PreferLinearRasterProducts();
             backprojectStrategy.DebugOutputPath = tcopts.WriteBackprojectDebug ? backprojectDebugDir : null;
 
             int numOrbital = 0;

@@ -923,7 +923,9 @@ namespace OPS.Landform
                     {
                         log = msg => pipeline.LogInfo(msg);
                     }
-                    keepers = new HashSet<string>(RoverObservationComparator.FilterProductIdGroups(ids, mission, log));
+                    var lp = RoverObservationComparator.LinearVariants.Best;
+                    keepers =
+                        new HashSet<string>(RoverObservationComparator.FilterProductIdGroups(ids, mission, lp, log));
                 }
                 else
                 {

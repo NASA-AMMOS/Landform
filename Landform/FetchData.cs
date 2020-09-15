@@ -127,6 +127,9 @@ namespace OPS.Landform
         [Option(Default = false, HelpText = "Don't download PDS products")]
         public bool NoPDS { get; set; }
 
+        [Option(Default = false, HelpText = "Keep both linear variants of all observations, if available, otherwise default to mission-specific preferences for geometry and raster observations")]
+        public bool KeepBothLinearVariants { get; set; }
+
         [Option(Default = null, HelpText = "Comma separated list of unified mesh filenames or URLs to use (overrides default algorithm to select lastest for each sitedrive)")]
         public string UnifiedMeshes { get; set; }
 
@@ -632,44 +635,63 @@ namespace OPS.Landform
             //e.g. in workflows where multiple fetches could be done at different times
             //possibly resulting in multiple versions of a file still being downloaded
             //Note: the mission.CheckProductId() call above already ensured that RoverProductId.Parse() will succeed
-            int nf = filtered.Count;
-            filtered = filtered
-                .GroupBy(file => StringHelper.GetUrlExtension(file).ToUpper())
-                .SelectMany(files => RoverObservationComparator
-                            .FilterProductIdGroups(files, mission, msg => logger.Info(msg), ShouldTrace))
-                .ToList();
-            logger.InfoFormat("RoverObservationComparator filtered {0} products", nf - filtered.Count);
+            void filterProductIdGroups()
+            {
+                int nf = filtered.Count;
+                var linPref = options.KeepBothLinearVariants ?
+                    RoverObservationComparator.LinearVariants.Both : RoverObservationComparator.LinearVariants.Best;
+                filtered = filtered
+                    .GroupBy(file => StringHelper.GetUrlExtension(file).ToUpper())
+                    .SelectMany(files => RoverObservationComparator
+                                .FilterProductIdGroups(files, mission, linPref, msg => logger.Info(msg), ShouldTrace))
+                    .ToList();
+                logger.InfoFormat("RoverObservationComparator filtered {0} products", nf - filtered.Count);
+            }
+            filterProductIdGroups();
 
             //apply unified mesh filter after RoverObservationComparator.FilterProductIdGroups()
             //because that might remove e.g. a right eye geometry product if there is a corresponding left eye product
             //but the left eye product might also get removed by the unified mesh filter
-            var umFiltered = new List<string>();
-            foreach (var product in filtered)
+            if (unifiedMeshes.Count > 0)
             {
-                string idStr = StringHelper.GetLastUrlPathSegment(product, stripExtension: true);
-                var id = RoverProductId.Parse(idStr, mission); //all ids should parse at this point
-                if (checkUnifiedMeshes(id))
+                var umFiltered = new List<string>();
+                foreach (var product in filtered)
                 {
-                    umFiltered.Add(product);
-                }
-                else if (ShouldTrace(product))
-                { 
-                    //checkUnifiedMeshes() = false implies that id is an OPGSProductId
-                    var sd = ((OPGSProductId)id).SiteDrive;
-                    var cam = id.Camera;
-                    var oc = RoverStereoPair.IsStereo(cam) ? RoverStereoPair.GetOtherEye(cam) : cam;
-                    string path = null;
-                    if (unifiedMeshes.ContainsKey(sd))
+                    string idStr = StringHelper.GetLastUrlPathSegment(product, stripExtension: true);
+                    var id = RoverProductId.Parse(idStr, mission); //all ids should parse at this point
+                    if (checkUnifiedMeshes(id))
                     {
-                        var ums = unifiedMeshes[sd];
-                        path = ums.ContainsKey(cam) ? ums[cam].Path : ums.ContainsKey(oc) ? ums[oc].Path : null;
+                        umFiltered.Add(product);
                     }
-                    logger.InfoFormat("filtered {0}: not in unified mesh{1}",
-                                      product, path != null ? " " + StringHelper.GetLastUrlPathSegment(path) : "");
+                    else if (ShouldTrace(product))
+                    { 
+                        //checkUnifiedMeshes() = false implies that id is an OPGSProductId
+                        var sd = ((OPGSProductId)id).SiteDrive;
+                        var cam = id.Camera;
+                        var oc = RoverStereoPair.IsStereo(cam) ? RoverStereoPair.GetOtherEye(cam) : cam;
+                        string path = null;
+                        if (unifiedMeshes.ContainsKey(sd))
+                        {
+                            var ums = unifiedMeshes[sd];
+                            path = ums.ContainsKey(cam) ? ums[cam].Path : ums.ContainsKey(oc) ? ums[oc].Path : null;
+                        }
+                        logger.InfoFormat("filtered {0}: not in unified mesh{1}",
+                                          product, path != null ? " " + StringHelper.GetLastUrlPathSegment(path) : "");
+                    }
+                }
+                if (umFiltered.Count < filtered.Count)
+                {
+                    filtered = umFiltered;
+                    //unified mesh filter may have removed all geometry products for a wedge
+                    //but it might still have mask products
+                    //and if it doesn't have raster products
+                    //or if the raster products have a different linearity than the geometry products did
+                    //then we may have extra masks now
+                    //so filterProductIdGroups() again to cull those
+                    filterProductIdGroups();
+                    logger.InfoFormat("unified meshes filtered {0} products", filtered.Count - umFiltered.Count);
                 }
             }
-            logger.InfoFormat("unified meshes filtered {0} products", filtered.Count - umFiltered.Count);
-            filtered = umFiltered;
 
             if (traceExts.Length > 0)
             {

@@ -61,8 +61,11 @@ namespace OPS.Pipeline
         [ConfigEnvironmentVariable("LANDFORM_PREFER_MSSS_TO_OPGS")]
         public bool PreferMSSSToOPGS { get; set; } = false;
 
-        [ConfigEnvironmentVariable("LANDFORM_PREFER_LINEAR_TO_NONLINEAR")]
-        public bool PreferLinearToNonlinear { get; set; } = true;
+        [ConfigEnvironmentVariable("LANDFORM_PREFER_LINEAR_GEOMETRY_PRODUCTS")]
+        public bool PreferLinearGeometryProducts { get; set; } = true;
+
+        [ConfigEnvironmentVariable("LANDFORM_PREFER_LINEAR_RASTER_PRODUCTS")]
+        public bool PreferLinearRasterProducts { get; set; } = false;
 
         [ConfigEnvironmentVariable("LANDFORM_PREFER_COLOR_TO_GRAYSCALE")]
         public bool PreferColorToGrayscale { get; set; } = true;
@@ -256,17 +259,15 @@ namespace OPS.Pipeline
 
         /// <summary>
         /// ordering a sequence with this function should put the "better" observations earlier in the list
-        /// thus a "better" observation should be *less than* a "worse" observation
-        /// uses PreferMSSSToOPGS(), PreferLinearToNonlinear(), PreferColorToGrayscale()
+        /// thus a "better" observation should be *less than* a "worse" observation, uses
+        /// PreferMSSSToOPGS(), PreferLinearGeometryProducts(), PreferLinearRasterProducts(), PreferColorToGrayscale()
         /// so if a mission only differs from the default in one of those respects, just override that
         /// </summary>
         public virtual RoverObservationComparator GetRoverObservationComparator()
         {
-            return new RoverObservationComparator(PreferMSSSToOPGS(),
-                                                  PreferLinearToNonlinear(),
-                                                  PreferColorToGrayscale(),
-                                                  PreferEyeForGeometry(),
-                                                  this);
+            return new RoverObservationComparator(PreferMSSSToOPGS(), PreferLinearGeometryProducts(),
+                                                  PreferLinearRasterProducts(), PreferColorToGrayscale(),
+                                                  PreferEyeForGeometry(), this);
         }
 
         /// <summary>
@@ -445,13 +446,19 @@ namespace OPS.Pipeline
         }
 
         /// <summary>
-        /// whether to prefer linear to nonlinear images when both are available
-        /// note this is mainly used when collecting WedgeObservations for alignment and geometry stages
-        /// texturing is separately controlled, see TextureCommandOptions.PreferLinearToNonlinear
+        /// whether to prefer non-linearized geometry products when both are available
         /// </summary>
-        public virtual bool PreferLinearToNonlinear()
+        public virtual bool PreferLinearGeometryProducts()
         {
-            return MissionConfig.Instance.PreferLinearToNonlinear;
+            return MissionConfig.Instance.PreferLinearGeometryProducts;
+        }
+
+        /// <summary>
+        /// whether to prefer non-linearized raster products when both are available
+        /// </summary>
+        public virtual bool PreferLinearRasterProducts()
+        {
+            return MissionConfig.Instance.PreferLinearRasterProducts;
         }
 
         /// <summary>
