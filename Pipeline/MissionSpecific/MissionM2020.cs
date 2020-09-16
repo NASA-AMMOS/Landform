@@ -82,7 +82,8 @@ namespace OPS.Pipeline
             awsProfile = awsProfile ?? GetDefaultAWSProfile();
             awsRegion = awsRegion ?? GetDefaultAWSRegion();
 
-            if (venue == "sops")
+            string lcp = awsProfile != null ? awsProfile.ToLower() : null;
+            if (string.IsNullOrEmpty(lcp) || lcp == "none" || lcp == "null" || lcp == "auto")
             {
                 awsProfile = null; //use EC2 instance role
             }
@@ -194,6 +195,7 @@ namespace OPS.Pipeline
                     return null;
                 }
             }
+
             return null;
         }
 
