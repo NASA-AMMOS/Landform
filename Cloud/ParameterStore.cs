@@ -40,6 +40,10 @@ namespace OPS.Cloud
             {
                 client = new AmazonSimpleSystemsManagementClient(awsCredentials);
             }
+            else if (awsCredentials == null)
+            {
+                client = new AmazonSimpleSystemsManagementClient(awsRegion);
+            }
             else
             {
                 client = new AmazonSimpleSystemsManagementClient(awsCredentials, awsRegion);

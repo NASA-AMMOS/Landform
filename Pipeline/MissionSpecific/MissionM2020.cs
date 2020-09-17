@@ -82,12 +82,6 @@ namespace OPS.Pipeline
             awsProfile = awsProfile ?? GetDefaultAWSProfile();
             awsRegion = awsRegion ?? GetDefaultAWSRegion();
 
-            string lcp = awsProfile != null ? awsProfile.ToLower() : null;
-            if (string.IsNullOrEmpty(lcp) || lcp == "none" || lcp == "null" || lcp == "auto")
-            {
-                awsProfile = null; //use EC2 instance role
-            }
-
             string user = null, pass = null;
             try
             {
@@ -95,6 +89,9 @@ namespace OPS.Pipeline
 
                 using (var ps = new ParameterStore(awsProfile, awsRegion))
                 {
+                    logger.LogInfo("opened parameter store to fetch CSSO credentials, profile={0}, region={1}",
+                                   awsProfile, awsRegion);
+
                     string userKey = cfg.CSSOUsernameParameterInSSM.Replace("{venue}", venue);
                     bool userEncrypted = cfg.CSSOUsernameParameterInSSMEncrypted;
                     if (logger != null)
