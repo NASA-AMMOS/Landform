@@ -62,6 +62,16 @@ if not "%LANDFORM_CONTEXTUAL_CONFIG_FOLDER%"=="" set cfgfolder=%LANDFORM_CONTEXT
 set venue=%service%-service
 if not "%LANDFORM_CONTEXTUAL_VENUE%"=="" set venue=%LANDFORM_CONTEXTUAL_VENUE%
 
+set tilesetimageformat=
+if not "%LANDFORM_CONTEXTUAL_TILESET_IMAGE_FORMAT%"=="" (
+   set tilesetimageformat=--tilesetimageformat=%LANDFORM_CONTEXTUAL_TILESET_IMAGE_FORMAT%
+)
+
+set tilesetindexformat=
+if not "%LANDFORM_CONTEXTUAL_TILESET_INDEX_FORMAT%"=="" (
+   set tilesetindexformat=--tilesetindexformat=%LANDFORM_CONTEXTUAL_TILESET_INDEX_FORMAT%
+)
+
 rem --- end service specific boilerplate, begin service specific ---
 
 set maxfetch=50G
@@ -114,6 +124,7 @@ set svcopts=%svcopts% --awsprofile=%awsprofile% --awsregion=%awsregion% %credent
 set svcopts=%svcopts% %msgopts%
 
 set contextualopts=--maxfetch=%maxfetch% --maxorbital=%maxorbital% %nocombinedmanifest% %noorbital% %nosky% %skymode%
+set contextualopts=%contextualopts% %tilesetimageformat% %tilesetindexformat%
 set contextualopts=%contextualopts% %indices% --extent=%extent% --surfaceextent=%surfaceextent%
 
 set appsdir=%bindir%\ExternalApps

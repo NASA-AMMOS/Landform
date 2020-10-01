@@ -100,6 +100,11 @@ namespace OPS.Landform
             return 0;
         }
 
+        protected override bool SpewTilesetFormats()
+        {
+            return true;
+        }
+
         protected bool ParseArgumentsAndLoadCaches()
         {
             if (options.NoSave)

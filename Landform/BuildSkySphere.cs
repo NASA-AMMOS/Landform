@@ -234,6 +234,11 @@ namespace OPS.Landform
             return 0;
         }
 
+        protected override bool SpewTilesetFormats()
+        {
+            return true;
+        }
+
         private bool ParseArgumentsAndLoadCaches()
         {
             if (options.NoIndexImages)

@@ -42,6 +42,12 @@ namespace OPS.Landform
         [Option(HelpText = "Don't convert tileset images from linear RGB to sRGB", Default = false)]
         public bool NoConvertLinearRGBToSRGB { get; set; }
 
+        [Option(HelpText = "Tile image format, e.g. jpg, png.  Empty or \"default\" to use default (" + TilingProject.DEF_TILESET_IMAGE_FORMAT + ")", Default = null)]
+        public string TilesetImageFormat { get; set; }
+
+        [Option(HelpText = "Tile index format, e.g. ppm, ppmz, tiff, png.  Empty or \"default\" to use default (" + TilingProject.DEF_TILESET_INDEX_FORMAT + ")", Default = null)]
+        public string TilesetIndexFormat { get; set; }
+
         [Option(HelpText = "Extra export mesh format, e.g. ply, obj, help for list", Default = null)]
         public string ExportMeshFormat { get; set; }
 
@@ -89,7 +95,7 @@ namespace OPS.Landform
 
         protected int numBackprojectedSurfacePixels, numBackprojectedOrbitalPixels, numBackprojectFailedPixels;
         protected int numBackprojectFallbacks;
-      
+
         protected TilingCommand(TilingCommandOptions tilingOpts) : base(tilingOpts)
         {
             this.tilingOpts = tilingOpts;
@@ -99,6 +105,64 @@ namespace OPS.Landform
             }
         }
 
+        public static bool CheckTilesetFormats(PipelineCore pipeline,
+                                               string tilesetImageFormat, string tilesetIndexFormat,
+                                               string exportMeshFormat = null, string exportImageFormat = null,
+                                               bool spew = false, bool publishIndexImages = false,
+                                               bool noEmbedIndices = false)
+        {
+            if (ImageSerializers.Instance.CheckFormat(tilesetImageFormat, pipeline) == null)
+            {
+                return false; //help or invalid
+            }
+
+            if (ImageSerializers.Instance.CheckFormat(tilesetIndexFormat, pipeline) == null)
+            {
+                return false; //help or invalid
+            }
+            if (!Tile3DBuilder.CheckIndexFormat(tilesetIndexFormat))
+            {
+                throw new Exception("unsupported tile index format " + tilesetIndexFormat + ", supported formats are "
+                                    + string.Join(", ", Tile3DBuilder.SUPPORTED_INDEX_FORMATS));
+            }
+
+            if (!string.IsNullOrEmpty(exportMeshFormat) &&
+                MeshSerializers.Instance.CheckFormat(exportMeshFormat, pipeline) == null)
+            {
+                return false; //help or invalid
+            }
+
+            if (!string.IsNullOrEmpty(exportImageFormat) &&
+                ImageSerializers.Instance.CheckFormat(exportImageFormat, pipeline) == null)
+            {
+                return false; //help or invalid
+            }
+
+            if (spew)
+            {
+                pipeline.LogInfo("tile image format: {0}", tilesetImageFormat);
+                if (publishIndexImages) {
+                    pipeline.LogInfo("tile index format: {0} ({1}embedded)",
+                                     tilesetIndexFormat, noEmbedIndices ? "not " : "");
+                }
+                if (!string.IsNullOrEmpty(exportMeshFormat))
+                {
+                    pipeline.LogInfo("export mesh format: {0}", exportMeshFormat);
+                }
+                if (!string.IsNullOrEmpty(exportImageFormat))
+                {
+                    pipeline.LogInfo("export image format: {0}", exportImageFormat);
+                }
+            }
+
+            return true;
+        }
+
+        protected virtual bool SpewTilesetFormats()
+        {
+            return false;
+        }
+
         protected override bool ParseArgumentsAndLoadCaches(string outDir)
         {
             if (!base.ParseArgumentsAndLoadCaches(outDir))
@@ -106,16 +170,21 @@ namespace OPS.Landform
                 return false; //help
             }
 
-            if (!string.IsNullOrEmpty(tilingOpts.ExportMeshFormat) &&
-                MeshSerializers.Instance.CheckFormat(tilingOpts.ExportMeshFormat, pipeline) == null)
+            if (string.IsNullOrEmpty(tilingOpts.TilesetImageFormat) ||
+                tilingOpts.TilesetImageFormat.ToLower() == "default")
             {
-                return false; //help
+                tilingOpts.TilesetImageFormat = TilingProject.DEF_TILESET_IMAGE_FORMAT;
             }
-
-            if (!string.IsNullOrEmpty(tilingOpts.ExportImageFormat) &&
-                ImageSerializers.Instance.CheckFormat(tilingOpts.ExportImageFormat, pipeline) == null)
+            if (string.IsNullOrEmpty(tilingOpts.TilesetIndexFormat) ||
+                tilingOpts.TilesetIndexFormat.ToLower() == "default")
             {
-                return false; //help
+                tilingOpts.TilesetIndexFormat = TilingProject.DEF_TILESET_INDEX_FORMAT;
+            }
+            if (!CheckTilesetFormats(pipeline, tilingOpts.TilesetImageFormat, tilingOpts.TilesetIndexFormat,
+                                     tilingOpts.ExportMeshFormat, tilingOpts.ExportImageFormat,
+                                     SpewTilesetFormats(), tilingOpts.PublishIndexImages, tilingOpts.NoEmbedIndexes))
+            {
+                return false; //help or invalid
             }
 
             tileResolution = tilingOpts.TileResolution;
@@ -286,8 +355,8 @@ namespace OPS.Landform
             string inIdxExt = TilingProject.ToExt(TileList.INDEX_FILE_EXT); //e.g. .tiff
 
             string tsMeshExt = TilingProject.ToExt(TilingProject.DEF_TILESET_MESH_FORMAT); //e.g. .b3dm
-            string tsImgExt = TilingProject.ToExt(TilingProject.DEF_TILESET_IMAGE_FORMAT); //e.g. .jpg
-            string tsIdxExt = TilingProject.ToExt(TilingProject.DEF_TILESET_INDEX_FORMAT); //e.g. .ppmz
+            string tsImgExt = TilingProject.ToExt(tilingOpts.TilesetImageFormat); //e.g. .jpg
+            string tsIdxExt = TilingProject.ToExt(tilingOpts.TilesetIndexFormat); //e.g. .ppmz
 
             bool withIdx = withTextures && tilingOpts.PublishIndexImages && (tileList?.HasIndexImages ?? false);
             bool embedIdx = !tilingOpts.NoEmbedIndexes;
@@ -363,6 +432,9 @@ namespace OPS.Landform
                 tilingProject.InternalTileDir = outputFolder;
                 tilingProject.InternalMeshFormat = tilingOpts.MeshFormat;
                 tilingProject.InternalImageFormat = tilingOpts.ImageFormat;
+
+                tilingProject.TilesetImageFormat = tilingOpts.TilesetImageFormat;
+                tilingProject.TilesetIndexFormat = tilingOpts.TilesetIndexFormat;
 
                 //actual output tileset is saved here
                 //typically in b3dm / jpg formats

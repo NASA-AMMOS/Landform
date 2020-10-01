@@ -18,6 +18,8 @@ namespace OPS.Pipeline
     /// </summary>
     public class Tile3DBuilder
     {
+        public static readonly string[] SUPPORTED_INDEX_FORMATS = new string[] { "tif", "tiff", "ppm", "ppmz", "png" };
+
         public Tile3D.Tileset Tileset { get; private set; }
 
         private SceneNode Root;
@@ -301,6 +303,11 @@ namespace OPS.Pipeline
             {
                 warn($"not saving index image, {ext} does not support 16 bit");
             }
+        }
+
+        public static bool CheckIndexFormat(string fmt)
+        {
+            return SUPPORTED_INDEX_FORMATS.Contains(fmt.ToLower().TrimStart('.'));
         }
 
         public static List<double> MatrixToList(Matrix m)

@@ -13,6 +13,7 @@ using OPS.Pipeline;
 using OPS.Imaging;
 using OPS.Geometry;
 using OPS.Pipeline.AlignmentServer;
+using OPS.Pipeline.TilingServer;
 
 namespace OPS.Landform
 {
@@ -59,6 +60,12 @@ namespace OPS.Landform
 
         [Option(Default = 0, HelpText = "0 to use all available cores, N to use up to N, -M to reserve M")]
         public int MaxCores { get; set; }
+
+        [Option(HelpText = "Tile image format, e.g. jpg, png.  Empty or \"default\" to use default (" + TilingProject.DEF_TILESET_IMAGE_FORMAT + ")", Default = null)]
+        public string TilesetImageFormat { get; set; }
+
+        [Option(HelpText = "Tile index format, e.g. ppm, ppmz, tiff, png.  Empty or \"default\" to use default (" + TilingProject.DEF_TILESET_INDEX_FORMAT + ")", Default = null)]
+        public string TilesetIndexFormat { get; set; }
 
         [Option(HelpText = "Extra export mesh format, e.g. ply, obj, help for list", Default = null)]
         public string ExportMeshFormat { get; set; }
@@ -121,22 +128,20 @@ namespace OPS.Landform
 
         protected virtual bool ParseArguments()
         {
-            if (!string.IsNullOrEmpty(lsopts.ExportMeshFormat))
+            if (string.IsNullOrEmpty(lsopts.TilesetImageFormat) || lsopts.TilesetImageFormat.ToLower() == "default")
             {
-                if (MeshSerializers.Instance.CheckFormat(lsopts.ExportMeshFormat, pipeline) == null)
-                {
-                    return false; //help
-                }
-                pipeline.LogInfo("export mesh format: {0}", lsopts.ExportMeshFormat);
+                lsopts.TilesetImageFormat = TilingProject.DEF_TILESET_IMAGE_FORMAT;
             }
-            
-            if (!string.IsNullOrEmpty(lsopts.ExportImageFormat))
+            if (string.IsNullOrEmpty(lsopts.TilesetIndexFormat) || lsopts.TilesetIndexFormat.ToLower() == "default")
             {
-                if (ImageSerializers.Instance.CheckFormat(lsopts.ExportImageFormat, pipeline) == null)
-                {
-                    return false; //help
-                }
-                pipeline.LogInfo("export image format: {0}", lsopts.ExportImageFormat);
+                lsopts.TilesetIndexFormat = TilingProject.DEF_TILESET_INDEX_FORMAT;
+            }
+            if (!TilingCommand.CheckTilesetFormats(pipeline,
+                                                   lsopts.TilesetImageFormat, lsopts.TilesetIndexFormat,
+                                                   lsopts.ExportMeshFormat, lsopts.ExportImageFormat,
+                                                   spew: true, publishIndexImages: lsopts.PublishIndexImages))
+            {
+                return false; //help or invalid
             }
 
             project = GetProject();
@@ -534,6 +539,18 @@ namespace OPS.Landform
         protected void BuildTileset(string project, params string[] extraArgs)
         {
             var args = new List<string>() { project };
+
+            if (!string.IsNullOrEmpty(lsopts.TilesetImageFormat))
+            {
+                args.Add("--tilesetimageformat");
+                args.Add(lsopts.TilesetImageFormat);
+            }
+
+            if (!string.IsNullOrEmpty(lsopts.TilesetIndexFormat))
+            {
+                args.Add("--tilesetindexformat");
+                args.Add(lsopts.TilesetIndexFormat);
+            }
 
             if (!string.IsNullOrEmpty(lsopts.ExportMeshFormat))
             {
