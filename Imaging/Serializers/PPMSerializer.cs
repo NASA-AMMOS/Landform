@@ -136,25 +136,36 @@ namespace OPS.Imaging
                         }
                     }
                 }
-                return img;
+                return bytesPerVal == 2 ? converter.Convert<ushort>(img) : converter.Convert<byte>(img);
             }
         }
 
         public override void Write<T>(string filename, Image image, IImageConverter converter, float[] fillValue = null)
         {
-            if (typeof(T) != typeof(UInt16))
+            image = converter.Convert<T>(image);
+
+            int maxVal = 0;
+            if (typeof(T) == typeof(byte))
             {
-                throw new NotImplementedException();
+                maxVal = byte.MaxValue;
+            }
+            else if (typeof(T) == typeof(ushort))
+            {
+                maxVal = ushort.MaxValue;
+            }
+            else
+            {
+                throw new Exception("PPMSerializer.Write() only supports 8 or 16 bit PPM");
             }
 
             if (fillValue != null)
             {
-                throw new NotImplementedException();
+                throw new NotImplementedException("PPMSerializer.Write() does not support fillValue");
             }
 
             if (image.Bands != 3)
             {
-                throw new NotSupportedException(".ppm serializer only supports 3 band images");
+                throw new NotSupportedException("PPMSerializer.Write() only supports 3 band images");
             }
 
             Stream open(string fn)
@@ -165,7 +176,7 @@ namespace OPS.Imaging
 
             using (var bw = new BinaryWriter(open(filename)))
             {
-                string header = $"P6\n{image.Width} {image.Height}\n65535\n";
+                string header = $"P6\n{image.Width} {image.Height}\n{maxVal}\n";
                 foreach (char c in header)
                 {
                     bw.Write(c);
@@ -177,23 +188,29 @@ namespace OPS.Imaging
                         for (int b = 0; b < image.Bands; ++b)
                         {
                             float val = image[b, r, c];
-                            if (val < 0 || val > 65535)
+                            if (val < 0 || val > maxVal)
                             {
                                 var bv = string.Join(", ", image.GetBandValues(r, c).Select(v => v.ToString("F3")));
-                                throw new NotImplementedException(".ppm serializer only supports 0-65535, " +
-                                                                  $"got ({bv}) at r={r}, c={c} in {filename}");
+                                throw new Exception($"({bv}) out of range [0,{maxVal}] at r={r} c={c} in {filename}");
                             }
-                            ushort s = (ushort)val;
-                            //PPM data is in network byte order (big endian)
-                            if (BitConverter.IsLittleEndian)
+                            if (typeof(T) == typeof(ushort))
                             {
-                                bw.Write(s>>8); //MSB
-                                bw.Write(s&0xff); //LSB
+                                ushort s = (ushort)val;
+                                //PPM data is in network byte order (big endian)
+                                if (BitConverter.IsLittleEndian)
+                                {
+                                    bw.Write(s>>8); //MSB
+                                    bw.Write(s&0xff); //LSB
+                                }
+                                else
+                                {
+                                    bw.Write(s&0xff); //MSB
+                                    bw.Write(s>>8); //LSB
+                                }
                             }
                             else
                             {
-                                bw.Write(s&0xff); //MSB
-                                bw.Write(s>>8); //LSB
+                                bw.Write((byte)val);
                             }
                         }
                     }
