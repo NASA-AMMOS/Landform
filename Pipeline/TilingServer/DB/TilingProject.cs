@@ -28,7 +28,7 @@ namespace OPS.Pipeline.TilingServer
     {
         public const string DEF_TILESET_MESH_FORMAT = "b3dm";
         public const string DEF_TILESET_IMAGE_FORMAT = "jpg";
-        public const string DEF_TILESET_INDEX_FORMAT = "ppmz";
+        public const string DEF_TILESET_INDEX_FORMAT = "png";
 
         [DynamoDBHashKey]
         public string Name;
