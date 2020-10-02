@@ -86,7 +86,7 @@ namespace OPS.Landform
         public const string SCENE_JSON = "scene.json";
         public const string STATS_TXT = "stats.txt";
 
-        public const string RDR_SUBDIR = "rdr";
+        public readonly string[] RDR_SUBDIRS = new string[] { "rdr", "fdr" };
         public const string TILESET_SUBDIR = "tileset";
 
         protected LandformShellOptions lsopts;
@@ -531,9 +531,19 @@ namespace OPS.Landform
                 return outputFolder;
             }
             inputFolder = StringHelper.EnsureTrailingSlash(StringHelper.NormalizeSlashes(inputFolder));
-            string rdrSegment = string.Format("/{0}/", RDR_SUBDIR.ToLower());
-            int rdrIdx = inputFolder.ToLower().LastIndexOf(rdrSegment);
-            return (rdrIdx >= 0 ? inputFolder.Substring(0, rdrIdx + rdrSegment.Length) : inputFolder) + TILESET_SUBDIR;
+            int rdrIdx = -1;
+            int rdrSegLength = 0;
+            foreach (string rdrSubdir in RDR_SUBDIRS)
+            {
+                string rdrSegment = string.Format("/{0}/", rdrSubdir.ToLower());
+                rdrIdx = inputFolder.ToLower().LastIndexOf(rdrSegment);
+                if (rdrIdx >= 0)
+                {
+                    rdrSegLength = rdrSegment.Length;
+                    break;
+                }
+            }
+            return (rdrIdx >= 0 ? inputFolder.Substring(0, rdrIdx + rdrSegLength) : inputFolder) + TILESET_SUBDIR;
         }
 
         protected void BuildTileset(string project, params string[] extraArgs)
