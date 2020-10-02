@@ -256,7 +256,7 @@ namespace OPS.Pipeline
             {
                 var opts = new GDALTIFFWriteOptions(GDALTIFFWriteOptions.CompressionType.DEFLATE);
                 var serializer = new GDALSerializer(opts);
-                serializer.Write<float>(file, index);
+                serializer.Write<float>(file, index, ImageConverters.PassThrough);
             }
             else if (ext == ".ppm" || ext == ".ppmz" || ext == ".png")
             {
@@ -297,7 +297,7 @@ namespace OPS.Pipeline
                 {
                     warn($"cleared {numBad} invalid pixels saving index image to 16 bit {ext}");
                 }
-                index.Save<ushort>(file);
+                index.Save<ushort>(file, ImageConverters.PassThrough);
             }
             else
             {

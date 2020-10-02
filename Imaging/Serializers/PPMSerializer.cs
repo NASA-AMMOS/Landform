@@ -8,19 +8,16 @@ using System.Threading.Tasks;
 
 namespace OPS.Imaging
 {
-    /// <summary>
-    /// Class for reading RGB images 
-    /// </summary>
     class PPMSerializer : ImageSerializer
     {
         public override IImageConverter DefaultReadConverter()
         {
-            return ImageConverters.PassThrough;
+            return ImageConverters.ValueRangeToNormalizedImage;
         }
 
         public override IImageConverter DefaultWriteConverter()
         {
-            return ImageConverters.PassThrough;
+            return ImageConverters.NormalizedImageToValueRange;
         }
 
         public override string[] GetExtensions()
