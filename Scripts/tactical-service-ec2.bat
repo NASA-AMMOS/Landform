@@ -91,8 +91,8 @@ rem --- end service specific boilerplate, begin service specific ---
 set meshformat=mission
 if not "%LANDFORM_TACTICAL_MESH_FORMAT%"=="" set meshformat=%LANDFORM_TACTICAL_MESH_FORMAT%
 
-set indices=
-if not "%LANDFORM_TACTICAL_INDICES%"=="" set indices==--publishindeximages
+set noindices=
+if not "%LANDFORM_TACTICAL_NO_INDICES%"=="" set noindices==--nopublishindeximages
 
 rem --- end service specific ---
 
@@ -102,7 +102,7 @@ set svcopts=%stdopts% --stacktraces --service --mission=%mission% --queuename=%q
 set svcopts=%svcopts% --awsprofile=%awsprofile% --awsregion=%awsregion% %credentialrefresh%
 set svcopts=%svcopts% %msgopts%
 
-set tacticalopts=--meshformat=%meshformat% %indices% %tilesetimageformat% %tilesetindexformat%
+set tacticalopts=--meshformat=%meshformat% %noindices% %tilesetimageformat% %tilesetindexformat%
 
 set appsdir=%bindir%\ExternalApps
 if exist %appsdir%\opengl32-for-ivcat.dll (

@@ -134,9 +134,9 @@ namespace OPS.Landform
 
             withTextures &= !string.IsNullOrEmpty(tileList.ImageExt);
 
-            if (withTextures && options.PublishIndexImages && !tileList.HasIndexImages)
+            if (withTextures && !options.NoPublishIndexImages && !tileList.HasIndexImages)
             {
-                throw new Exception("index images not available, consider disabling --publishindeximages");
+                throw new Exception("index images not available, consider --nopublishindeximages");
             }
             
             return true;

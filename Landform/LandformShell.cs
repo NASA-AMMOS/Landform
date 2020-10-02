@@ -73,8 +73,8 @@ namespace OPS.Landform
         [Option(HelpText = "Extra export image format, e.g. png, jpg, help for list", Default = null)]
         public string ExportImageFormat { get; set; }
 
-        [Option(HelpText = "Publish index images with tileset", Default = false)]
-        public bool PublishIndexImages { get; set; }
+        [Option(HelpText = "Don't publish index images with tileset", Default = false)]
+        public bool NoPublishIndexImages { get; set; }
 
         [Option(HelpText = "Extra fetch arguments", Default = null)]
         public string FetchArgs { get; set; }
@@ -139,7 +139,7 @@ namespace OPS.Landform
             if (!TilingCommand.CheckTilesetFormats(pipeline,
                                                    lsopts.TilesetImageFormat, lsopts.TilesetIndexFormat,
                                                    lsopts.ExportMeshFormat, lsopts.ExportImageFormat,
-                                                   spew: true, publishIndexImages: lsopts.PublishIndexImages))
+                                                   spew: true, noPublishIndexImages: lsopts.NoPublishIndexImages))
             {
                 return false; //help or invalid
             }
@@ -574,9 +574,9 @@ namespace OPS.Landform
                 args.Add(lsopts.ExportImageFormat);
             }
 
-            if (lsopts.PublishIndexImages)
+            if (lsopts.NoPublishIndexImages)
             {
-                args.Add("--publishindeximages");
+                args.Add("--nopublishindeximages");
             }
 
             RunCommand("build-tileset", args.Concat(extraArgs).ToArray());
