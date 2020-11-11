@@ -62,6 +62,16 @@ if not "%LANDFORM_TACTICAL_CONFIG_FOLDER%"=="" set cfgfolder=%LANDFORM_TACTICAL_
 set venue=%service%-service
 if not "%LANDFORM_TACTICAL_VENUE%"=="" set venue=%LANDFORM_TACTICAL_VENUE%
 
+set tilesetimageformat=
+if not "%LANDFORM_TACTICAL_TILESET_IMAGE_FORMAT%"=="" (
+   set tilesetimageformat=--tilesetimageformat=%LANDFORM_TACTICAL_TILESET_IMAGE_FORMAT%
+)
+
+set tilesetindexformat=
+if not "%LANDFORM_TACTICAL_TILESET_INDEX_FORMAT%"=="" (
+   set tilesetindexformat=--tilesetindexformat=%LANDFORM_TACTICAL_TILESET_INDEX_FORMAT%
+)
+
 set msgopts=
 if not "%LANDFORM_TACTICAL_MAX_HANDLER_SEC%"=="" (
     set msgopts=--maxhandlersec=%LANDFORM_TACTICAL_MAX_HANDLER_SEC%
@@ -81,8 +91,11 @@ rem --- end service specific boilerplate, begin service specific ---
 set meshformat=mission
 if not "%LANDFORM_TACTICAL_MESH_FORMAT%"=="" set meshformat=%LANDFORM_TACTICAL_MESH_FORMAT%
 
-set indices=
-if not "%LANDFORM_TACTICAL_INDICES%"=="" set indices==--publishindeximages
+set noindices=
+if not "%LANDFORM_TACTICAL_NO_INDICES%"=="" set noindices==--nopublishindeximages
+
+set embedindices=
+if not "%LANDFORM_TACTICAL_EMBED_INDICES%"=="" set embedindices==--embedindeximages
 
 rem --- end service specific ---
 
@@ -92,7 +105,7 @@ set svcopts=%stdopts% --stacktraces --service --mission=%mission% --queuename=%q
 set svcopts=%svcopts% --awsprofile=%awsprofile% --awsregion=%awsregion% %credentialrefresh%
 set svcopts=%svcopts% %msgopts%
 
-set tacticalopts=--meshformat=%meshformat% %indices%
+set tacticalopts=--meshformat=%meshformat% %noindices% %embedindices% %tilesetimageformat% %tilesetindexformat%
 
 set appsdir=%bindir%\ExternalApps
 if exist %appsdir%\opengl32-for-ivcat.dll (

@@ -2,6 +2,7 @@
 using System.IO;
 using System.Linq;
 using CommandLine;
+using Microsoft.Xna.Framework;
 using log4net;
 using OPS.Util;
 using OPS.Imaging;
@@ -32,6 +33,9 @@ namespace OPS.Landform
 
         [Option(Required = false, Default = "png", HelpText = "Output file type (jpg, png, tif)")]
         public string OutputType { get; set; }
+
+        [Option(Required = false, Default = null, HelpText = "Just sample one pixel, format ROW,COL")]
+        public string Sample { get; set; }
     }
 
     public class ConvertPDS
@@ -75,7 +79,14 @@ namespace OPS.Landform
                 {
                     destDir = options.OutputPath;
                 }
-                
+
+                Vector2? sample = null;
+                if (options.Sample != null)
+                {
+                    string[] coords = options.Sample.Split(',');
+                    sample = new Vector2(float.Parse(coords[1].Trim()), float.Parse(coords[0].Trim()));
+                }
+
                 if (files != null && files.Length > 0)
                 {
                     
@@ -87,9 +98,25 @@ namespace OPS.Landform
                     string ext = "." + options.OutputType;
                     for (int i = 0; i < files.Length; i++)
                     {
-                        logger.InfoFormat("converting {0} to {1} in {2}", files[i], ext, destDir);
                         string bn = Path.GetFileNameWithoutExtension(files[i]);
-                        Image.Load(files[i]).Save<byte>(Path.Combine(destDir, bn + ext)); //destDir="" ok
+                        if (sample.HasValue)
+                        {
+                            Image img = Image.Load(files[i], ImageConverters.PassThrough);
+                            float r = (float)(sample.Value.Y);
+                            float c = (float)(sample.Value.X);
+                            float[] val = new float[img.Bands];
+                            for (int b = 0; b < img.Bands; b++)
+                            {
+                                val[b] = img.BilinearSample(b, r, c);
+                            }
+                            Console.WriteLine("pixel at row={0}, col={1} has value [{2}]",
+                                              r, c, string.Join(", ", val));
+                        }
+                        else
+                        {
+                            logger.InfoFormat("converting {0} to {1} in {2}", files[i], ext, destDir);
+                            Image.Load(files[i]).Save<byte>(Path.Combine(destDir, bn + ext)); //destDir="" ok
+                        }
                     }          
                 }
             }

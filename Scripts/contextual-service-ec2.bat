@@ -62,6 +62,16 @@ if not "%LANDFORM_CONTEXTUAL_CONFIG_FOLDER%"=="" set cfgfolder=%LANDFORM_CONTEXT
 set venue=%service%-service
 if not "%LANDFORM_CONTEXTUAL_VENUE%"=="" set venue=%LANDFORM_CONTEXTUAL_VENUE%
 
+set tilesetimageformat=
+if not "%LANDFORM_CONTEXTUAL_TILESET_IMAGE_FORMAT%"=="" (
+   set tilesetimageformat=--tilesetimageformat=%LANDFORM_CONTEXTUAL_TILESET_IMAGE_FORMAT%
+)
+
+set tilesetindexformat=
+if not "%LANDFORM_CONTEXTUAL_TILESET_INDEX_FORMAT%"=="" (
+   set tilesetindexformat=--tilesetindexformat=%LANDFORM_CONTEXTUAL_TILESET_INDEX_FORMAT%
+)
+
 rem --- end service specific boilerplate, begin service specific ---
 
 set maxfetch=50G
@@ -82,8 +92,11 @@ if not "%LANDFORM_CONTEXTUAL_NO_SKY%"=="" set nosky=--nosky
 set skymode=
 if not "%LANDFORM_CONTEXTUAL_SKY_MODE%"=="" set skymode=--skymode=%LANDFORM_CONTEXTUAL_SKY_MODE%
 
-set indices=
-if not "%LANDFORM_CONTEXTUAL_INDICES%"=="" set indices=--publishindeximages
+set noindices=
+if not "%LANDFORM_CONTEXTUAL_NO_INDICES%"=="" set noindices=--nopublishindeximages
+
+set embedindices=
+if not "%LANDFORM_CONTEXTUAL_EMBED_INDICES%"=="" set embedindices==--embedindeximages
 
 set extent=32
 if not "%LANDFORM_CONTEXTUAL_EXTENT%"=="" set extent=%LANDFORM_CONTEXTUAL_EXTENT%
@@ -114,7 +127,8 @@ set svcopts=%svcopts% --awsprofile=%awsprofile% --awsregion=%awsregion% %credent
 set svcopts=%svcopts% %msgopts%
 
 set contextualopts=--maxfetch=%maxfetch% --maxorbital=%maxorbital% %nocombinedmanifest% %noorbital% %nosky% %skymode%
-set contextualopts=%contextualopts% %indices% --extent=%extent% --surfaceextent=%surfaceextent%
+set contextualopts=%contextualopts% %tilesetimageformat% %tilesetindexformat%
+set contextualopts=%contextualopts% %noindices% %embedindices% --extent=%extent% --surfaceextent=%surfaceextent%
 
 set appsdir=%bindir%\ExternalApps
 if exist %appsdir%\opengl32-for-ivcat.dll (

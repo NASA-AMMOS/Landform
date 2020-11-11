@@ -100,6 +100,11 @@ namespace OPS.Landform
             return 0;
         }
 
+        protected override bool SpewTilesetFormats()
+        {
+            return true;
+        }
+
         protected bool ParseArgumentsAndLoadCaches()
         {
             if (options.NoSave)
@@ -129,9 +134,9 @@ namespace OPS.Landform
 
             withTextures &= !string.IsNullOrEmpty(tileList.ImageExt);
 
-            if (withTextures && options.PublishIndexImages && !tileList.HasIndexImages)
+            if (withTextures && !options.NoPublishIndexImages && !tileList.HasIndexImages)
             {
-                throw new Exception("index images not available, consider disabling --publishindeximages");
+                throw new Exception("index images not available, consider --nopublishindeximages");
             }
             
             return true;

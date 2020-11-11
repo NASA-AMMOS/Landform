@@ -18,6 +18,8 @@ namespace OPS.Pipeline
     /// </summary>
     public class Tile3DBuilder
     {
+        public static readonly string[] SUPPORTED_INDEX_FORMATS = new string[] { "tif", "tiff", "ppm", "ppmz", "png" };
+
         public Tile3D.Tileset Tileset { get; private set; }
 
         private SceneNode Root;
@@ -254,7 +256,7 @@ namespace OPS.Pipeline
             {
                 var opts = new GDALTIFFWriteOptions(GDALTIFFWriteOptions.CompressionType.DEFLATE);
                 var serializer = new GDALSerializer(opts);
-                serializer.Write<float>(file, index);
+                serializer.Write<float>(file, index, ImageConverters.PassThrough);
             }
             else if (ext == ".ppm" || ext == ".ppmz" || ext == ".png")
             {
@@ -295,12 +297,17 @@ namespace OPS.Pipeline
                 {
                     warn($"cleared {numBad} invalid pixels saving index image to 16 bit {ext}");
                 }
-                index.Save<ushort>(file);
+                index.Save<ushort>(file, ImageConverters.PassThrough);
             }
             else
             {
                 warn($"not saving index image, {ext} does not support 16 bit");
             }
+        }
+
+        public static bool CheckIndexFormat(string fmt)
+        {
+            return SUPPORTED_INDEX_FORMATS.Contains(fmt.ToLower().TrimStart('.'));
         }
 
         public static List<double> MatrixToList(Matrix m)
