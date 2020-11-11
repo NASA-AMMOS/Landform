@@ -76,6 +76,9 @@ namespace OPS.Landform
         [Option(HelpText = "Don't publish index images with tileset", Default = false)]
         public bool NoPublishIndexImages { get; set; }
 
+        [Option(HelpText = "Embed index images images in tileset .b3dm tiles", Default = false)]
+        public bool EmbedIndexImages { get; set; }
+
         [Option(HelpText = "Extra fetch arguments", Default = null)]
         public string FetchArgs { get; set; }
     }
@@ -139,7 +142,8 @@ namespace OPS.Landform
             if (!TilingCommand.CheckTilesetFormats(pipeline,
                                                    lsopts.TilesetImageFormat, lsopts.TilesetIndexFormat,
                                                    lsopts.ExportMeshFormat, lsopts.ExportImageFormat,
-                                                   spew: true, noPublishIndexImages: lsopts.NoPublishIndexImages))
+                                                   spew: true, noPublishIndexImages: lsopts.NoPublishIndexImages,
+                                                   embedIndexImages: lsopts.EmbedIndexImages))
             {
                 return false; //help or invalid
             }
@@ -577,6 +581,11 @@ namespace OPS.Landform
             if (lsopts.NoPublishIndexImages)
             {
                 args.Add("--nopublishindeximages");
+            }
+
+            if (lsopts.EmbedIndexImages)
+            {
+                args.Add("--embedindeximages");
             }
 
             RunCommand("build-tileset", args.Concat(extraArgs).ToArray());

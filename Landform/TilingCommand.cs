@@ -61,7 +61,7 @@ namespace OPS.Landform
         public bool NoPublishIndexImages { get; set; }
 
         [Option(HelpText = "Write out index images as seperate files", Default = false)]
-        public bool NoEmbedIndexes { get; set; }
+        public bool EmbedIndexImages { get; set; }
 
         [Option(HelpText = "Maximum runtime in seconds", Default = 60 * 60 * 10)] //10h
         public double MaxTime { get; set; }
@@ -109,7 +109,7 @@ namespace OPS.Landform
                                                string tilesetImageFormat, string tilesetIndexFormat,
                                                string exportMeshFormat = null, string exportImageFormat = null,
                                                bool spew = false, bool noPublishIndexImages = false,
-                                               bool noEmbedIndices = false)
+                                               bool embedIndexImages = false)
         {
             if (ImageSerializers.Instance.CheckFormat(tilesetImageFormat, pipeline) == null)
             {
@@ -143,7 +143,7 @@ namespace OPS.Landform
                 pipeline.LogInfo("tile image format: {0}", tilesetImageFormat);
                 if (!noPublishIndexImages) {
                     pipeline.LogInfo("tile index format: {0} ({1}embedded)",
-                                     tilesetIndexFormat, noEmbedIndices ? "not " : "");
+                                     tilesetIndexFormat, embedIndexImages ? "" : "not ");
                 }
                 if (!string.IsNullOrEmpty(exportMeshFormat))
                 {
@@ -181,8 +181,8 @@ namespace OPS.Landform
                 tilingOpts.TilesetIndexFormat = TilingProject.DEF_TILESET_INDEX_FORMAT;
             }
             if (!CheckTilesetFormats(pipeline, tilingOpts.TilesetImageFormat, tilingOpts.TilesetIndexFormat,
-                                     tilingOpts.ExportMeshFormat, tilingOpts.ExportImageFormat,
-                                     SpewTilesetFormats(), tilingOpts.NoPublishIndexImages, tilingOpts.NoEmbedIndexes))
+                                     tilingOpts.ExportMeshFormat, tilingOpts.ExportImageFormat, SpewTilesetFormats(),
+                                     tilingOpts.NoPublishIndexImages, tilingOpts.EmbedIndexImages))
             {
                 return false; //help or invalid
             }
@@ -359,7 +359,7 @@ namespace OPS.Landform
             string tsIdxExt = TilingProject.ToExt(tilingOpts.TilesetIndexFormat); //e.g. .ppmz
 
             bool withIdx = withTextures && !tilingOpts.NoPublishIndexImages && (tileList?.HasIndexImages ?? false);
-            bool embedIdx = !tilingOpts.NoEmbedIndexes;
+            bool embedIdx = tilingOpts.EmbedIndexImages;
 
             string tileFolder = outputFolder + "/" + project.Name;
 
@@ -446,7 +446,7 @@ namespace OPS.Landform
                 tilingProject.Save(pipeline);
             }
 
-            tilingProject.EmbedIndexes = !tilingOpts.NoEmbedIndexes;
+            tilingProject.EmbedIndexes = tilingOpts.EmbedIndexImages;
 
             var tilesetUrl = pipeline.GetStorageUrl(tilesetFolder, project.Name);
             pipeline.LogInfo("{0} {1}/{2} tiles to {3}", pipeline is CloudPipeline ? "uploading" : "saving",

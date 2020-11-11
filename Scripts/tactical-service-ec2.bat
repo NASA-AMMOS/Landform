@@ -94,6 +94,9 @@ if not "%LANDFORM_TACTICAL_MESH_FORMAT%"=="" set meshformat=%LANDFORM_TACTICAL_M
 set noindices=
 if not "%LANDFORM_TACTICAL_NO_INDICES%"=="" set noindices==--nopublishindeximages
 
+set embedindices=
+if not "%LANDFORM_TACTICAL_EMBED_INDICES%"=="" set embedindices==--embedindeximages
+
 rem --- end service specific ---
 
 set stdopts=--configdir=%cfgdir% --configfolder=%cfgfolder% --logdir=%logdir% --tempdir=%tmpdir%
@@ -102,7 +105,7 @@ set svcopts=%stdopts% --stacktraces --service --mission=%mission% --queuename=%q
 set svcopts=%svcopts% --awsprofile=%awsprofile% --awsregion=%awsregion% %credentialrefresh%
 set svcopts=%svcopts% %msgopts%
 
-set tacticalopts=--meshformat=%meshformat% %noindices% %tilesetimageformat% %tilesetindexformat%
+set tacticalopts=--meshformat=%meshformat% %noindices% %embedindices% %tilesetimageformat% %tilesetindexformat%
 
 set appsdir=%bindir%\ExternalApps
 if exist %appsdir%\opengl32-for-ivcat.dll (

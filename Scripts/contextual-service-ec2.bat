@@ -95,6 +95,9 @@ if not "%LANDFORM_CONTEXTUAL_SKY_MODE%"=="" set skymode=--skymode=%LANDFORM_CONT
 set noindices=
 if not "%LANDFORM_CONTEXTUAL_NO_INDICES%"=="" set noindices=--nopublishindeximages
 
+set embedindices=
+if not "%LANDFORM_CONTEXTUAL_EMBED_INDICES%"=="" set embedindices==--embedindeximages
+
 set extent=32
 if not "%LANDFORM_CONTEXTUAL_EXTENT%"=="" set extent=%LANDFORM_CONTEXTUAL_EXTENT%
 
@@ -125,7 +128,7 @@ set svcopts=%svcopts% %msgopts%
 
 set contextualopts=--maxfetch=%maxfetch% --maxorbital=%maxorbital% %nocombinedmanifest% %noorbital% %nosky% %skymode%
 set contextualopts=%contextualopts% %tilesetimageformat% %tilesetindexformat%
-set contextualopts=%contextualopts% %noindices% --extent=%extent% --surfaceextent=%surfaceextent%
+set contextualopts=%contextualopts% %noindices% %embedindices% --extent=%extent% --surfaceextent=%surfaceextent%
 
 set appsdir=%bindir%\ExternalApps
 if exist %appsdir%\opengl32-for-ivcat.dll (
