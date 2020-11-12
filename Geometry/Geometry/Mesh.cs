@@ -2202,12 +2202,7 @@ namespace OPS.Geometry
             }
         }
 
-        /// <summary>
-        /// Read a mesh to disk
-        /// </summary>
-        /// <param name="filename"></param>
-        /// <returns></returns>
-        public static Mesh Load(string filename)
+        public static Mesh Load(string filename, out string imageFilename)
         {
             string ext = Path.GetExtension(filename).ToLower();
             MeshSerializer s = MeshSerializers.Instance.GetSerializer(ext);
@@ -2215,18 +2210,28 @@ namespace OPS.Geometry
             {
                 throw new MeshSerializerException("Mesh format not supported");
             }
-            return s.Load(filename);
+            return s.Load(filename, out imageFilename);
+        }
+
+        public static Mesh Load(string filename)
+        {
+            return Load(filename, out string imageFilename);
+        }
+
+        public static List<Mesh> LoadAllLODs(string filename, out string imageFilename)
+        {
+            string ext = Path.GetExtension(filename).ToLower();
+            MeshSerializer s = MeshSerializers.Instance.GetSerializer(ext);
+            if (s == null)
+            {
+                throw new MeshSerializerException("Mesh format not supported");
+            }
+            return s.LoadAllLODs(filename, out imageFilename);
         }
 
         public static List<Mesh> LoadAllLODs(string filename)
         {
-            string ext = Path.GetExtension(filename).ToLower();
-            MeshSerializer s = MeshSerializers.Instance.GetSerializer(ext);
-            if (s == null)
-            {
-                throw new MeshSerializerException("Mesh format not supported");
-            }
-            return s.LoadAllLODs(filename);
+            return LoadAllLODs(filename, out string imageFilename);
         }
 
         public struct FaceStats

@@ -36,17 +36,26 @@ namespace OPS.Landform
         [Value(0, Required = true, HelpText = "Path to file or directory to be converted")]
         public string InputPath { get; set; }
 
-        [Option(Required = false, Default = "png", HelpText = "Texture image file or extension")]
+        [Option(Default = "png", HelpText = "Texture image file or extension")]
         public string Texture { get; set; }
 
-        [Option(Required = false, HelpText = "Convert all LODs")]
+        [Option(HelpText = "Convert all LODs")]
         public bool AllLODs { get; set; }
 
-        [Option(Required = false, HelpText = "Output directory, omit to use same directory as input")]
+        [Option(HelpText = "Output directory, omit to use same directory as input")]
         public string OutputPath { get; set; }
 
-        [Option(Required = false, Default = "ply", HelpText = "Output file type (ply, obj)")]
+        [Option(Default = "ply", HelpText = "Output file type (ply, obj)")]
         public string OutputType { get; set; }
+
+        [Option(Default = false, HelpText = "Ignore embedded texture filename, if any")]
+        public bool IgnoreEmbeddedTextureFilename { get; set; }
+
+        [Option(Default = false, HelpText = "Don't use alternate format of embedded texture")]
+        public bool StrictEmbeddedTextureFormat { get; set; }
+
+        [Option(Default = false, HelpText = "Disable texture fallback if embedded texture missing or not found")]
+        public bool NoEmbeddedTextureFallback { get; set; }
     }
 
     public class ConvertIV
@@ -127,12 +136,11 @@ namespace OPS.Landform
                                 tft = tf;
                             }
                         }
-                        //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/951
                         //see comments in ProcessTactical.cs AddImage()
+                        string dir = Path.GetDirectoryName(files[i]);
                         var id = RoverProductId.Parse(bn, throwOnFail: false);
                         if (id != null)
                         {
-                            string dir = Path.GetDirectoryName(files[i]);
                             foreach (string tryId in id.DescendingVersions(10))
                             {
                                 tft = Path.Combine(dir, tryId + tfExt);
@@ -150,11 +158,55 @@ namespace OPS.Landform
                         {
                             tft = Path.GetFileName(tft);
                         }
+                        string dirMsg = destDir != null && destDir != "" && destDir != "." ? (" in " + destDir) : "";
+                        string handleEmbeddedTexureFilename(string tfe)
+                        {
+                            if (tfe == null)
+                            {
+                                logger.InfoFormat("no embedded texture filename");
+                                if (!options.NoEmbeddedTextureFallback)
+                                {
+                                    logger.InfoFormat("using fallback texture");
+                                    return tft;
+                                }
+                                return null;
+                            }
+                            logger.InfoFormat("embedded texture filename " + tfe);
+                            if (options.IgnoreEmbeddedTextureFilename)
+                            {
+                                logger.InfoFormat("ignoring embedded texture filename");
+                                return tft;
+                            }
+                            string atfe = (tfExt != null && !tfe.EndsWith(tfExt) &&
+                                           (tf == tfExt || ("." + tf) == tfExt)) ?
+                                Path.ChangeExtension(tfe, tfExt) : null;
+                            if (!options.StrictEmbeddedTextureFormat && atfe != null &&
+                                File.Exists(Path.Combine(dir, atfe)))
+                            {
+                                logger.InfoFormat("using {0} format texture instead of {1}",
+                                                  tfExt, Path.GetExtension(tfe));
+                                return atfe;
+                            }
+                            if (File.Exists(Path.Combine(dir, tfe)))
+                            {
+                                logger.InfoFormat("using embeded texture filename");
+                                return tfe;
+                            }
+                            logger.InfoFormat("embeded texture file not found");
+                            if (!options.NoEmbeddedTextureFallback && tft != null)
+                            {
+                                logger.InfoFormat("using fallback texture");
+                                return tft;
+                            }
+                            return null;
+                        }
                         if (options.AllLODs)
                         {
-                            var lodMeshes = Mesh.LoadAllLODs(files[i]);
-                            logger.InfoFormat("converting {0} LOD from {1} to {2} in {3}",
-                                              lodMeshes.Count, files[i], ext, destDir);
+                            var lodMeshes = Mesh.LoadAllLODs(files[i], out string tfe);
+                            logger.InfoFormat("converting {0} LOD from {1} to {2}{3}",
+                                              lodMeshes.Count, files[i], ext, dirMsg);
+                            tft = handleEmbeddedTexureFilename(tfe);
+                            logger.InfoFormat("texture file {0}", tft != null ? tft : "(not found)");
                             for (int lod = 0; lod < lodMeshes.Count; lod++)
                             {
                                 string dest = string.Format("{0}_LOD{1}{2}", bn, lod, ext);
@@ -163,8 +215,11 @@ namespace OPS.Landform
                         }
                         else
                         {
-                            logger.InfoFormat("converting {0} to {1} in {2}", files[i], ext, destDir);
-                            Mesh.Load(files[i]).Save(Path.Combine(destDir, bn + ext), tft); //destDir="" ok
+                            var mesh = Mesh.Load(files[i], out string tfe);
+                            logger.InfoFormat("converting {0} to {1}{2}", files[i], ext, dirMsg);
+                            tft = handleEmbeddedTexureFilename(tfe);
+                            logger.InfoFormat("texture file {0}", tft != null ? tft : "(not found)");
+                            mesh.Save(Path.Combine(destDir, bn + ext), tft); //destDir="" ok
                         }
                     }          
                 }
