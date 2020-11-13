@@ -1,10 +1,12 @@
-﻿using Microsoft.Xna.Framework;
-using System;
+﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
+using System.Text.RegularExpressions;
+
+using Microsoft.Xna.Framework;
 
 namespace OPS.Geometry
 {
@@ -356,6 +358,101 @@ namespace OPS.Geometry
         public override Mesh Load(string filename, out string imageFilename)
         {
             return OBJSerializer.Read(filename, out imageFilename);
+        }
+
+        public override List<Mesh> LoadAllLODs(string filename)
+        {
+            return LoadAllLODs(filename, out string imageFilename);
+        }
+
+        //this impl is limited to loading up to 100 total LODs
+        //(or 10 if filename does not end in _LODn_m or _LODnn_mm)
+        //extra LODs must be siblings with a suffix like _LODn, _LODnn, _LODn_m, _LODnn_mm
+        //note: filename is always the finest loaded LOD, and it may or may not have an _LOD suffix
+        //if filename does not have an _LOD suffix then n must start at 1
+        //if filename does have an _LOD suffix then that defines the starting value of n
+        //LODs are read in contiguous order up to the first missing one or n = m
+        public override List<Mesh> LoadAllLODs(string filename, out string imageFilename)
+        {
+            List<Mesh> lods = new List<Mesh>();
+
+            lods.Add(Load(filename, out imageFilename)); //finest LOD
+
+            string bn = Path.GetFileNameWithoutExtension(filename);
+            string ext = Path.GetExtension(filename); //includes dot
+
+            //100 should work but would result in over 100 File.Exists() tests
+            //when filename does not have an _LOD suffix
+            //and there are not actually any coarser LODs to load
+            //int maxLODs = 100;
+            int maxLODs = 10;
+
+            int firstLOD = 0, lastLOD = maxLODs - 1, nWidth = 0, mWidth = 0;
+
+            string sfx = "_LOD";
+            string pat = @"(.+)" + sfx + @"(\d+)(?:_(\d+))?$";
+
+            var match = Regex.Match(bn, pat);
+            if (match.Success)
+            {
+                bn = match.Groups[1].Value;
+                string n = match.Groups[2].Value;
+                nWidth = n.Length;
+                firstLOD = int.Parse(n);
+                string m = match.Groups[3].Value;
+                if (!string.IsNullOrEmpty(m))
+                {
+                    mWidth = m.Length;
+                    lastLOD = int.Parse(m);
+                }
+            }
+
+            if (nWidth == 0) //filename did not have any _LOD suffix
+            {
+                if (File.Exists(bn + sfx + "1"))
+                {
+                    nWidth = 1;
+                }
+                else if (File.Exists(bn + sfx + "01"))
+                {
+                    nWidth = 2;
+                }
+                else
+                {
+                    for (int m = 1; m < maxLODs; m++)
+                    {
+                        if (m < 10 && File.Exists(bn + sfx + "1_" + m))
+                        {
+                            nWidth = 1;
+                            mWidth = 1;
+                            lastLOD = m;
+                            break;
+                        }
+                        if (File.Exists(bn + sfx + "01_" + m.ToString("00")))
+                        {
+                            nWidth = 2;
+                            mWidth = 2;
+                            lastLOD = m;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            string nFmt = new string('0', nWidth);
+            string mFmt = new string('0', mWidth);
+
+            for (int lod = firstLOD + 1; lod <= lastLOD; lod++)
+            {
+                string lodFile = bn + sfx + lod.ToString(nFmt) + (mWidth > 0 ? lastLOD.ToString(mFmt) : "");
+                if (!File.Exists(lodFile))
+                {
+                    break;
+                }
+                lods.Add(Load(lodFile));
+            }
+
+            return lods;
         }
 
         public override string GetExtension()
