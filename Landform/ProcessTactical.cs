@@ -5,6 +5,8 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
+using System.Text;
+using System.Text.RegularExpressions;
 using CommandLine;
 using OPS.Util;
 using OPS.Cloud;
@@ -71,14 +73,11 @@ namespace OPS.Landform
         [Value(0, Required = false, HelpText = "project name, empty to infer, must omit if processing more than one mesh", Default = null)]
         public override string ProjectName { get; set; }
 
-        [Option(Default = "mission", HelpText = "Tactical mesh filename extension, or \"mission\"")]
-        public override string MeshFormat { get; set; }
-
-        [Option(Default = "img", HelpText = "Tactical mesh texture filename extension")]
-        public override string ImageFormat { get; set; }
-
         [Option(Default = null, HelpText = "Output directory or S3 folder, if unset use same folder as input")]
         public override string OutputFolder { get; set; }
+
+        [Option(Default = "mission", HelpText = "Tactical mesh URL regex, or \"mission\"")]
+        public string MeshRegex { get; set; }
 
         [Option(Default = null, HelpText = "Comma separated list of input mesh files/folders or S3 paths, when run without --service")]
         public string InputPath { get; set; }
@@ -94,15 +93,21 @@ namespace OPS.Landform
     {
         public const string MESH_FRAME = "passthrough";
 
+        public string[] DEFAULT_TEXTURE_EXTS =
+            new string[] { ".png", ".PNG", ".img", ".IMG", ".vic", ".VIC", ".rgb", ".RGB", ".jpg", ".JPG" };
+
         protected ProcessTacticalOptions options;
 
         private List<string> inputPaths;
         private List<string> searchPatterns;
 
+        private Regex meshRegex;
+
         private class MeshImagePair
         {
             public string mesh;
             public string image;
+            public List<string> extraFiles = new List<string>();
             public override string ToString()
             {
                 return mesh + "," + StringHelper.GetUrlExtension(image);
@@ -135,7 +140,8 @@ namespace OPS.Landform
                     reason = "no URL in message";
                     return false;
                 }
-                if (StringHelper.GetUrlExtension(url).ToLower() != meshExt)
+                var match = meshRegex.Match(StringHelper.GetLastUrlPathSegment(url));
+                if (!match.Success)
                 {
                     reason = "unhandled file type: " + url;
                     return false;
@@ -145,7 +151,7 @@ namespace OPS.Landform
                     reason = "rejected bucket path: " + url;
                     return false;
                 }
-                var idStr = StringHelper.GetLastUrlPathSegment(url, stripExtension: true);
+                var idStr = match.Groups[1].Value;
                 var id = RoverProductId.Parse(idStr, mission, throwOnFail: false);
                 if (!(id is OPGSProductId))
                 {
@@ -172,20 +178,31 @@ namespace OPS.Landform
 
             if (!FileExists(url))
             {
-                pipeline.LogWarn("tactical mesh {0} not found", url);
+                pipeline.LogWarn("tactical mesh file {0} not found", url);
                 return true; //drop message, maybe file was deleted or renamed
             }
 
-            var pair = new MeshImagePair { mesh = url };
+            MeshImagePair mip = null;
+            try
+            {
+                mip = GetMeshImagePair(url);
+            }
+            catch (Exception ex)
+            {
+                pipeline.LogWarn("unrecoverable error collecting dependencies for tatical mesh {0}: {1}",
+                                 url, ex.Message);
+                return true; //drop message
+            }
 
-            if (!AddImage(pair))
+            if (mip != null)
+            {
+                BuildTacticalTileset(mip); //throws exception on error or if killed
+                return true; //message handled, remove from queue
+            }
+            else
             {
                 return false; //leave message in queue for now, maybe image is still pending
             }
-
-            BuildTacticalTileset(pair); //throws exception on error or if killed
-
-            return true; //message handled, remove from queue
         }
 
         protected override bool ParseArguments()
@@ -217,27 +234,16 @@ namespace OPS.Landform
                 throw new Exception("cannot combine --inputpath with --service");
             }
 
-            meshExt = options.MeshFormat;
-            if (string.IsNullOrEmpty(meshExt) || meshExt.ToLower() == "mission")
+            string regex = options.MeshRegex;
+            if (string.IsNullOrEmpty(regex) || regex.ToLower() == "mission")
             {
                 if (mission == null)
                 {
-                    throw new Exception("--mission must be specified without explicit --meshext");
+                    throw new Exception("--mission must be specified without explicit --meshregex");
                 }
-                meshExt = mission.GetTacticalMeshExt();
+                regex = mission.GetTacticalMeshTriggerRegex();
             }
-            if (string.IsNullOrEmpty(meshExt) || (MeshSerializers.Instance.CheckFormat(meshExt) == null))
-            {
-                throw new Exception("empty or unsupported tactical mesh format: " + meshExt ?? "(empty)");
-            }
-            meshExt = "." + meshExt.ToLower().TrimStart('.');
-
-            imageExt = options.ImageFormat;
-            if (string.IsNullOrEmpty(imageExt) || (ImageSerializers.Instance.CheckFormat(imageExt) == null))
-            {
-                throw new Exception("empty or unsupported tactical mesh texture format: " + imageExt ?? "(empty)");
-            }
-            imageExt = "." + imageExt.ToLower().TrimStart('.');
+            meshRegex = new Regex(regex, RegexOptions.IgnoreCase);
 
             return true;
         }
@@ -266,27 +272,44 @@ namespace OPS.Landform
 
         private void IndexMeshes()
         {
+            bool addMesh(string url)
+            {
+                var match = meshRegex.Match(url);
+                if (match.Success)
+                {
+                    string id = match.Groups[1].Value;
+                    if (!meshes.ContainsKey(id))
+                    {
+                        var mip = GetMeshImagePair(url, throwOnUnrecoverableError: false);
+                        if (mip != null)
+                        {
+                            meshes[id] = mip;
+                            return true;
+                        }
+                    }
+                }
+                return false;
+            }
+
             foreach (var path in inputPaths)
             {
                 if (path.EndsWith("/"))
                 {
                     foreach (var pattern in searchPatterns)
                     {
-                        var pat = pattern; //can't modify foreach iteration value
-                        if (string.IsNullOrEmpty(StringHelper.GetUrlExtension(pat)))
-                        {
-                            pat = pat + meshExt;
-                        }
                         int nm = 0, na = 0;
-                        foreach (var file in SearchFiles(path, pat))
+                        foreach (var file in SearchFiles(path, pattern))
                         {
-                            nm++;
-                            if (AddMesh(file))
+                            if (meshRegex.IsMatch(StringHelper.GetLastUrlPathSegment(file)))
                             {
-                                na++;
+                                nm++;
+                                if (addMesh(file))
+                                {
+                                    na++;
+                                }
                             }
                         }
-                        pipeline.LogInfo("indexed {0} meshes ({1} added) at {2}{3}", nm, na, path, pat);
+                        pipeline.LogInfo("indexed {0} meshes ({1} added) at {2}{3}", nm, na, path, pattern);
                     }
                 }
                 else
@@ -295,7 +318,7 @@ namespace OPS.Landform
                     {
                         throw new Exception(string.Format("input mesh {0} not found", path));
                     }
-                    AddMesh(path);
+                    addMesh(path);
                 }
             }
 
@@ -308,88 +331,235 @@ namespace OPS.Landform
             pipeline.LogInfo("found {0} meshes", meshes.Count);
         }
 
-        private bool AddMesh(string meshUrl)
+        private MeshImagePair GetMeshImagePair(string url, bool throwOnUnrecoverableError = false)
         {
-            string id = StringHelper.GetLastUrlPathSegment(meshUrl, stripExtension: true);
-            if (!meshes.ContainsKey(id))
+            MeshImagePair error(string msg, string msgUrl, Exception ex = null, bool unrecoverable = true)
             {
-                var mesh = new MeshImagePair { mesh = meshUrl };
-                if (AddImage(mesh))
+                msg += (msgUrl != url) ? (" for " + url) : "";
+                if (ex != null)
                 {
-                    meshes[id] = mesh;
-                    return true;
+                    msg += ": " + ex.Message;
                 }
-            }
-            return false;
-        }
-
-        private bool AddImage(MeshImagePair pair)
-        {
-            //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/951
-            //the product ID of a tactical mesh tileset comes from the source .iv or .obj mesh filename
-            //but matching a corresponding best .IMG is tricky
-            //
-            //it is not the case that FOO.iv always simply matches with FOO.IMG
-            //because they are versioned separately
-            //FOO.iv will generally have a corresponding FOO.rgb
-            //and furthermore FOO.iv will in its metadata refer to FOO.rgb
-            //but none of that means that FOO.IMG exists
-            //I believe this is because FOO.iv and FOO.rgb are generated from source .VIC files
-            //and the .IMG versions are later transcoded from the .VIC and may have different versions
-            //(that may suggest using the .VIC for metadata instead of the .IMG, but M20 is considering not
-            //copying the .VIC to S3...)
-            //so when the tactical mesh comes from and iv, the best thing I can currently think of doing
-            //is just searching for any .IMG with an ID that matches except for version number
-            //and then taking the highest version number of those
-            //this code does almost that, except it is limited to finding .IMG with version
-            //at most 10 more than the .IV (to bound the search)
-            //
-            //the situation should be better for .obj which we are expecting to switch to
-            //FOO.mtl is supposed to definitely exist as a sibling of FOO.obj
-            //FOO.mtl will refer to BAR.png
-            //but BAR.IMG is supposed to also definitely exist
-
-            bool tryImage(string imageUrl)
-            {
-                if (FileExists(imageUrl))
+                if (unrecoverable && throwOnUnrecoverableError)
                 {
-                    pair.image = imageUrl;
-                    return true;
-                }
-                return false;
-            }
-
-            foreach (var ext in new string[] { imageExt, imageExt.ToUpper() })
-            {
-                string folder = StringHelper.StripLastUrlPathSegment(pair.mesh);
-                if (folder == pair.mesh) //pair.mesh was a bare filename
-                {
-                    folder = "";
+                    throw new Exception(msg, ex);
                 }
                 else
                 {
-                    folder += "/";
+                    pipeline.LogWarn(msg);
                 }
-                string idStr = StringHelper.GetLastUrlPathSegment(pair.mesh, stripExtension: true);
-                var id = RoverProductId.Parse(idStr, mission, throwOnFail: false);
-                if (id != null)
+                return null;
+            }
+
+            MeshImagePair warn(string msg, string forUrl)
+            {
+                return error(msg, forUrl, null, false);
+            }
+
+            string bu = StringHelper.StripUrlExtension(url);
+            string ext = StringHelper.GetUrlExtension(url);
+
+            string folder = StringHelper.StripLastUrlPathSegment(url);
+            if (folder == url) //url was a bare filename
+            {
+                folder = "";
+            }
+            else
+            {
+                folder += "/";
+            }
+
+            var mip = new MeshImagePair();
+
+            //determine mesh URL and verify it exists
+            mip.mesh = (ext == ".mtl") ? (bu + ".obj") : (ext == ".MTL") ? (bu + ".OBJ") : url;
+            if (!FileExists(mip.mesh)) //might not have been generated yet, or maybe s3 eventual consistency hiccup
+            {
+                return warn($"mesh {mip.mesh} not found", mip.mesh);
+            }
+
+            //download mesh now (it'll be cached) because
+            //* if it's an OBJ then we'll try to extract a mtllib statement from it to know the associated .MTL
+            //* in all cases we'll try to parse out a texture filename from it
+            string tmpMesh = GetFile(mip.mesh);
+
+            string meshFilename = StringHelper.GetLastUrlPathSegment(mip.mesh);
+            string meshExt = StringHelper.GetUrlExtension(mip.mesh);
+            var match = meshRegex.Match(meshFilename);
+            string productId = match.Groups[1].Value;
+
+            if (meshExt.ToLower() == ".obj")
+            {
+                //determine material library URL, verify it exists, download it, and parse it
+                string mtlUrl = null;
+                if (ext == ".mtl" || ext == ".MTL")
                 {
-                    foreach (string tryId in id.DescendingVersions(10))
+                    mtlUrl = url;
+                }
+                else
+                {
+                    using (StreamReader sr = new StreamReader(tmpMesh))
                     {
-                        if (tryImage(folder + tryId + ext))
+                        for (int i = 0; i < 100; i++)
                         {
-                            return true;
+                            string line = sr.ReadLine();
+                            if (line == null)
+                            {
+                                break; //EOF
+                            }
+                            if (line.StartsWith("mtllib"))
+                            {
+                                string[] parts = line.Split().Where(s => s.Length != 0).ToArray();
+                                {
+                                    mtlUrl = folder + parts[1];
+                                }
+                            }
                         }
+                    }
+                    if (mtlUrl == null)
+                    {
+                        pipeline.LogWarn("did not find mtllib statement in first 100 lines of {0}", mip.mesh);
+                        //resort to assumption that foo.obj uses material library foo.mtl
+                        mtlUrl = (ext == ".obj") ? (bu + ".mtl") : (ext == ".OBJ") ? (bu + ".MTL") : null;
+                    }
+                }
+                if (mtlUrl == null)
+                {
+                    return error($"failed to associate {mip.mesh} with OBJ material library", mip.mesh);
+                }
+                MTLFile mtl = null;
+                if (mtlUrl != null)
+                {
+                    if (!FileExists(mtlUrl))
+                    {
+                        return warn($"OBJ material library {mtlUrl} not found", mtlUrl);
+                    }
+                    try
+                    {
+                        mtl = new MTLFile(GetFile(mtlUrl)); //download is cached
+                        mip.extraFiles.Add(mtlUrl);
+                    }
+                    catch (Exception ex)
+                    {
+                        return error($"error parsing OBJ material library {mtlUrl}", mtlUrl, ex);
                     }
                 }
 
-                if (tryImage(StringHelper.StripUrlExtension(pair.mesh) + ext))
+                //determine last LOD
+                int lastLOD = 0;
+                if (match.Groups.Count > 2)
                 {
-                    return true;
+                    lastLOD = int.Parse(match.Groups[2].Value);
+                }
+                else
+                {
+                    string last = mtl.GetCommentValue("LAST_LOD");
+                    if (last != null)
+                    {
+                        lastLOD = int.Parse(last);
+                    }
+                    else
+                    {
+                        string count = mtl.GetCommentValue("LOD_COUNT");
+                        if (count != null)
+                        {
+                            lastLOD = int.Parse(count);
+                        }
+                        else
+                        {
+                            string tot = mtl.GetCommentValue("TOTAL_LOD_COUNT");
+                            if (tot != null)
+                            {
+                                lastLOD = int.Parse(tot) - 1;
+                            }
+                        }
+                    }
+                }
+                string pfx = folder + productId + "_LOD";
+                for (int lod = 1; lod <= lastLOD; lod++)
+                {
+                    string lodUrl = pfx + lod.ToString("00");
+                    if (match.Groups.Count > 2)
+                    {
+                        lodUrl += "_" + match.Groups[2];
+                    }
+                    lodUrl += meshExt;
+                    if (!FileExists(lodUrl))
+                    {
+                        return error($"mesh {mip.mesh} LOD {lodUrl} not found", mip.mesh);
+                    }
+                    mip.extraFiles.Add(lodUrl);
                 }
             }
-            pipeline.LogWarn("could not find {0} image for mesh {1}", imageExt, pair.mesh);
-            return false;
+
+            string textureFilename = null;
+
+            void tryDefaultTextureExts(string msg)
+            {
+                string[] bns = null;
+                if (textureFilename != null)
+                {
+                    //did successfully extract a texture filename from the mesh file
+                    //but it didn't exist, so just try other formats of that file
+                    bns = new string[] { StringHelper.StripUrlExtension(textureFilename) };
+                }
+                else
+                {
+                    //no texture filename in mesh file
+                    //try sibling files with same basename or same product id
+                    bns = new string[] { StringHelper.StripUrlExtension(meshFilename), productId };
+                }
+                foreach (string bn in bns)
+                {
+                    foreach (string tx in DEFAULT_TEXTURE_EXTS)
+                    {
+                        string tf = folder + bn + tx;
+                        if (FileExists(tf))
+                        {
+                            mip.image = tf;
+                            warn(msg + ", using " + tf, mip.mesh);
+                            break;
+                        }
+                    }
+                }
+                if (mip.image == null)
+                {
+                    warn(msg + ", no alternate available (" + string.Join(",", DEFAULT_TEXTURE_EXTS) + ")", mip.mesh);
+                }
+            }
+
+            try
+            {
+                Mesh.Load(tmpMesh, out textureFilename, onlyGetImageFilename: true);
+            }
+            catch (Exception ex)
+            {
+                return error($"error parsing {mip.mesh} to determine texture filename", mip.mesh, ex);
+            }
+            if (textureFilename != null)
+            {
+                string textureUrl = folder + textureFilename;
+                if (FileExists(textureUrl))
+                {
+                    mip.image = textureUrl;
+                }
+                else
+                {
+                    tryDefaultTextureExts($"mesh {mip.mesh} referenced texture {textureUrl} not found");
+                }
+            }
+            else
+            {
+                tryDefaultTextureExts($"mesh {mip.mesh} did not reference a texture file");
+            }
+
+            //build-tiling-input currently requires a texture image for tactical mesh processing
+            if (mip.image == null)
+            {
+                return warn($"mesh {mip.mesh} texture unavailable", mip.mesh);
+            }
+
+            return mip;
         }
             
         private void BuildTacticalTileset(MeshImagePair pair)
@@ -414,6 +584,11 @@ namespace OPS.Landform
                 string meshFile = GetFile(pair.mesh);
                 string imageFile = GetFile(pair.image);
 
+                foreach (var file in pair.extraFiles)
+                {
+                    GetFile(file);
+                }
+                
                 string meshUrl = StringHelper.NormalizeSlashes(pair.mesh);
                 if (meshUrl.IndexOf("/") >= 0)
                 {

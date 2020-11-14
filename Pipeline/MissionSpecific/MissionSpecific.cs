@@ -886,14 +886,28 @@ namespace OPS.Pipeline
         }
 
         /// <summary>
-        /// Get tactical mesh file extension.
-        /// Not case sensitive, leading dot will be added automatically.
+        /// Get comma separated list of tactical (i.e. wedge) mesh file extensions.
+        /// Not case sensitive, no leading dots.
+        /// In priority order so if a file is available in multiple formats the first one found will be used.
         /// </summary>
-        public virtual string GetTacticalMeshExt()
+        public virtual string GetTacticalMeshExts()
         {
-            //prefer IV until we implement per-LOD OBJs
-            //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/749
-            return "iv";
+            return "iv,obj";
+        }
+
+        /// <summary>
+        /// Get a regex for testing whether a URL should trigger tactical mesh tileset generation.
+        /// The first capturing group, which always exists, is the product id.
+        /// The second capturing group, if any, is the number of the last LOD.
+        /// </summary>
+        public virtual string GetTacticalMeshTriggerRegex()
+        {
+            //return @"([^/]+)\.iv$"; //any IV
+            //return @"([^/]+)\.obj$"; //any OBJ, get number of LODs from MTL comment
+            //return @"([^/]+)\.mtl$"; //any MTL, get number of LODs from MTL comment
+            //return @"([^/]+)_LOD01\.mtl$"; //first (finest) lod, get number of LODs from mtl comment
+            //return @"([^/]+)_LOD01_(\d+)\.mtl$"; //first (finest) lod, get number of LODs from filename
+            return @"([^/]+)_LOD01_(\d+)\.obj$"; //first (finest) lod, get number of LODs from filename
         }
 
         /// <summary>

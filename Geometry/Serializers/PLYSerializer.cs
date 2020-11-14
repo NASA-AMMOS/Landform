@@ -20,8 +20,7 @@ namespace OPS.Geometry
 
         public static Mesh Read(string filename)
         {
-            string tmp;
-            return Read(filename, out tmp);
+            return Read(filename, out string textureFilename);
         }
 
         /// <summary>
@@ -31,9 +30,10 @@ namespace OPS.Geometry
         /// <param name="textureFilename">the name of the meshes texture if there is one, null otherwise</param>
         /// <param name="defaultAlpha">if the ply file only has RGB then use this value as the default alpha</param>
         /// <returns>A mesh containing the ply file contents</returns>
-        public static Mesh Read(string filename, out string textureFilename, double defaultAlpha = 1)
+        public static Mesh Read(string filename, out string textureFilename, double defaultAlpha = 1,
+                                bool onlyGetImageFilename = false)
         {
-            return new PLYReader(filename).Read(out textureFilename, defaultAlpha);
+            return (new PLYReader(filename)).Read(out textureFilename, defaultAlpha, onlyGetImageFilename);
         }
 
         /// <summary>
@@ -77,7 +77,24 @@ namespace OPS.Geometry
 
         public override Mesh Load(string filename)
         {
-            return PLYSerializer.Read(filename);
+            return PLYSerializer.Read(filename, out string imageFilename);
+        }
+
+        public override Mesh Load(string filename, out string imageFilename, bool onlyGetImageFilename = false)
+        {
+            return PLYSerializer.Read(filename, out imageFilename, onlyGetImageFilename: onlyGetImageFilename);
+        }
+
+        public override List<Mesh> LoadAllLODs(string filename)
+        {
+            return LoadAllLODs(filename, out string imageFilename);
+        }
+
+        public override List<Mesh> LoadAllLODs(string filename, out string imageFilename,
+                                               bool onlyGetImageFilename = false)
+        {
+            var mesh = Load(filename, out imageFilename, onlyGetImageFilename);
+            return onlyGetImageFilename ? null : new List<Mesh>() { mesh };
         }
 
         public override void Save(Mesh m, string filename, string imageFilename)

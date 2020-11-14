@@ -165,7 +165,8 @@ namespace OPS.Geometry
         /// <summary>
         /// Returns all LOD meshes in order from highest quality to lowest quality.
         /// </summary>
-        public override List<Mesh> LoadAllLODs(string filename, out string imageFilename)
+        public override List<Mesh> LoadAllLODs(string filename, out string imageFilename,
+                                               bool onlyGetImageFilename = false)
         {
             List<Mesh> lodMeshes = null;
 #if USE_IVCAT            
@@ -174,10 +175,10 @@ namespace OPS.Geometry
             {
                 string args = string.Format("-o \"{0}\" \"{1}\"", tmpFile, filename);
                 (new ProgramRunner(ivcat, args)).Run(); //OK if input file is already ASCII
-                lodMeshes = ParseASCII(tmpFile);
+                lodMeshes = ParseASCII(tmpFile, onlyGetImageFilename);
             });
 #else
-            lodMeshes = Parse(filename);
+            lodMeshes = Parse(filename, onlyGetImageFilename);
 #endif
             imageFilename = textureFile;
             return lodMeshes;
@@ -193,11 +194,10 @@ namespace OPS.Geometry
             return true;
         }
 
-        public override Mesh Load(string filename, out string imageFilename)
+        public override Mesh Load(string filename, out string imageFilename, bool onlyGetImageFilename = false)
         {
-            var ret = LoadAllLODs(filename)[0];
-            imageFilename = textureFile;
-            return ret;
+            var lodMeshes = LoadAllLODs(filename, out imageFilename, onlyGetImageFilename);
+            return onlyGetImageFilename ? null : lodMeshes[0];
         }
 
         public override Mesh Load(string filename)
@@ -259,7 +259,7 @@ namespace OPS.Geometry
             return new FileStream(filename, FileMode.Open, FileAccess.Read, FileShare.Read);
         }
 
-        private List<Mesh> Parse(string filename)
+        private List<Mesh> Parse(string filename, bool onlyGetImageFilename = false)
         {
             bool isBinary = false;
             using (var fs = OpenFile(filename))
@@ -268,15 +268,15 @@ namespace OPS.Geometry
             }
             if (isBinary)
             {
-                return ParseBinary(filename);
+                return ParseBinary(filename, onlyGetImageFilename);
             }
             else
             {
-                return ParseASCII(filename);
+                return ParseASCII(filename, onlyGetImageFilename);
             }
         }
 
-        private List<Mesh> ParseASCII(string filename)
+        private List<Mesh> ParseASCII(string filename, bool onlyGetImageFilename = false)
         {
             using (var fileReader = new StreamReader(filename))
             {
@@ -443,6 +443,10 @@ namespace OPS.Geometry
                             if (val != null)
                             {
                                 textureFile = val.Trim('"');
+                                if (onlyGetImageFilename)
+                                {
+                                    return null;
+                                }
                             }
                             checkField(FieldName.wrapS, "CLAMP");
                             checkField(FieldName.wrapT, "CLAMP");
@@ -521,7 +525,7 @@ namespace OPS.Geometry
             }
         }
 
-        private List<Mesh> ParseBinary(string filename)
+        private List<Mesh> ParseBinary(string filename, bool onlyGetImageFilename = false)
         {
             using (var fileStream = new BufferedStream(OpenFile(filename), BIN_FILE_BUF_SIZE))
             {
@@ -757,6 +761,10 @@ namespace OPS.Geometry
                     if (curNode == NodeType.Texture2 && curField == FieldName.filename)
                     {
                         textureFile = checkField(null);
+                        if (onlyGetImageFilename)
+                        {
+                            return null;
+                        }
                     }
                     else if (curNode == NodeType.Texture2 && curField == FieldName.wrapS)
                     {

@@ -85,7 +85,7 @@ namespace OPS.Geometry
         /// <param name="capacity">Optional starting capacity for mesh data structure</param>
         /// <returns></returns>
         public static Mesh Read(string filename, out string textureFilename,
-                                double defaultAlpha = 1, int capacity = 100)
+                                double defaultAlpha = 1, int capacity = 100, bool onlyGetImageFilename = false)
         {
             textureFilename = null;
 
@@ -120,6 +120,10 @@ namespace OPS.Geometry
                     else if (line.StartsWith("usemtl"))
                     {
                         textureFilename = mtl != null ? mtl.GetTextureFile(parts[1]) : null;
+                        if (onlyGetImageFilename)
+                        {
+                            return null;
+                        }
                     }
                     else if (line.StartsWith("v "))
                     {
@@ -355,9 +359,9 @@ namespace OPS.Geometry
             return OBJSerializer.Read(filename);
         }
 
-        public override Mesh Load(string filename, out string imageFilename)
+        public override Mesh Load(string filename, out string imageFilename, bool onlyGetImageFilename = false)
         {
-            return OBJSerializer.Read(filename, out imageFilename);
+            return OBJSerializer.Read(filename, out imageFilename, onlyGetImageFilename: onlyGetImageFilename);
         }
 
         public override List<Mesh> LoadAllLODs(string filename)
@@ -372,11 +376,18 @@ namespace OPS.Geometry
         //if filename does not have an _LOD suffix then n must start at 1
         //if filename does have an _LOD suffix then that defines the starting value of n
         //LODs are read in contiguous order up to the first missing one or n = m
-        public override List<Mesh> LoadAllLODs(string filename, out string imageFilename)
+        public override List<Mesh> LoadAllLODs(string filename, out string imageFilename,
+                                               bool onlyGetImageFilename = false)
         {
-            List<Mesh> lods = new List<Mesh>();
+            var finestLODMesh = Load(filename, out imageFilename, onlyGetImageFilename);
 
-            lods.Add(Load(filename, out imageFilename)); //finest LOD
+            if (onlyGetImageFilename)
+            {
+                return null;
+            }
+
+            List<Mesh> lods = new List<Mesh>();
+            lods.Add(finestLODMesh);
 
             string bn = Path.GetFileNameWithoutExtension(filename);
             string ext = Path.GetExtension(filename); //includes dot

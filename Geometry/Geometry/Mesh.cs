@@ -2202,7 +2202,7 @@ namespace OPS.Geometry
             }
         }
 
-        public static Mesh Load(string filename, out string imageFilename)
+        public static Mesh Load(string filename, out string imageFilename, bool onlyGetImageFilename = false)
         {
             string ext = Path.GetExtension(filename).ToLower();
             MeshSerializer s = MeshSerializers.Instance.GetSerializer(ext);
@@ -2210,7 +2210,7 @@ namespace OPS.Geometry
             {
                 throw new MeshSerializerException("Mesh format not supported");
             }
-            return s.Load(filename, out imageFilename);
+            return s.Load(filename, out imageFilename, onlyGetImageFilename);
         }
 
         public static Mesh Load(string filename)
@@ -2218,7 +2218,8 @@ namespace OPS.Geometry
             return Load(filename, out string imageFilename);
         }
 
-        public static List<Mesh> LoadAllLODs(string filename, out string imageFilename)
+        public static List<Mesh> LoadAllLODs(string filename, out string imageFilename,
+                                             bool onlyGetImageFilename = false)
         {
             string ext = Path.GetExtension(filename).ToLower();
             MeshSerializer s = MeshSerializers.Instance.GetSerializer(ext);
@@ -2226,7 +2227,7 @@ namespace OPS.Geometry
             {
                 throw new MeshSerializerException("Mesh format not supported");
             }
-            return s.LoadAllLODs(filename, out imageFilename);
+            return s.LoadAllLODs(filename, out imageFilename, onlyGetImageFilename);
         }
 
         public static List<Mesh> LoadAllLODs(string filename)

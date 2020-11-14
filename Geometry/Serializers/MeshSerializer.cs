@@ -29,10 +29,10 @@ namespace OPS.Geometry
         /// <summary>
         /// Load a mesh from disk including parsing any referenced texture filename
         /// </summary>
-        public virtual Mesh Load(string filename, out string imageFilename)
+        public virtual Mesh Load(string filename, out string imageFilename, bool onlyGetImageFilename = false)
         {
             imageFilename = null;
-            return Load(filename);
+            return onlyGetImageFilename ? null : Load(filename);
         }
 
         /// <summary>
@@ -47,10 +47,11 @@ namespace OPS.Geometry
         /// Load all the mesh level of details found in the file in order starting with finest
         /// include parsing any referenced texture filename, null if not implemented or not found in file
         /// </summary>
-        public virtual List<Mesh> LoadAllLODs(string filename, out string imageFilename)
+        public virtual List<Mesh> LoadAllLODs(string filename, out string imageFilename,
+                                              bool onlyGetImageFilename = false)
         {
             imageFilename = null;
-            return LoadAllLODs(filename);
+            return onlyGetImageFilename ? null : LoadAllLODs(filename);
         }
 
         /// <summary>
