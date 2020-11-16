@@ -411,13 +411,27 @@ namespace OPS.Landform
 
                 int maxTileGroupSize = MAX_LEAF_GROUP_SIZE;
 
-                var texMode = withTextures ? TextureMode.Bake : TextureMode.None;
+                var texMode = TextureMode.None;
+                if (withTextures)
+                {
+                    if (tileList.TextureMode == TextureMode.Clip && sceneMesh.TextureProjectorGuid != Guid.Empty &&
+                        pipeline.GetDataProduct<TextureProjector>(project, sceneMesh.TextureProjectorGuid).TextureGuid
+                        != Guid.Empty)
+                    {
+                        texMode = TextureMode.Clip;
+                    }
+                    else
+                    {
+                        texMode = TextureMode.Bake;
+                    }
+                }
 
                 tilingProject = TilingProject.Create(pipeline, project.Name, tilingScheme,
                                                      tilingOpts.SkirtMode, tilingOpts.ReconstructionMethod,
                                                      tilingOpts.FacesPerTile, tileResolution, texMode, projectType,
                                                      !tilingOpts.NoConvertLinearRGBToSRGB, tilingOpts.ExportMeshFormat,
-                                                     tilingOpts.ExportImageFormat, maxTileGroupSize);
+                                                     tilingOpts.ExportImageFormat, maxTileGroupSize,
+                                                     project.ProductPath);
 
                 tilingProject.ExportDir = null;
                 if (!string.IsNullOrEmpty(tilingOpts.ExportMeshFormat) ||
@@ -440,6 +454,8 @@ namespace OPS.Landform
                 //typically in b3dm / jpg formats
                 tilingProject.TilesetDir = tilesetFolder;
 
+                tilingProject.TextureProjectorGuid = sceneMesh.TextureProjectorGuid;
+
                 tilingProject.StartedRunning = false;
                 tilingProject.FinishedRunning = false;
 
@@ -447,6 +463,9 @@ namespace OPS.Landform
             }
 
             tilingProject.EmbedIndexes = tilingOpts.EmbedIndexImages;
+
+            pipeline.LogInfo("texture projection {0}",
+                             tilingProject.TextureProjectorGuid != Guid.Empty ? "enabled" : "disabled");
 
             var tilesetUrl = pipeline.GetStorageUrl(tilesetFolder, project.Name);
             pipeline.LogInfo("{0} {1}/{2} tiles to {3}", pipeline is CloudPipeline ? "uploading" : "saving",

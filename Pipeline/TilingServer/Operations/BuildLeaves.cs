@@ -99,10 +99,18 @@ namespace OPS.Pipeline.TilingServer
                 }
             }
 
+            bool inputNeedsUVs = project.TextureMode == TextureMode.Bake || project.TextureMode == TextureMode.Clip;
+
+            TextureProjector textureProjector = null;
+            if (project.TextureProjectorGuid != Guid.Empty && inputNeedsUVs)
+            {
+                textureProjector = pipeline.GetDataProduct<TextureProjector>(project, project.TextureProjectorGuid);
+            }
+
             // Reconstruct a mesh for each input using only the chunks that overlap with leaves that we are building
             LogLess("building acceleration datastructures");
-            bool hasImages = false;
-            bool hasUVs = true;
+            bool inputHasImages = false;
+            bool inputHasUVs = true;
             var clipper = new MultiMeshClipper();
             foreach (var group in inputGroups)
             {
@@ -113,17 +121,30 @@ namespace OPS.Pipeline.TilingServer
                 string chunkBaseUrl = group.Chunks[0].ImageUrl;
                 if (chunkBaseUrl != null)
                 {
-                    hasImages = true;
+                    inputHasImages = true;
                     TilingInput ti = group.Input;
                     image = new SparsePipelineImage(pipeline, ti.ImageBands, ti.ImageWidth, ti.ImageHeight,
                                                     chunkBaseUrl, ChunkInput.IMAGE_EXT, ChunkInput.CHUNK_RESOLUTION);
                 }
+                if (!mergedMesh.HasUVs && inputNeedsUVs && textureProjector != null)
+                {
+                    LogInfo("atlasing input mesh with texture projection");
+                    mergedMesh.ProjectTexture(textureProjector.ImageWidth, textureProjector.ImageHeight,
+                                              textureProjector.CameraModel, meshToImage: textureProjector.MeshToImage);
+                }
+                inputHasUVs &= mergedMesh.HasUVs;
                 clipper.AddInput(new MeshImagePair(mergedMesh, image));
-                hasUVs = hasUVs && mergedMesh.HasUVs;
             }
 
             int maxTexRes = project.TextureResolution;
-            if (hasImages && maxTexRes != 0)
+
+            if (inputNeedsUVs && !inputHasUVs)
+            {
+                LogWarn("cannot {0} leaf textures: input mesh(es) missing UVs", project.TextureMode);
+                maxTexRes = 0;
+            }
+
+            if (inputHasImages && inputHasUVs && maxTexRes != 0)
             {
                 switch (project.TextureMode)
                 {
@@ -137,15 +158,7 @@ namespace OPS.Pipeline.TilingServer
                         clipper.InitTextureBaker();
                         break;
                     }
-                    case TextureMode.Clip:
-                    {
-                        if (!hasUVs)
-                        {
-                            LogWarn("cannot clip leaf textures: input mesh(es) missing UVs");
-                            maxTexRes = 0;
-                        }
-                        break;
-                    }
+                    case TextureMode.Clip: break;
                     case TextureMode.Backproject:
                     {
                         LogWarn("unsupported texture mode, not generating leaf textures: {0}", project.TextureMode);
@@ -165,7 +178,7 @@ namespace OPS.Pipeline.TilingServer
 
                 BoundingBox bounds = leaf.GetBoundsChecked(); //these bounds may just partition space
                 MeshImagePair pair = null;
-                if (hasImages && maxTexRes != 0)
+                if (inputHasImages && inputHasUVs && maxTexRes != 0)
                 {
                     if (project.TextureMode == TextureMode.Bake)
                     {
@@ -176,7 +189,7 @@ namespace OPS.Pipeline.TilingServer
                         {
                             mesh.RescaleUVsForTexture(maxTexRes, maxTexRes);
                         }
-                        pair = clipper.BakeTexture(mesh, maxTexRes, msg => LogLess(msg));
+                        pair = clipper.BakeTexture(mesh, maxTexRes, msg => LogLess(msg)); //will UVAtlas if necessary
                     }
                     else if (project.TextureMode == TextureMode.Clip)
                     {

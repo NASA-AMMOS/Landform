@@ -112,8 +112,6 @@ namespace OPS.Landform
 
     public class ProcessTactical : LandformService
     {
-        public const string MESH_FRAME = "passthrough";
-
         protected ProcessTacticalOptions options;
 
         private List<string> inputPaths;
@@ -867,7 +865,7 @@ namespace OPS.Landform
                 StringHelper.GetLastUrlPathSegment(pair.mesh, stripExtension: true);
             string venue = string.Format("tactical_{0}_{1}", missionStr, project);
             string venueDir = storageDir + "/" + venue;
-            string tilesetDir = GetTilesetDir(venue, MESH_FRAME, project);
+            string tilesetDir = GetTilesetDir(venue, "passthrough", project);
             string destDir = TILESET_SUBDIR; //default output to ./TILESET_SUBDIR (e.g. if input is a filename)
 
             pipeline.LogInfo("building tileset {0} for {1}", project, pair);
@@ -894,7 +892,7 @@ namespace OPS.Landform
 
                 if (!options.NoTileset)
                 {
-                    RunCommand("build-tiling-input", project, "--mission", fullMissionStr,
+                    RunCommand("build-tiling-input", project, "--mission", fullMissionStr, "--meshframe", "tactical",
                                "--inputmesh", meshFile, "--inputtexture", imageFile, "--loadlods",
                                "--tileresolution", "-1");
 

@@ -243,6 +243,18 @@ namespace OPS.Pipeline
             return RoverProductType.Unknown;
         }
 
+        public static string ToRDRPoductType(RoverProductType prodType)
+        {
+            foreach (var entry in rdrProductTypes)
+            {
+                if (entry.Value == prodType)
+                {
+                    return entry.Key;
+                }
+            }
+            throw new Exception("unknown rover product type: " + prodType);
+        }
+
         public static bool IsMask(RoverProductType prodType)
         {
             return prodType == RoverProductType.RoverMask;

@@ -217,8 +217,8 @@ while read -r line; do
 
         if [ "$generate" ]; then
             ${dry}$landform configure-local $cfgopts $cfgargs
-            ${dry}$landform build-tiling-input $proj $stdopts $lods --mission $mission --inputmesh $mesh \
-                  --inputtexture $img $tilingargs | tee -a $log
+            ${dry}$landform build-tiling-input $proj $stdopts $lods --mission $mission --meshframe tactical \
+                  --inputmesh $mesh --inputtexture $img $tilingargs | tee -a $log
             ${dry}$landform build-tileset $proj $stdopts $export $tilesetargs | tee -a $log
 
             ${dry}rm -rf $outproj

@@ -24,6 +24,32 @@ using OPS.Util;
 /// textures are backprojected from observation images in contextual mesh workflows, and (typically) clipped from the
 /// source image in tactical tiling workflows.
 ///
+/// As long as texturing is enabled, UVs are always assigned to leaf tile meshes.  Depending on the workflow they may
+/// (a) be clipped from the source mesh, if it had UVs
+/// (b) be assigned by UVAtlas or HeightmapAtlas
+/// (c) be assigned by texture projection.
+/// Case (c) is rare, it can only happen in general if all of the following hold:
+/// * --intputmesh and --input texture are specified
+/// * the mesh frame is "local_level", "sitedrive", "site", "rover", or "observation", or "tactical" where the mission
+///   tactical mesh frame is one of those
+/// * the input mesh and texture filenames are matching rover product IDs (possibly different variants/versions)
+/// * PDS headers for the input texture are available so its camera model can be determined
+/// * the input mesh does not already have UVs.
+/// The first condition only holds for the tactical mesh tiling workflow, not contextual.  So texture projection is
+/// never enabled for contextual meshes. All but the last condition should generally hold for the tactical mesh tiling
+/// workflow.  However, the last condition is rare because tactical meshes generally already have UVs.  Nevertheless, we
+/// check for the possibility to perform texture projection (all but the last condition), and if so, we save the
+/// necessary metadata with the SceneMesh in the database, because the parent tiles could still possibly benefit from
+/// it.  However, even that is rare, because we typically also clip parent tiles from coarser LODs of the input tactical
+/// mesh, which typically also already have UVs.  Basically the only case all of this probably wins is where we're given
+/// a large tactical mesh with no precomputed LODs.  Currently that can happen when we process OBJ format tactical
+/// meshes (not IV format) because the OBJs are not decimated at all (even the finest LOD of the IV tactical meshes is
+/// typically significantly decimated), and the OBJs also do not yet have precomputed LODs.  This means that without
+/// texture projection we will be forced to UVAtlas all of the parent tiles (but still not the leaf tiles) in such a
+/// workflow, which is potentially slow, can fail, and can result in sub-optimal texture utilization, unless it can use
+/// texture projection instead.  However, it is expected that eventually the OBJ format tactical meshes will have
+/// decimated LODs roughly matching those in the IV.
+///
 /// For tactical tiling workflows where the input mesh RDR has existing LODs, build-tiling-input will also typically
 /// define all parent tile meshes from the coarser LODs of the input mesh.
 ///
@@ -51,7 +77,7 @@ namespace OPS.Landform
         [Option(Default = null, HelpText = "Scene mesh texture image to bake into tiles, backproject observations instead if omitted")]
         public string InputTexture { get; set; }
 
-        [Option(Default = false, HelpText = "Don't replace existing tile mesh texture coordinates with UVAtlas")]
+        [Option(Default = false, HelpText = "Don't replace existing tile mesh texture coordinates with UVAtlas or texture projection")]
         public bool NoRedoTileMeshUVs { get; set; }
 
         [Option(HelpText = "Percentage of pixels to test when deciding to split a tile based on resolution (speed vs quality), 0 disables texture based split", Default = 0.03)]
@@ -80,14 +106,21 @@ namespace OPS.Landform
 
         [Option(HelpText = "Don't use approximated areas for the tilesplit test", Default = false)]
         public bool NoApproxTileSplit { get; set; }
+
+        [Option(HelpText = "Disable generating UVs by texture projection", Default = false)]
+        public bool NoTextureProjection { get; set; }
+
+        [Option(HelpText = "Max input texture resolution, should be power of two, negative for unlimited", Default = -1)]
+        public override int TextureResolution { get; set; }
     }
 
     public class BuildTilingInput : TilingCommand
     {
-        public const int DEF_MAX_TILE_RESOLUTION = 256;
-
         private BuildTilingInputOptions options;
 
+        private bool tacticalFrame;
+        private string inputTexturePDS;
+        private Matrix? meshToImage; //non-null iff texture projection enabled
         private TextureMode textureMode = TextureMode.None;
 
         public BuildTilingInput(BuildTilingInputOptions options) : base(options)
@@ -104,14 +137,16 @@ namespace OPS.Landform
                     return 0; //help
                 }
 
-                bool clipOrBake = textureMode == TextureMode.Clip || textureMode == TextureMode.Bake;
+                RunPhase("check for projectable texture", SetupTextureProjection);
 
-                RunPhase("load input mesh", () => LoadInputMesh(requireUVs: clipOrBake));
+                bool clipOrBake = textureMode == TextureMode.Clip || textureMode == TextureMode.Bake;
 
                 if (clipOrBake)
                 {
                     RunPhase("load input image", LoadInputTexture);
                 }
+
+                RunPhase("load input mesh", () => LoadInputMesh(requireUVs: clipOrBake));
 
                 RunPhase("build acceleration datastructures", BuildMeshOperator);
 
@@ -165,6 +200,11 @@ namespace OPS.Landform
                 return false; //help
             }
 
+            if (project == null && mission == null)
+            {
+                throw new Exception("--mission required if project not specified");
+            }
+
             if (options.LoadLODs && string.IsNullOrEmpty(options.InputMesh))
             {
                 throw new Exception("--loadlods requires --inputmesh");
@@ -193,10 +233,10 @@ namespace OPS.Landform
 
             if (tileResolution < 0 && textureMode != TextureMode.Clip)
             {
-                tileResolution = DEF_MAX_TILE_RESOLUTION;
+                throw new Exception("--tileresolution must be positive for texture mode " + textureMode);
             }
 
-            pipeline.LogInfo("texture mode: {0}, resolution {1}", textureMode, tileResolution);
+            pipeline.LogInfo("texture mode: {0}, tile resolution {1}", textureMode, tileResolution);
 
             return true;
         }
@@ -295,6 +335,12 @@ namespace OPS.Landform
             }
         }
 
+        protected override MissionSpecific GetMission()
+        {
+            return project != null ? MissionSpecific.GetInstance(project.Mission) :
+                MissionSpecific.GetInstance(options.Mission);
+        }
+
         protected override string GetAutoMeshFrame()
         {
             return DisableDatabase() ? "passthrough" : "newest";
@@ -308,6 +354,33 @@ namespace OPS.Landform
         protected override bool NonPassthroughMeshFrameAllowed()
         {
             return !DisableDatabase();
+        }
+
+        protected override void HandleSpecialMeshFrames()
+        {
+            meshFrame = GetMeshFrame();
+
+            if (string.IsNullOrEmpty(meshFrame))
+            {
+                return;
+            }
+
+            meshFrame = meshFrame.ToLower().Trim();
+
+            if (meshFrame == "auto")
+            {
+                meshFrame = GetAutoMeshFrame();
+            }
+
+            if (meshFrame == "tactical")
+            {
+                tacticalFrame = true;
+                meshFrame = "passthrough";
+            }
+            else
+            {
+                base.HandleSpecialMeshFrames();
+            }
         }
 
         protected override void LoadFrameCache()
@@ -326,12 +399,177 @@ namespace OPS.Landform
             }
         }
 
+        private void SetupTextureProjection()
+        {
+            meshToImage = null; //texture projection disabled
+
+            if (options.NoTextureProjection)
+            {
+                pipeline.LogInfo("texture projection disabled");
+                return;
+            }
+
+            string meshFrame = tacticalFrame ? mission.GetTacticalMeshFrame() : this.meshFrame;
+            meshFrame = meshFrame.ToLower();
+
+            var allowed = new string[] { "local_level", "sitedrive", "site", "rover", "observation" };
+            if (!allowed.Contains(meshFrame))
+            {
+                pipeline.LogInfo("cannot project texture, unhandled mesh frame {0}", meshFrame);
+                return;
+            }
+            
+            if (string.IsNullOrEmpty(options.InputMesh) || string.IsNullOrEmpty(options.InputTexture))
+            {
+                pipeline.LogInfo("cannot project texture, both --inputmesh and --inputtexture are required");
+                return;
+            }
+
+            var texId = RoverProductId.Parse(options.InputTexture, mission, throwOnFail: false);
+            if (texId == null || !texId.IsSingleFrame() || !texId.IsSingleCamera())
+            {
+                pipeline.LogInfo("cannot project texture, --inputtexture not recognized as a single frame RDR");
+                return;
+            }
+
+            var meshId = RoverProductId.Parse(options.InputMesh, mission, throwOnFail: false);
+            if (meshId == null || !meshId.IsSingleFrame() || !meshId.IsSingleCamera())
+            {
+                pipeline.LogInfo("cannot project texture, --inputmesh not recognized as a single frame RDR");
+                return;
+            }
+
+            if (texId.GetPartialId(mission, includeVariants: false, includeProductType: false) !=
+                meshId.GetPartialId(mission, includeVariants: false, includeProductType: false))
+            {
+                pipeline.LogInfo("cannot project texture, --inputmesh ID does not match --inputtexture ID");
+                return;
+            }
+
+            //allow specifying e.g. --inputtexture=foo.png but use e.g. foo.IMG for metadata if it exists
+            var pdsExts = StringHelper.ParseExts(mission.GetPDSExts(), bothCases: true);
+            if (pdsExts.Any(ext => options.InputTexture.EndsWith(ext)))
+            {
+                inputTexturePDS = options.InputTexture;
+            }
+            else
+            {
+                foreach (var ext in pdsExts)
+                {
+                    var pdsFile = Path.ChangeExtension(options.InputTexture, ext);
+                    if (File.Exists(pdsFile))
+                    {
+                        inputTexturePDS = pdsFile;
+                        break;
+                    }
+                }
+            }
+
+            if (string.IsNullOrEmpty(inputTexturePDS))
+            {
+                pipeline.LogInfo("cannot project texture, --inputtexture not PDS and has no PDS sibling");
+                return;
+            }
+            if (inputTexturePDS != options.InputTexture)
+            {
+                pipeline.LogInfo("using PDS headers from {0} for input texture {1}",
+                                 inputTexturePDS, options.InputTexture);
+            }
+
+            var texImg = pipeline.LoadImage(inputTexturePDS);
+            if (!(texImg.Metadata is PDSMetadata))
+            {
+                pipeline.LogInfo("cannot project texture, --inputtexture does not have PDS metadata");
+                return;
+            }
+
+            var texParser = new PDSParser((PDSMetadata)(texImg.Metadata));
+            if (texParser.CameraModelRefFrame != PDSParser.ReferenceCoordinateFrame.RoverNav)
+            {
+                pipeline.LogInfo("cannot project texture, --inputtexture not in rover frame");
+                return;
+            }
+
+            if (new string[] { "rover", "observation" }.Contains(meshFrame))
+            {
+                meshToImage = Matrix.Identity;
+            }
+            else
+            {
+                //we now know the tactical mesh frame is not "rover" or "observation"
+                //actually it is typically "site"
+                //we need to get a transform from that frame to rover frame
+                var roverOriginRotation = texParser.RoverOriginRotation;
+                var originOffset = texParser.OriginOffset;
+                switch (meshFrame)
+                {
+                    case "local_level": case "sitedrive":
+                    {
+                        meshToImage = RoverCoordinateSystem.LocalLevelToRover(roverOriginRotation);
+                        break;
+                    }
+                    case "site":
+                    {
+                        meshToImage = RoverCoordinateSystem.SiteToRover(roverOriginRotation, originOffset);
+                        break;
+                    }
+                    default:
+                    {
+                        pipeline.LogInfo("cannot project texture, no transform from mesh frame {0} to rover frame",
+                                         meshFrame);
+                        break;
+                    }
+                }
+            }
+
+            if (meshToImage.HasValue)
+            {
+                pipeline.LogInfo("enabled texture projection");
+            }
+        }
+
+        private void ProjectTexture(Mesh mesh)
+        {
+            if (sceneTexture == null)
+            {
+                throw new Exception("cannot project texture coordinates, no scene texture");
+            }
+            if (sceneTexture.CameraModel == null)
+            {
+                throw new Exception("cannot project texture coordinates, scene texture has no camera model");
+            }
+            if (!meshToImage.HasValue)
+            {
+                throw new Exception("cannot project texture coordinates, no mesh-to-image transform");
+            }
+            mesh.ProjectTexture(sceneTexture, removeVertsOutsideView: true, processVertsInParallel: false,
+                                meshToImage: meshToImage.Value);
+        }
+
+        protected override Mesh AtlasMesh(Mesh mesh, int resolution, string name = null)
+        {
+            name = !string.IsNullOrEmpty(name) ? (name + " ") : "";
+
+            if (sceneTexture != null && sceneTexture.CameraModel != null && meshToImage.HasValue)
+            {
+                pipeline.LogInfo("atlasing {0}mesh ({1} triangles) with texture projection",
+                                 name, Fmt.KMG(mesh.Faces.Count));
+                ProjectTexture(mesh);
+                return mesh;
+            }
+            else
+            {
+                return base.AtlasMesh(mesh, resolution, name);
+            }
+        }
+
         private void LoadInputTexture()
         {
             if (!string.IsNullOrEmpty(options.InputTexture))
             {
-                pipeline.LogInfo("loading input texture from {0}", options.InputTexture);
-                sceneTexture = pipeline.LoadImage(options.InputTexture);
+                string texPath = meshToImage.HasValue ? inputTexturePDS : options.InputTexture;
+                pipeline.LogInfo("loading input texture from {0}", texPath);
+                sceneTexture = pipeline.LoadImage(texPath);
             }
             else if (project != null && sceneMesh != null)
             {
@@ -357,6 +595,23 @@ namespace OPS.Landform
             {
                 throw new Exception("cannot load input texture, no scene mesh in database");
             }
+            if (sceneTexture != null && !meshToImage.HasValue)
+            {
+                pipeline.LogInfo("loaded {0}x{1} scene texture", sceneTexture.Width, sceneTexture.Height);
+                if (sceneTextureResolution > 0 &&
+                    (sceneTexture.Width > sceneTextureResolution || sceneTexture.Height > sceneTextureResolution))
+                {
+                    sceneTexture = sceneTexture.ResizeMax(sceneTextureResolution);
+                    pipeline.LogInfo("resized scene texture to {0}x{1}, max size {2}",
+                                     sceneTexture.Width, sceneTexture.Height, sceneTextureResolution);
+                }
+            }
+        }
+
+        private bool TextureSplitEnabled()
+        {
+            return withTextures && tileResolution > 0 && options.SplitByTexturePctToTest > 0 &&
+                (textureMode == TextureMode.Backproject || meshToImage.HasValue);
         }
 
         private void BuildTileTree()
@@ -373,37 +628,61 @@ namespace OPS.Landform
             else
             {
                 SplitByTextureOpts texSplitOpts = null;
-                if (textureMode == TextureMode.Backproject && options.SplitByTexturePctToTest > 0)
+                if (TextureSplitEnabled())
                 {
-                    CameraInstance toCameraInstance(Observation obs)
+                    CameraInstance[] cams = null;
+                    if (imageObservations != null && frameCache != null && obsToHull != null)
                     {
-                        var xform = frameCache.GetObservationTransform(obs, meshFrame, options.UsePriors);
-                        if (xform == null)
+                        CameraInstance obsToCam(Observation obs)
                         {
-                            return null;
+                            var xform = frameCache.GetObservationTransform(obs, meshFrame, options.UsePriors);
+                            if (xform == null)
+                            {
+                                return null;
+                            }
+                            CameraInstance cam = new CameraInstance();
+                            cam.cameraToMesh = xform.Mean;
+                            cam.meshToCamera = Matrix.Invert(xform.Mean);
+                            cam.cameraModel = obs.CameraModel;
+                            cam.hullInMesh = obsToHull[obs.Name];
+                            cam.widthPixels = obs.Width;
+                            cam.heightPixels = obs.Height;
+                            return cam;
                         }
-                        CameraInstance camInst = new CameraInstance();
-                        camInst.cameraToMesh = xform.Mean;
-                        camInst.meshToCamera = Matrix.Invert(camInst.cameraToMesh);
-                        camInst.cameraModel = obs.CameraModel;
-                        camInst.hullInMesh = obsToHull?[obs.Name];
-                        camInst.widthPixels = obs.Width;
-                        camInst.heightPixels = obs.Height;
-                        return camInst;
+                        cams = roverImages.Select(obsToCam).ToArray();
                     }
-                    texSplitOpts = new SplitByTextureOpts()
+                    else if (meshToImage.HasValue && sceneTexture != null && sceneTexture.Metadata is PDSMetadata)
                     {
-                        pctPixelsToTest = options.SplitByTexturePctToTest,
-                        pctSampledPixelsSatisfied = options.SplitByTexturePctSatisfied,
-                        splitPixelTexelRatio = options.SplitByTextureSamplingRatio,
-                        useApproximateTileSplit = !options.NoApproxTileSplit,
-                        tileResolution = tileResolution,
-                        scInMesh = sceneCaster,
-                        cameraInstances = roverImages.Select(obs => toCameraInstance(obs)).ToArray(),
-                        raycastTolerance = tcopts.RaycastTolerance,
-                        redoUVs = !options.NoRedoTileMeshUVs
-                    };
+                        var md = sceneTexture.Metadata as PDSMetadata;
+                        var hullInCam = ConvexHull.FromParams(md.CameraModel, md.Width, md.Height);
+                        var cam = new CameraInstance();
+                        cam.cameraToMesh = Matrix.Invert(meshToImage.Value);
+                        cam.meshToCamera = meshToImage.Value;
+                        cam.cameraModel = md.CameraModel;
+                        cam.hullInMesh = ConvexHull.Transformed(hullInCam, cam.cameraToMesh);
+                        cam.widthPixels = md.Width;
+                        cam.heightPixels = md.Height;
+                        cams = new CameraInstance[] { cam };
+                    }
+                    if (cams != null && cams.Length > 0 && sceneCaster != null)
+                    {
+                        texSplitOpts = new SplitByTextureOpts()
+                        {
+                            pctPixelsToTest = options.SplitByTexturePctToTest,
+                            pctSampledPixelsSatisfied = options.SplitByTexturePctSatisfied,
+                            splitPixelTexelRatio = options.SplitByTextureSamplingRatio,
+                            useApproximateTileSplit = !options.NoApproxTileSplit,
+                            tileResolution = tileResolution,
+                            scInMesh = sceneCaster,
+                            cameraInstances = cams,
+                            raycastTolerance = options.RaycastTolerance,
+                            redoUVs = !options.NoRedoTileMeshUVs
+                        };
+                    }
                 }
+                pipeline.LogInfo("building tile tree, tiling scheme {0}, max {1} faces/leaf{2}",
+                                 options.TilingScheme, options.FacesPerTile, texSplitOpts != null ?
+                                 (", texture split enabled, leaf texture resolution " + tileResolution) : "");
                 double surfaceExtent = sceneMesh != null ? sceneMesh.SurfaceExtent : -1;
                 tileTree = DefineTiles.BuildTileTreeFromInputs(pipeline, options.TilingScheme, options.FacesPerTile,
                                                                new List<MeshImagePair>() { new MeshImagePair(mesh) },
@@ -486,7 +765,6 @@ namespace OPS.Landform
             }
         }
 
-
         private void BuildLeafMeshes()
         {
             int curNode = 0, numFailed = 0, numNodes = tileTree.Leaves().Count(), np = 0;
@@ -539,6 +817,7 @@ namespace OPS.Landform
                 MeshFrame = meshFrame,
                 HasIndexImages = !options.NoIndexImages,
                 TilingScheme = options.TilingScheme,
+                TextureMode = textureMode,
                 LeafNames = new List<string>(),
                 ParentNames = new List<string>()
             };
@@ -574,9 +853,9 @@ namespace OPS.Landform
                 pipeline.LogInfo("colorize: {0}", options.Colorize);
             }
 
-            if (meshLOD.Count == 1 && textureMode == TextureMode.Clip)
+            if (meshLOD.Count == 1 && (textureMode == TextureMode.Backproject ||
+                                       (textureMode == TextureMode.Clip && !meshToImage.HasValue)))
             {
-                //TODO #875
                 pipeline.LogWarn("clipping leaf tile textures but baking parent tile textures");
             }
 
@@ -694,6 +973,26 @@ namespace OPS.Landform
                 pipeline.LogInfo("saving tile list");
                 pipeline.SaveDataProduct(project, tileList);
                 sceneMesh.TileListGuid = tileList.Guid;
+
+                if (meshToImage.HasValue)
+                {
+                    pipeline.LogInfo("saving texture projector");
+                    var textureProjector = new TextureProjector(sceneTexture, meshToImage.Value);
+                    if (textureMode == TextureMode.Clip && meshLOD.Count == 1)
+                    {
+                        pipeline.LogInfo("saving input image for clipping parent textures");
+                        var textureProd = new PngDataProduct(sceneTexture);
+                        pipeline.SaveDataProduct(project, textureProd);
+                        textureProjector.TextureGuid = textureProd.Guid;
+                    }
+                    pipeline.SaveDataProduct(project, textureProjector);
+                    sceneMesh.TextureProjectorGuid = textureProjector.Guid;
+                }
+                else
+                {
+                    sceneMesh.TextureProjectorGuid = Guid.Empty;
+                }
+
                 sceneMesh.Save(pipeline);
             }
         }
@@ -738,13 +1037,22 @@ namespace OPS.Landform
                 else
                 {
                     pipeline.LogVerbose("using existing UVs on tile {0}", tile.Name);
-                    tileMesh.RescaleUVs();
+                    tileMesh.RescaleUVsForTexture(tileResolution, tileResolution);
                 }
             }
-            else if (textureMode == TextureMode.Clip && !tileMesh.HasUVs)
+            else if (textureMode == TextureMode.Clip)
             {
-                pipeline.LogError("cannot clip texture for tile {0}: scene mesh missing UVs", tile.Name);
-                return null;
+                if ((!tileMesh.HasUVs || !options.NoRedoTileMeshUVs) && meshToImage.HasValue)
+                {
+                    pipeline.LogVerbose("(re-)atlasing tile mesh {0} with texture projection", tile.Name);
+                    ProjectTexture(tileMesh);
+                }
+                else if (!tileMesh.HasUVs)
+                {
+                    pipeline.LogError("cannot clip texture for tile {0}: " +
+                                      "scene mesh missing UVs and texture projection disabled", tile.Name);
+                    return null;
+                }
             }
 
             return tileMesh;
