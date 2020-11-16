@@ -79,6 +79,12 @@ namespace OPS.Landform
         [Option(Default = "mission", HelpText = "Tactical mesh URL regex, or one of mission,auto_iv,auto_obj[_lod_fn],auto_mtl[_lod[_fn]]")]
         public string MeshRegex { get; set; }
 
+        [Option(Default = RoverStereoEye.Left, HelpText = "Stereo eye to process, one of Left,Right,Mono,Any")]
+        public RoverStereoEye MeshStereoEye { get; set; }
+
+        [Option(Default = "mission", HelpText = "Geometry to process, one of mission,Linearized,Raw,Any")]
+        public string MeshGeometry { get; set; }
+
         [Option(Default = null, HelpText = "Comma separated list of input mesh files/folders or S3 paths, when run without --service")]
         public string InputPath { get; set; }
 
@@ -88,7 +94,7 @@ namespace OPS.Landform
         [Option(Default = false, HelpText = "Don't generate tileset")]
         public bool NoTileset { get; set; }
 
-        [Option(Default = "png,img,vic,rgb,png", HelpText = "Comma separated list of fallback texture formats, empty to disable texture fallback")]
+        [Option(Default = "png,img,vic,rgb,jpg", HelpText = "Comma separated list of fallback texture formats, empty to disable texture fallback")]
         public string FallbackTextureFormats { get; set; }
 
         [Option(Default = false, HelpText = "Prefer PDS version of texture if available (enables texture coordinate projection)")]
@@ -114,6 +120,7 @@ namespace OPS.Landform
         private List<string> searchPatterns;
 
         private Regex meshRegex;
+        private RoverProductGeometry meshGeometry;
 
         private class MeshImagePair
         {
@@ -172,25 +179,40 @@ namespace OPS.Landform
                     reason = "rejected bucket path: " + url;
                     return false;
                 }
-                var idStr = match.Groups[1].Value;
-                var id = RoverProductId.Parse(idStr, mission, throwOnFail: false);
-                if (!(id is OPGSProductId))
-                {
-                    reason = "unrecognized product ID format: " + url;
-                    return false;
-                }
-                if ((id as OPGSProductId).Size == RoverProductSize.Thumbnail)
-                {
-                    reason = "thumbnail product: " + url;
-                    return false;
-                }
-                return true;
+                return AcceptID(url, match.Groups[1].Value, out reason);
             }
             catch (Exception ex)
             {
                 reason = ex.Message;
                 return false;
             }
+        }
+
+        private bool AcceptID(string url, string idStr, out string reason)
+        {
+            reason = null;
+            var id = RoverProductId.Parse(idStr, mission, throwOnFail: false);
+            if (!(id is OPGSProductId))
+            {
+                reason = "unrecognized product ID format: " + url;
+                return false;
+            }
+            if ((id as OPGSProductId).Size == RoverProductSize.Thumbnail)
+            {
+                reason = "thumbnail product: " + url;
+                return false;
+            }
+            if (!RoverStereoPair.IsStereoEye(id.Camera, options.MeshStereoEye))
+            {
+                reason = "not " + options.MeshStereoEye + " eye: " + url;
+                return false;
+            }
+            if (meshGeometry != RoverProductGeometry.Any && id.Geometry != meshGeometry)
+            {
+                reason = "not " + meshGeometry + " geometry: " + url;
+                return false;
+            }
+            return true;
         }
 
         protected override bool HandleMessage(QueueMessage msg)
@@ -268,6 +290,16 @@ namespace OPS.Landform
             pipeline.LogInfo("mesh regex: {0}{1}", regex, actualRegex != regex ? (" -> " + actualRegex) : "");
             meshRegex = new Regex(actualRegex, RegexOptions.IgnoreCase);
 
+            if (string.IsNullOrEmpty(options.MeshGeometry) || options.MeshGeometry.ToLower() == "mission")
+            {
+                meshGeometry = mission.GetTacticalMeshGeometry();
+            }
+            else if (!Enum.TryParse<RoverProductGeometry>(options.MeshGeometry, true, out meshGeometry))
+            {
+                throw new Exception("unrecognized mesh geometry " + options.MeshGeometry);
+            }
+            pipeline.LogInfo("mesh geometry: {0}", meshGeometry);
+
             return true;
         }
 
@@ -315,13 +347,17 @@ namespace OPS.Landform
                 var match = meshRegex.Match(url);
                 if (match.Success)
                 {
-                    string id = match.Groups[1].Value;
-                    if (!meshes.ContainsKey(id))
+                    string idStr = match.Groups[1].Value;
+                    if (!AcceptID(url, idStr, out string reason))
+                    {
+                        pipeline.LogInfo("ignoring product: {0}", reason);
+                    }
+                    else if (!meshes.ContainsKey(idStr))
                     {
                         var mip = GetMeshImagePair(url, throwOnUnrecoverableError: false);
                         if (mip != null)
                         {
-                            meshes[id] = mip;
+                            meshes[idStr] = mip;
                             return true;
                         }
                     }
@@ -729,41 +765,17 @@ namespace OPS.Landform
             //now find the associated texture file
             string textureFilename = null;
 
-            string[] fallbackExts = StringHelper.ParseList(options.FallbackTextureFormats)
-                .Select(x => "." + x.TrimStart('.'))
-                .ToArray();
+            string[] fallbackExts = StringHelper.ParseExts(options.FallbackTextureFormats, bothCases: true).ToArray();
 
-            string[] pdsExts = StringHelper.ParseList(mission.GetPDSExts())
-                .Select(x => "." + x.TrimStart('.'))
-                .Where(x => !string.Equals(x, ".lbl", StringComparison.OrdinalIgnoreCase))
+            string[] pdsExts = StringHelper.ParseExts(mission.GetPDSExts(), bothCases: true)
+                .Where(px => !string.Equals(px, ".lbl", StringComparison.OrdinalIgnoreCase))
                 .ToArray();
 
             if (!options.NoPreferPDSTexture)
             {
                 var exts = new List<string>();
-                foreach (var px in pdsExts)
-                {
-                    exts.Add(px.ToLower());
-                    exts.Add(px.ToUpper());
-                }
-                foreach (var tx in fallbackExts)
-                {
-                    if (!pdsExts.Any(px => string.Equals(px, tx, StringComparison.OrdinalIgnoreCase)))
-                    {
-                        exts.Add(tx.ToLower());
-                        exts.Add(tx.ToUpper());
-                    }
-                }
-                fallbackExts = exts.ToArray();
-            }
-            else
-            {
-                var exts = new List<string>();
-                foreach (var tx in fallbackExts)
-                {
-                    exts.Add(tx.ToLower());
-                    exts.Add(tx.ToUpper());
-                }
+                exts.AddRange(pdsExts);
+                exts.AddRange(fallbackExts.Where(fx => !pdsExts.Any(px => px == fx)));
                 fallbackExts = exts.ToArray();
             }
 
@@ -815,11 +827,7 @@ namespace OPS.Landform
                 var exts = new List<string>();
                 if (!options.NoPreferPDSTexture)
                 {
-                    foreach (var px in pdsExts)
-                    {
-                        exts.Add(px.ToLower());
-                        exts.Add(px.ToUpper());
-                    }
+                    exts.AddRange(pdsExts);
                 }
                 exts.Add(StringHelper.GetUrlExtension(textureFilename));
                 foreach (var tx in exts)
@@ -889,9 +897,9 @@ namespace OPS.Landform
                     RunCommand("build-tiling-input", project, "--mission", fullMissionStr,
                                "--inputmesh", meshFile, "--inputtexture", imageFile, "--loadlods",
                                "--tileresolution", "-1");
-                    
+
                     BuildTileset(project, "--notextureerror");
-                    
+
                     RunCommand("update-scene-manifest", "--mission", fullMissionStr,
                                "--awsprofile", awsProfile, "--awsregion", awsRegion,
                                "--manifestfile", tilesetDir + "/" + SCENE_JSON,

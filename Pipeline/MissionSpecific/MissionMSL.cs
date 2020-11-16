@@ -339,5 +339,10 @@ namespace OPS.Pipeline
                 $"\"AuthCookieFile\": \"~/.cssotoken/{venue}/ssosession\"\n" +
                 "}";
         }
+
+        public override RoverProductGeometry GetTacticalMeshGeometry()
+        {
+            return RoverProductGeometry.Linearized;
+        }
     }
 }

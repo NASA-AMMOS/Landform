@@ -906,6 +906,14 @@ namespace OPS.Pipeline
         }
 
         /// <summary>
+        /// Get the geometry type to process for tactical meshes.
+        /// </summary>
+        public virtual RoverProductGeometry GetTacticalMeshGeometry()
+        {
+            return RoverProductGeometry.Any;
+        }
+
+        /// <summary>
         /// Get frame of tactical meshes as loaded from file.
         /// Should be one of the frame meta-names accepted by FrameCache.GetObservationTransform().
         /// </summary>

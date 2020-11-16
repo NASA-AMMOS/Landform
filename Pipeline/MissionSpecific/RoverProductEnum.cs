@@ -168,7 +168,8 @@ namespace OPS.Pipeline
     {
         Unknown,
         Raw,
-        Linearized
+        Linearized,
+        Any
     }
 
     public enum RoverProductSize

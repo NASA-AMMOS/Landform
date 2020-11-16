@@ -520,6 +520,11 @@ namespace OPS.Pipeline
         {
             return M2020OPGSProductId.SolToString(sol);
         }
+
+        public override RoverProductGeometry GetTacticalMeshGeometry()
+        {
+            return RoverProductGeometry.Raw;
+        }
     }
 
     public class MissionROASTT19 : MissionM2020 
