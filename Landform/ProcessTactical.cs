@@ -278,9 +278,10 @@ namespace OPS.Landform
                 case "auto_iv": return @"([^/]+)\.iv$"; //any iv
                 case "auto_obj": return @"([^/]+)\.obj$"; //any obj, get number of LODs from mtl comment
                 case "auto_mtl": return @"([^/]+)\.mtl$"; //any mtl, get number of LODs from mtl comment
+                case "auto_obj_lod": return @"([^/]+)_LOD01\.obj$"; //first lod, get number of LODs from mtl
                 case "auto_mtl_lod": return @"([^/]+)_LOD01\.mtl$"; //first lod, get number of LODs from mtl
-                case "auto_mtl_lod_fn": return @"([^/]+)_LOD01_(\d+)\.mtl$"; //first lod, get num LODs from filename
                 case "auto_obj_lod_fn": return @"([^/]+)_LOD01_(\d+)\.obj$"; //first lod, get num LODs from filename
+                case "auto_mtl_lod_fn": return @"([^/]+)_LOD01_(\d+)\.mtl$"; //first lod, get num LODs from filename
                 default: return regex;
             }
         }
@@ -687,19 +688,45 @@ namespace OPS.Landform
                     //if there was at least one LOD within size limit then drop the losers
                     if (winners > 0)
                     {
-                        mip.mesh = lodUrls[lodUrls.Count - winners];
-                        var keepers = new List<string>();
-                        for (int i = 1; i < winners; i++)
-                        {
-                            keepers.Add(lodUrls[lodUrls.Count - winners + i]);
-                        }
-                        lodUrls = keepers;
+                        lodUrls = lodUrls.GetRange(lodUrls.Count - winners, winners);
                     }
                 }
 
-                mip.extraFiles.AddRange(lodUrls.Where(u => u != mip.mesh));
+                //at this point lodUrls contains all the LOD that should be downloaded, in order from fine to coarse
+                //the LODs will be contiguous and the first entry may be
+                //* PRODUCTID.obj if it and all LOD were small enough and (it was trigger or !NoExpectNonLODOBJ)
+                //* PRODCTID_LOD01[_nn].obj if it was the trigger and all LOD were small enough
+                //* PRODCTID_LODmm[_nn].obj where mm > 1 if it was the coarsest small enough LOD
+
+                //if there are any PRODUCTID_LODmm_nn.obj in the list
+                //i.e. if the list is not just the single entry PRODUCTID.obj
+                //then let's put PRODUCTID.obj into the mip.extraFiles list
+                //and use the first PRODUCIT_LODmm[_nn].obj as mip.mesh
+                //because that way the loader code in OBJSerializer can more efficiently find all the input files
+
+                //I don't think it's possible that lodUrls is empty here
+                //but if it is, just leave mip.mesh and mip.extraFiles as they are
+                if (lodUrls.Count == 1)
+                {
+                    mip.mesh = lodUrls[0];
+                }
+                else if (lodUrls.Count > 1)
+                {
+                    string firstLOD = null;
+                    foreach (string rx in new string[] { "auto_obj_lod", "auto_obj_lod_fn" })
+                    {
+                        firstLOD = lodUrls.Where(u => (new Regex(ParseMeshRegex(rx))).IsMatch(u)).FirstOrDefault();
+                        if (firstLOD != null)
+                        {
+                            break;
+                        }
+                    }
+                    mip.mesh = firstLOD ?? lodUrls[0];
+                    mip.extraFiles.AddRange(lodUrls.Where(u => u != mip.mesh));
+                }
             }
 
+            //now find the associated texture file
             string textureFilename = null;
 
             string[] fallbackExts = StringHelper.ParseList(options.FallbackTextureFormats)
@@ -842,7 +869,7 @@ namespace OPS.Landform
                 Cleanup(venueDir);
 
                 Configure(venue);
-                
+
                 string meshFile = GetFile(pair.mesh);
                 string imageFile = GetFile(pair.image);
 

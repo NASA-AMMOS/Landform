@@ -375,11 +375,12 @@ namespace OPS.Geometry
         //note: filename is always the finest loaded LOD, and it may or may not have an _LOD suffix
         //if filename does not have an _LOD suffix then n must start at 1
         //if filename does have an _LOD suffix then that defines the starting value of n
+        //if filename matches pfx_LOD[0]1[_m[m]] and pfx also exists it is loaded as the first (finest) LOD
         //LODs are read in contiguous order up to the first missing one or n = m
         public override List<Mesh> LoadAllLODs(string filename, out string imageFilename,
                                                bool onlyGetImageFilename = false)
         {
-            var finestLODMesh = Load(filename, out imageFilename, onlyGetImageFilename);
+            var primaryMesh = Load(filename, out imageFilename, onlyGetImageFilename);
 
             if (onlyGetImageFilename)
             {
@@ -387,7 +388,6 @@ namespace OPS.Geometry
             }
 
             List<Mesh> lods = new List<Mesh>();
-            lods.Add(finestLODMesh);
 
             string bn = Path.GetFileNameWithoutExtension(filename);
             string ext = Path.GetExtension(filename); //includes dot
@@ -404,7 +404,7 @@ namespace OPS.Geometry
             string pat = @"(.+)" + sfx + @"(\d+)(?:_(\d+))?$";
 
             var match = Regex.Match(bn, pat);
-            if (match.Success)
+            if (match.Success) //primary mesh has _LOD suffix
             {
                 bn = match.Groups[1].Value;
                 string n = match.Groups[2].Value;
@@ -416,15 +416,18 @@ namespace OPS.Geometry
                     mWidth = m.Length;
                     lastLOD = int.Parse(m);
                 }
+                if (firstLOD == 1 && File.Exists(bn + ext)) //if non _LOD mesh exists, load it as first (finest) LOD
+                {
+                    lods.Add(Load(bn + ext));
+                }
             }
-
-            if (nWidth == 0) //filename did not have any _LOD suffix
+            else
             {
-                if (File.Exists(bn + sfx + "1"))
+                if (File.Exists(bn + sfx + "1" + ext))
                 {
                     nWidth = 1;
                 }
-                else if (File.Exists(bn + sfx + "01"))
+                else if (File.Exists(bn + sfx + "01" + ext))
                 {
                     nWidth = 2;
                 }
@@ -432,14 +435,14 @@ namespace OPS.Geometry
                 {
                     for (int m = 1; m < maxLODs; m++)
                     {
-                        if (m < 10 && File.Exists(bn + sfx + "1_" + m))
+                        if (m < 10 && File.Exists(bn + sfx + "1_" + m + ext))
                         {
                             nWidth = 1;
                             mWidth = 1;
                             lastLOD = m;
                             break;
                         }
-                        if (File.Exists(bn + sfx + "01_" + m.ToString("00")))
+                        if (File.Exists(bn + sfx + "01_" + m.ToString("00") + ext))
                         {
                             nWidth = 2;
                             mWidth = 2;
@@ -450,12 +453,14 @@ namespace OPS.Geometry
                 }
             }
 
+            lods.Add(primaryMesh);
+
+            //load remaining LODs
             string nFmt = new string('0', nWidth);
             string mFmt = new string('0', mWidth);
-
             for (int lod = firstLOD + 1; lod <= lastLOD; lod++)
             {
-                string lodFile = bn + sfx + lod.ToString(nFmt) + (mWidth > 0 ? lastLOD.ToString(mFmt) : "");
+                string lodFile = bn + sfx + lod.ToString(nFmt) + (mWidth > 0 ? lastLOD.ToString(mFmt) : "") + ext;
                 if (!File.Exists(lodFile))
                 {
                     break;
