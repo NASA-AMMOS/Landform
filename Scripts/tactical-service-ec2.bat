@@ -88,8 +88,14 @@ if not "%LANDFORM_TACTICAL_OPTS%"=="" set svcextra=%LANDFORM_TACTICAL_OPTS%
 
 rem --- end service specific boilerplate, begin service specific ---
 
-set meshformat=mission
-if not "%LANDFORM_TACTICAL_MESH_FORMAT%"=="" set meshformat=%LANDFORM_TACTICAL_MESH_FORMAT%
+set meshregex=mission
+if not "%LANDFORM_TACTICAL_MESH_REGEX%"=="" set meshregex=%LANDFORM_TACTICAL_MESH_REGEX%
+
+set mesheye=Left
+if not "%LANDFORM_TACTICAL_MESH_EYE%"=="" set mesheye=%LANDFORM_TACTICAL_MESH_EYE%
+
+set meshgeom=mission
+if not "%LANDFORM_TACTICAL_MESH_GEOMETRY%"=="" set meshgeom=%LANDFORM_TACTICAL_MESH_GEOMETRY%
 
 set noindices=
 if not "%LANDFORM_TACTICAL_NO_INDICES%"=="" set noindices==--nopublishindeximages
@@ -105,7 +111,8 @@ set svcopts=%stdopts% --stacktraces --service --mission=%mission% --queuename=%q
 set svcopts=%svcopts% --awsprofile=%awsprofile% --awsregion=%awsregion% %credentialrefresh%
 set svcopts=%svcopts% %msgopts%
 
-set tacticalopts=--meshformat=%meshformat% %noindices% %embedindices% %tilesetimageformat% %tilesetindexformat%
+set tacticalopts=--meshregex=%meshregex% --meshstereoeye=%mesheye% --meshgeometry=%meshgeom%
+set tacticalopts=%tacticalopts% %noindices% %embedindices% %tilesetimageformat% %tilesetindexformat%
 
 set appsdir=%bindir%\ExternalApps
 if exist %appsdir%\opengl32-for-ivcat.dll (
