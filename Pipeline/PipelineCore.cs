@@ -451,6 +451,12 @@ namespace OPS.Pipeline
         public abstract bool FileExists(string url, bool constrainToStorage = false);
 
         /// <summary>
+        /// Get file size in bytes in persisted storage.
+        /// </summary>
+        /// <param name="url">source URL, if constrainToStorage = true must start with StorageURL/Venue</param>
+        public abstract long FileSize(string url, bool constrainToStorage = false);
+
+        /// <summary>
         /// Search persisted files.
         ///
         /// If url ends with "/" then it's taken to be a directory name and the search returns all matching files within

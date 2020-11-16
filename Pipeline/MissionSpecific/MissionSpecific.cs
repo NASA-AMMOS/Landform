@@ -902,12 +902,7 @@ namespace OPS.Pipeline
         /// </summary>
         public virtual string GetTacticalMeshTriggerRegex()
         {
-            //return @"([^/]+)\.iv$"; //any IV
-            //return @"([^/]+)\.obj$"; //any OBJ, get number of LODs from MTL comment
-            //return @"([^/]+)\.mtl$"; //any MTL, get number of LODs from MTL comment
-            //return @"([^/]+)_LOD01\.mtl$"; //first (finest) lod, get number of LODs from mtl comment
-            //return @"([^/]+)_LOD01_(\d+)\.mtl$"; //first (finest) lod, get number of LODs from filename
-            return @"([^/]+)_LOD01_(\d+)\.obj$"; //first (finest) lod, get number of LODs from filename
+            return "auto_obj_lod_fn"; //see ProcessTactical.ParseMeshRegex()
         }
 
         /// <summary>

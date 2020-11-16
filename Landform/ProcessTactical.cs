@@ -76,7 +76,7 @@ namespace OPS.Landform
         [Option(Default = null, HelpText = "Output directory or S3 folder, if unset use same folder as input")]
         public override string OutputFolder { get; set; }
 
-        [Option(Default = "mission", HelpText = "Tactical mesh URL regex, or \"mission\"")]
+        [Option(Default = "mission", HelpText = "Tactical mesh URL regex, or one of mission,auto_iv,auto_obj[_lod_fn],auto_mtl[_lod[_fn]]")]
         public string MeshRegex { get; set; }
 
         [Option(Default = null, HelpText = "Comma separated list of input mesh files/folders or S3 paths, when run without --service")]
@@ -87,14 +87,26 @@ namespace OPS.Landform
 
         [Option(Default = false, HelpText = "Don't generate tileset")]
         public bool NoTileset { get; set; }
+
+        [Option(Default = "png,img,vic,rgb,png", HelpText = "Comma separated list of fallback texture formats, empty to disable texture fallback")]
+        public string FallbackTextureFormats { get; set; }
+
+        [Option(Default = false, HelpText = "Prefer PDS version of texture if available (enables texture coordinate projection)")]
+        public bool NoPreferPDSTexture { get; set; }
+
+        [Option(Default = 150*1000*1000, HelpText = "Skip downloading OBJ LOD meshes greater than this size if smaller ones are available (non-positive disables)")]
+        public long MaxOBJBytes { get; set; }
+
+        [Option(Default = false, HelpText = "Don't expect PRODUCTID.obj to exist if PRODUCTID_LOD01[_NN].obj does")]
+        public bool NoExpectNonLODOBJ { get; set; }
+
+        [Option(Default = false, HelpText = "Just print resolved input mesh and image URLs, whitespace separated, one wedge per line, only in batch mode")]
+        public bool ResolveInputs { get; set; }
     }
 
     public class ProcessTactical : LandformService
     {
         public const string MESH_FRAME = "passthrough";
-
-        public string[] DEFAULT_TEXTURE_EXTS =
-            new string[] { ".png", ".PNG", ".img", ".IMG", ".vic", ".VIC", ".rgb", ".RGB", ".jpg", ".JPG" };
 
         protected ProcessTacticalOptions options;
 
@@ -125,7 +137,16 @@ namespace OPS.Landform
             RunPhase("index input meshes", IndexMeshes);
             foreach (var entry in meshes)
             {
-                RunPhase("build tileset " + entry.Key, () => BuildTacticalTileset(entry.Value));
+                var id = entry.Key;
+                var mip = entry.Value;
+                if (options.ResolveInputs)
+                {
+                    Console.WriteLine("{0} {1} {2} {3}", id, mip.mesh, mip.image, String.Join(" ", mip.extraFiles));
+                }
+                else
+                {
+                    RunPhase("build tileset " + id, () => BuildTacticalTileset(mip));
+                }
             }
         }
 
@@ -134,7 +155,7 @@ namespace OPS.Landform
             reason = null;
             try
             {
-                string url = GetUrlFromMessage(msg); 
+                string url = GetUrlFromMessage(msg);
                 if (string.IsNullOrEmpty(url))
                 {
                     reason = "no URL in message";
@@ -174,7 +195,7 @@ namespace OPS.Landform
 
         protected override bool HandleMessage(QueueMessage msg)
         {
-            string url = GetUrlFromMessage(msg); 
+            string url = GetUrlFromMessage(msg);
 
             if (!FileExists(url))
             {
@@ -243,9 +264,25 @@ namespace OPS.Landform
                 }
                 regex = mission.GetTacticalMeshTriggerRegex();
             }
-            meshRegex = new Regex(regex, RegexOptions.IgnoreCase);
+            string actualRegex = ParseMeshRegex(regex);
+            pipeline.LogInfo("mesh regex: {0}{1}", regex, actualRegex != regex ? (" -> " + actualRegex) : "");
+            meshRegex = new Regex(actualRegex, RegexOptions.IgnoreCase);
 
             return true;
+        }
+
+        private String ParseMeshRegex(string regex)
+        {
+            switch (regex.ToLower())
+            {
+                case "auto_iv": return @"([^/]+)\.iv$"; //any iv
+                case "auto_obj": return @"([^/]+)\.obj$"; //any obj, get number of LODs from mtl comment
+                case "auto_mtl": return @"([^/]+)\.mtl$"; //any mtl, get number of LODs from mtl comment
+                case "auto_mtl_lod": return @"([^/]+)_LOD01\.mtl$"; //first lod, get number of LODs from mtl
+                case "auto_mtl_lod_fn": return @"([^/]+)_LOD01_(\d+)\.mtl$"; //first lod, get num LODs from filename
+                case "auto_obj_lod_fn": return @"([^/]+)_LOD01_(\d+)\.obj$"; //first lod, get num LODs from filename
+                default: return regex;
+            }
         }
 
         protected override Project GetProject()
@@ -331,7 +368,87 @@ namespace OPS.Landform
             pipeline.LogInfo("found {0} meshes", meshes.Count);
         }
 
-        private MeshImagePair GetMeshImagePair(string url, bool throwOnUnrecoverableError = false)
+        //There are a number of possible scenarios the input files for tactical mesh processing.
+        //
+        //This function has the job of
+        //* determining what scenario is in effect
+        //  this is usually controlled by MissionSpecific.GetTacticalMeshTriggerRegex() which determines trigger URLs
+        //* determining whether all prerequisite files are available
+        //  if not return null but don't throw because it may just be a matter of waiting a bit more for
+        //  upstream processing or S3 eventual consistency
+        //* determining if any unrecoverable inconsistencies exist with the data that is available
+        //  if so throw exception unless throwOnUnrecoverableError = false
+        //* collecting the full set of files that should be downloaded to process the mesh
+        //
+        //If !options.NoPreferPDSTexture a PDS version of the texture image will be used if available, because that can
+        //enable texture projection in BuildTilingInput and that can be important if LOD meshes or parent tiles need to
+        //be created.
+        //
+        //Possible scenarios:
+        //
+        //* PRODUCTID.iv (trigger), PRODUCTID2.rgb
+        //  - this was status quo until ~10/2020, and was what Landform expected and used
+        //  - iv was typically under 5MB
+        //  - iv typically contained 5-6LOD
+        //  - LOD0 was typically ~75-150k tris
+        //  - LOD1 was typically ~20-35k tris
+        //  - LOD2 was typically ~4-10k tris
+        //  - LOD3 was typically ~1-3k tris
+        //  - LOD4 was typically ~100-600 tris
+        //  - the rgb is referred to by the iv, and is not necessarily the same product id
+        //    (e.g. version and product type can differ)
+        //  - Landform did not correctly use PRODUCT2.rgb, but instead used a hacky and incorrect method
+        //    to find an IMG product with the same product ID as the iv, possibly with a different version number.
+        //  - Landform now does correctly fish out and use the texture file referenced from iv and obj meshes
+        //
+        //* PRODUCTID.iv (trigger), PRODUCTID2.png
+        //  - starting around ~11/2020 .rgb will be replaced by .png as the referenced texgture in iv meshes
+        //  - moving forward iv meshes will continue to be produced for M20 for the use of Hyperdrive
+        //  - available LODs and triangle counts are to be determined but may likely increase vs legacy
+        //  - Landform is provisionally changing to default to use OBJ meshes
+        //    which will now be produced with precomputed LODs
+        //    at least a subset of which are supposed to be similar to previous iv meshes (see below)
+        //
+        //* PRODUCTID.obj (trigger), PRODUCTID.mtl (alternate trigger), PRODUCTID2.png
+        //  - prior to ~11/2020 obj meshes were often generated, but did not match the geometry in corresponding iv
+        //  - such obj were usually much larger, up to millions of triangles, filesizes up to several GB
+        //  - the mtl filename should be determined by parsing the mtllib reference from the obj file
+        //  - but in practice I'm not aware of any datasets where PRODUCTID.obj doesn't match exactly with PRODUCTID.mtl
+        //  - the mtl file refers to the png file, which is not necessarily the same product id
+        //    (e.g. version and product type can differ)
+        //  - prior to ~11/202 the png often weren't actually produced
+        //  - however we have confirmed that the png are a format conversion of an IMG or VIC which should also exist
+        //  - Landform can load these meshes but processing times can be much longer because of the high polycount
+        //    and also the lack of precomputed LOD
+        //
+        //* PRODUCTID.obj, PRODUCTID.mtl, PRODUCTID2.png
+        //  PRODUCTID_LOD01.obj (alternate trigger), PRODUCTID_LOD01.mtl (trigger)
+        //  PRODUCTID_LOD02.obj, PRODUCTID_LOD02.mtl
+        //  PRODUCTID_LOD03.obj, PRODUCTID_LOD03.mtl
+        //  - similar to above, but also inclues precomputed LOD
+        //  - finest precomputed LOD (PRODUCTID_LOD01.obj) would be ~75-150k to roughly match finest LOD of legacy iv
+        //  - the polycount of PRODUCTID.obj may also be more manageable than previously generated obj
+        //    but as of 11/2020 unclear what that would actually be
+        //    so Landform would only optionally use PRODUCTID.obj
+        //  - total LOD count not in filename but could be
+        //    - pre-agreed, e.g. always 3, but as of 11/2020 no such agreement exists
+        //    - added as a comment in mtl file (which is why the mtl file would be the preferred trigger)
+        //      (Landform accepts LAST_LOD, LOD_COUNT, TOTAL_LOD_COUNT,
+        //      but as of 11/2020 upstream code does not write any of these)
+        //    - discovered based on what files are available
+        //      (but this would have problematic timing issues in part due to S3 eventual consistency)
+        //
+        //* PRODUCTID.obj, PRODUCTID.mtl, PRODUCTID2.png
+        //  PRODUCTID_LOD01_03.obj (trigger), PRODUCTID_LOD01_03.mtl (alternate trigger)
+        //  PRODUCTID_LOD02_03.obj, PRODUCTID_LOD02_03.mtl
+        //  PRODUCTID_LOD03_03.obj, PRODUCTID_LOD03_03.mtl
+        //  - similar to above, but LOD count included in filenames
+        //    LOD count does not include PRODUCTID.obj itself
+        //  - *** Landform currently expects this scenario by default ***
+        //  - the non-LOD PRODUCTID.obj will optionally be used if
+        //    (a) it's available on S3 when PRODUCTID_LOD01_03.obj is
+        //    (b) it's less than or equal to options.MaxOBJBytes
+        private MeshImagePair GetMeshImagePair(string url, bool throwOnUnrecoverableError = true)
         {
             MeshImagePair error(string msg, string msgUrl, Exception ex = null, bool unrecoverable = true)
             {
@@ -475,6 +592,9 @@ namespace OPS.Landform
                         }
                     }
                 }
+
+                //check that all LOD are available
+                var lodUrls = new List<string>();
                 string pfx = folder + productId + "_LOD";
                 for (int lod = 1; lod <= lastLOD; lod++)
                 {
@@ -483,18 +603,144 @@ namespace OPS.Landform
                     {
                         lodUrl += "_" + match.Groups[2];
                     }
-                    lodUrl += meshExt;
-                    if (!FileExists(lodUrl))
+                    if (FileExists(lodUrl + meshExt))
+                    {
+                        lodUrls.Add(lodUrl + meshExt);
+                    }
+                    else if (match.Groups.Count <= 2 && FileExists(lodUrl + "_" + lastLOD.ToString("00") + meshExt))
+                    {
+                        lodUrls.Add(lodUrl + meshExt);
+                    }
+                    else
                     {
                         return error($"mesh {mip.mesh} LOD {lodUrl} not found", mip.mesh);
                     }
-                    mip.extraFiles.Add(lodUrl);
                 }
+
+                //maybe add PRODUCTID.obj as first (finest) LOD
+                string nonLOD = folder + productId + meshExt;
+                if (mip.mesh == nonLOD)
+                {
+                    lodUrls.Insert(0, mip.mesh);
+                }
+                else if (!options.NoExpectNonLODOBJ)
+                {
+                    if (!FileExists(nonLOD))
+                    {
+                        return warn($"mesh {nonLOD} not found", nonLOD);
+                    }
+                    if (options.MaxOBJBytes > 0)
+                    {
+                        long sz = FileSize(nonLOD);
+                        if (sz <= options.MaxOBJBytes)
+                        {
+                            lodUrls.Insert(0, nonLOD);
+                        }
+                        else
+                        {
+                            warn($"ignoring {nonLOD} {Fmt.KMG(sz)} > {Fmt.KMG(options.MaxOBJBytes)} bytes", nonLOD);
+                        }
+                    }
+                }
+
+                //OBJ mesh filesize in bytes is about 112 * numTris
+                //so 500k tri OBJ mesh is about 56M
+                //
+                //v  -1.643300 30.438145 -5.858544 #~34 bytes
+                //vt 0.1280 0.3075 #~18 bytes
+                //f 10475/105268 10425/105269 10456/105270 #~41 bytes
+                //
+                //assuming ~0.5 v per f and 3 vt per f: objBytes = (0.5*34 + 3*18 + 41) * numTris = 112 * numTris
+                //
+                //experimentally:
+                //600k verts, 1.15M faces, 133M bytes (expected 112 * 1.15M = 129M)
+                //160k verts, 300k faces, 34M bytes (expected 112 * 300k = 34M)
+                //41k verts, 76k faces, 8.4M bytes (expected 112 * 76k = 8.58.58.58.58.58.58.58.5M)
+
+                if (options.MaxOBJBytes > 0) //keep longest contiguous suffix of lodUrls within size limit
+                {
+                    int winners = 0, losers = 0;
+                    for (int i = lodUrls.Count - 1; i >= 0; i--) //coarse to fine
+                    {
+                        long sz = FileSize(lodUrls[i]);
+                        if (losers == 0 && sz <= options.MaxOBJBytes)
+                        {
+                            winners++;
+                        }
+                        else
+                        {
+                            losers++;
+                            if (winners > 0)
+                            {
+                                if (sz > options.MaxOBJBytes)
+                                {
+                                    warn($"ignoring {lodUrls[i]} {Fmt.KMG(sz)} > {Fmt.KMG(options.MaxOBJBytes)} bytes",
+                                         lodUrls[i]);
+                                }
+                                else
+                                {
+                                    warn($"ignoring {lodUrls[i]}, a coarser LOD was over size limit", lodUrls[i]);
+                                }
+                            }
+                        }
+                    }
+                    //if there was at least one LOD within size limit then drop the losers
+                    if (winners > 0)
+                    {
+                        mip.mesh = lodUrls[lodUrls.Count - winners];
+                        var keepers = new List<string>();
+                        for (int i = 1; i < winners; i++)
+                        {
+                            keepers.Add(lodUrls[lodUrls.Count - winners + i]);
+                        }
+                        lodUrls = keepers;
+                    }
+                }
+
+                mip.extraFiles.AddRange(lodUrls.Where(u => u != mip.mesh));
             }
 
             string textureFilename = null;
 
-            void tryDefaultTextureExts(string msg)
+            string[] fallbackExts = StringHelper.ParseList(options.FallbackTextureFormats)
+                .Select(x => "." + x.TrimStart('.'))
+                .ToArray();
+
+            string[] pdsExts = StringHelper.ParseList(mission.GetPDSExts())
+                .Select(x => "." + x.TrimStart('.'))
+                .Where(x => !string.Equals(x, ".lbl", StringComparison.OrdinalIgnoreCase))
+                .ToArray();
+
+            if (!options.NoPreferPDSTexture)
+            {
+                var exts = new List<string>();
+                foreach (var px in pdsExts)
+                {
+                    exts.Add(px.ToLower());
+                    exts.Add(px.ToUpper());
+                }
+                foreach (var tx in fallbackExts)
+                {
+                    if (!pdsExts.Any(px => string.Equals(px, tx, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        exts.Add(tx.ToLower());
+                        exts.Add(tx.ToUpper());
+                    }
+                }
+                fallbackExts = exts.ToArray();
+            }
+            else
+            {
+                var exts = new List<string>();
+                foreach (var tx in fallbackExts)
+                {
+                    exts.Add(tx.ToLower());
+                    exts.Add(tx.ToUpper());
+                }
+                fallbackExts = exts.ToArray();
+            }
+
+            void tryFallbackTextureExts(string msg)
             {
                 string[] bns = null;
                 if (textureFilename != null)
@@ -511,7 +757,7 @@ namespace OPS.Landform
                 }
                 foreach (string bn in bns)
                 {
-                    foreach (string tx in DEFAULT_TEXTURE_EXTS)
+                    foreach (string tx in fallbackExts)
                     {
                         string tf = folder + bn + tx;
                         if (FileExists(tf))
@@ -524,7 +770,7 @@ namespace OPS.Landform
                 }
                 if (mip.image == null)
                 {
-                    warn(msg + ", no alternate available (" + string.Join(",", DEFAULT_TEXTURE_EXTS) + ")", mip.mesh);
+                    warn(msg + ", no alternate available (formats " + string.Join(",", fallbackExts) + ")", mip.mesh);
                 }
             }
 
@@ -538,19 +784,35 @@ namespace OPS.Landform
             }
             if (textureFilename != null)
             {
-                string textureUrl = folder + textureFilename;
-                if (FileExists(textureUrl))
+                string tbn = StringHelper.StripUrlExtension(textureFilename);
+                var exts = new List<string>();
+                if (!options.NoPreferPDSTexture)
                 {
-                    mip.image = textureUrl;
+                    foreach (var px in pdsExts)
+                    {
+                        exts.Add(px.ToLower());
+                        exts.Add(px.ToUpper());
+                    }
                 }
-                else
+                exts.Add(StringHelper.GetUrlExtension(textureFilename));
+                foreach (var tx in exts)
                 {
-                    tryDefaultTextureExts($"mesh {mip.mesh} referenced texture {textureUrl} not found");
+                    string textureUrl = folder + tbn + tx;
+                    if (FileExists(textureUrl))
+                    {
+                        mip.image = textureUrl;
+                        break;
+                    }
+                }
+                if (mip.image == null && fallbackExts.Length > 0)
+                {
+                    tryFallbackTextureExts($"mesh {mip.mesh} referenced texture {textureFilename} not found" +
+                                           (exts.Count > 1 ? (" (tried formats " + string.Join(",", exts) + ")"): ""));
                 }
             }
-            else
+            else if (fallbackExts.Length > 0)
             {
-                tryDefaultTextureExts($"mesh {mip.mesh} did not reference a texture file");
+                tryFallbackTextureExts($"mesh {mip.mesh} did not reference a texture file");
             }
 
             //build-tiling-input currently requires a texture image for tactical mesh processing
@@ -561,7 +823,7 @@ namespace OPS.Landform
 
             return mip;
         }
-            
+
         private void BuildTacticalTileset(MeshImagePair pair)
         {
             string missionStr = mission != null ? mission.GetMission().ToString() : "None";
@@ -607,7 +869,7 @@ namespace OPS.Landform
                                "--awsprofile", awsProfile, "--awsregion", awsRegion,
                                "--manifestfile", tilesetDir + "/" + SCENE_JSON,
                                "--nocontextual", "--nourls", "--tacticalpdsfile", imageFile);
-                    
+
                     SaveTileset(tilesetDir, project, destDir);
                 }
 

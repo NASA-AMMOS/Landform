@@ -235,6 +235,12 @@ namespace OPS.Pipeline
             return GetStorageHelper(url).FileExists(url);
         }
         
+        public override long FileSize(string url, bool constrainToStorage = false)
+        {
+            url = CheckUrl(url, constrainToStorage);
+            return GetStorageHelper(url).FileSize(url);
+        }
+
         public override IEnumerable<string> SearchFiles(string url, string globPattern = "*", bool recursive = true,
                                                         bool ignoreCase = false, bool constrainToStorage = false)
         {

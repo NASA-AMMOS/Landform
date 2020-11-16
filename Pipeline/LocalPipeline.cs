@@ -187,6 +187,14 @@ namespace OPS.Pipeline
         /// <summary>
         /// url can be either a file:// URL or a disk path
         /// </summary>
+        public override long FileSize(string url, bool constrainToStorage = false)
+        {
+            return new FileInfo(UrlToFile(CheckUrl(url, constrainToStorage))).Length;
+        }
+
+        /// <summary>
+        /// url can be either a file:// URL or a disk path
+        /// </summary>
         public override IEnumerable<string> SearchFiles(string url, string globPattern = "*", bool recursive = true,
                                                         bool ignoreCase = false, bool constrainToStorage = false)
         {
