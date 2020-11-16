@@ -209,7 +209,8 @@ namespace OPS.Landform
                             logger.InfoFormat("texture file {0}", tft != null ? tft : "(not found)");
                             for (int lod = 0; lod < lodMeshes.Count; lod++)
                             {
-                                string dest = string.Format("{0}_LOD{1}{2}", bn, lod, ext);
+                                string dest = string.Format("{0}_LOD{1:00}{2}", bn, lod, ext);
+                                logger.InfoFormat("saving {0} ({1} tris)", dest, Fmt.KMG(lodMeshes[lod].Faces.Count));
                                 lodMeshes[lod].Save(Path.Combine(destDir, dest), tft); //destDir="" ok
                             }
                         }
