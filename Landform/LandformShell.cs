@@ -195,11 +195,6 @@ namespace OPS.Landform
             pipeline.LogInfo("AWS credential refresh: {0}",
                              credentialRefreshSec > 0 ? Fmt.HMS(credentialRefreshSec * 1e3) : "disabled");
 
-            if (credentialRefreshSec > 0)
-            {
-                RefreshCredentials();
-            }
-
             string logFile = Logging.GetLogFile();
             string logPrefix = GetLogFilePrefix();
             if (logFile.IndexOf(logPrefix) >= 0)
