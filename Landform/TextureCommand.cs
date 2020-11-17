@@ -631,17 +631,19 @@ namespace OPS.Landform
                 }
             }
 
-            meshLOD = newLODs
+            newLODs = newLODs
                 .Where(m => m != null && m.Faces.Count > 0)
                 .OrderByDescending(m => m.Faces.Count)
-                .ToList();
-            
-            mesh = meshLOD.First();
+                .ToArray();
 
-            for (int lod = 0; lod < meshLOD.Count; lod++)
+            if (newLODs.Length > 0)
             {
-                pipeline.LogInfo("fixed up LOD {0}: {1} vertices, {2} faces",
-                                 lod, Fmt.KMG(meshLOD[lod].Vertices.Count), Fmt.KMG(meshLOD[lod].Faces.Count));
+                meshLOD = newLODs.ToList();
+                mesh = meshLOD.First();
+            }
+            else
+            {
+                pipeline.LogWarn("LOD fixup failed, using original {0} LODs", meshLOD.Count);
             }
         }
 
