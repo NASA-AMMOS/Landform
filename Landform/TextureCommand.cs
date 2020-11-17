@@ -600,7 +600,7 @@ namespace OPS.Landform
             var newLODs = new Mesh[ranges.Length];
             for (int i = 0; i < ranges.Length; i++)
             {
-                int s = meshLOD.FindIndex(m => ranges[i][0] <= m.Faces.Count && m.Faces.Count <= ranges[i][1]);
+                int s = meshLOD.FindIndex(m => (ranges[i][0] <= m.Faces.Count && m.Faces.Count <= ranges[i][1]));
                 if (s >= 0)
                 {
                     Mesh src = meshLOD[s];
@@ -610,22 +610,31 @@ namespace OPS.Landform
                 }
                 else
                 {
+                    int target = (int)Math.Round(0.5 * (ranges[i][0] + ranges[i][1]));
                     s = meshLOD.FindLastIndex(m => m.Faces.Count > ranges[i][1]);
-                    if (s >= 0)
+                    string st = "source";
+                    Mesh src = s >= 0 ? meshLOD[s] : null;
+                    if (s < 0 || meshLOD[s].Faces.Count > 2 * target)
                     {
-                        Mesh src = meshLOD[s];
-                        int target = (int)Math.Round(0.5 * (ranges[i][0] + ranges[i][1]));
-                        pipeline.LogInfo("decimating {0} tri source LOD {1} for fixed up LOD {2} ({3}-{4}) " +
-                                         "to {5} tris with {6}",
-                                         Fmt.KMG(src.Faces.Count), s, i, Fmt.KMG(ranges[i][0]), Fmt.KMG(ranges[i][1]),
-                                         Fmt.KMG(target), tcopts.MeshDecimator);
+                        int fs = newLODs.ToList().FindLastIndex(m => (m != null && m.Faces.Count >= target));
+                        if (fs >= 0)
+                        {
+                            s = fs;
+                            st = "fixed up";
+                            src = newLODs[s];
+                        }
+                    }
+                    if (src != null)
+                    {
                         newLODs[i] = src.Decimate(target, tcopts.MeshDecimator);
-                        pipeline.LogInfo("decimated {0} tri source LOD {1} for fixed up LOD {2} to {3} tris",
-                                         Fmt.KMG(src.Faces.Count), s, i, Fmt.KMG(newLODs[i].Faces.Count));
+                        pipeline.LogInfo("decimated {0} tri {1} LOD {2} for fixed up LOD {3} ({4}-{5}) " +
+                                         "to {6} (target {7}) tris with {8}", Fmt.KMG(src.Faces.Count), st, s, i,
+                                         Fmt.KMG(ranges[i][0]), Fmt.KMG(ranges[i][1]),
+                                         Fmt.KMG(newLODs[i].Faces.Count), Fmt.KMG(target), tcopts.MeshDecimator);
                     }
                     else
                     {
-                        pipeline.LogInfo("no source LOD available for making fixed up LOD {0} with {1}-{2} tris",
+                        pipeline.LogInfo("no mesh available for making fixed up LOD {0} with {1}-{2} tris",
                                          i, Fmt.KMG(ranges[i][0]), Fmt.KMG(ranges[i][1]));
                     }
                 }
