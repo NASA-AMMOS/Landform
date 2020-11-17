@@ -88,7 +88,7 @@ namespace OPS.Landform
         [Option(HelpText = "Sky sphere mesh extra degrees below horizon in addition to visibility angle from mast to bottom of mesh", Default = 5)]
         public double ExtraDegreesBelowHorizon { get; set; }
 
-        [Option(HelpText = "A quality/perf tradeoff spent caclulating which texture to use", Default = 4)]
+        [Option(HelpText = "A quality/perf tradeoff spent caclulating which texture to use", Default = 24)]
         public double BackprojectSamplesPerTile { get; set; }
 
         [Option(HelpText = "Sky sphere background color Red (0-255)", Default = 200)]
@@ -403,7 +403,6 @@ namespace OPS.Landform
             //select a good spacing of backproject points per tile
             options.BackprojectQuality = options.BackprojectSamplesPerTile / tileAreaOnSphereAtHorizon;
             options.BackprojectQuality /= ObsSelectionSpatial.QUALITY_TO_SAMPLES_PER_SQUARE_METER; 
-            //BUG BUG TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/1102
 
             pipeline.LogInfo("backproject quality: {0:f6} ({1} samples per {2:f3}m^2 tile)",
                              options.BackprojectQuality, options.BackprojectSamplesPerTile, tileAreaOnSphereAtHorizon);

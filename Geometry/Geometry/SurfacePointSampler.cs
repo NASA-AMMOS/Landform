@@ -30,9 +30,6 @@ namespace OPS.Geometry
         }
 
         /// <summary>
-        /// BUG BUG TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/1102
-        /// this function is probably going to return way more points than you think
-        ///
         /// Generates and returns a point cloud mesh of samples across the surface of a given mesh at a specified density
         /// Density is a metric that approximates how many points to place on a flat surface within a given square unit area
         /// </summary>
@@ -57,15 +54,10 @@ namespace OPS.Geometry
             pointCloud.Vertices = sampledVertexList;
 
             // Return the constructed mesh
-            /// BUG BUG TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/1102
-            /// this function is probably going to return way more points than you think
             return pointCloud;
         }
 
         /// <summary>
-        /// BUG BUG TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/1102
-        /// this function is probably going to return way more points than you think
-        ///
         /// Generates and returns a point cloud vertex array of samples across the surface of a given mesh at a specified density
         /// </summary>
         /// <param name="input">Mesh which will have points sampled across its surface</param>
@@ -90,11 +82,10 @@ namespace OPS.Geometry
             // Calculate the minimum allowed radius between points after pruning
             // Four circles packed into a grid with their overlapping radiuses separating them form a square defined at its edges by the circle centers
             // This area is about 1/4 (or 0.25) the circle areas
-            double radius = 1 / Math.Sqrt(density) * 0.25;
-
-            //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/1102
-            //I suspect this may be the fix, see here: https://mathoverflow.net/a/124740
-            //double radius = 1 / Math.Sqrt(2 * density);
+            //BUG BUG https://github.jpl.nasa.gov/OnSight/Landform/issues/1102
+            //double radius = 1 / Math.Sqrt(density) * 0.25;
+            //see here: https://mathoverflow.net/a/124740
+            double radius = 1 / Math.Sqrt(2 * density);
 
             // Calculate the size of each cell in which points are bucketed
             // This is sized such that a cell holding a point must be fully encompassed within its exclusion region
@@ -110,8 +101,6 @@ namespace OPS.Geometry
             Vertex[] verticesWithNormals = GenerateVertices(prunedPoints, input, normalizeNormals);
 
             // Return an array of pruned vertices
-            /// BUG BUG TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/1102
-            /// this function is probably going to return way more points than you think
             return verticesWithNormals;
         }
 

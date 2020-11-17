@@ -44,7 +44,7 @@ namespace OPS.Landform
         [Option(HelpText = "Observation image texture variant (Original, Blurred, Blended)", Default = TextureVariant.Original)]
         public virtual TextureVariant TextureVariant { get; set; }
 
-        [Option(HelpText = "A tunable parameter for the Observation Selection Strategy used in backproject (range 0-1)", Default = 0.05)]
+        [Option(HelpText = "A tunable parameter for the Observation Selection Strategy used in backproject (range 0-1)", Default = 0.3)]
         public virtual double BackprojectQuality { get; set; }
 
         [Option(HelpText = "The smallest distance (meters) for a raycast determined to be significant, prevents self intersections", Default = 0.0001)]

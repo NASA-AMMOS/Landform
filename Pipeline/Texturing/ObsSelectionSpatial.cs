@@ -62,10 +62,10 @@ namespace OPS.Pipeline.Texturing
                 .Select(vertex => vertex.Position)
                 .ToList();
 
-            //BUG BUG TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/1102
-            //we are getting way more points than thought we asked for
-            //a typical setting is Quality=0.05 meaning 5 samples per square meter
-            //in practice we are getting about 6 times that
+            //we had a bug here https://github.jpl.nasa.gov/OnSight/Landform/issues/1102
+            //we were getting way more points than thought we asked for
+            //a typical setting was Quality=0.05 meaning 5 samples per square meter
+            //in practice we were getting about 6 times that
             //though that seems a more reasonable number to use for our purposes here than 5
             //so this may be a case of Quality=0.05 was already tuned to compensate for this bug
             //
@@ -76,6 +76,10 @@ namespace OPS.Pipeline.Texturing
             //we will match on way too many reference points for each mesh point
             //this can have an effect like *doubling* the total time spent in backproject
             //with no noticeable change in result
+            //
+            //that bug should be fixed now
+            //but it still shouldn't hurt to re-estimate the actual sample spacing here
+            //(well it does require computing the mesh surface area)
             double area = mesh.SurfaceArea();
             double actualDensity = samples.Count / area;
             double actualSampleSpacing = 1 / Math.Sqrt(2 * actualDensity);
