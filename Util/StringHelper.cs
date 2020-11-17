@@ -363,5 +363,103 @@ namespace OPS.Util
         {
             return str.Length > maxLen ? (str.Substring(0, maxLen) + "...") : str;
         }
+
+        private static double[] NEG_POW_10 = new double[]
+            { 1, 1e-1, 1e-2, 1e-3, 1e-4, 1e-5, 1e-6, 1e-7, 1e-8, 1e-9, 1e-10 };
+
+        /// <summary>
+        /// parse (last) double in str, ignoring leading and trailing garbage
+        /// integers to the left and right of the decimal point have the same range as in FastParseInt()
+        /// does not parse scientific notation or special values like inf or nan
+        /// allows numbers with or without decimal point and with or without leading sign
+        /// allows no digits either before or after (but not both before and after) decimal point
+        /// </summary>
+        public static double FastParseDouble(string str)
+        {
+            int pt = str.IndexOf('.');
+            if (pt >= 0)
+            {
+                int s = 0, e = str.Length - 1;
+                int ie = pt - 1;
+                int fs = pt + 1;
+                int il = 0, fl = 0, isn = 1, fsn = 1;
+                double ip = s <= ie ? FastParseInt(str, s, ie, out il, out isn) : 0;
+                double fp = fs <= e ? FastParseInt(str, fs, e, out fl, out fsn) : 0;
+                if (fsn < 0)
+                {
+                    throw new FormatException($"negative fraction parsing number from {str}");
+                }
+                if (fl >= NEG_POW_10.Length)
+                {
+                    throw new FormatException($"fraction too long parsing number from {str}");
+                }
+                if (fl == 0 && il == 0)
+                {
+                    throw new FormatException($"error parsing number from {str}");
+                }
+                if (il == 0 && pt > 0 && str[pt-1] == '-') //-.12345
+                {
+                    fp = -fp;
+                }
+                return ip + fp * (isn < 0 ? -1 : 1) * NEG_POW_10[fl];
+            }
+            else
+            {
+                return FastParseInt(str);
+            }
+        }
+
+        /// <summary>
+        /// parses (last) int between s and e inclusive
+        /// ignores leading and trailing garbage in str[s-e]
+        /// int range is -2,147,483,648 to 2,147,483,647
+        /// this impl can parse -1,999,999,999 to 1,999,999,999
+        /// return len = number of digits in parsed int, 0 if none
+        /// </summary>
+        public static int FastParseInt(string str, int s, int e, out int len, out int sign)
+        {
+            len = 0;
+            sign = 1;
+            int ret = 0, place = 0;
+            for (int i = e; i >= s; i--)
+            {
+                if (str[i] >= '0' && str[i] <= '9')
+                {
+                    int digit = str[i] - '0';
+                    if ((len > 10 && digit > 0) || (len > 9 && digit > 1))
+                    {
+                        throw new FormatException($"overflow parsing number from {str}[{s}-{e}]");
+                    }
+                    place = place == 0 ? 1 : 10 * place;
+                    ret += digit * place;
+                    len++;
+                }
+                else if (len > 0)
+                {
+                    if (str[i] == '-')
+                    {
+                        sign = -1;
+                    }
+                    break;
+                }
+            }
+            return sign * ret;
+        }
+
+        /// <summary>
+        /// parses (last) int in str
+        /// ignores leading and trailing garbage
+        /// int range is -2,147,483,648 to 2,147,483,647
+        /// this impl can parse -1,999,999,999 to 1,999,999,999
+        /// </summary>
+        public static int FastParseInt(string str)
+        {
+            int val = FastParseInt(str, 0, str.Length - 1, out int len, out int sign);
+            if (len == 0)
+            {
+                throw new FormatException($"error parsing number from {str}");
+            }
+            return val;
+        }
     }
 }

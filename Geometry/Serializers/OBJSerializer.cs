@@ -1,12 +1,13 @@
-﻿using System;
+﻿#define FAST_PARSE
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
-
 using Microsoft.Xna.Framework;
+using OPS.Util;
 
 namespace OPS.Geometry
 {
@@ -85,9 +86,58 @@ namespace OPS.Geometry
         /// <param name="capacity">Optional starting capacity for mesh data structure</param>
         /// <returns></returns>
         public static Mesh Read(string filename, out string textureFilename,
-                                double defaultAlpha = 1, int capacity = 100, bool onlyGetImageFilename = false)
+                                double defaultAlpha = 1, int capacity = 0, bool onlyGetImageFilename = false)
         {
             textureFilename = null;
+
+            if (!File.Exists(filename))
+            {
+                throw new IOException($"OBJ mesh {filename} not found");
+            }
+
+            //OBJ mesh filesize in bytes is about 112 * numTris
+            //
+            //M20 tactical meshes have about about ~0.5 v per f
+            //exactly 3 vt per f
+            //zero vn (M20 tactical mesh vertex normals are generated from faces)
+            //
+            //v  -1.643300 30.438145 -5.858544 #~34 bytes
+            //vt 0.1280 0.3075 #~18 bytes
+            //f 10475/105268 10425/105269 10456/105270 #~41 bytes
+            //
+            //assuming ~0.5 v per f and 3 vt per f: objBytes = (0.5*34 + 3*18 + 41) * numTris = 112 * numTris
+            //
+            //experimentally:
+            //600k verts, 1.15M faces, 133M bytes (expected 112 * 1.15M = 129M)
+            //160k verts, 300k faces, 34M bytes (expected 112 * 300k = 34M)
+            //41k verts, 76k faces, 8.4M bytes (expected 112 * 76k = 8.58.58.58.58.58.58.58.5M)
+
+            List<Vector3> vertices = new List<Vector3>();
+            List<Vector4> colors = new List<Vector4>();
+            List<Vector2> uvs = new List<Vector2>();
+            List<Vector3> normals = new List<Vector3>();
+            List<OBJFace> objFaces = new List<OBJFace>();
+
+            MTLFile mtl = null;
+
+            if (capacity > 0)
+            {
+                vertices.Capacity = capacity;
+                colors.Capacity = capacity;
+                uvs.Capacity = capacity;
+                normals.Capacity = capacity;
+                objFaces.Capacity = capacity;
+            }
+            else
+            {
+                double bytes = new FileInfo(filename).Length;
+                double nt = 1.1 * bytes / 112;
+                double nv = 1.1 * nt / 2;
+                double nvt = nt * 3;
+                vertices.Capacity = (int)nv;
+                uvs.Capacity = (int)nvt;
+                objFaces.Capacity = (int)nt;
+            }
 
             using (StreamReader sr = new StreamReader(filename))
             {
@@ -98,83 +148,90 @@ namespace OPS.Geometry
                 // into a one-2-one indexing scheme where all attribute arrays are 
                 // the same length.           
                 
-                // Read raw file data into arrays
-                List<Vector3> vertices = new List<Vector3>(capacity);
-                List<Vector4> colors = new List<Vector4>(capacity);
-                List<Vector2> uvs = new List<Vector2>(capacity);
-                List<Vector3> normals = new List<Vector3>(capacity);
-                List<OBJFace> objFaces = new List<OBJFace>(capacity);
-                string line = sr.ReadLine();
-                MTLFile mtl = null;
-                while (line != null)
+                for (int lineNum = 1; true; lineNum++)
                 {
-                    string[] parts = line.Split().Where(s => s.Length != 0).ToArray();
-                    if (line.StartsWith("mtllib"))
+                    string line = sr.ReadLine();
+                    if (line == null)
                     {
-                        string mtlFile = Path.Combine(Path.GetDirectoryName(filename), parts[1]);
-                        if (File.Exists(mtlFile))
+                        break; //eof
+                    }
+
+                    try
+                    {
+                        string[] tok = line.Split().Where(s => s.Length != 0).ToArray();
+                        if (tok.Length < 2 || tok[0].StartsWith("#"))
                         {
-                            mtl = new MTLFile(mtlFile);
+                            continue;
                         }
-                    }
-                    else if (line.StartsWith("usemtl"))
-                    {
-                        textureFilename = mtl != null ? mtl.GetTextureFile(parts[1]) : null;
-                        if (onlyGetImageFilename)
+                        
+                        switch (tok[0])
                         {
-                            return null;
-                        }
-                    }
-                    else if (line.StartsWith("v "))
-                    {
-                        vertices.Add(new Vector3(double.Parse(parts[1]), double.Parse(parts[2]),
-                                                 double.Parse(parts[3])));
-                        //obj doesn't offically support vertex colors but some tools pack them after the xyz component
-                        if (parts.Length >= 7)
-                        {
-                            colors.Add(new Vector4(double.Parse(parts[4]), double.Parse(parts[5]),
-                                                   double.Parse(parts[6]), defaultAlpha));
-                        }
-                    }
-                    else if (line.StartsWith("vt"))
-                    {
-                        uvs.Add(new Vector2(double.Parse(parts[1]), double.Parse(parts[2])));
-                    }
-                    else if (line.StartsWith("vn"))
-                    {
-                        normals.Add(new Vector3(double.Parse(parts[1]), double.Parse(parts[2]), double.Parse(parts[3])));
-                    }
-                    else if (line.StartsWith("f"))
-                    {
-                        OBJFace f = new OBJFace();
-                        for (int i = 1; i < 4; i++)
-                        {
-                            string[] pointParts = parts[i].Split('/');
-                            if (pointParts.Length == 1)
+                            case "mtllib":
                             {
-                                f.vertDef[i - 1].vertIdx = int.Parse(pointParts[0]) - 1;
-                            }
-                            else if (pointParts.Length == 2)
-                            {
-                                f.vertDef[i - 1].vertIdx = int.Parse(pointParts[0]) - 1;
-                                f.vertDef[i - 1].uvIdx = int.Parse(pointParts[1]) - 1;
-                            }
-                            else if (pointParts.Length == 3)
-                            {
-                                f.vertDef[i - 1].vertIdx = int.Parse(pointParts[0]) - 1;
-                                if (pointParts[1].Length > 0)
+                                string mtlFile = Path.Combine(Path.GetDirectoryName(filename), tok[1]);
+                                if (File.Exists(mtlFile))
                                 {
-                                    f.vertDef[i - 1].uvIdx = int.Parse(pointParts[1]) - 1;
+                                    mtl = new MTLFile(mtlFile);
                                 }
-                                if (pointParts[2].Length > 0)
+                                break;
+                            }
+                            case "usemtl":
+                            {
+                                textureFilename = mtl != null ? mtl.GetTextureFile(tok[1]) : null;
+                                if (onlyGetImageFilename)
                                 {
-                                    f.vertDef[i - 1].normalIdx = int.Parse(pointParts[2]) - 1;
+                                    return null;
                                 }
+                                break;
+                            }
+                            case "v":
+                            {
+                                vertices.Add(new Vector3(ParseDouble(tok[1]), ParseDouble(tok[2]),
+                                                         ParseDouble(tok[3])));
+                                //obj doesn't offically support vertex colors but some tools pack them after xyz
+                                if (tok.Length >= 7)
+                                {
+                                    double a = tok.Length >= 8 ? ParseDouble(tok[7]) : defaultAlpha;
+                                    colors.Add(new Vector4(ParseDouble(tok[4]), ParseDouble(tok[5]),
+                                                           ParseDouble(tok[6]), a));
+                                }
+                                break;
+                            }
+                            case "vt":
+                            {
+                                uvs.Add(new Vector2(ParseDouble(tok[1]), ParseDouble(tok[2])));
+                                break;
+                            }
+                            case "vn":
+                            {
+                                normals.Add(new Vector3(ParseDouble(tok[1]), ParseDouble(tok[2]), ParseDouble(tok[3])));
+                                break;
+                            }
+                            case "f":
+                            {
+                                OBJFace f = new OBJFace();
+                                for (int i = 0; i < 3; i++)
+                                {
+                                    string[] ptTok = tok[i + 1].Split('/');
+                                    f.vertDef[i].vertIdx = ParseInt(ptTok[0]) - 1;
+                                    if (ptTok.Length > 1 && ptTok[1].Length > 0)
+                                    {
+                                        f.vertDef[i].uvIdx = ParseInt(ptTok[1]) - 1;
+                                    }
+                                    if (ptTok.Length > 2 && ptTok[2].Length > 0)
+                                    {
+                                        f.vertDef[i].normalIdx = ParseInt(ptTok[2]) - 1;
+                                    }
+                                }
+                                objFaces.Add(f);
+                                break;
                             }
                         }
-                        objFaces.Add(f);
                     }
-                    line = sr.ReadLine();
+                    catch (Exception ex)
+                    {
+                        throw new OBJSerializerException($"error parsing OBJ {filename} line {lineNum} ({line})", ex);
+                    }
                 }
                 
                 // Generate a mesh
@@ -206,6 +263,7 @@ namespace OPS.Geometry
                         throw new OBJSerializerException("OBJ did not contain face description " +
                                                          "and number of vertices and uvs differs");
                     }
+                    result.Vertices.Capacity = vertices.Count;
                     for (int i = 0; i < vertices.Count; i++)
                     {
                         Vertex v = new Vertex();
@@ -218,10 +276,12 @@ namespace OPS.Geometry
                 }
                 else
                 {
-                    // This is a normal obj file.
+                    //This is a normal obj file.
                     //Generate a mesh using the faces.
                     //Any vertices or uvs not referenced by a face will be ommitted.
-                    Dictionary<VertexDefinition, int> vertDefToIndex = new Dictionary<VertexDefinition, int>();
+                    var vertDefToIndex = new Dictionary<VertexDefinition, int>(3 * objFaces.Count);
+                    result.Vertices.Capacity = 3 * objFaces.Count;
+                    result.Faces.Capacity = objFaces.Count;
                     foreach (OBJFace f in objFaces)
                     {
                         int[] indices = new int[3];
@@ -246,12 +306,33 @@ namespace OPS.Geometry
                         // Create a face from our vertex indices
                         result.Faces.Add(new Face(indices));
                     }
+                    result.Vertices.TrimExcess();
                 }
                 return result;
             }
         }
 
-        public static Mesh Read(string filename, double defaultAlpha = 1, int capacity = 100)
+#if FAST_PARSE
+        private static double ParseDouble(string str)
+        {
+            return StringHelper.FastParseDouble(str);
+        }
+        private static int ParseInt(string str)
+        {
+            return StringHelper.FastParseInt(str);
+        }
+#else
+        private static double ParseDouble(string str)
+        {
+            return double.Parse(str);
+        }
+        private static int ParseInt(string str)
+        {
+            return int.Parse(str);
+        }
+#endif
+
+        public static Mesh Read(string filename, double defaultAlpha = 1, int capacity = 0)
         {
             return Read(filename, out string textureFilename, defaultAlpha, capacity);
         }
@@ -389,8 +470,8 @@ namespace OPS.Geometry
 
             List<Mesh> lods = new List<Mesh>();
 
-            string bn = Path.GetFileNameWithoutExtension(filename);
             string ext = Path.GetExtension(filename); //includes dot
+            string bn = filename.Substring(0, filename.Length - ext.Length);
 
             //100 should work but would result in over 100 File.Exists() tests
             //when filename does not have an _LOD suffix
@@ -460,7 +541,8 @@ namespace OPS.Geometry
             string mFmt = new string('0', mWidth);
             for (int lod = firstLOD + 1; lod <= lastLOD; lod++)
             {
-                string lodFile = bn + sfx + lod.ToString(nFmt) + (mWidth > 0 ? lastLOD.ToString(mFmt) : "") + ext;
+                string lodFile =
+                    bn + sfx + lod.ToString(nFmt) + (mWidth > 0 ? ("_" + lastLOD.ToString(mFmt)) : "") + ext;
                 if (!File.Exists(lodFile))
                 {
                     break;

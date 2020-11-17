@@ -63,6 +63,7 @@
     </Otherwise>
   </Choose>
   <ItemGroup>
+    <Compile Include="StringHelperTest.cs" />
     <Compile Include="TemporaryFileTest.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="PathHelperTest.cs" />

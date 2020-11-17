@@ -692,20 +692,6 @@ namespace OPS.Landform
                         }
                     }
 
-                    //OBJ mesh filesize in bytes is about 112 * numTris
-                    //so 500k tri OBJ mesh is about 56M
-                    //
-                    //v  -1.643300 30.438145 -5.858544 #~34 bytes
-                    //vt 0.1280 0.3075 #~18 bytes
-                    //f 10475/105268 10425/105269 10456/105270 #~41 bytes
-                    //
-                    //assuming ~0.5 v per f and 3 vt per f: objBytes = (0.5*34 + 3*18 + 41) * numTris = 112 * numTris
-                    //
-                    //experimentally:
-                    //600k verts, 1.15M faces, 133M bytes (expected 112 * 1.15M = 129M)
-                    //160k verts, 300k faces, 34M bytes (expected 112 * 300k = 34M)
-                    //41k verts, 76k faces, 8.4M bytes (expected 112 * 76k = 8.58.58.58.58.58.58.58.5M)
-
                     if (options.MaxOBJBytes > 0) //keep longest contiguous suffix of lodUrls within size limit
                     {
                         int winners = 0, losers = 0;
