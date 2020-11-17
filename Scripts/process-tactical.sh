@@ -90,7 +90,8 @@ help="\
 USAGE: process-tactical.sh IN_DIR MISSION [OUT_DIR]
 [--suffix foo] [--dryrun] [--help] [--nocleanup] [--onlycleanup] [--redo]
 [--writedebug] [--debug] [--verbose] [--singlethreaded]
-[--meshregex mission,auto_iv,auto_obj[_lod_fn],...] [--nolods]
+[--meshregex mission,auto_iv,auto_obj[_lod_fn],...]
+[--nolods] [--maxtileresolution N]
 [--exportmeshext ply] [--exportimgext png]
 [--searchargs \"--arg val\"] [--configargs \"--arg val\"]
 [--tilingargs \"--arg val\"] [--tilesetargs \"--arg val\"]
@@ -117,7 +118,8 @@ if [[ $# -gt 0 ]] && [[ $1 != -* ]]; then
     shift
 fi
 
-lods="--loadlods"
+# should match ProcessTacticalOptions.FixupLODs default
+lods="--loadlods --fixuplods=75000-150000,20000-60000,4000-15000,1000-3000,100-600"
 
 manifest=true
 dry=
@@ -131,6 +133,7 @@ s3rdrdir=
 suffix=
 export=
 
+tileres=512
 meshregex=mission
 searchargs=
 cfgargs=
@@ -160,9 +163,10 @@ while (( "$#" )); do
         "--upload") shift; expect $# "upload URL"; upload=true; s3rdrdir=$1;;
         "--suffix") shift; expect $# "suffix"; suffix="_$1";;
         "--exportmeshext") shift; expect $# "export mesh extension"; export="$export --exportmeshformat $1";;
-        "--exportimgext") shift; expect $# "export imge extension"; export="$export --exportimageformat $1";;
+        "--exportimgext") shift; expect $# "export image extension"; export="$export --exportimageformat $1";;
         "--nomanifest") manifest=;;
         "--nolods") lods=;;
+        "--maxtileresolution") shift; expect $# "max tile resolution"; tileres=$1;;
         "--meshregex") shift; expect $# "mesh regex"; meshregex=$1;;
         "--searchargs") shift; expect $# "search args"; searchargs="$1";;
         "--configargs") shift; expect $# "config args"; cfgargs="$1";;
@@ -212,8 +216,8 @@ while read -r line; do
         if [ "$generate" ]; then
             ${dry}$landform configure-local $cfgopts $cfgargs
             ${dry}$landform build-tiling-input $proj $stdopts $lods --mission $mission --meshframe tactical \
-                  --inputmesh $mesh --inputtexture $img $tilingargs | tee -a $log
-            ${dry}$landform build-tileset $proj $stdopts $export $tilesetargs | tee -a $log
+                  --inputmesh $mesh --inputtexture $img --tileresolution $tileres $tilingargs | tee -a $log
+            ${dry}$landform build-tileset $proj $stdopts $export --tileresolution $tileres $tilesetargs | tee -a $log
 
             ${dry}rm -rf $outproj
             ${dry}cp -R $tilesetdir $outdir
