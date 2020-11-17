@@ -525,6 +525,11 @@ namespace OPS.Pipeline
         {
             return RoverProductGeometry.Raw;
         }
+
+        public override string GetTacticalMeshTriggerRegex()
+        {
+            return "auto_obj_lod_fn"; //see ProcessTactical.ParseMeshRegex()
+        }
     }
 
     public class MissionROASTT19 : MissionM2020 
@@ -574,6 +579,16 @@ namespace OPS.Pipeline
                 $"\"AuthCookieFile\": \"~/.cssotoken/{venue}/ssosession\"" +
                 "}";
         }
+
+        public override RoverProductGeometry GetTacticalMeshGeometry()
+        {
+            return RoverProductGeometry.Linearized;
+        }
+
+        public override string GetTacticalMeshTriggerRegex()
+        {
+            return "auto_iv"; //see ProcessTactical.ParseMeshRegex()
+        }
     }
 
     public class MissionTT4 : MissionM2020
@@ -622,6 +637,16 @@ namespace OPS.Pipeline
                 "\"AuthCookieName\": \"ssosession\",\n" +
                 $"\"AuthCookieFile\": \"~/.cssotoken/{venue}/ssosession\"\n" +
                 "}";
+        }
+
+        public override RoverProductGeometry GetTacticalMeshGeometry()
+        {
+            return RoverProductGeometry.Linearized;
+        }
+
+        public override string GetTacticalMeshTriggerRegex()
+        {
+            return "auto_iv"; //see ProcessTactical.ParseMeshRegex()
         }
     }
 
@@ -732,6 +757,16 @@ namespace OPS.Pipeline
         {
             return null;
         }
+
+        public override RoverProductGeometry GetTacticalMeshGeometry()
+        {
+            return RoverProductGeometry.Linearized;
+        }
+
+        public override string GetTacticalMeshTriggerRegex()
+        {
+            return "auto_iv"; //see ProcessTactical.ParseMeshRegex()
+        }
     }
 
     public class MissionROASTT20 : MissionM2020
@@ -810,6 +845,16 @@ namespace OPS.Pipeline
                 "\"AuthCookieName\": \"ssosession\",\n" +
                 $"\"AuthCookieFile\": \"~/.cssotoken/{venue}/ssosession\"\n" +
                 "}";
+        }
+
+        public override RoverProductGeometry GetTacticalMeshGeometry()
+        {
+            return RoverProductGeometry.Linearized;
+        }
+
+        public override string GetTacticalMeshTriggerRegex()
+        {
+            return "auto_iv"; //see ProcessTactical.ParseMeshRegex()
         }
     }
 

@@ -902,7 +902,7 @@ namespace OPS.Pipeline
         /// </summary>
         public virtual string GetTacticalMeshTriggerRegex()
         {
-            return "auto_obj_lod_fn"; //see ProcessTactical.ParseMeshRegex()
+            return "auto_iv"; //see ProcessTactical.ParseMeshRegex()
         }
 
         /// <summary>
