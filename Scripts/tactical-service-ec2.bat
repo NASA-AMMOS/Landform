@@ -98,10 +98,10 @@ set meshgeom=mission
 if not "%LANDFORM_TACTICAL_MESH_GEOMETRY%"=="" set meshgeom=%LANDFORM_TACTICAL_MESH_GEOMETRY%
 
 set noindices=
-if not "%LANDFORM_TACTICAL_NO_INDICES%"=="" set noindices==--nopublishindeximages
+if not "%LANDFORM_TACTICAL_NO_INDICES%"=="" set noindices=--nopublishindeximages
 
 set embedindices=
-if not "%LANDFORM_TACTICAL_EMBED_INDICES%"=="" set embedindices==--embedindeximages
+if not "%LANDFORM_TACTICAL_EMBED_INDICES%"=="" set embedindices=--embedindeximages
 
 set noloadlods=
 if not "%LANDFORM_TACTICAL_NO_LOAD_LODS%"=="" set noloadlods=--noloadexistinglods

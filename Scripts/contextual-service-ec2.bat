@@ -96,7 +96,7 @@ set noindices=
 if not "%LANDFORM_CONTEXTUAL_NO_INDICES%"=="" set noindices=--nopublishindeximages
 
 set embedindices=
-if not "%LANDFORM_CONTEXTUAL_EMBED_INDICES%"=="" set embedindices==--embedindeximages
+if not "%LANDFORM_CONTEXTUAL_EMBED_INDICES%"=="" set embedindices=--embedindeximages
 
 set extent=32
 if not "%LANDFORM_CONTEXTUAL_EXTENT%"=="" set extent=%LANDFORM_CONTEXTUAL_EXTENT%
