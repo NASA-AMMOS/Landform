@@ -146,7 +146,8 @@ namespace OPS.Landform
                     RunPhase("load input image", LoadInputTexture);
                 }
 
-                RunPhase("load input mesh", () => LoadInputMesh(requireUVs: clipOrBake));
+                RunPhase("load input mesh", () => LoadInputMesh(requireUVs: clipOrBake,
+                                                                onlyGenerateUVsWithTextureProjection: true));
 
                 RunPhase("build acceleration datastructures", BuildMeshOperator);
 
@@ -572,7 +573,7 @@ namespace OPS.Landform
         {
             if (!string.IsNullOrEmpty(options.InputTexture))
             {
-                string texPath = meshToImage.HasValue ? inputTexturePDS : options.InputTexture;
+                string texPath = TextureProjectionEnabled() ? inputTexturePDS : options.InputTexture;
                 pipeline.LogInfo("loading input texture from {0}", texPath);
                 sceneTexture = pipeline.LoadImage(texPath);
             }
@@ -600,16 +601,13 @@ namespace OPS.Landform
             {
                 throw new Exception("cannot load input texture, no scene mesh in database");
             }
-            if (sceneTexture != null && !TextureProjectionEnabled())
+            pipeline.LogInfo("loaded {0}x{1} scene texture", sceneTexture.Width, sceneTexture.Height);
+            if (!TextureProjectionEnabled() && sceneTextureResolution > 0 &&
+                (sceneTexture.Width > sceneTextureResolution || sceneTexture.Height > sceneTextureResolution))
             {
-                pipeline.LogInfo("loaded {0}x{1} scene texture", sceneTexture.Width, sceneTexture.Height);
-                if (sceneTextureResolution > 0 &&
-                    (sceneTexture.Width > sceneTextureResolution || sceneTexture.Height > sceneTextureResolution))
-                {
-                    sceneTexture = sceneTexture.ResizeMax(sceneTextureResolution);
-                    pipeline.LogInfo("resized scene texture to {0}x{1}, max size {2}",
-                                     sceneTexture.Width, sceneTexture.Height, sceneTextureResolution);
-                }
+                sceneTexture = sceneTexture.ResizeMax(sceneTextureResolution);
+                pipeline.LogInfo("resized scene texture to {0}x{1}, max size {2}",
+                                 sceneTexture.Width, sceneTexture.Height, sceneTextureResolution);
             }
         }
 

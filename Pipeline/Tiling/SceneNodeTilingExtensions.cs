@@ -221,7 +221,6 @@ namespace OPS.Pipeline
                 size = ComputeParentTileResolution(childMeshImagePairs, combinedDecimated.Bounds(), maxTextureSize);
             }
 
-            //we always bake parent tile textures, regardless of project.TextureMode
             Image img = null, index = null;
             if (size != 0)
             {
@@ -277,7 +276,7 @@ namespace OPS.Pipeline
                     img = tb.Bake(combinedDecimated, size, size, out index); //Writes index iff indexes not null
                     //note that if textureMode is clip then leaf tile textures may have actually been clipped
                     //even though we are baking here
-                    //because leave tiles can take their UVs from the input meshes
+                    //because leaf tiles can take their UVs from the input meshes
                     //but a parent tile can only get usable UVs for clipping by texture projection
                 }
             }

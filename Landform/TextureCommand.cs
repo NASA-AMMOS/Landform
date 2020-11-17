@@ -474,7 +474,8 @@ namespace OPS.Landform
                              lumaMed, lumaMAD, hueMed, numColor, roverImages.Count);
         }
 
-        protected void LoadInputMesh(bool requireUVs = true, bool requireNormals = true)
+        protected void LoadInputMesh(bool requireUVs = true, bool requireNormals = true,
+                                     bool onlyGenerateUVsWithTextureProjection = false)
         {
             if (sceneMesh == null && project != null) //might have already been loaded in GetProject()
             {
@@ -550,7 +551,9 @@ namespace OPS.Landform
                                  lod, Fmt.KMG(meshLOD[lod].Vertices.Count), Fmt.KMG(meshLOD[lod].Faces.Count));
             }
 
-            if (!string.IsNullOrEmpty(tcopts.FixupLODs) && (!requireUVs || TextureProjectionEnabled()))
+            bool genUVs = !onlyGenerateUVsWithTextureProjection || TextureProjectionEnabled();
+
+            if (tcopts.LoadLODs && !string.IsNullOrEmpty(tcopts.FixupLODs) && (!requireUVs || genUVs))
             {
                 int[][] ranges = null;
                 try
@@ -575,7 +578,14 @@ namespace OPS.Landform
             {
                 if (requireUVs && !meshLOD[i].HasUVs)
                 {
-                    AtlasMesh(meshLOD[i], sceneTextureResolution, "LOD " + i);
+                    if (genUVs)
+                    {
+                        AtlasMesh(meshLOD[i], sceneTextureResolution, "LOD " + i);
+                    }
+                    else
+                    {
+                        throw new Exception("atlassing disabled and mesh missing UVs" + (i > 0 ? $" at LOD {i}" : ""));
+                    }
                 }
 
                 if (requireNormals && !meshLOD[i].HasNormals)
@@ -605,9 +615,13 @@ namespace OPS.Landform
                     {
                         Mesh src = meshLOD[s];
                         int target = (int)Math.Round(0.5 * (ranges[i][0] + ranges[i][1]));
-                        pipeline.LogInfo("decimating {0} tri source LOD {1} for fixed up LOD {2} to {3} tris with {4}",
-                                         Fmt.KMG(src.Faces.Count), s, i, Fmt.KMG(target), tcopts.MeshDecimator);
+                        pipeline.LogInfo("decimating {0} tri source LOD {1} for fixed up LOD {2} ({3}-{4}) " +
+                                         "to {5} tris with {6}",
+                                         Fmt.KMG(src.Faces.Count), s, i, Fmt.KMG(ranges[i][0]), Fmt.KMG(ranges[i][1]),
+                                         Fmt.KMG(target), tcopts.MeshDecimator);
                         newLODs[i] = src.Decimate(target, tcopts.MeshDecimator);
+                        pipeline.LogInfo("decimated {0} tri source LOD {1} for fixed up LOD {2} to {3} tris",
+                                         Fmt.KMG(src.Faces.Count), s, i, Fmt.KMG(newLODs[i].Faces.Count));
                     }
                     else
                     {

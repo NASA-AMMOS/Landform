@@ -115,6 +115,9 @@ namespace OPS.Landform
         [Option(Default = "75000-150000,20000-60000,4000-15000,1000-3000,100-600",
                 HelpText = "Create or fix LOD meshes, comma separated list of min-max ranges, finest to coarsest")]
         public string FixupLODs{ get; set; }
+
+        [Option(Default = 512, HelpText = "Max tile image resolution, negative for unlimited, 0 disables texturing")]
+        public int MaxTileResolution { get; set; }
     }
 
     public class ProcessTactical : LandformService
@@ -129,14 +132,13 @@ namespace OPS.Landform
 
         private class MeshImagePair
         {
+            public string url;
+            public string id;
             public string mesh;
             public string image;
             public List<string> extraFiles = new List<string>();
-            public override string ToString()
-            {
-                return mesh + "," + StringHelper.GetUrlExtension(image);
-            }
         }
+
         private Dictionary<string, MeshImagePair> meshes = new Dictionary<string, MeshImagePair>();
 
         public ProcessTactical(ProcessTacticalOptions options) : base(options)
@@ -492,6 +494,8 @@ namespace OPS.Landform
         //    (b) it's less than or equal to options.MaxOBJBytes
         private MeshImagePair GetMeshImagePair(string url, bool throwOnUnrecoverableError = true)
         {
+            url = StringHelper.NormalizeSlashes(url);
+
             MeshImagePair error(string msg, string msgUrl, Exception ex = null, bool unrecoverable = true)
             {
                 msg += (msgUrl != url) ? (" for " + url) : "";
@@ -529,6 +533,7 @@ namespace OPS.Landform
             }
 
             var mip = new MeshImagePair();
+            mip.url = url;
 
             //determine mesh URL and verify it exists
             mip.mesh = (ext == ".mtl") ? (bu + ".obj") : (ext == ".MTL") ? (bu + ".OBJ") : url;
@@ -545,7 +550,7 @@ namespace OPS.Landform
             string meshFilename = StringHelper.GetLastUrlPathSegment(mip.mesh);
             string meshExt = StringHelper.GetUrlExtension(mip.mesh);
             var match = meshRegex.Match(meshFilename);
-            string productId = match.Groups[1].Value;
+            mip.id = match.Groups[1].Value;
 
             if (meshExt.ToLower() == ".obj")
             {
@@ -639,7 +644,7 @@ namespace OPS.Landform
 
                     //check that all LOD are available
                     var lodUrls = new List<string>();
-                    string pfx = folder + productId + "_LOD";
+                    string pfx = folder + mip.id + "_LOD";
                     for (int lod = 1; lod <= lastLOD; lod++)
                     {
                         string lodUrl = pfx + lod.ToString("00");
@@ -662,7 +667,7 @@ namespace OPS.Landform
                     }
 
                     //maybe add PRODUCTID.obj as first (finest) LOD
-                    string nonLOD = folder + productId + meshExt;
+                    string nonLOD = folder + mip.id + meshExt;
                     if (mip.mesh == nonLOD)
                     {
                         lodUrls.Insert(0, mip.mesh);
@@ -801,7 +806,7 @@ namespace OPS.Landform
                 {
                     //no texture filename in mesh file
                     //try sibling files with same basename or same product id
-                    bns = new string[] { StringHelper.StripUrlExtension(meshFilename), productId };
+                    bns = new string[] { StringHelper.StripUrlExtension(meshFilename), mip.id };
                 }
                 foreach (string bn in bns)
                 {
@@ -868,20 +873,20 @@ namespace OPS.Landform
             return mip;
         }
 
-        private void BuildTacticalTileset(MeshImagePair pair)
+        private void BuildTacticalTileset(MeshImagePair mip)
         {
             string missionStr = mission != null ? mission.GetMission().ToString() : "None";
             string fullMissionStr = mission != null ? mission.GetMissionWithVenue() : "None";
-            string project = !string.IsNullOrEmpty(options.ProjectName) ? options.ProjectName :
-                StringHelper.GetLastUrlPathSegment(pair.mesh, stripExtension: true);
+            string project = !string.IsNullOrEmpty(options.ProjectName) ? options.ProjectName : mip.id;
             string venue = string.Format("tactical_{0}_{1}", missionStr, project);
             string venueDir = storageDir + "/" + venue;
             string tilesetDir = GetTilesetDir(venue, "passthrough", project);
             string destDir = TILESET_SUBDIR; //default output to ./TILESET_SUBDIR (e.g. if input is a filename)
             string loadLODs = !options.NoLoadExistingLODs ? "--loadlods" : "";
             string fixupLODs = options.FixupLODs;
+            string tileRes = options.MaxTileResolution.ToString();
 
-            pipeline.LogInfo("building tileset {0} for {1}", project, pair);
+            pipeline.LogInfo("building tileset {0} for {1}", project, mip.url);
 
             try
             {
@@ -889,32 +894,35 @@ namespace OPS.Landform
 
                 Configure(venue);
 
-                string meshFile = GetFile(pair.mesh);
-                string imageFile = GetFile(pair.image);
+                string meshFile = GetFile(mip.mesh);
+                string imageFile = GetFile(mip.image);
 
-                foreach (var file in pair.extraFiles)
+                foreach (var file in mip.extraFiles)
                 {
                     GetFile(file);
                 }
                 
-                string meshUrl = StringHelper.NormalizeSlashes(pair.mesh);
-                if (meshUrl.IndexOf("/") >= 0)
+                if (mip.mesh.IndexOf("/") >= 0)
                 {
-                    destDir = GetDestDir(StringHelper.StripLastUrlPathSegment(meshUrl));
+                    destDir = GetDestDir(StringHelper.StripLastUrlPathSegment(mip.mesh));
                 }
 
                 if (!options.NoTileset)
                 {
                     RunCommand("build-tiling-input", project, "--mission", fullMissionStr, "--meshframe", "tactical",
-                               "--inputmesh", meshFile, "--inputtexture", imageFile, loadLODs, "--fixuplods", fixupLODs,
-                               "--tileresolution", "-1");
+                               "--inputmesh", meshFile, "--inputtexture", imageFile, "--tileresolution", tileRes,
+                               loadLODs, "--fixuplods", fixupLODs);
 
-                    BuildTileset(project, "--notextureerror");
+                    BuildTileset(project, "--tileresolution", tileRes);
 
-                    RunCommand("update-scene-manifest", "--mission", fullMissionStr,
-                               "--awsprofile", awsProfile, "--awsregion", awsRegion,
-                               "--manifestfile", tilesetDir + "/" + SCENE_JSON,
-                               "--nocontextual", "--nourls", "--tacticalpdsfile", imageFile);
+                    if (StringHelper.ParseList(mission.GetPDSExts())
+                        .Any(px => imageFile.EndsWith(px, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        RunCommand("update-scene-manifest", "--mission", fullMissionStr,
+                                   "--awsprofile", awsProfile, "--awsregion", awsRegion,
+                                   "--manifestfile", tilesetDir + "/" + SCENE_JSON,
+                                   "--nocontextual", "--nourls", "--tacticalpdsfile", imageFile);
+                    }
 
                     SaveTileset(tilesetDir, project, destDir);
                 }

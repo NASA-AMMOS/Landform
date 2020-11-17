@@ -544,7 +544,6 @@ namespace OPS.Pipeline
                 }
             }
 
-
             return new MeshImagePair(mesh, img, index);
         }
     }

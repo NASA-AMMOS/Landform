@@ -111,12 +111,6 @@ shift
 mission=$1
 shift
 
-if [[ $mission == "MSL" ]]; then
-    echo "currently only M2020 missions are supported"
-    echo "TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/951"
-    exit 1
-fi
-
 outdir=.
 if [[ $# -gt 0 ]] && [[ $1 != -* ]]; then
     outdir=$1
@@ -140,8 +134,8 @@ export=
 meshregex=mission
 searchargs=
 cfgargs=
-tilingargs="--tileresolution=-1"
-tilesetargs="--notextureerror"
+tilingargs=
+tilesetargs=
 manifestargs=
 syncargs=
 
@@ -172,8 +166,8 @@ while (( "$#" )); do
         "--meshregex") shift; expect $# "mesh regex"; meshregex=$1;;
         "--searchargs") shift; expect $# "search args"; searchargs="$1";;
         "--configargs") shift; expect $# "config args"; cfgargs="$1";;
-        "--tilingargs") shift; expect $# "tiling args"; tilingargs="$tilingargs $1";;
-        "--tilesetargs") shift; expect $# "tileset args"; tilesetargs="$tilesetargs $1";;
+        "--tilingargs") shift; expect $# "tiling args"; tilingargs="$1";;
+        "--tilesetargs") shift; expect $# "tileset args"; tilesetargs="$1";;
         "--manifestargs") shift; expect $# "manifest args"; manifestargs="$1";;
         "--syncargs") shift; expect $# "sync args"; syncargs="$1";;
     esac

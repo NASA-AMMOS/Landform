@@ -88,14 +88,14 @@ if not "%LANDFORM_TACTICAL_OPTS%"=="" set svcextra=%LANDFORM_TACTICAL_OPTS%
 
 rem --- end service specific boilerplate, begin service specific ---
 
-set meshregex=mission
-if not "%LANDFORM_TACTICAL_MESH_REGEX%"=="" set meshregex=%LANDFORM_TACTICAL_MESH_REGEX%
+set meshregex=
+if not "%LANDFORM_TACTICAL_MESH_REGEX%"=="" set meshregex=--meshregex=%LANDFORM_TACTICAL_MESH_REGEX%
 
-set mesheye=Left
-if not "%LANDFORM_TACTICAL_MESH_EYE%"=="" set mesheye=%LANDFORM_TACTICAL_MESH_EYE%
+set mesheye=
+if not "%LANDFORM_TACTICAL_MESH_EYE%"=="" set mesheye=--meshstereoeye=%LANDFORM_TACTICAL_MESH_EYE%
 
-set meshgeom=mission
-if not "%LANDFORM_TACTICAL_MESH_GEOMETRY%"=="" set meshgeom=%LANDFORM_TACTICAL_MESH_GEOMETRY%
+set meshgeom=
+if not "%LANDFORM_TACTICAL_MESH_GEOMETRY%"=="" set meshgeom=--meshgeometry=%LANDFORM_TACTICAL_MESH_GEOMETRY%
 
 set noindices=
 if not "%LANDFORM_TACTICAL_NO_INDICES%"=="" set noindices=--nopublishindeximages
@@ -109,6 +109,11 @@ if not "%LANDFORM_TACTICAL_NO_LOAD_LODS%"=="" set noloadlods=--noloadexistinglod
 set fixuplods=
 if not "%LANDFORM_TACTICAL_FIXUP_LODS%"=="" set fixuplods=--fixuplods=%LANDFORM_TACTICAL_FIXUP_LODS%
 
+set tileres=
+if not "%LANDFORM_TACTICAL_MAX_TILE_RESOLUTION%"=="" (
+   set tileres=--maxtileresolution=%LANDFORM_TACTICAL_MAX_TILE_RESOLUTION%
+)
+
 rem --- end service specific ---
 
 set stdopts=--configdir=%cfgdir% --configfolder=%cfgfolder% --logdir=%logdir% --tempdir=%tmpdir%
@@ -117,7 +122,7 @@ set svcopts=%stdopts% --stacktraces --service --mission=%mission% --queuename=%q
 set svcopts=%svcopts% --awsprofile=%awsprofile% --awsregion=%awsregion% %credentialrefresh%
 set svcopts=%svcopts% %msgopts%
 
-set tacticalopts=--meshregex=%meshregex% --meshstereoeye=%mesheye% --meshgeometry=%meshgeom% %noloadlods% %fixuplods%
+set tacticalopts=%meshregex% %mesheye% %meshgeom% %noloadlods% %fixuplods% %tileres%
 set tacticalopts=%tacticalopts% %noindices% %embedindices% %tilesetimageformat% %tilesetindexformat%
 
 set appsdir=%bindir%\ExternalApps
