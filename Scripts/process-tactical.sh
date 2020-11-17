@@ -180,6 +180,8 @@ done
 
 if [ -d "$indir" ] && [[ "$indir" != */ ]]; then indir="${indir}/"; fi
 
+if [ ! -d "$outdir" ]; then mkdir -p $outdir; fi
+
 echo "processing $mission $meshregex tactical meshes from $indir to $outdir"
 
 while read -r line; do
@@ -277,5 +279,6 @@ while read -r line; do
                 echo "tip: run python last to avoid opening another terminal"
             fi
         fi
+        printf "\r\n" | tee -a $log
     fi
 done < <($landform process-tactical --mission $mission --inputpath $indir --recursivesearch --resolveinputs --quiet --meshregex $meshregex $searchargs)
