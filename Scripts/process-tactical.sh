@@ -119,7 +119,7 @@ if [[ $# -gt 0 ]] && [[ $1 != -* ]]; then
 fi
 
 # should match ProcessTacticalOptions.FixupLODs default
-lods="--loadlods --fixuplods=75000-150000,20000-60000,4000-15000,1000-3000,100-600"
+lods="--loadlods --fixuplods=75000-300000,20000-60000,4000-15000,1000-3000,100-600"
 
 manifest=true
 dry=
