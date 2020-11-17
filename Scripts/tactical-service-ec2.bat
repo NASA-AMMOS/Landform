@@ -103,6 +103,12 @@ if not "%LANDFORM_TACTICAL_NO_INDICES%"=="" set noindices==--nopublishindeximage
 set embedindices=
 if not "%LANDFORM_TACTICAL_EMBED_INDICES%"=="" set embedindices==--embedindeximages
 
+set noloadlods=
+if not "%LANDFORM_TACTICAL_NO_LOAD_LODS%"=="" set noloadlods=--noloadexistinglods
+
+set fixuplods=
+if not "%LANDFORM_TACTICAL_FIXUP_LODS%"=="" set fixuplods=--fixuplods=%LANDFORM_TACTICAL_FIXUP_LODS%
+
 rem --- end service specific ---
 
 set stdopts=--configdir=%cfgdir% --configfolder=%cfgfolder% --logdir=%logdir% --tempdir=%tmpdir%
@@ -111,7 +117,7 @@ set svcopts=%stdopts% --stacktraces --service --mission=%mission% --queuename=%q
 set svcopts=%svcopts% --awsprofile=%awsprofile% --awsregion=%awsregion% %credentialrefresh%
 set svcopts=%svcopts% %msgopts%
 
-set tacticalopts=--meshregex=%meshregex% --meshstereoeye=%mesheye% --meshgeometry=%meshgeom%
+set tacticalopts=--meshregex=%meshregex% --meshstereoeye=%mesheye% --meshgeometry=%meshgeom% %noloadlods% %fixuplods%
 set tacticalopts=%tacticalopts% %noindices% %embedindices% %tilesetimageformat% %tilesetindexformat%
 
 set appsdir=%bindir%\ExternalApps

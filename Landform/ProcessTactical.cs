@@ -108,6 +108,13 @@ namespace OPS.Landform
 
         [Option(Default = false, HelpText = "Just print resolved input mesh and image URLs, whitespace separated, one wedge per line, only in batch mode")]
         public bool ResolveInputs { get; set; }
+
+        [Option(Default = false, HelpText = "Don't load existing tactical mesh LODs")]
+        public bool NoLoadExistingLODs { get; set; }
+
+        [Option(Default = "75000-150000,20000-60000,4000-15000,1000-3000,100-600",
+                HelpText = "Create or fix LOD meshes, comma separated list of min-max ranges, finest to coarsest")]
+        public string FixupLODs{ get; set; }
     }
 
     public class ProcessTactical : LandformService
@@ -597,168 +604,172 @@ namespace OPS.Landform
                     }
                 }
 
-                //determine last LOD
-                int lastLOD = 0;
-                if (match.Groups.Count > 2)
+                if (!options.NoLoadExistingLODs)
                 {
-                    lastLOD = int.Parse(match.Groups[2].Value);
-                }
-                else
-                {
-                    string last = mtl.GetCommentValue("LAST_LOD");
-                    if (last != null)
-                    {
-                        lastLOD = int.Parse(last);
-                    }
-                    else
-                    {
-                        string count = mtl.GetCommentValue("LOD_COUNT");
-                        if (count != null)
-                        {
-                            lastLOD = int.Parse(count);
-                        }
-                        else
-                        {
-                            string tot = mtl.GetCommentValue("TOTAL_LOD_COUNT");
-                            if (tot != null)
-                            {
-                                lastLOD = int.Parse(tot) - 1;
-                            }
-                        }
-                    }
-                }
-
-                //check that all LOD are available
-                var lodUrls = new List<string>();
-                string pfx = folder + productId + "_LOD";
-                for (int lod = 1; lod <= lastLOD; lod++)
-                {
-                    string lodUrl = pfx + lod.ToString("00");
+                    //determine last LOD
+                    int lastLOD = 0;
                     if (match.Groups.Count > 2)
                     {
-                        lodUrl += "_" + match.Groups[2];
-                    }
-                    if (FileExists(lodUrl + meshExt))
-                    {
-                        lodUrls.Add(lodUrl + meshExt);
-                    }
-                    else if (match.Groups.Count <= 2 && FileExists(lodUrl + "_" + lastLOD.ToString("00") + meshExt))
-                    {
-                        lodUrls.Add(lodUrl + meshExt);
+                        lastLOD = int.Parse(match.Groups[2].Value);
                     }
                     else
                     {
-                        return error($"mesh {mip.mesh} LOD {lodUrl} not found", mip.mesh);
-                    }
-                }
-
-                //maybe add PRODUCTID.obj as first (finest) LOD
-                string nonLOD = folder + productId + meshExt;
-                if (mip.mesh == nonLOD)
-                {
-                    lodUrls.Insert(0, mip.mesh);
-                }
-                else if (!options.NoExpectNonLODOBJ)
-                {
-                    if (!FileExists(nonLOD))
-                    {
-                        return warn($"mesh {nonLOD} not found", nonLOD);
-                    }
-                    if (options.MaxOBJBytes > 0)
-                    {
-                        long sz = FileSize(nonLOD);
-                        if (sz <= options.MaxOBJBytes)
+                        string last = mtl.GetCommentValue("LAST_LOD");
+                        if (last != null)
                         {
-                            lodUrls.Insert(0, nonLOD);
+                            lastLOD = int.Parse(last);
                         }
                         else
                         {
-                            warn($"ignoring {nonLOD} {Fmt.KMG(sz)} > {Fmt.KMG(options.MaxOBJBytes)} bytes", nonLOD);
-                        }
-                    }
-                }
-
-                //OBJ mesh filesize in bytes is about 112 * numTris
-                //so 500k tri OBJ mesh is about 56M
-                //
-                //v  -1.643300 30.438145 -5.858544 #~34 bytes
-                //vt 0.1280 0.3075 #~18 bytes
-                //f 10475/105268 10425/105269 10456/105270 #~41 bytes
-                //
-                //assuming ~0.5 v per f and 3 vt per f: objBytes = (0.5*34 + 3*18 + 41) * numTris = 112 * numTris
-                //
-                //experimentally:
-                //600k verts, 1.15M faces, 133M bytes (expected 112 * 1.15M = 129M)
-                //160k verts, 300k faces, 34M bytes (expected 112 * 300k = 34M)
-                //41k verts, 76k faces, 8.4M bytes (expected 112 * 76k = 8.58.58.58.58.58.58.58.5M)
-
-                if (options.MaxOBJBytes > 0) //keep longest contiguous suffix of lodUrls within size limit
-                {
-                    int winners = 0, losers = 0;
-                    for (int i = lodUrls.Count - 1; i >= 0; i--) //coarse to fine
-                    {
-                        long sz = FileSize(lodUrls[i]);
-                        if (losers == 0 && sz <= options.MaxOBJBytes)
-                        {
-                            winners++;
-                        }
-                        else
-                        {
-                            losers++;
-                            if (winners > 0)
+                            string count = mtl.GetCommentValue("LOD_COUNT");
+                            if (count != null)
                             {
-                                if (sz > options.MaxOBJBytes)
+                                lastLOD = int.Parse(count);
+                            }
+                            else
+                            {
+                                string tot = mtl.GetCommentValue("TOTAL_LOD_COUNT");
+                                if (tot != null)
                                 {
-                                    warn($"ignoring {lodUrls[i]} {Fmt.KMG(sz)} > {Fmt.KMG(options.MaxOBJBytes)} bytes",
-                                         lodUrls[i]);
-                                }
-                                else
-                                {
-                                    warn($"ignoring {lodUrls[i]}, a coarser LOD was over size limit", lodUrls[i]);
+                                    lastLOD = int.Parse(tot) - 1;
                                 }
                             }
                         }
                     }
-                    //if there was at least one LOD within size limit then drop the losers
-                    if (winners > 0)
+
+                    //check that all LOD are available
+                    var lodUrls = new List<string>();
+                    string pfx = folder + productId + "_LOD";
+                    for (int lod = 1; lod <= lastLOD; lod++)
                     {
-                        lodUrls = lodUrls.GetRange(lodUrls.Count - winners, winners);
-                    }
-                }
-
-                //at this point lodUrls contains all the LOD that should be downloaded, in order from fine to coarse
-                //the LODs will be contiguous and the first entry may be
-                //* PRODUCTID.obj if it and all LOD were small enough and (it was trigger or !NoExpectNonLODOBJ)
-                //* PRODCTID_LOD01[_nn].obj if it was the trigger and all LOD were small enough
-                //* PRODCTID_LODmm[_nn].obj where mm > 1 if it was the coarsest small enough LOD
-
-                //if there are any PRODUCTID_LODmm_nn.obj in the list
-                //i.e. if the list is not just the single entry PRODUCTID.obj
-                //then let's put PRODUCTID.obj into the mip.extraFiles list
-                //and use the first PRODUCIT_LODmm[_nn].obj as mip.mesh
-                //because that way the loader code in OBJSerializer can more efficiently find all the input files
-
-                //I don't think it's possible that lodUrls is empty here
-                //but if it is, just leave mip.mesh and mip.extraFiles as they are
-                if (lodUrls.Count == 1)
-                {
-                    mip.mesh = lodUrls[0];
-                }
-                else if (lodUrls.Count > 1)
-                {
-                    string firstLOD = null;
-                    foreach (string rx in new string[] { "auto_obj_lod", "auto_obj_lod_fn" })
-                    {
-                        firstLOD = lodUrls.Where(u => (new Regex(ParseMeshRegex(rx))).IsMatch(u)).FirstOrDefault();
-                        if (firstLOD != null)
+                        string lodUrl = pfx + lod.ToString("00");
+                        if (match.Groups.Count > 2)
                         {
-                            break;
+                            lodUrl += "_" + match.Groups[2];
+                        }
+                        if (FileExists(lodUrl + meshExt))
+                        {
+                            lodUrls.Add(lodUrl + meshExt);
+                        }
+                        else if (match.Groups.Count <= 2 && FileExists(lodUrl + "_" + lastLOD.ToString("00") + meshExt))
+                        {
+                            lodUrls.Add(lodUrl + meshExt);
+                        }
+                        else
+                        {
+                            return error($"mesh {mip.mesh} LOD {lodUrl} not found", mip.mesh);
                         }
                     }
-                    mip.mesh = firstLOD ?? lodUrls[0];
-                    mip.extraFiles.AddRange(lodUrls.Where(u => u != mip.mesh));
-                }
-            }
+
+                    //maybe add PRODUCTID.obj as first (finest) LOD
+                    string nonLOD = folder + productId + meshExt;
+                    if (mip.mesh == nonLOD)
+                    {
+                        lodUrls.Insert(0, mip.mesh);
+                    }
+                    else if (!options.NoExpectNonLODOBJ)
+                    {
+                        if (!FileExists(nonLOD))
+                        {
+                            return warn($"mesh {nonLOD} not found", nonLOD);
+                        }
+                        if (options.MaxOBJBytes > 0)
+                        {
+                            long sz = FileSize(nonLOD);
+                            if (sz <= options.MaxOBJBytes)
+                            {
+                                lodUrls.Insert(0, nonLOD);
+                            }
+                            else
+                            {
+                                warn($"ignoring {nonLOD} {Fmt.KMG(sz)} > {Fmt.KMG(options.MaxOBJBytes)} bytes", nonLOD);
+                            }
+                        }
+                    }
+
+                    //OBJ mesh filesize in bytes is about 112 * numTris
+                    //so 500k tri OBJ mesh is about 56M
+                    //
+                    //v  -1.643300 30.438145 -5.858544 #~34 bytes
+                    //vt 0.1280 0.3075 #~18 bytes
+                    //f 10475/105268 10425/105269 10456/105270 #~41 bytes
+                    //
+                    //assuming ~0.5 v per f and 3 vt per f: objBytes = (0.5*34 + 3*18 + 41) * numTris = 112 * numTris
+                    //
+                    //experimentally:
+                    //600k verts, 1.15M faces, 133M bytes (expected 112 * 1.15M = 129M)
+                    //160k verts, 300k faces, 34M bytes (expected 112 * 300k = 34M)
+                    //41k verts, 76k faces, 8.4M bytes (expected 112 * 76k = 8.58.58.58.58.58.58.58.5M)
+
+                    if (options.MaxOBJBytes > 0) //keep longest contiguous suffix of lodUrls within size limit
+                    {
+                        int winners = 0, losers = 0;
+                        for (int i = lodUrls.Count - 1; i >= 0; i--) //coarse to fine
+                        {
+                            long sz = FileSize(lodUrls[i]);
+                            if (losers == 0 && sz <= options.MaxOBJBytes)
+                            {
+                                winners++;
+                            }
+                            else
+                            {
+                                losers++;
+                                if (winners > 0)
+                                {
+                                    if (sz > options.MaxOBJBytes)
+                                    {
+                                        warn($"{lodUrls[i]} {Fmt.KMG(sz)} > {Fmt.KMG(options.MaxOBJBytes)} bytes",
+                                             lodUrls[i]);
+                                    }
+                                    else
+                                    {
+                                        warn($"ignoring {lodUrls[i]}, a coarser LOD was over size limit", lodUrls[i]);
+                                    }
+                                }
+                            }
+                        }
+                        //if there was at least one LOD within size limit then drop the losers
+                        if (winners > 0)
+                        {
+                            lodUrls = lodUrls.GetRange(lodUrls.Count - winners, winners);
+                        }
+                    }
+
+                    //at this point lodUrls contains all the LOD that should be downloaded, in order from fine to coarse
+                    //the LODs will be contiguous and the first entry may be
+                    //* PRODUCTID.obj if it and all LOD were small enough and (it was trigger or !NoExpectNonLODOBJ)
+                    //* PRODCTID_LOD01[_nn].obj if it was the trigger and all LOD were small enough
+                    //* PRODCTID_LODmm[_nn].obj where mm > 1 if it was the coarsest small enough LOD
+
+                    //if there are any PRODUCTID_LODmm_nn.obj in the list
+                    //i.e. if the list is not just the single entry PRODUCTID.obj
+                    //then let's put PRODUCTID.obj into the mip.extraFiles list
+                    //and use the first PRODUCIT_LODmm[_nn].obj as mip.mesh
+                    //because that way the loader code in OBJSerializer can more efficiently find all the input files
+
+                    //I don't think it's possible that lodUrls is empty here
+                    //but if it is, just leave mip.mesh and mip.extraFiles as they are
+                    if (lodUrls.Count == 1)
+                    {
+                        mip.mesh = lodUrls[0];
+                    }
+                    else if (lodUrls.Count > 1)
+                    {
+                        string firstLOD = null;
+                        foreach (string rx in new string[] { "auto_obj_lod", "auto_obj_lod_fn" })
+                        {
+                            firstLOD = lodUrls.Where(u => (new Regex(ParseMeshRegex(rx))).IsMatch(u)).FirstOrDefault();
+                            if (firstLOD != null)
+                            {
+                                break;
+                            }
+                        }
+                        mip.mesh = firstLOD ?? lodUrls[0];
+                        mip.extraFiles.AddRange(lodUrls.Where(u => u != mip.mesh));
+                    }
+
+                } //!options.NoLoadExistingLODs
+            } //meshExt.ToLower() == ".obj"
 
             //now find the associated texture file
             string textureFilename = null;
@@ -867,6 +878,8 @@ namespace OPS.Landform
             string venueDir = storageDir + "/" + venue;
             string tilesetDir = GetTilesetDir(venue, "passthrough", project);
             string destDir = TILESET_SUBDIR; //default output to ./TILESET_SUBDIR (e.g. if input is a filename)
+            string loadLODs = !options.NoLoadExistingLODs ? "--loadlods" : "";
+            string fixupLODs = options.FixupLODs;
 
             pipeline.LogInfo("building tileset {0} for {1}", project, pair);
 
@@ -893,7 +906,7 @@ namespace OPS.Landform
                 if (!options.NoTileset)
                 {
                     RunCommand("build-tiling-input", project, "--mission", fullMissionStr, "--meshframe", "tactical",
-                               "--inputmesh", meshFile, "--inputtexture", imageFile, "--loadlods",
+                               "--inputmesh", meshFile, "--inputtexture", imageFile, loadLODs, "--fixuplods", fixupLODs,
                                "--tileresolution", "-1");
 
                     BuildTileset(project, "--notextureerror");

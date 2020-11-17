@@ -550,7 +550,7 @@ namespace OPS.Landform
         {
             name = !string.IsNullOrEmpty(name) ? (name + " ") : "";
 
-            if (sceneTexture != null && sceneTexture.CameraModel != null && meshToImage.HasValue)
+            if (TextureProjectionEnabled())
             {
                 pipeline.LogInfo("atlasing {0}mesh ({1} triangles) with texture projection",
                                  name, Fmt.KMG(mesh.Faces.Count));
@@ -561,6 +561,11 @@ namespace OPS.Landform
             {
                 return base.AtlasMesh(mesh, resolution, name);
             }
+        }
+
+        protected override bool TextureProjectionEnabled()
+        {
+            return sceneTexture != null && sceneTexture.CameraModel != null && meshToImage.HasValue;
         }
 
         private void LoadInputTexture()
@@ -595,7 +600,7 @@ namespace OPS.Landform
             {
                 throw new Exception("cannot load input texture, no scene mesh in database");
             }
-            if (sceneTexture != null && !meshToImage.HasValue)
+            if (sceneTexture != null && !TextureProjectionEnabled())
             {
                 pipeline.LogInfo("loaded {0}x{1} scene texture", sceneTexture.Width, sceneTexture.Height);
                 if (sceneTextureResolution > 0 &&
@@ -606,12 +611,6 @@ namespace OPS.Landform
                                      sceneTexture.Width, sceneTexture.Height, sceneTextureResolution);
                 }
             }
-        }
-
-        private bool TextureSplitEnabled()
-        {
-            return withTextures && tileResolution > 0 && options.SplitByTexturePctToTest > 0 &&
-                (textureMode == TextureMode.Backproject || meshToImage.HasValue);
         }
 
         private void BuildTileTree()
@@ -628,7 +627,9 @@ namespace OPS.Landform
             else
             {
                 SplitByTextureOpts texSplitOpts = null;
-                if (TextureSplitEnabled())
+                bool pdsSceneCam = sceneTexture != null && sceneTexture.Metadata is PDSMetadata && meshToImage.HasValue;
+                if (withTextures && tileResolution > 0 && options.SplitByTexturePctToTest > 0 &&
+                    (textureMode == TextureMode.Backproject || pdsSceneCam))
                 {
                     CameraInstance[] cams = null;
                     if (imageObservations != null && frameCache != null && obsToHull != null)
@@ -651,7 +652,7 @@ namespace OPS.Landform
                         }
                         cams = roverImages.Select(obsToCam).ToArray();
                     }
-                    else if (meshToImage.HasValue && sceneTexture != null && sceneTexture.Metadata is PDSMetadata)
+                    else if (pdsSceneCam)
                     {
                         var md = sceneTexture.Metadata as PDSMetadata;
                         var hullInCam = ConvexHull.FromParams(md.CameraModel, md.Width, md.Height);
@@ -854,7 +855,7 @@ namespace OPS.Landform
             }
 
             if (meshLOD.Count == 1 && (textureMode == TextureMode.Backproject ||
-                                       (textureMode == TextureMode.Clip && !meshToImage.HasValue)))
+                                       (textureMode == TextureMode.Clip && !TextureProjectionEnabled())))
             {
                 pipeline.LogWarn("clipping leaf tile textures but baking parent tile textures");
             }
@@ -974,7 +975,7 @@ namespace OPS.Landform
                 pipeline.SaveDataProduct(project, tileList);
                 sceneMesh.TileListGuid = tileList.Guid;
 
-                if (meshToImage.HasValue)
+                if (TextureProjectionEnabled())
                 {
                     pipeline.LogInfo("saving texture projector");
                     var textureProjector = new TextureProjector(sceneTexture, meshToImage.Value);
@@ -1042,7 +1043,7 @@ namespace OPS.Landform
             }
             else if (textureMode == TextureMode.Clip)
             {
-                if ((!tileMesh.HasUVs || !options.NoRedoTileMeshUVs) && meshToImage.HasValue)
+                if ((!tileMesh.HasUVs || !options.NoRedoTileMeshUVs) && TextureProjectionEnabled())
                 {
                     pipeline.LogVerbose("(re-)atlasing tile mesh {0} with texture projection", tile.Name);
                     ProjectTexture(tileMesh);
