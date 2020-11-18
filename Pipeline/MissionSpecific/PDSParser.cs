@@ -23,7 +23,6 @@ namespace OPS.Pipeline
 
         private static string[] CAMERA_FRAME_GROUPS = new string[]
         {
-            "DERIVED_IMAGE_PARMS", //e.g. MSL range maps have REFERENCE_COORD_SYSTEM_NAME in DERIVED_IMAGE_PARMS
             "GEOMETRIC_CAMERA_MODEL", //MSL OPGS, M2020 OPGS (and MSSS?)
             "GEOMETRIC_CAMERA_MODEL_PARMS" //MSL MSSS
         };
@@ -337,15 +336,6 @@ namespace OPS.Pipeline
 
         public float[] InvalidConstant { get { return GetFloatArray(IMAGE_GROUPS, "INVALID_CONSTANT"); } }
 
-        public RoverProductType DerivedImageType
-        {
-            get
-            {
-                var s = GetString(DERIVED_IMAGE_GROUPS, "DERIVED_IMAGE_TYPE", throwOnFail: false);
-                return !string.IsNullOrEmpty(s) ? RoverProduct.FromPDSDerivedImageType(s) : RoverProductType.Unknown;
-            }
-        }
-
         //MSSS doesn't put this flag in there
         public bool IsSunFinding
         {
@@ -435,6 +425,25 @@ namespace OPS.Pipeline
             get
             {
                 return ParseFrame(GetString(CAMERA_FRAME_GROUPS, "REFERENCE_COORD_SYSTEM_NAME"));
+            }
+        }
+
+        //this is the RDR type, e.g. XYZ, UVW, RAS, etc
+        public RoverProductType DerivedImageType
+        {
+            get
+            {
+                var s = GetString(DERIVED_IMAGE_GROUPS, "DERIVED_IMAGE_TYPE", throwOnFail: false);
+                return !string.IsNullOrEmpty(s) ? RoverProduct.FromPDSDerivedImageType(s) : RoverProductType.Unknown;
+            }
+        }
+
+        //only some RDR types have this, e.g. XYZ, UVW, RAS
+        public ReferenceCoordinateFrame DerivedImageRefFrame
+        {
+            get
+            {
+                return ParseFrame(GetString(DERIVED_IMAGE_GROUPS, "REFERENCE_COORD_SYSTEM_NAME"));
             }
         }
 

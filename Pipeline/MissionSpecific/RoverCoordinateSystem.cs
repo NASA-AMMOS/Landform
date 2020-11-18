@@ -141,38 +141,5 @@ namespace OPS.Pipeline
         {
             localLevelMesh.Translate(originOffset);
         }
-
-        /// <summary>
-        /// Get transform from camera frame to rover frame.
-        /// </summary>
-        public static Matrix GetTransformToRoverFrame(Image img)
-        {
-            return GetTransformToRoverFrame((PDSMetadata)img.Metadata);
-        }
-
-        /// <summary>
-        /// Get transform from camera frame to rover frame.
-        /// </summary>
-        public static Matrix GetTransformToRoverFrame(PDSMetadata metadata)
-        {
-            return GetTransformToRoverFrame(new PDSParser(metadata));
-        }
-
-        /// <summary>
-        /// Get transform from camera frame to rover frame.
-        /// </summary>
-        public static Matrix GetTransformToRoverFrame(PDSParser parser)
-        {
-            var roverOriginRotation = parser.RoverOriginRotation;
-            var originOffset = parser.OriginOffset;
-            var frame = parser.CameraModelRefFrame;
-            switch (frame)
-            {
-                case PDSParser.ReferenceCoordinateFrame.LocalLevel: return LocalLevelToRover(roverOriginRotation);
-                case PDSParser.ReferenceCoordinateFrame.Site: return SiteToRover(roverOriginRotation, originOffset);
-                case PDSParser.ReferenceCoordinateFrame.RoverNav: return Matrix.Identity;
-                default: throw new NotImplementedException("unknown reference frame: " + frame);
-            }
-        }
     }
 }
