@@ -169,6 +169,8 @@ namespace OPS.Pipeline
         public const string TILESET_SUFFIX = "_tileset";
 
         public string S3Proxy;
+        public bool RelativeS3;
+        public bool RelativeFile;
     
         public SceneManifest SceneManifest;
 
@@ -376,7 +378,7 @@ namespace OPS.Pipeline
                 string id = tileset.id + TILESET_SUFFIX;
                 if (rdrs.ContainsKey(id) && rdrs[id].HasUrlExtension("json"))
                 {
-                    tileset.uri = ConvertURI(rdrs[id].GetUrlWithExtension("json"), s3Proxy: S3Proxy);
+                    tileset.uri = ConvertURI(rdrs[id].GetUrlWithExtension("json"), RelativeS3, RelativeFile, S3Proxy);
                 }
             }
         }
@@ -396,7 +398,8 @@ namespace OPS.Pipeline
                         {
                             if (rdrSet.HasUrlExtension(ext))
                             {
-                                image.uri = ConvertURI(rdrSet.GetUrlWithExtension(ext), s3Proxy: S3Proxy);
+                                image.uri =
+                                    ConvertURI(rdrSet.GetUrlWithExtension(ext), RelativeS3, RelativeFile, S3Proxy);
                                 break;
                             }
                         }
@@ -413,7 +416,8 @@ namespace OPS.Pipeline
                             {
                                 if (rdrSet.HasUrlExtension(ext))
                                 {
-                                    image.thumbnail = ConvertURI(rdrSet.GetUrlWithExtension(ext), s3Proxy: S3Proxy);
+                                    image.thumbnail =
+                                        ConvertURI(rdrSet.GetUrlWithExtension(ext), RelativeS3, RelativeFile, S3Proxy);
                                     break;
                                 }
                             }
