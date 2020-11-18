@@ -114,6 +114,12 @@ if not "%LANDFORM_TACTICAL_MAX_TILE_RESOLUTION%"=="" (
    set tileres=--maxtileresolution=%LANDFORM_TACTICAL_MAX_TILE_RESOLUTION%
 )
 
+set preferpds=
+if not "%LANDFORM_TACTICAL_NO_PREFER_PDS_TEXTURE%"=="" set preferpds=--nopreferpdstexture
+
+set requirepds=
+if not "%LANDFORM_TACTICAL_NO_REQUIRE_PDS_TEXTURE%"=="" set requirepds=--norequirepdstexture
+
 rem --- end service specific ---
 
 set stdopts=--configdir=%cfgdir% --configfolder=%cfgfolder% --logdir=%logdir% --tempdir=%tmpdir%
@@ -122,7 +128,7 @@ set svcopts=%stdopts% --stacktraces --service --mission=%mission% --queuename=%q
 set svcopts=%svcopts% --awsprofile=%awsprofile% --awsregion=%awsregion% %credentialrefresh%
 set svcopts=%svcopts% %msgopts%
 
-set tacticalopts=%meshregex% %mesheye% %meshgeom% %noloadlods% %fixuplods% %tileres%
+set tacticalopts=%meshregex% %mesheye% %meshgeom% %noloadlods% %fixuplods% %tileres% %preferpds% %requirepds%
 set tacticalopts=%tacticalopts% %noindices% %embedindices% %tilesetimageformat% %tilesetindexformat%
 
 set appsdir=%bindir%\ExternalApps

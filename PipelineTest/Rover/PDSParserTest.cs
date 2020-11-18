@@ -58,6 +58,9 @@ namespace PipelineTest
                 Assert.AreEqual(0.003807, articulation.LeftRockerAngle);
                 Assert.AreEqual(5.771630, articulation.MastAzimuth);
                 Assert.AreEqual(0.631446, articulation.MastElevation);
+
+                Assert.AreEqual(MathHelper.ToRadians(17.2370), m.HorizontalFOV);
+                Assert.AreEqual(MathHelper.ToRadians(14.7209), m.VerticalFOV);
             }
 
             {
@@ -104,7 +107,10 @@ namespace PipelineTest
                 Assert.AreEqual(0.0275015, articulation.LeftRockerAngle);
                 Assert.AreEqual(6.20445, articulation.MastAzimuth);
                 Assert.AreEqual(1.97266, articulation.MastElevation);
-                Assert.AreEqual(PDSParser.ReferenceCoordinateFrame.Site, m.DerivedImageRefFrame);
+                Assert.AreEqual(PDSParser.ReferenceCoordinateFrame.Site, m.CameraModelRefFrame);
+
+                Assert.AreEqual(MathHelper.ToRadians(45.3641), m.HorizontalFOV);
+                Assert.AreEqual(MathHelper.ToRadians(45.3596), m.VerticalFOV);
             }
 
             {
@@ -150,6 +156,9 @@ namespace PipelineTest
                 Assert.AreEqual(-0.013007, articulation.LeftRockerAngle);
                 Assert.AreEqual(4.092333, articulation.MastAzimuth);
                 Assert.AreEqual(1.127138, articulation.MastElevation);
+
+                Assert.AreEqual(MathHelper.ToRadians(14.1369), m.HorizontalFOV);
+                Assert.AreEqual(MathHelper.ToRadians(5.3250), m.VerticalFOV);
             }
         }
     }

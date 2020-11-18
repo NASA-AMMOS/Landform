@@ -204,7 +204,7 @@ namespace OPS.Pipeline
         {
             CheckCameraFrame(parser, what, PDSParser.ReferenceCoordinateFrame.RoverNav);
             Vector3 cameraCenter = GetCameraCenter(img, what);
-            if (checkRangeOrigin)
+            if (checkRangeOrigin && parser.DerivedImageType == RoverProductType.Range)
             {
                 Matrix xform = RoverCoordinateSystem.GetTransformToRoverFrame(parser);
                 Vector3 rangeOrigin = Vector3.Transform(parser.RangeOrigin, xform);

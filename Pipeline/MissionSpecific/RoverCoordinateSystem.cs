@@ -143,7 +143,7 @@ namespace OPS.Pipeline
         }
 
         /// <summary>
-        /// Get transform from DERIVED_IMAGE_PARAMS/REFERENCE_COORDINATE_SYSTEM_NAME in image PDS metadata to rover frame.
+        /// Get transform from camera frame to rover frame.
         /// </summary>
         public static Matrix GetTransformToRoverFrame(Image img)
         {
@@ -151,7 +151,7 @@ namespace OPS.Pipeline
         }
 
         /// <summary>
-        /// Get transform from DERIVED_IMAGE_PARAMS/REFERENCE_COORDINATE_SYSTEM_NAME in PDS metadata to rover frame.
+        /// Get transform from camera frame to rover frame.
         /// </summary>
         public static Matrix GetTransformToRoverFrame(PDSMetadata metadata)
         {
@@ -159,46 +159,20 @@ namespace OPS.Pipeline
         }
 
         /// <summary>
-        /// Get transform from DERIVED_IMAGE_PARAMS/REFERENCE_COORDINATE_SYSTEM_NAME in PDS metadata to rover frame.
+        /// Get transform from camera frame to rover frame.
         /// </summary>
         public static Matrix GetTransformToRoverFrame(PDSParser parser)
         {
             var roverOriginRotation = parser.RoverOriginRotation;
             var originOffset = parser.OriginOffset;
-            switch (parser.DerivedImageRefFrame)
+            var frame = parser.CameraModelRefFrame;
+            switch (frame)
             {
                 case PDSParser.ReferenceCoordinateFrame.LocalLevel: return LocalLevelToRover(roverOriginRotation);
                 case PDSParser.ReferenceCoordinateFrame.Site: return SiteToRover(roverOriginRotation, originOffset);
                 case PDSParser.ReferenceCoordinateFrame.RoverNav: return Matrix.Identity;
-                default: throw new NotImplementedException("unknown reference frame: " + parser.DerivedImageRefFrame);
+                default: throw new NotImplementedException("unknown reference frame: " + frame);
             }
-        }
-
-        //from sha 938edc12515e3ab8d29f20df077c5ae125af72c2 in terrain tools
-        static public void GetCameraToRover(CameraModel m, out Matrix cameraToRover)
-        {
-            CAHV linear = (CAHV)m;
-
-            double h_c = linear.A.Dot(linear.H);
-            double v_c = linear.A.Dot(linear.V);
-
-            double h_s = linear.A.Cross(linear.H).Length();
-            double v_s = linear.A.Cross(linear.V).Length();
-
-            Vector3 fwd = linear.A; fwd.Normalize();
-            Vector3 right = (linear.H - h_c * linear.A) / h_s;
-            Vector3 up = (linear.V - v_c * linear.A) / v_s;
-
-            cameraToRover = Matrix.Identity;
-            for (int i = 0; i < 3; i++)
-            {
-                cameraToRover[0, i] = right[i];
-                cameraToRover[1, i] = up[i];
-                cameraToRover[2, i] = fwd[i];
-            }
-            cameraToRover.Translation = linear.C;
-
-            //TODO: port/validate nonlinear code from terrain tools
         }
     }
 }

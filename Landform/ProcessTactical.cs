@@ -97,8 +97,11 @@ namespace OPS.Landform
         [Option(Default = "png,img,vic,rgb,jpg", HelpText = "Comma separated list of fallback texture formats, empty to disable texture fallback")]
         public string FallbackTextureFormats { get; set; }
 
-        [Option(Default = false, HelpText = "Prefer PDS version of texture if available (enables texture coordinate projection)")]
+        [Option(Default = false, HelpText = "Don't prefer PDS version of texture if available (enables texture coordinate projection)")]
         public bool NoPreferPDSTexture { get; set; }
+
+        [Option(Default = false, HelpText = "Don't require PDS version of texture to be available")]
+        public bool NoRequirePDSTexture { get; set; }
 
         [Option(Default = 150*1000*1000, HelpText = "Skip downloading OBJ LOD meshes greater than this size if smaller ones are available (non-positive disables)")]
         public long MaxOBJBytes { get; set; }
@@ -323,6 +326,12 @@ namespace OPS.Landform
                 case "auto_mtl_lod_fn": return @"([^/]+)_LOD01_(\d+)\.mtl$"; //first lod, get num LODs from filename
                 default: return regex;
             }
+        }
+
+        private bool IsPDS(string url)
+        {
+            return StringHelper.ParseList(mission.GetPDSExts())
+                .Any(px => url.EndsWith(px, StringComparison.OrdinalIgnoreCase));
         }
 
         protected override Project GetProject()
@@ -856,6 +865,11 @@ namespace OPS.Landform
                 return warn($"mesh {mip.mesh} texture unavailable", mip.mesh);
             }
 
+            if (!options.NoRequirePDSTexture && !IsPDS(mip.image))
+            {
+                return warn($"texture {mip.image} is not PDS", mip.image);
+            }
+
             return mip;
         }
 
@@ -901,8 +915,7 @@ namespace OPS.Landform
 
                     BuildTileset(project, "--tileresolution", tileRes);
 
-                    if (StringHelper.ParseList(mission.GetPDSExts())
-                        .Any(px => imageFile.EndsWith(px, StringComparison.OrdinalIgnoreCase)))
+                    if (IsPDS(imageFile))
                     {
                         RunCommand("update-scene-manifest", "--mission", fullMissionStr,
                                    "--awsprofile", awsProfile, "--awsregion", awsRegion,

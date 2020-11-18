@@ -53,7 +53,6 @@ namespace OPS.Imaging
         public long RecordBytes;
         public Type SampleType;
         public int BitDepth;
-        // Start location of image data
         public string DataPath;
         public long DataOffset;
         public uint BitMask;
@@ -62,40 +61,39 @@ namespace OPS.Imaging
         // Optional Metadata
         public CameraModel CameraModel;
 
-        public PDSMetadata(Stream stream, bool loadAsVIC = false) : base()
-        {
-            if (loadAsVIC)
-            {
-                InitVIC(stream);
-            }
-            else
-            {
-                InitPDS(stream);
-            }
-        }
 
         public PDSMetadata(string filename) : base()
         {
             using (FileStream fs = File.OpenRead(filename))
             {
-                string ext = Path.GetExtension(filename).ToUpper();
-                if (ext == ".IMG")
-                {
-                    InitPDS(fs);
-                }
-                else if (ext == ".VIC")
+                if (IsVIC(fs, filename))
                 {
                     InitVIC(fs);
                 }
-                else if (ext == ".LBL")
+                else
                 {
                     InitPDS(fs);
                 }
-                else
-                {
-                    throw new ImageSerializationException("Unexpected file extension");
-                }                
             }
+        }
+
+        //https://github.jpl.nasa.gov/OnSight/Landform/issues/131
+        private bool IsVIC(FileStream fs, string filename)
+        {
+            try
+            {
+                string magic = "LBLSIZE";
+                var sr = new StreamReader(fs);
+                char[] buffer = new char[magic.Length];
+                int n = sr.Read(buffer, 0, magic.Length);
+                fs.Seek(0, SeekOrigin.Begin);
+                if (n == magic.Length)
+                {
+                    return new string(buffer) == "LBLSIZE";
+                }
+            }
+            catch (Exception) { } //ignore
+            return Path.GetExtension(filename).ToUpper() == ".VIC"; //error or didn't read n bytes
         }
 
         public PDSMetadata(PDSMetadata that) : base(that)
@@ -213,7 +211,7 @@ namespace OPS.Imaging
             {
                 throw new VICMetadataException("Binary record headers not supported");
             }
-            if(ReadAsString("INTFMT") == "LOW")
+            if (ReadAsString("INTFMT") == "LOW")
             {
                 this.BigEndian = false;
             }
@@ -314,60 +312,62 @@ namespace OPS.Imaging
 
         private Dictionary<string, Dictionary<string, string>> ReadVICHeader(Stream stream)
         {
-            Dictionary<string, Dictionary<string, string>> header = new Dictionary<string, Dictionary<string, string>>();
-            StreamReader sr = new StreamReader(stream);
-            char[] buffer = new char[1000];
-            sr.Read(buffer, 0, 1000);
-            string sizeLabelText = new string(buffer);
-            string[] tokens = sizeLabelText.Split(' ');
-
-            var parts = tokens[0].Split('=');
-            string name = parts[0].Trim();
-            string value = parts[1];
-            if (name != "LBLSIZE")
-            {
-                throw new VICMetadataException("LBLSIZE not found");
-            }
-            int headerLength = int.Parse(value);
-            stream.Position = 0;
-            sr = new StreamReader(stream);
-            buffer = new char[headerLength];
-            sr.Read(buffer, 0, headerLength);
-            string headerText = new string(buffer); //allText.Substring(0, headerLength);
-
+            var header = new Dictionary<string, Dictionary<string, string>>();
             header.Add(NULL_GROUP, new Dictionary<string, string>());
 
-            tokens = headerText.Split(' ');
-            string group = NULL_GROUP;
-            foreach (var tok in tokens)
+            StreamReader sr = new StreamReader(stream);
+            char[] buffer = new char[100];
+            sr.Read(buffer, 0, buffer.Length);
+            stream.Position = 0;
+            sr.DiscardBufferedData();
+
+            var sizeMatch = Regex.Match(new string(buffer), @"LBLSIZE\s*=\s*(\d+)");
+            if (!sizeMatch.Success)
             {
-                // Note it is totally possible to have a valid VIC file with spaces around the = sign, we don't handle it here
-                // because we expect its rare and complicates parsing.  
-                if (tok.Contains("="))
+                throw new VICMetadataException($"VIC LBLSIZE not found");
+            }
+            int headerLength = int.Parse(sizeMatch.Groups[1].Value);
+            
+            buffer = new char[headerLength];
+            sr.Read(buffer, 0, headerLength);
+
+            //https://www-mipl.jpl.nasa.gov/external/VICAR_file_fmt.pdf
+            //"[VICAR] Keywords are strings, up to 32 characters in length,
+            //and consist of uppercase characters, underscores (_), and numbers (but should start with a letter)"
+
+            //NAME='VAL', NAME='FOO ''BAR'' BAZ', NAME=VAL
+            //also allows optional space before and after equals sign
+            //https://github.jpl.nasa.gov/OnSight/Landform/issues/131
+            var regex = new Regex(@"\s*([A-Z][A-Z_0-9]*)\s*=\s*((?:'(?:[^']*(?:'')?)*')|\([^)]+\)|\S+)");
+
+            string group = NULL_GROUP;
+            foreach (Match match in regex.Matches(new string(buffer)))
+            {
+                string key = match.Groups[1].Value;
+                string val = ParseString(match.Groups[2].Value);
+                if (key == "PROPERTY" || key == "TASK")
                 {
-                    int splitIndex = tok.IndexOf('=');
-                    if (splitIndex == 0)
+                    group = val;
+                    if (!header.ContainsKey(group))
                     {
-                        throw new VICMetadataException("Unexpected '=' sign.  Reader does not currently support spaces between '=' and name/value");
+                        header.Add(group, new Dictionary<string, string>());
                     }
-                    name = tok.Substring(0, splitIndex).Trim();
-                    value = tok.Substring(splitIndex + 1, tok.Length - splitIndex - 1).Trim();
-                    if (name.ToUpper() == "PROPERTY")
-                    {
-                        group = ParseString(value);
-                        if (!header.ContainsKey(value))
-                        {
-                            header.Add(group, new Dictionary<string, string>());
-                        }
-                        continue;
-                    }
-                    if (name.ToUpper() == "TASK")
-                    {
-                        break;
-                    }
-                    header[group].Add(name, value);
+                }
+                else
+                {
+                    //if (header[group].ContainsKey(key))
+                    //{
+                    //    Console.WriteLine("overwriting group={0} key={1} val={2} with {3}",
+                    //                      group, key, header[group][key], val);
+                    //}
+                    //else
+                    //{
+                    //    Console.WriteLine("group={0} key={1} val={2}", group, key, val);
+                    //}
+                    header[group][key] = val;
                 }
             }
+
             return header;
         }
     }
