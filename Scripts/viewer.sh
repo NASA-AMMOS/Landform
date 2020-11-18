@@ -27,16 +27,12 @@
 out=out
 lfbucket=m20-ids-g-landform
 port=8000
-domain=dev.m20.jpl.nasa.gov
-hproxy=https://localhost.$domain
-dproxy=https://data.$domain
 viewer=Unity3DTilesWeb
-pem=localhost.pem
 openurl="python -m webbrowser"
 docurl=https://github.jpl.nasa.gov/OnSight/Landform/wiki/M2020-Data-Notes#data-proxy
 
 if [ $# -lt 1 ]; then
-    echo "viewer.sh s3://BUCKET/PATH/*{tileset|scene}.json|$out/PATH/*{tileset|scene}.json ..."
+    echo "viewer.sh [dev|sstage|sbeta|sops] s3://BUCKET/PATH/*{tileset|scene}.json|$out/PATH/*{tileset|scene}.json ..."
     exit 1
 fi
 
@@ -44,6 +40,18 @@ if [[ `python --version` != *3.?.? ]]; then
     echo "python 3.7+ required"
     exit 1
 fi
+
+venue=dev
+if [[ $# > 1 && $1 =~ ^(dev|sstage|sbeta|sops)$ ]]; then
+    venue=$1
+    shift
+fi
+
+echo "venue: $venue"
+
+domain=${venue}.m20.jpl.nasa.gov
+hproxy=https://localhost.$domain
+dproxy=https://data.$domain
 
 baseurl=$hproxy:$port/$viewer/index.html
 
@@ -60,11 +68,12 @@ if [ ! -f $out/$viewer/index.html ]; then
     sed -i '/<script.*UnityLoader.js.*script>/i <script>XMLHttpRequest.prototype.originalOpen = XMLHttpRequest.prototype.open; var newOpen = function(_, url) { var original = this.originalOpen.apply(this, arguments); if (url.indexOf("m20.jpl.nasa.gov") >= 0) this.withCredentials = true; return original; }; XMLHttpRequest.prototype.open = newOpen;</script>' $out/$viewer/index.html
 fi
 
+pem=localhost-${venue}.pem
 if [ ! -f $pem ]; then
     firstslash=/
     midslash=/
     if [[ `uname -s` == MINGW* ]]; then firstslash=//; midslash=\\; fi
-    subj="${firstslash}CN=localhost.dev.m20.jpl.nasa.gov${midslash}OU=JPL${midslash}O=NASA${midslash}C=US"
+    subj="${firstslash}CN=localhost.${venue}.m20.jpl.nasa.gov${midslash}OU=JPL${midslash}O=NASA${midslash}C=US"
     openssl req -new -x509 -keyout $pem -out $pem -days 365 -nodes -subj "$subj"
 fi
 
@@ -72,11 +81,11 @@ for url in "$@"; do
     query="?Tileset="
     if [[ $url == *_scene.json ]]; then query="?Scene="; fi
     if [[ $url == s3://* ]]; then
+        if [ ! "$using_s3" ]; then $openurl $dproxy; using_s3=true; fi
         url=${url#s3://}
         bucket=${url%%/*}
         key=${url#*/}
         url=${baseurl}${query}${dproxy}/$bucket/$key
-        if [ ! "$using_dproxy" ]; then $openurl $dproxy; using_dproxy=true; fi
     elif [[ "$url" ==  $out/* ]] || [[ "$url" == ./$out/* ]]; then
         url=${url#$out/}
         url=${url#./$out/}
@@ -88,12 +97,12 @@ for url in "$@"; do
     $openurl $url
 done
 
-if [ "$using_dproxy" ]; then
+if [ "$using_s3" ]; then
     echo "if tileset(s) don't load then"
     echo "0) clear cookies for $domain"
     echo "1) make sure you've logged in at $dproxy"
     echo "2) check bucket(s) have CORS configured (see $docurl)"
-    echo "3) view page source and make sure the shim script has been injected before the unity loader (if not rm -rf $out/$viewer $out/${viewer}.zip, make sure you have credss credentials to read s3://$lfbucket, and try again)"
+    echo "3) view page source and make sure the shim script has been injected before the unity loader (if not rm -rf $out/$viewer $out/${viewer}.zip, make sure you have credss credentials to read s3://$lfbucket (in dev venue), and try again)"
     echo "4) note that if you are trying to view a scene.json on S3 there is currently a known bug, see ticket for workaround: https://github.jpl.nasa.gov/OnSight/Landform/issues/1136"
     echo "5) sacrifice chicken"
 fi
