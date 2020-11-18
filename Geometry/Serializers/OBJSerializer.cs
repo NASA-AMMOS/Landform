@@ -138,10 +138,7 @@ namespace OPS.Geometry
                 vertices.Capacity = (int)nv;
                 uvs.Capacity = (int)nvt;
                 objFaces.Capacity = (int)nt;
-                //if (!onlyGetImageFilename)
-                //{
-                //    Console.WriteLine("{0} {1} bytes, expected {2} tris", filename, Fmt.KMG(bytes), Fmt.KMG(nt));
-                //}
+                //if (!onlyGetImageFilename) Console.WriteLine("{0} {1} bytes, {2} tris", filename, Fmt.KMG(bytes), Fmt.KMG(nt));
             }
 
             // OBJs can contain different length arrays of vert, uv, normals.
@@ -323,7 +320,9 @@ namespace OPS.Geometry
         }
 
 #if FAST_PARSE
+
         //these give about a 20% speedup
+
         private static float ParseFloat(string str)
         {
             float ret = StringHelper.FastParseFloat(str);
@@ -332,19 +331,24 @@ namespace OPS.Geometry
             //if (diff > 1e-6) Console.WriteLine("str={0}, fastParse={1}, parse={2}, diff={3}", str, ret, ck, diff);
             return ret;
         }
+
         private static int ParseInt(string str)
         {
             return StringHelper.FastParseInt(str);
         }
+
 #else
+
         private static float ParseFloat(string str)
         {
-            return float.Parse(str);
+            return (float)(double.Parse(str));
         }
+
         private static int ParseInt(string str)
         {
             return int.Parse(str);
         }
+
 #endif
 
         public static Mesh Read(string filename, double defaultAlpha = 1, int capacity = 0)

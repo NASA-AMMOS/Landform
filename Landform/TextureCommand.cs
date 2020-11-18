@@ -626,6 +626,11 @@ namespace OPS.Landform
                     }
                     if (src != null)
                     {
+                        if (src.Faces.Count - target > 10000)
+                        {
+                            pipeline.LogInfo("decimating {0} LOD {1} from {2} to {3} triangles for fixed up lod {4}",
+                                             st, s, Fmt.KMG(src.Faces.Count), Fmt.KMG(target), i);
+                        }
                         newLODs[i] = src.Decimate(target, tcopts.MeshDecimator);
                         pipeline.LogInfo("decimated {0} tri {1} LOD {2} for fixed up LOD {3} ({4}-{5}) " +
                                          "to {6} (target {7}) tris with {8}", Fmt.KMG(src.Faces.Count), st, s, i,
