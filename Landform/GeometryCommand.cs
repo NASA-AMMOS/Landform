@@ -312,6 +312,11 @@ namespace OPS.Landform
             }
         }
 
+        protected virtual bool TextureProjectionEnabled()
+        {
+            return false;
+        }
+
         protected Vector2 PointToUV(BoundingBox meshBounds, Vector3 pt)
         {
             //regarding the Swap() see comments in HeightmapAtlasMesh()

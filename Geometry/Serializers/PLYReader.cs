@@ -311,7 +311,7 @@ namespace OPS.Geometry
         /// <param name="textureFilename">This will be filled with the texture associated with the ply if there is one.  Null otherwise.</param>
         /// <param name="defaultAlpha">Some PLY files only contain RGB colors.  If so, use this value as the default alpha.  Suggested value is 1</param>
         /// <returns></returns>
-        public Mesh Read(out string textureFilename, double defaultAlpha)
+        public Mesh Read(out string textureFilename, double defaultAlpha, bool onlyGetImageFilename = false)
         {
             Mesh result = new Mesh();
             List<Property> vertexProps = new List<Property>();
@@ -387,6 +387,10 @@ namespace OPS.Geometry
                         if (tmp.Contains(PLYSerializer.TextureFileCommentName))
                         {
                             textureFilename = tmp.Replace(PLYSerializer.TextureFileCommentName, "").Trim();
+                            if (onlyGetImageFilename)
+                            {
+                                return null;
+                            }
                         }
                         else
                         {

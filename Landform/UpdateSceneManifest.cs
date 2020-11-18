@@ -549,6 +549,8 @@ namespace OPS.Landform
                 sceneManifest = SceneManifestHelper.Create();
             }
             sceneManifest.S3Proxy = s3Proxy;
+            sceneManifest.RelativeS3 = options.RelativeS3URIs;
+            sceneManifest.RelativeFile = !options.NoRelativeFileURIs;
         }
 
         private void SaveManifest()

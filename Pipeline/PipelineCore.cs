@@ -451,6 +451,12 @@ namespace OPS.Pipeline
         public abstract bool FileExists(string url, bool constrainToStorage = false);
 
         /// <summary>
+        /// Get file size in bytes in persisted storage.
+        /// </summary>
+        /// <param name="url">source URL, if constrainToStorage = true must start with StorageURL/Venue</param>
+        public abstract long FileSize(string url, bool constrainToStorage = false);
+
+        /// <summary>
         /// Search persisted files.
         ///
         /// If url ends with "/" then it's taken to be a directory name and the search returns all matching files within
@@ -546,6 +552,11 @@ namespace OPS.Pipeline
         }
 
         public T GetDataProduct<T>(Project project, Guid guid) where T : DataProduct, new()
+        {
+            return GetDataProduct<T>(project.ProductPath, guid, project.Name);
+        }
+
+        public T GetDataProduct<T>(TilingProject project, Guid guid) where T : DataProduct, new()
         {
             return GetDataProduct<T>(project.ProductPath, guid, project.Name);
         }

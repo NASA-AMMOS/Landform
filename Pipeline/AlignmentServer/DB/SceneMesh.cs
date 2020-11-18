@@ -40,15 +40,17 @@ namespace OPS.Pipeline.AlignmentServer
 
         public Guid MeshGuid;
 
-        public Guid BackprojectIndexGuid;
-
         public Guid TextureGuid;
+
+        public Guid BackprojectIndexGuid;
 
         public Guid BlurredTextureGuid;
 
         public Guid BlendedTextureGuid;
 
         public Guid TileListGuid;
+
+        public Guid TextureProjectorGuid;
 
         protected void IsValid()
         {
@@ -80,10 +82,6 @@ namespace OPS.Pipeline.AlignmentServer
             this.Variant = variant;
             this.MeshGuid = meshGuid;
             this.TextureGuid = textureGuid;
-            this.BackprojectIndexGuid = Guid.Empty;
-            this.BlurredTextureGuid = Guid.Empty;
-            this.BlendedTextureGuid = Guid.Empty;
-            this.TileListGuid = Guid.Empty;
             this.SurfaceExtent = surfaceExtent;
             IsValid();
         }

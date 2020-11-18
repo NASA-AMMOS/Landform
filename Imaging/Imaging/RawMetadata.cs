@@ -46,7 +46,7 @@ namespace OPS.Imaging
     public class RawMetadata : ImageMetadata
     {
         protected Dictionary<string, Dictionary<string, string>> rawHeader;
-        protected const string NULL_GROUP = "";
+        public const string NULL_GROUP = "";
 
         public RawMetadata() : base()
         {

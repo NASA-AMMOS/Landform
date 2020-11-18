@@ -79,10 +79,26 @@ namespace OPS.Pipeline.TilingServer
             {
                 LogLess("generating parent {0} mesh and geometric error from {1} tiles",
                         message.TileId, parent.DependsOn.Count);
+
                 int maxTextureSize = project.TextureMode == TextureMode.None ? 0 : project.TextureResolution;
+
+                TextureProjector textureProjector = null;
+                Image textureImage = null;
+                if (project.TextureProjectorGuid != Guid.Empty)
+                {
+                    textureProjector = pipeline.GetDataProduct<TextureProjector>(project, project.TextureProjectorGuid);
+                    var texGuid = textureProjector.TextureGuid;
+                    if (project.TextureMode == TextureMode.Clip && texGuid != Guid.Empty)
+                    {
+                        textureImage = pipeline.GetDataProduct<PngDataProduct>(project, texGuid).Image;
+                    }
+                }
+
                 if (!parentSceneNode.BuildGeometryFromChildren(parentSceneNode, project.ReconstructionMethod,
-                                                               project.FacesPerTile, maxTextureSize,
-                                                               project.SkirtMode, info: msg => LogLess(msg),
+                                                               project.FacesPerTile, project.SkirtMode,
+                                                               project.TextureMode, maxTextureSize,
+                                                               textureProjector, textureImage,
+                                                               info: msg => LogLess(msg),
                                                                error: msg => { throw new Exception(msg); }))
                 {
                     throw new Exception("failed to build parent from children");

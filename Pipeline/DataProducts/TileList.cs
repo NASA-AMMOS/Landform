@@ -14,6 +14,7 @@ namespace OPS.Pipeline
         public string MeshFrame;
         public bool HasIndexImages;
         public TilingScheme TilingScheme;
+        public TextureMode TextureMode;
         public List<string> LeafNames;
         public List<string> ParentNames;
     }

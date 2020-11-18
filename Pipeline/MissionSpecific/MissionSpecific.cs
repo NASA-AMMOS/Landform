@@ -12,7 +12,7 @@ using OPS.Pipeline.AlignmentServer;
 
 namespace OPS.Pipeline
 {
-    public enum Mission { None, MSL, M2020, ROASTT19, TT4, ScarecrowEECAM, ROASTT20, M20SOPS }
+    public enum Mission { None, MSL, M2020, ROASTT19, TT4, ScarecrowEECAM, ROASTT20, ORT11, M20SOPS }
 
     public class MissionConfig : SingletonConfig<MissionConfig>
     {
@@ -154,6 +154,7 @@ namespace OPS.Pipeline
                 case Mission.TT4: return new MissionTT4(venue);
                 case Mission.ScarecrowEECAM: return new MissionScarecrowEECAM(venue);
                 case Mission.ROASTT20: return new MissionROASTT20(venue);
+                case Mission.ORT11: return new MissionORT11(venue);
                 case Mission.M20SOPS: return new MissionM20SOPS(venue);
                 default: throw new NotImplementedException("unknown mission");
             }
@@ -886,14 +887,31 @@ namespace OPS.Pipeline
         }
 
         /// <summary>
-        /// Get tactical mesh file extension.
-        /// Not case sensitive, leading dot will be added automatically.
+        /// Get comma separated list of tactical (i.e. wedge) mesh file extensions.
+        /// Not case sensitive, no leading dots.
+        /// In priority order so if a file is available in multiple formats the first one found will be used.
         /// </summary>
-        public virtual string GetTacticalMeshExt()
+        public virtual string GetTacticalMeshExts()
         {
-            //prefer IV until we implement per-LOD OBJs
-            //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/749
-            return "iv";
+            return "iv,obj";
+        }
+
+        /// <summary>
+        /// Get a regex for testing whether a URL should trigger tactical mesh tileset generation.
+        /// The first capturing group, which always exists, is the product id.
+        /// The second capturing group, if any, is the number of the last LOD.
+        /// </summary>
+        public virtual string GetTacticalMeshTriggerRegex()
+        {
+            return "auto_iv"; //see ProcessTactical.ParseMeshRegex()
+        }
+
+        /// <summary>
+        /// Get the geometry type to process for tactical meshes.
+        /// </summary>
+        public virtual RoverProductGeometry GetTacticalMeshGeometry()
+        {
+            return RoverProductGeometry.Any;
         }
 
         /// <summary>

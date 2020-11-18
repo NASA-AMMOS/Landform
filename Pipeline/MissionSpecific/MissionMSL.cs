@@ -245,7 +245,7 @@ namespace OPS.Pipeline
 
             if (IsMastcam(cam))
             {
-                if (!parser.FilterNumber.HasValue || parser.FilterNumber != 0)
+                if (parser.FilterNumber != 0)
                 {
                     reason = "mastcam with color filter";
                     return false;
@@ -338,6 +338,11 @@ namespace OPS.Pipeline
                 "\"AuthCookieName\": \"ssosession\",\n" +
                 $"\"AuthCookieFile\": \"~/.cssotoken/{venue}/ssosession\"\n" +
                 "}";
+        }
+
+        public override RoverProductGeometry GetTacticalMeshGeometry()
+        {
+            return RoverProductGeometry.Linearized;
         }
     }
 }

@@ -6,9 +6,10 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
+using OPS.Util;
 using OPS.Geometry;
 using OPS.Imaging;
-using OPS.Util;
+using OPS.Pipeline.TilingServer;
 
 namespace OPS.Pipeline
 {
@@ -67,8 +68,8 @@ namespace OPS.Pipeline
             return result;
         }
 
-        public static int ComputeParentTileResolution(IEnumerable<MeshImagePair> pairs, BoundingBox cropBounds,
-                                                      int maxTextureSize = int.MaxValue)
+        public static int ComputeParentTileResolution(IEnumerable<MeshImagePair> childMeshImagePairs,
+                                                      BoundingBox cropBounds, int maxTextureSize = int.MaxValue)
         {
             if (maxTextureSize == 0)
             {
@@ -82,7 +83,7 @@ namespace OPS.Pipeline
             // and calculate the area the triangles occupy in units of pixels.  Sum all
             // the areas and round up to nearest power of two to decide size of the new tile
             double totalPixels = 0;
-            foreach (var p in pairs)
+            foreach (var p in childMeshImagePairs)
             {
                 var clipped = Mesh.Clip(p.Mesh, cropBounds);
                 totalPixels += TextureBaker.ComputePixelArea(clipped, p.Image);
@@ -108,12 +109,6 @@ namespace OPS.Pipeline
             return node.Children.All(n => n.HasComponent<MeshImagePair>());
         }
 
-        public static List<SceneNode> FindNodesRequiredForParent(this SceneNode node, SceneNode root, double childBoundSearchRatio = DEFAULT_SEARCH_RATIO)
-        {
-            BoundingBox tmp;
-            return FindNodesRequiredForParent(node, root, out tmp, childBoundSearchRatio);
-        }
-
         /// <summary>
         /// find all nodes that would be required to build a mesh for a given node
         ///
@@ -128,13 +123,12 @@ namespace OPS.Pipeline
         ///
         /// NOTE: as in all the tiling code bounds are all in same coordinate frame (all node Transforms are identity)
         /// </summary>
-        public static List<SceneNode> FindNodesRequiredForParent(this SceneNode node, SceneNode root, out BoundingBox searchBounds, double childBoundSearchRatio = DEFAULT_SEARCH_RATIO)
+        public static List<SceneNode> FindNodesRequiredForParent
+            (this SceneNode node, SceneNode root, double childBoundSearchRatio = DEFAULT_SEARCH_RATIO)
         {
             int childDepth = node.Children.First().Transform.Depth();
-            searchBounds = node.ChildBounds().CreateScaled(childBoundSearchRatio);
-            var childNodes = root.FindOverlapingNodes(childDepth, searchBounds);
-            return childNodes;
-
+            var searchBounds = node.ChildBounds().CreateScaled(childBoundSearchRatio);
+            return root.FindOverlapingNodes(childDepth, searchBounds);
         }
 
         /// <summary>
@@ -146,34 +140,41 @@ namespace OPS.Pipeline
         /// <param name="maxTextureSize"></param>
         /// <param name="skirtAxis"></param>
         /// <param name="childBoundSearchRatio"></param>
-        public static bool BuildGeometryFromChildren(this SceneNode node, SceneNode root,
-                                                     MeshReconstructionMethod reconstructionMethod,
-                                                     int maxFaceCountTarget, int maxTextureSize, SkirtMode? skirtAxis,
-                                                     double childBoundSearchRatio = DEFAULT_SEARCH_RATIO,
-                                                     Action<string> info = null, Action<string> error = null)
+        public static bool BuildGeometryFromChildren
+            (this SceneNode node, SceneNode root, MeshReconstructionMethod reconstructionMethod,
+             int maxFaceCountTarget, SkirtMode? skirtAxis, TextureMode textureMode, int maxTextureSize,
+             TextureProjector textureProjector = null, Image textureImage = null,
+             double childBoundSearchRatio = DEFAULT_SEARCH_RATIO,
+             Action<string> info = null, Action<string> error = null)
         {
             info = info ?? (msg => {});
             error = error ?? (msg => {});
 
             info("merging child meshes");
 
-            BoundingBox searchBounds;
-            var childNodes = FindNodesRequiredForParent(node, root, out searchBounds, childBoundSearchRatio);
-            var filtered = childNodes.Where(n => n.HasComponent<MeshImagePair>());
-            var pairs = filtered.Select(n => n.GetComponent<MeshImagePair>());
-            var childMeshes = pairs.Where(p => p.Mesh != null).Select(p => p.Mesh);
+            var children = FindNodesRequiredForParent(node, root, childBoundSearchRatio);
+
+            var childMeshImagePairs = children
+                .Where(n => n.HasComponent<MeshImagePair>())
+                .Select(n => n.GetComponent<MeshImagePair>());
+
+            var childMeshes = childMeshImagePairs.Where(p => p.Mesh != null).Select(p => p.Mesh);
             
-            Mesh combinedFull = Mesh.MergeWithCommonAttributes(childMeshes.ToArray(), clean:true, normalize:true);
+            Mesh combinedFull = Mesh.MergeWithCommonAttributes(childMeshes.ToArray(), clean: true, normalize: true);
             if (!combinedFull.HasNormals)
             {
                 combinedFull.GenerateVertexNormals();
             }
+
+            // Compute an enlargedMinBounds instead of just using searchBounds
+            // because in the tiling server "BuildParent" routine we construct a flat tree
+            // with just the parent node and all of its dependents as children.
+            // As a result "ChildBounds" is no longer a reliable measure.
+            // This is pretty nuanced and could potentially benefit from a refactor in the future.
             BoundingBox minimumBounds = node.GetComponent<NodeBounds>().Bounds;
-            // Note that we compute an enlargedMinBounds instead of just using searchBounds because in the tiling server "BuildParent" routine we
-            // construct a flat tree with just the parent node and all of its dependence as children.  As a result "ChildBounds" is no longer a reliable
-            // measure.  This is pretty nuanced and could potentially benefit from a refactor in the future
             BoundingBox enlargedMinBounds = minimumBounds.CreateScaled(childBoundSearchRatio);
             combinedFull = Mesh.Clip(combinedFull, enlargedMinBounds);
+
             combinedFull.NormalizeNormals();
 
             Mesh combinedDecimated = null;
@@ -197,17 +198,11 @@ namespace OPS.Pipeline
                 Vector3? cornerDirection = null;
                 if (skirtAxis.HasValue)
                 {
-                    if (skirtAxis.Value == SkirtMode.X)
+                    switch (skirtAxis.Value)
                     {
-                        cornerDirection = Vector3.UnitX;
-                    }
-                    else if (skirtAxis.Value == SkirtMode.Y)
-                    {
-                        cornerDirection = Vector3.UnitY;
-                    }
-                    else if (skirtAxis.Value == SkirtMode.Z)
-                    {
-                        cornerDirection = Vector3.UnitZ;
+                        case SkirtMode.X: cornerDirection = Vector3.UnitX; break;
+                        case SkirtMode.Y: cornerDirection = Vector3.UnitY; break;
+                        case SkirtMode.Z: cornerDirection = Vector3.UnitZ; break;
                     }
                 }
                 info("decimating parent tile mesh");
@@ -220,23 +215,70 @@ namespace OPS.Pipeline
             combinedDecimated.Clean();
 
             info("computing parent tile resolution");
-            int size = ComputeParentTileResolution(pairs, combinedDecimated.Bounds(), maxTextureSize);
+            int size = 0;
+            if (textureMode != TextureMode.None)
+            {
+                size = ComputeParentTileResolution(childMeshImagePairs, combinedDecimated.Bounds(), maxTextureSize);
+            }
 
-            //we always bake parent tile textures, regardless of project.TextureMode
             Image img = null, index = null;
             if (size != 0)
             {
-                info(string.Format("atlasing parent tile with UVAtlas, resolution {0}", size));
-                combinedDecimated = UVAtlas.Atlas(combinedDecimated, size, size);
-                if (combinedDecimated == null)
+                if (textureProjector != null)
                 {
-                    error("failed to atlas combined children meshes");
-                    return false;
+                    info("atlasing parent tile with texture projection");
+                    combinedDecimated.ProjectTexture(textureProjector.ImageWidth, textureProjector.ImageHeight,
+                                                     textureProjector.CameraModel,
+                                                     meshToImage: textureProjector.MeshToImage);
+                    if (textureMode != TextureMode.Clip || textureImage == null)
+                    {
+                        combinedDecimated.RescaleUVsForTexture(size, size);
+                    }
+                }
+                else
+                {
+                    info($"atlasing parent tile with UVAtlas, resolution {size}");
+                    combinedDecimated = UVAtlas.Atlas(combinedDecimated, size, size);
+                    if (combinedDecimated == null)
+                    {
+                        error("failed to atlas parent tile with UVAtlas");
+                        return false;
+                    }
                 }
 
-                info("baking parent tile texture");
-                TextureBaker tb = new TextureBaker(pairs.ToArray());
-                img = tb.Bake(combinedDecimated, size, size, out index); //Writes index iff indexes not null
+                if (textureMode == TextureMode.Clip && textureProjector != null && textureImage != null)
+                {
+                    if (childMeshImagePairs.All(mip => mip.Index != null))
+                    {
+                        index = new Image(3, textureImage.Width, textureImage.Height);
+                        for (int r = 0; r < index.Height; r++)
+                        {
+                            for (int c = 0; c < index.Width; c++)
+                            {
+                                index[0, r, c] = 1; //reserve 0 as invalid
+                                index[1, r, c] = r;
+                                index[2, r, c] = c;
+                            }
+                        }
+                    }
+                    var logger = new ThunkLogger() { Info = info, Warn = error, Error = error };
+                    var tmc = new TexturedMeshClipper(logger: logger);
+                    var pair = tmc.RemapMeshClipImage(combinedDecimated, textureImage, index, size);
+                    combinedDecimated = pair.Mesh;
+                    img = pair.Image;
+                }
+                else
+                {
+                    //we need to bake parent tile textures even when textureMode is Clip
+                    //unless we also have a texture projector to assign appropriate UVs
+                    info("baking parent tile texture");
+                    TextureBaker tb = new TextureBaker(childMeshImagePairs.ToArray());
+                    img = tb.Bake(combinedDecimated, size, size, out index); //Writes index iff indexes not null
+                    //note that if textureMode is clip then leaf tile textures may have actually been clipped
+                    //even though we are baking here
+                    //because leaf tiles can take their UVs from the input meshes
+                    //but a parent tile can only get usable UVs for clipping by texture projection
+                }
             }
 
             if (!combinedDecimated.HasNormals)
@@ -262,7 +304,7 @@ namespace OPS.Pipeline
             {
                 depMeshes.Add(fullClipped);
             }
-            node.UpdateGeometricError(childNodes, depMeshes, info);
+            node.UpdateGeometricError(children, depMeshes, info);
             //TODO: move constants in UpdateGeometricError() to TilingDefaults when dev/tiling-updates is merged
 
             return true;

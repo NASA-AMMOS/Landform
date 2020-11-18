@@ -88,14 +88,37 @@ if not "%LANDFORM_TACTICAL_OPTS%"=="" set svcextra=%LANDFORM_TACTICAL_OPTS%
 
 rem --- end service specific boilerplate, begin service specific ---
 
-set meshformat=mission
-if not "%LANDFORM_TACTICAL_MESH_FORMAT%"=="" set meshformat=%LANDFORM_TACTICAL_MESH_FORMAT%
+set meshregex=
+if not "%LANDFORM_TACTICAL_MESH_REGEX%"=="" set meshregex=--meshregex=%LANDFORM_TACTICAL_MESH_REGEX%
+
+set mesheye=
+if not "%LANDFORM_TACTICAL_MESH_EYE%"=="" set mesheye=--meshstereoeye=%LANDFORM_TACTICAL_MESH_EYE%
+
+set meshgeom=
+if not "%LANDFORM_TACTICAL_MESH_GEOMETRY%"=="" set meshgeom=--meshgeometry=%LANDFORM_TACTICAL_MESH_GEOMETRY%
 
 set noindices=
-if not "%LANDFORM_TACTICAL_NO_INDICES%"=="" set noindices==--nopublishindeximages
+if not "%LANDFORM_TACTICAL_NO_INDICES%"=="" set noindices=--nopublishindeximages
 
 set embedindices=
-if not "%LANDFORM_TACTICAL_EMBED_INDICES%"=="" set embedindices==--embedindeximages
+if not "%LANDFORM_TACTICAL_EMBED_INDICES%"=="" set embedindices=--embedindeximages
+
+set noloadlods=
+if not "%LANDFORM_TACTICAL_NO_LOAD_LODS%"=="" set noloadlods=--noloadexistinglods
+
+set fixuplods=
+if not "%LANDFORM_TACTICAL_FIXUP_LODS%"=="" set fixuplods=--fixuplods=%LANDFORM_TACTICAL_FIXUP_LODS%
+
+set tileres=
+if not "%LANDFORM_TACTICAL_MAX_TILE_RESOLUTION%"=="" (
+   set tileres=--maxtileresolution=%LANDFORM_TACTICAL_MAX_TILE_RESOLUTION%
+)
+
+set preferpds=
+if not "%LANDFORM_TACTICAL_NO_PREFER_PDS_TEXTURE%"=="" set preferpds=--nopreferpdstexture
+
+set requirepds=
+if not "%LANDFORM_TACTICAL_NO_REQUIRE_PDS_TEXTURE%"=="" set requirepds=--norequirepdstexture
 
 rem --- end service specific ---
 
@@ -105,7 +128,8 @@ set svcopts=%stdopts% --stacktraces --service --mission=%mission% --queuename=%q
 set svcopts=%svcopts% --awsprofile=%awsprofile% --awsregion=%awsregion% %credentialrefresh%
 set svcopts=%svcopts% %msgopts%
 
-set tacticalopts=--meshformat=%meshformat% %noindices% %embedindices% %tilesetimageformat% %tilesetindexformat%
+set tacticalopts=%meshregex% %mesheye% %meshgeom% %noloadlods% %fixuplods% %tileres% %preferpds% %requirepds%
+set tacticalopts=%tacticalopts% %noindices% %embedindices% %tilesetimageformat% %tilesetindexformat%
 
 set appsdir=%bindir%\ExternalApps
 if exist %appsdir%\opengl32-for-ivcat.dll (

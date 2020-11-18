@@ -19,29 +19,39 @@ namespace OPS.Geometry
         /// <summary>
         /// Save a mesh to disk
         /// </summary>
-        /// <param name="m"></param>
-        /// <param name="filename"></param>
-        /// <param name="imageFilename"></param>
         public abstract void Save(Mesh m, string filename, string imageFilename);
 
         /// <summary>
         /// Load a mesh from disk
         /// </summary>
-        /// <param name="filename"></param>
-        /// <returns></returns>
         public abstract Mesh Load(string filename);
 
         /// <summary>
-        /// will return all the mesh level of details found in the file
-        /// default implementation assumes LODs not supported and returns
-        /// the normal load. serializers that do support this should 
-        /// override this function with their specific implementations
+        /// Load a mesh from disk including parsing any referenced texture filename
         /// </summary>
-        /// <param name="filename"></param>
-        /// <returns>finest LOD is expected as first element, descending qualities follow in order</returns>
+        public virtual Mesh Load(string filename, out string imageFilename, bool onlyGetImageFilename = false)
+        {
+            imageFilename = null;
+            return onlyGetImageFilename ? null : Load(filename);
+        }
+
+        /// <summary>
+        /// Load all the mesh level of details found in the file in order starting with finest
+        /// </summary>
         public virtual List<Mesh> LoadAllLODs(string filename)
         {
             return new List<Mesh> { Load(filename) };
+        }
+
+        /// <summary>
+        /// Load all the mesh level of details found in the file in order starting with finest
+        /// include parsing any referenced texture filename, null if not implemented or not found in file
+        /// </summary>
+        public virtual List<Mesh> LoadAllLODs(string filename, out string imageFilename,
+                                              bool onlyGetImageFilename = false)
+        {
+            imageFilename = null;
+            return onlyGetImageFilename ? null : LoadAllLODs(filename);
         }
 
         /// <summary>

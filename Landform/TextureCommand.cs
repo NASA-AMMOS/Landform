@@ -38,13 +38,16 @@ namespace OPS.Landform
         [Option(HelpText = "Use level of detail meshes provided in input mesh", Default = false)]
         public bool LoadLODs { get; set; }
 
+        [Option(HelpText = "Create or fix LOD meshes, comma separated list of min-max ranges, finest to coarsest", Default = null)]
+        public string FixupLODs { get; set; }
+
         [Option(HelpText = "Occlusion mesh in same frame as input mesh, defaults to input mesh", Default = null)]
         public string OcclusionMesh { get; set; }
 
         [Option(HelpText = "Observation image texture variant (Original, Blurred, Blended)", Default = TextureVariant.Original)]
         public virtual TextureVariant TextureVariant { get; set; }
 
-        [Option(HelpText = "A tunable parameter for the Observation Selection Strategy used in backproject (range 0-1)", Default = 0.05)]
+        [Option(HelpText = "A tunable parameter for the Observation Selection Strategy used in backproject (range 0-1)", Default = 0.3)]
         public virtual double BackprojectQuality { get; set; }
 
         [Option(HelpText = "The smallest distance (meters) for a raycast determined to be significant, prevents self intersections", Default = 0.0001)]
@@ -471,7 +474,8 @@ namespace OPS.Landform
                              lumaMed, lumaMAD, hueMed, numColor, roverImages.Count);
         }
 
-        protected void LoadInputMesh(bool requireUVs = true, bool requireNormals = true)
+        protected void LoadInputMesh(bool requireUVs = true, bool requireNormals = true,
+                                     bool onlyGenerateUVsWithTextureProjection = false)
         {
             if (sceneMesh == null && project != null) //might have already been loaded in GetProject()
             {
@@ -531,7 +535,7 @@ namespace OPS.Landform
                     keepers.Add(meshLOD[i]);
                 }
             }
-            meshLOD = keepers;
+            meshLOD = keepers.OrderByDescending(m => m.Faces.Count).ToList();
 
             if (meshLOD.Count == 0)
             {
@@ -544,20 +548,116 @@ namespace OPS.Landform
             for (int lod = 0; lod < meshLOD.Count; lod++)
             {
                 pipeline.LogInfo("LOD {0}: {1} vertices, {2} faces",
-                                 lod, Fmt.KMG(meshLOD[lod].Vertices.Count()), Fmt.KMG(meshLOD[lod].Faces.Count()));
+                                 lod, Fmt.KMG(meshLOD[lod].Vertices.Count), Fmt.KMG(meshLOD[lod].Faces.Count));
+            }
+
+            bool genUVs = !onlyGenerateUVsWithTextureProjection || TextureProjectionEnabled();
+
+            if (tcopts.LoadLODs && !string.IsNullOrEmpty(tcopts.FixupLODs) && (!requireUVs || genUVs))
+            {
+                int[][] ranges = null;
+                try
+                {
+                    ranges = tcopts.FixupLODs.Split(',')
+                        .Select(r => r.Split('-').Select(c => int.Parse(c)).ToArray())
+                        .ToArray();
+                    if (ranges.Length < 1)
+                    {
+                        throw new Exception("no triangle ranges");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    throw new Exception("error parsing --fixuplods \"" + tcopts.FixupLODs + "\"", ex);
+                }
+
+                FixupLODs(ranges);
             }
 
             for (int i = 0; i < meshLOD.Count; i++)
             {
                 if (requireUVs && !meshLOD[i].HasUVs)
                 {
-                    AtlasMesh(meshLOD[i], sceneTextureResolution, "LOD " + i);
+                    if (genUVs)
+                    {
+                        AtlasMesh(meshLOD[i], sceneTextureResolution, "LOD " + i);
+                    }
+                    else
+                    {
+                        throw new Exception("atlassing disabled and mesh missing UVs" + (i > 0 ? $" at LOD {i}" : ""));
+                    }
                 }
 
                 if (requireNormals && !meshLOD[i].HasNormals)
                 {
                     meshLOD[i].GenerateVertexNormals();
                 }
+            }
+        }
+
+        protected void FixupLODs(int[][] ranges)
+        {
+            var newLODs = new Mesh[ranges.Length];
+            for (int i = 0; i < ranges.Length; i++)
+            {
+                int s = meshLOD.FindIndex(m => (ranges[i][0] <= m.Faces.Count && m.Faces.Count <= ranges[i][1]));
+                if (s >= 0)
+                {
+                    Mesh src = meshLOD[s];
+                    pipeline.LogInfo("using source LOD {0} with {1} tris for fixed up LOD {2} ({3}-{4})",
+                                     s, Fmt.KMG(src.Faces.Count), i, Fmt.KMG(ranges[i][0]), Fmt.KMG(ranges[i][1]));
+                    newLODs[i] = src;
+                }
+                else
+                {
+                    int target = (int)Math.Round(0.5 * (ranges[i][0] + ranges[i][1]));
+                    s = meshLOD.FindLastIndex(m => m.Faces.Count > ranges[i][1]);
+                    string st = "source";
+                    Mesh src = s >= 0 ? meshLOD[s] : null;
+                    if (s < 0 || meshLOD[s].Faces.Count > 2 * target)
+                    {
+                        int fs = newLODs.ToList().FindLastIndex(m => (m != null && m.Faces.Count >= target));
+                        if (fs >= 0)
+                        {
+                            s = fs;
+                            st = "fixed up";
+                            src = newLODs[s];
+                        }
+                    }
+                    if (src != null)
+                    {
+                        if (src.Faces.Count - target > 10000)
+                        {
+                            pipeline.LogInfo("decimating {0} LOD {1} from {2} to {3} triangles for fixed up lod {4}",
+                                             st, s, Fmt.KMG(src.Faces.Count), Fmt.KMG(target), i);
+                        }
+                        newLODs[i] = src.Decimate(target, tcopts.MeshDecimator);
+                        pipeline.LogInfo("decimated {0} tri {1} LOD {2} for fixed up LOD {3} ({4}-{5}) " +
+                                         "to {6} (target {7}) tris with {8}", Fmt.KMG(src.Faces.Count), st, s, i,
+                                         Fmt.KMG(ranges[i][0]), Fmt.KMG(ranges[i][1]),
+                                         Fmt.KMG(newLODs[i].Faces.Count), Fmt.KMG(target), tcopts.MeshDecimator);
+                    }
+                    else
+                    {
+                        pipeline.LogInfo("no mesh available for making fixed up LOD {0} with {1}-{2} tris",
+                                         i, Fmt.KMG(ranges[i][0]), Fmt.KMG(ranges[i][1]));
+                    }
+                }
+            }
+
+            newLODs = newLODs
+                .Where(m => m != null && m.Faces.Count > 0)
+                .OrderByDescending(m => m.Faces.Count)
+                .ToArray();
+
+            if (newLODs.Length > 0)
+            {
+                meshLOD = newLODs.ToList();
+                mesh = meshLOD.First();
+            }
+            else
+            {
+                pipeline.LogWarn("LOD fixup failed, using original {0} LODs", meshLOD.Count);
             }
         }
 

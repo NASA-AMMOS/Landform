@@ -155,28 +155,38 @@ namespace OPS.Geometry
     {
         private enum NodeType { None, Texture2, ShapeHints, TextureCoordinateBinding, LevelOfDetail,
                                 Coordinate3, TextureCoordinate2, IndexedTriangleStripSet };
-        private enum FieldName { None, wrapS, wrapT, vertexOrdering, shapeType, value, screenArea, point, coordIndex };
+        private enum FieldName { None, filename, wrapS, wrapT,
+                                 vertexOrdering, shapeType, value, screenArea, point, coordIndex };
 
         private const int BIN_FILE_BUF_SIZE = 65535;
+
+        private string textureFile;
 
         /// <summary>
         /// Returns all LOD meshes in order from highest quality to lowest quality.
         /// </summary>
-        public override List<Mesh> LoadAllLODs(string filename)
+        public override List<Mesh> LoadAllLODs(string filename, out string imageFilename,
+                                               bool onlyGetImageFilename = false)
         {
-#if USE_IVCAT            
             List<Mesh> lodMeshes = null;
+#if USE_IVCAT            
             string ivcat = Path.Combine(PathHelper.GetApplicationPath(), "ExternalApps", "ivcat.exe");
             TemporaryFile.GetAndDelete(".iva", tmpFile =>
             {
                 string args = string.Format("-o \"{0}\" \"{1}\"", tmpFile, filename);
                 (new ProgramRunner(ivcat, args)).Run(); //OK if input file is already ASCII
-                lodMeshes = ParseASCII(tmpFile);
+                lodMeshes = ParseASCII(tmpFile, onlyGetImageFilename);
             });
-            return lodMeshes;
 #else
-            return Parse(filename);
+            lodMeshes = Parse(filename, onlyGetImageFilename);
 #endif
+            imageFilename = textureFile;
+            return lodMeshes;
+        }
+
+        public override List<Mesh> LoadAllLODs(string filename)
+        {
+            return LoadAllLODs(filename, out string imageFilename);
         }
 
         public override bool SupportsLODs()
@@ -184,9 +194,15 @@ namespace OPS.Geometry
             return true;
         }
 
+        public override Mesh Load(string filename, out string imageFilename, bool onlyGetImageFilename = false)
+        {
+            var lodMeshes = LoadAllLODs(filename, out imageFilename, onlyGetImageFilename);
+            return onlyGetImageFilename ? null : lodMeshes[0];
+        }
+
         public override Mesh Load(string filename)
         {
-            return LoadAllLODs(filename)[0];
+            return Load(filename, out string imageFilename);
         }
 
         public override void Save(Mesh m, string filename, string imageFilename)
@@ -243,7 +259,7 @@ namespace OPS.Geometry
             return new FileStream(filename, FileMode.Open, FileAccess.Read, FileShare.Read);
         }
 
-        private List<Mesh> Parse(string filename)
+        private List<Mesh> Parse(string filename, bool onlyGetImageFilename = false)
         {
             bool isBinary = false;
             using (var fs = OpenFile(filename))
@@ -252,15 +268,15 @@ namespace OPS.Geometry
             }
             if (isBinary)
             {
-                return ParseBinary(filename);
+                return ParseBinary(filename, onlyGetImageFilename);
             }
             else
             {
-                return ParseASCII(filename);
+                return ParseASCII(filename, onlyGetImageFilename);
             }
         }
 
-        private List<Mesh> ParseASCII(string filename)
+        private List<Mesh> ParseASCII(string filename, bool onlyGetImageFilename = false)
         {
             using (var fileReader = new StreamReader(filename))
             {
@@ -276,6 +292,21 @@ namespace OPS.Geometry
                     string line;
                     while ((line = fileReader.ReadLine()) != null)
                     {
+                        //NOTE: this tokenizer does not properly implement parsing of quoted strings
+                        //currently the only place we expect a quoted string is in the value of the filename field
+                        //in a Texture2 node, and there we assume
+                        //(a) no whitespace in the string (including no multiline strings)
+                        //(b) no escape sequences in the string
+                        //(c) no # characters in the string
+                        int commentStart = line.IndexOf('#');
+                        if (commentStart == 0)
+                        {
+                            continue;
+                        }
+                        if (commentStart > 0)
+                        {
+                            line = line.Substring(0, commentStart);
+                        }
                         foreach (string token in line.Split(separators))
                         {
                             if (!string.IsNullOrEmpty(token))
@@ -330,17 +361,20 @@ namespace OPS.Geometry
                     return true;
                 }
 
-                void checkField(FieldName expectedField, string expectedValue)
+                string checkField(FieldName expectedField, string expectedValue)
                 {
                     if (parseFieldName() && curField == expectedField)
                     {
-                        string value = tokenizer.MoveNext() ? tokenizer.Current : "(end of file)";
-                        if (value != expectedValue)
+                        string value = tokenizer.MoveNext() ? tokenizer.Current : null;
+                        if (expectedValue != null  && value != expectedValue)
                         {
+                            value = value ?? "(end of file)";
                             throw new Exception(string.Format("expected {0}.{1} = {2}, got {3}",
                                                               curNode, curField, expectedValue, value));
                         }
+                        return value;
                     }
+                    return null;
                 }
                 
                 void parseList<T>(List<T> list, Func<string, string, T> parseElement, string what)
@@ -405,6 +439,15 @@ namespace OPS.Geometry
                     {
                         case NodeType.Texture2:
                         {
+                            string val = checkField(FieldName.filename, null);
+                            if (val != null)
+                            {
+                                textureFile = val.Trim('"');
+                                if (onlyGetImageFilename)
+                                {
+                                    return null;
+                                }
+                            }
                             checkField(FieldName.wrapS, "CLAMP");
                             checkField(FieldName.wrapT, "CLAMP");
                             break;
@@ -482,7 +525,7 @@ namespace OPS.Geometry
             }
         }
 
-        private List<Mesh> ParseBinary(string filename)
+        private List<Mesh> ParseBinary(string filename, bool onlyGetImageFilename = false)
         {
             using (var fileStream = new BufferedStream(OpenFile(filename), BIN_FILE_BUF_SIZE))
             {
@@ -679,11 +722,12 @@ namespace OPS.Geometry
                     return new Vector3(parseFloat(quads[0]), parseFloat(quads[1]), parseFloat(quads[2]));
                 }
 
-                void checkField(string expectedValue)
+                string checkField(string expectedValue)
                 {
                     string what = string.Format("{0}.{1}", curNode, curField);
                     int len = readInt(what + " length");
-                    if (len == expectedValue.Length && fillQueue(len))
+                    bool isExpectedLen = expectedValue == null || len == expectedValue.Length;
+                    if (isExpectedLen && fillQueue(len))
                     {
                         var sb = new StringBuilder();
                         for (int i = 0; i < len; i++)
@@ -691,25 +735,38 @@ namespace OPS.Geometry
                             sb.Append((char)lookaheadQueue.Dequeue());
                         }
                         var value = sb.ToString();
-                        if (value != expectedValue)
+                        if (expectedValue != null && value != expectedValue)
                         {
                             throw new Exception(string.Format("expected {0} = {1}, got {2}",
                                                               what, expectedValue, value));
                         }
                         skipBytes(stringPadding(len), what + " padding");
                         skipBytes(4, what + ".fieldFlags");
+                        return value;
                     }
-                    else
+                    else if (!isExpectedLen)
                     {
                         throw new Exception(string.Format("expected {0} = {1} (length {2}), got length {3}",
                                                           what, expectedValue, expectedValue.Length, len));
+                    }
+                    else
+                    {
+                        throw new Exception(string.Format("EOF reading {0} byte string for {1}", len, what));
                     }
                 }
 
                 List<double> screenArea = null;
                 while (screenArea == null && readNextIdentifier()) //order important: don't eat input if got screenArea
                 {
-                    if (curNode == NodeType.Texture2 && curField == FieldName.wrapS)
+                    if (curNode == NodeType.Texture2 && curField == FieldName.filename)
+                    {
+                        textureFile = checkField(null);
+                        if (onlyGetImageFilename)
+                        {
+                            return null;
+                        }
+                    }
+                    else if (curNode == NodeType.Texture2 && curField == FieldName.wrapS)
                     {
                         checkField("CLAMP");
                     }

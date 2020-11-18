@@ -2166,13 +2166,21 @@ namespace OPS.Geometry
         public void ProjectTexture(Image img, bool removeVertsOutsideView = true, bool processVertsInParallel = false,
                                    Matrix? meshToImage = null)
         {
+            ProjectTexture(img.Width, img.Height, img.CameraModel, removeVertsOutsideView, processVertsInParallel,
+                           meshToImage);
+        }
+
+        public void ProjectTexture(int imgWidth, int imgHeight, CameraModel cameraModel,
+                                   bool removeVertsOutsideView = true, bool processVertsInParallel = false,
+                                   Matrix? meshToImage = null)
+        {
             Matrix xform = meshToImage ?? Matrix.Identity;
             ConcurrentBag<Vertex> verticesToRemove = new ConcurrentBag<Vertex>();
             Action<Vertex> generateUV = v =>
             {
                 double range;
-                Vector2 pixel = img.CameraModel.Project(Vector3.Transform(v.Position, xform), out range);
-                if (range < 0 || pixel.X < 0 || pixel.X > (img.Width - 1) || pixel.Y < 0 || pixel.Y > (img.Height - 1))
+                Vector2 pixel = cameraModel.Project(Vector3.Transform(v.Position, xform), out range);
+                if (range < 0 || pixel.X < 0 || pixel.X > (imgWidth - 1) || pixel.Y < 0 || pixel.Y > (imgHeight - 1))
                 {
                     verticesToRemove.Add(v);
                 }
@@ -2181,7 +2189,7 @@ namespace OPS.Geometry
                     // TODO: review this half pixel offset
                     //v.UV =  new Vector2((pixel.X - 0.5) / (image.Width+1), 1 - ((pixel.Y - 0.5) / (image.Height+1)));
                     //https://github.jpl.nasa.gov/OnSight/Landform/issues/488
-                    v.UV = img.PixelToUV(pixel);
+                    v.UV = Image.PixelToUV(pixel, imgWidth, imgHeight);
                     v.UV = Vector2.Clamp(v.UV, Vector2.Zero, Vector2.One);
                 }
             };
@@ -2202,12 +2210,7 @@ namespace OPS.Geometry
             }
         }
 
-        /// <summary>
-        /// Read a mesh to disk
-        /// </summary>
-        /// <param name="filename"></param>
-        /// <returns></returns>
-        public static Mesh Load(string filename)
+        public static Mesh Load(string filename, out string imageFilename, bool onlyGetImageFilename = false)
         {
             string ext = Path.GetExtension(filename).ToLower();
             MeshSerializer s = MeshSerializers.Instance.GetSerializer(ext);
@@ -2215,18 +2218,29 @@ namespace OPS.Geometry
             {
                 throw new MeshSerializerException("Mesh format not supported");
             }
-            return s.Load(filename);
+            return s.Load(filename, out imageFilename, onlyGetImageFilename);
+        }
+
+        public static Mesh Load(string filename)
+        {
+            return Load(filename, out string imageFilename);
+        }
+
+        public static List<Mesh> LoadAllLODs(string filename, out string imageFilename,
+                                             bool onlyGetImageFilename = false)
+        {
+            string ext = Path.GetExtension(filename).ToLower();
+            MeshSerializer s = MeshSerializers.Instance.GetSerializer(ext);
+            if (s == null)
+            {
+                throw new MeshSerializerException("Mesh format not supported");
+            }
+            return s.LoadAllLODs(filename, out imageFilename, onlyGetImageFilename);
         }
 
         public static List<Mesh> LoadAllLODs(string filename)
         {
-            string ext = Path.GetExtension(filename).ToLower();
-            MeshSerializer s = MeshSerializers.Instance.GetSerializer(ext);
-            if (s == null)
-            {
-                throw new MeshSerializerException("Mesh format not supported");
-            }
-            return s.LoadAllLODs(filename);
+            return LoadAllLODs(filename, out string imageFilename);
         }
 
         public struct FaceStats

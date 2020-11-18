@@ -195,11 +195,6 @@ namespace OPS.Landform
             pipeline.LogInfo("AWS credential refresh: {0}",
                              credentialRefreshSec > 0 ? Fmt.HMS(credentialRefreshSec * 1e3) : "disabled");
 
-            if (credentialRefreshSec > 0)
-            {
-                RefreshCredentials();
-            }
-
             string logFile = Logging.GetLogFile();
             string logPrefix = GetLogFilePrefix();
             if (logFile.IndexOf(logPrefix) >= 0)
@@ -259,6 +254,11 @@ namespace OPS.Landform
             return FileExists(pipeline, () => storageHelper, url);
         }
 
+        protected long FileSize(string url)
+        {
+            return FileSize(pipeline, () => storageHelper, url);
+        }
+
         protected IEnumerable<string> SearchFiles(string url, string globPattern,
                                                   bool? recursive = null, bool? ignoreCase = null)
         {
@@ -290,6 +290,18 @@ namespace OPS.Landform
             }
         }
 
+        public static long FileSize(PipelineCore pipeline, Func<StorageHelper> storageHelper, string url)
+        {
+            if (url.StartsWith("s3://") && !(pipeline is CloudPipeline))
+            {
+                return storageHelper().FileSize(url);
+            }
+            else
+            {
+                return pipeline.FileSize(url);
+            }
+        }
+
         public static IEnumerable<string> SearchFiles(PipelineCore pipeline, Func<StorageHelper> storageHelper,
                                                       string url, string globPattern, bool recursive = false,
                                                       bool ignoreCase = false)
@@ -314,11 +326,11 @@ namespace OPS.Landform
 
             pipeline.LogInfo("{0}getting {1}", dryRun ? "dry " : "", url);
 
-            if ((url.StartsWith("s3://") && !(pipeline is CloudPipeline)) || dryRun)
+            if (url.StartsWith("s3://") && !(pipeline is CloudPipeline) && !dryRun)
             {
                 path = pipeline.DownloadCachePath(cacheDir, filename);
-                pipeline.LogInfo("{0}downloading {1} -> {2}", dryRun ? "dry " : "", url, path);
-                if (!File.Exists(path) && !dryRun)
+                pipeline.LogInfo("downloading {0} -> {1}", url, path);
+                if (!File.Exists(path))
                 {
                     for (int tries = maxRetries; tries > 0; tries--)
                     {
@@ -333,7 +345,7 @@ namespace OPS.Landform
                     }
                 }
             }
-            else
+            else if (!dryRun)
             {
                 path = pipeline.GetFileCached(url, cacheDir, filename);
             }

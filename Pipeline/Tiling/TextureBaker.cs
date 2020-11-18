@@ -103,12 +103,16 @@ namespace OPS.Pipeline
         {
             if (source.Count() == 0)
             {
-                throw new Exception("Texture Baker source list cannot be empty");
+                throw new ArgumentException("source list cannot be empty");
             }
             destBands = source[0].Image.Bands;
-            if(source.Any(s => s.Image.Bands != destBands))
+            if (source.Any(s => s.Image.Bands != destBands))
             {
-                throw new Exception("Texture Baker requires all source images have identical number of bands");
+                throw new ArgumentException("all source images must have identical number of bands");
+            }
+            if (source.Any(s => !s.Mesh.HasUVs))
+            {
+                throw new ArgumentException("all source images must have UVs");
             }
             // Get union bounding box of source meshes
             List<BoundingBox> boxes = new List<BoundingBox>();
@@ -143,6 +147,11 @@ namespace OPS.Pipeline
         private Image BakeImpl(Mesh dest, int destWidth, int destHeight, out Image destIndex, int padWidth,
                                bool withIndex)
         {
+            if (!dest.HasUVs)
+            {
+                throw new ArgumentException("target mesh must have UVs");
+            }
+
             // r tree for efficient uv to xyz conversion
             var destOperator = new MeshOperator(dest, buildFaceTree: false, buildVertexTree: false);
 

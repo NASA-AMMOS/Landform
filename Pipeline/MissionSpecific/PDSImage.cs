@@ -117,7 +117,8 @@ namespace OPS.Pipeline
         {
             if (parser.DerivedImageType != type)
             {
-                throw new ArgumentException(what + " requires " + type + " product");
+                throw new ArgumentException(what + " requires " + type + " product, got " +
+                                            parser.DerivedImageType + " for " + parser.ProductIdString);
             }
         }
 
@@ -146,7 +147,8 @@ namespace OPS.Pipeline
         {
             if (parser.CameraModelRefFrame != frame)
             {
-                throw new NotImplementedException(what + " requires camera model in " + frame + " frame");
+                throw new NotImplementedException(what + " requires camera model in " + frame + " frame, got " +
+                                                  parser.CameraModelRefFrame + " for " + parser.ProductIdString);
             }
         }
 
@@ -168,6 +170,29 @@ namespace OPS.Pipeline
                                      PDSParser.ReferenceCoordinateFrame.RoverNav)
         {
             CheckCameraFrame(Parser, what, frame);
+        }
+
+        /// <summary>
+        /// Get transform from data frame to rover frame.
+        /// </summary>
+        public static Matrix GetDataToRoverFrameTransform(PDSParser parser)
+        {
+            var roverOriginRotation = parser.RoverOriginRotation;
+            var originOffset = parser.OriginOffset;
+            var frame = parser.DerivedImageRefFrame;
+            switch (frame)
+            {
+                case PDSParser.ReferenceCoordinateFrame.LocalLevel:
+                {
+                    return RoverCoordinateSystem.LocalLevelToRover(roverOriginRotation);
+                }
+                case PDSParser.ReferenceCoordinateFrame.Site:
+                {
+                    return RoverCoordinateSystem.SiteToRover(roverOriginRotation, originOffset);
+                }
+                case PDSParser.ReferenceCoordinateFrame.RoverNav: return Matrix.Identity;
+                default: throw new NotImplementedException("unknown reference frame: " + frame);
+            }
         }
 
         /// <summary>
@@ -204,9 +229,9 @@ namespace OPS.Pipeline
         {
             CheckCameraFrame(parser, what, PDSParser.ReferenceCoordinateFrame.RoverNav);
             Vector3 cameraCenter = GetCameraCenter(img, what);
-            if (checkRangeOrigin)
+            if (checkRangeOrigin && parser.DerivedImageType == RoverProductType.Range)
             {
-                Matrix xform = RoverCoordinateSystem.GetTransformToRoverFrame(parser);
+                Matrix xform = GetDataToRoverFrameTransform(parser);
                 Vector3 rangeOrigin = Vector3.Transform(parser.RangeOrigin, xform);
                 if (!Vector3.AlmostEqual(rangeOrigin, cameraCenter, 0.1))
                 {
@@ -262,7 +287,7 @@ namespace OPS.Pipeline
         public Image ConvertXYZ()
         {
             CheckType(RoverProductType.Points, "ConvertXYZ");
-            Matrix xform = RoverCoordinateSystem.GetTransformToRoverFrame(Parser);
+            Matrix xform = GetDataToRoverFrameTransform(Parser);
             Image src = this.Image;
             Image ret = new Image(3, src.Width, src.Height);
             AddMaskForMissingConstant(ret);
@@ -393,7 +418,7 @@ namespace OPS.Pipeline
         {
             CheckType(RoverProductType.Points, "GenerateConfidenceFromXYZ");
             Vector3 c = CheckCameraCenter("GenerateConfidenceFromXYZ", false);
-            Matrix xform = RoverCoordinateSystem.GetTransformToRoverFrame(Parser);
+            Matrix xform = GetDataToRoverFrameTransform(Parser);
             Image src = this.Image;
             Image ret = new Image(1, src.Width, src.Height);
             bool hasMissingConstant = Parser.HasMissingConstant;
@@ -434,7 +459,7 @@ namespace OPS.Pipeline
         {
             CheckType(RoverProductType.Normals, "ConvertNormals");
             CheckCameraFrame("ConvertNormals");
-            Matrix xform = RoverCoordinateSystem.GetTransformToRoverFrame(Parser);
+            Matrix xform = GetDataToRoverFrameTransform(Parser);
             bool nonIdentityXform = !xform.Equals(Matrix.Identity);
             Image src = this.Image;
             Image ret = new Image(src);

@@ -134,6 +134,7 @@
     <Compile Include="Serializers\MeshSerializer.cs" />
     <Compile Include="Serializers\MeshSerializerException.cs" />
     <Compile Include="Serializers\MeshSerializers.cs" />
+    <Compile Include="Serializers\MTLFile.cs" />
     <Compile Include="Serializers\OBJSerializer.cs" />
     <Compile Include="Serializers\PLYReader.cs" />
     <Compile Include="Serializers\PLYSerializer.cs" />

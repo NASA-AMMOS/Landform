@@ -18,13 +18,6 @@
 # defaults to . (current directory).  Remaining arguments must be in the form --flag or --name value. Unknown arguments
 # are ignored.
 #
-# Currently only M2020 and derived missions are supported due to a hack that works around
-# https://github.jpl.nasa.gov/OnSight/Landform/issues/951.
-#
-# Mesh RDRs in the format indicated by --meshext (default iv) are searched for recursively under IN_DIR.  For each
-# one, a corresponding image is searched in the format indicated by --imgext (default IMG).  If both the mesh and the
-# image are found, a tactical tileset is created in OUT_DIR.
-#
 # The tileset name is the basename of the mesh file, PRODUCT_ID, with an optional suffix if specified with the
 # --suffix option.  Suffixes are useful for segregating the output of multiple runs with different custom options.
 # Custom options can include --nolods, which disables use of precomputed LODs (build-tiling-input option --loadlods).
@@ -67,7 +60,8 @@
 # ./Landform/bin/Release/Landform.exe fetch $sols out/$run/rdrs s3://$bucket/ods/$ver/sol/#####/ids/rdr \
 #     --mission $mission --summary $fetchargs
 #
-# ./Scripts/process-tactical.sh out/$run/rdrs $mission out/$run/tilesets --exportmeshext ply --exportimgext png
+# ./Scripts/process-tactical.sh out/$run/rdrs $mission out/$run/tilesets --exportmeshext ply --exportimgext png \
+#     --meshregex auto_iv --searchargs "--meshgeometry linearized"
 
 # exit script on ctrl-c
 ctrlc() { exit 1; }
@@ -96,9 +90,10 @@ help="\
 USAGE: process-tactical.sh IN_DIR MISSION [OUT_DIR]
 [--suffix foo] [--dryrun] [--help] [--nocleanup] [--onlycleanup] [--redo]
 [--writedebug] [--debug] [--verbose] [--singlethreaded]
-[--nolods] [--meshext iv] [--imgext IMG]
+[--meshregex mission,auto_iv,auto_obj[_lod_fn],...]
+[--nolods] [--maxtileresolution N]
 [--exportmeshext ply] [--exportimgext png]
-[--configargs \"--arg val\"]
+[--searchargs \"--arg val\"] [--configargs \"--arg val\"]
 [--tilingargs \"--arg val\"] [--tilesetargs \"--arg val\"]
 [--manifestargs \"--arg val\"] [--nomanifest]
 [--upload s3://BUCKET/ods/VENUE/sol/SOL/ids/rdr] [--onlyupload]
@@ -117,21 +112,14 @@ shift
 mission=$1
 shift
 
-if [[ $mission == "MSL" ]]; then
-    echo "currently only M2020 missions are supported"
-    echo "TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/951"
-    exit 1
-fi
-
 outdir=.
 if [[ $# -gt 0 ]] && [[ $1 != -* ]]; then
     outdir=$1
     shift
 fi
 
-meshext=iv
-imgext=IMG
-lods="--loadlods"
+# should match ProcessTacticalOptions.FixupLODs default
+lods="--loadlods --fixuplods=75000-300000,20000-60000,4000-15000,1000-3000,100-600"
 
 manifest=true
 dry=
@@ -145,9 +133,12 @@ s3rdrdir=
 suffix=
 export=
 
+tileres=512
+meshregex=mission
+searchargs=
 cfgargs=
-tilingargs="--tileresolution=-1"
-tilesetargs="--notextureerror"
+tilingargs=
+tilesetargs=
 manifestargs=
 syncargs=
 
@@ -172,63 +163,46 @@ while (( "$#" )); do
         "--upload") shift; expect $# "upload URL"; upload=true; s3rdrdir=$1;;
         "--suffix") shift; expect $# "suffix"; suffix="_$1";;
         "--exportmeshext") shift; expect $# "export mesh extension"; export="$export --exportmeshformat $1";;
-        "--exportimgext") shift; expect $# "export imge extension"; export="$export --exportimageformat $1";;
-        "--meshext") shift; expect $# "mesh extension"; meshext=$1;;
-        "--imgext") shift; expect $# "image extension"; imgext=$1;;
+        "--exportimgext") shift; expect $# "export image extension"; export="$export --exportimageformat $1";;
         "--nomanifest") manifest=;;
         "--nolods") lods=;;
+        "--maxtileresolution") shift; expect $# "max tile resolution"; tileres=$1;;
+        "--meshregex") shift; expect $# "mesh regex"; meshregex=$1;;
+        "--searchargs") shift; expect $# "search args"; searchargs="$1";;
         "--configargs") shift; expect $# "config args"; cfgargs="$1";;
-        "--tilingargs") shift; expect $# "tiling args"; tilingargs="$tilingargs $1";;
-        "--tilesetargs") shift; expect $# "tileset args"; tilesetargs="$tilesetargs $1";;
+        "--tilingargs") shift; expect $# "tiling args"; tilingargs="$1";;
+        "--tilesetargs") shift; expect $# "tileset args"; tilesetargs="$1";;
         "--manifestargs") shift; expect $# "manifest args"; manifestargs="$1";;
         "--syncargs") shift; expect $# "sync args"; syncargs="$1";;
     esac
     shift
 done
 
-echo "processing ${mission} ${meshext}/${imgext} tactical meshes from $indir to $outdir"
+if [ -d "$indir" ] && [[ "$indir" != */ ]]; then indir="${indir}/"; fi
 
-for f in `find ${indir} -name '*'.${meshext}`; do
+if [ ! -d "$outdir" ]; then mkdir -p $outdir; fi
 
-    bn=${f%.${meshext}}
-    mesh=$bn.${meshext}
-    img=$bn.${imgext}
-    proj=${bn##*/}${suffix}
-    venue=tactical_${mission}_${proj}
-    tilesetdir=$storagedir/$venue/tiling/TileSet/passthroughFrame/best/$proj
-    log=$logdir/tactical_${proj}_log.txt
-    outproj=$outdir/$proj
-    cfgfolder=$venue
+echo "processing $mission $meshregex tactical meshes from $indir to $outdir"
 
-    stdopts="--configdir=$cfgdir --configfolder=$cfgfolder --logdir=$logdir --tempdir=$tmpdir/$venue"
-    cfgopts="$stdopts --venue=$venue --storagedir=$storagedir"
-    stdopts="$stdopts $dbg $redo"
+while read -r line; do
 
-    # TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/951
-    # apparently it is possible that foo.iv might refer to bar.rgb as its texture
-    # (or if we're doing obj, foo.mtl might refer to bar.png)
-    # so it is not valid to assume that foo.iv pairs with foo.IMG
-    # also it is even worse, foo.iv can refer to bar.rgb, and bar.IMG might not even exist
-    # I guess the real correct thing to do is
-    # 1) for texturing use whatever .rgb or .png is referred to from the .iv or .mtl 
-    # 2) for metadata use the highest-version .IMG available that otherwise matches the .iv or .obj product ID
-    #
-    # for now what we do is find the highest version .IMG that otherwise matches the .iv or .obj product ID
-    # and use that both for texturing and metadata
-    #
-    # aaand this is still broken in a few ways
-    # * it's M2020 mission specific
-    # * it will only find .IMG with version numbers no greater than the version of the .iv plus 10
+    read -ra mip <<< "$line"
+    id=${mip[0]}
+    mesh=${mip[1]}
+    img=${mip[2]}
 
-    id=${bn##*/}
-    ver=${id:52:2}
-    ver=`printf "%02d" $((10#$ver+10))`
-    while [ ! -f $img ] && [ $ver -ge 0 ]; do
-        ver=`printf "%02d" $((10#$ver-1))`
-        img=${f%/*}/${id:0:52}${ver}.${imgext}
-    done
+    if [ "$img" ]; then
 
-    if [ -f $mesh -a -f $img ]; then
+        proj=${id}${suffix}
+        venue=tactical_${mission}_${proj}
+        tilesetdir=$storagedir/$venue/tiling/TileSet/passthroughFrame/best/$proj
+        log=$logdir/tactical_${proj}_log.txt
+        outproj=$outdir/$proj
+        cfgfolder=$venue
+        
+        stdopts="--configdir=$cfgdir --configfolder=$cfgfolder --logdir=$logdir --tempdir=$tmpdir/$venue"
+        cfgopts="$stdopts --venue=$venue --storagedir=$storagedir"
+        stdopts="$stdopts $dbg $redo"
 
         SECONDS=0
 
@@ -243,9 +217,9 @@ for f in `find ${indir} -name '*'.${meshext}`; do
 
         if [ "$generate" ]; then
             ${dry}$landform configure-local $cfgopts $cfgargs
-            ${dry}$landform build-tiling-input $proj $stdopts $lods --mission $mission --inputmesh $mesh \
-                  --inputtexture $img $tilingargs | tee -a $log
-            ${dry}$landform build-tileset $proj $stdopts $export $tilesetargs | tee -a $log
+            ${dry}$landform build-tiling-input $proj $stdopts $lods --mission $mission --meshframe tactical \
+                  --inputmesh $mesh --inputtexture $img --tileresolution $tileres $tilingargs | tee -a $log
+            ${dry}$landform build-tileset $proj $stdopts $export --tileresolution $tileres $tilesetargs | tee -a $log
 
             ${dry}rm -rf $outproj
             ${dry}cp -R $tilesetdir $outdir
@@ -305,5 +279,6 @@ for f in `find ${indir} -name '*'.${meshext}`; do
                 echo "tip: run python last to avoid opening another terminal"
             fi
         fi
+        printf "\r\n" | tee -a $log
     fi
-done
+done < <($landform process-tactical --mission $mission --inputpath $indir --recursivesearch --resolveinputs --quiet --meshregex $meshregex $searchargs)

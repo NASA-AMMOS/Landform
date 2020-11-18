@@ -10,6 +10,47 @@ namespace OPS.Pipeline
 {
     public class PDSParser
     {
+        private const string UNKNOWN = "UNK";
+        private const string NULL = "NULL";
+
+        private static string[] ID_GROUPS = new string[] { RawMetadata.NULL_GROUP /* PDS */, "IDENTIFICATION" /*VIC*/ };
+
+        private static string[] IMAGE_GROUPS = new string[] { "IMAGE" /* PDS */, "IMAGE_DATA" /* VIC */ };
+
+        private static string[] DERIVED_IMAGE_GROUPS = new string[] { "DERIVED_IMAGE_PARMS" /* (sic) PDS and VIC */ };
+
+        private static string[] IMAGE_REQUEST_GROUPS = new string[] { "IMAGE_REQUEST_PARMS" /* (sic) PDS and VIC */ };
+
+        private static string[] CAMERA_FRAME_GROUPS = new string[]
+        {
+            "GEOMETRIC_CAMERA_MODEL", //MSL OPGS, M2020 OPGS (and MSSS?)
+            "GEOMETRIC_CAMERA_MODEL_PARMS" //MSL MSSS
+        };
+
+        private static string[] ROVER_FRAME_GROUPS = new string[]
+        {
+            "ROVER_COORDINATE_SYSTEM",
+            "ROVER_COORDINATE_SYSTEM_PARMS" //MSL MSSS
+        };
+
+        private static string[] SITE_FRAME_GROUPS = new string[]
+        {
+            "SITE_COORDINATE_SYSTEM",
+            "SITE_COORDINATE_SYSTEM_PARMS" //MSL MSSS
+        };
+
+        private static string[] INSTRUMENT_STATE_GROUPS = new string[]
+        {
+            "INSTRUMENT_STATE_PARMS",
+            "MINI_HEADER" //??
+        };
+
+        private static string[] HFOV_NAMES = new string[] { "AZIMUTH_FOV", "HORIZONTAL_FOV" };
+
+        private static string[] VFOV_NAMES = new string[] { "ELEVATION_FOV", "VERTICAL_FOV" };
+
+        private static string[] DOWNSAMPLE_NAMES = new string[] { "PIXEL_AVERAGING_WIDTH", "PIXEL_AVERAGING_HEIGHT" };
+
         public readonly PDSMetadata metadata;
 
         public PDSParser(PDSMetadata metadata)
@@ -17,110 +58,228 @@ namespace OPS.Pipeline
             this.metadata = metadata;
         }
 
-        public DateTime ProductCreationTime
-        { 
-            get { return metadata.ReadAsDateTime("PRODUCT_CREATION_TIME"); }
-        }
-
-        public int FirstLine
+        protected int GetInt(string[] groups, string name)
         {
-            get
+            foreach (var g in groups)
             {
-                if (metadata.HasKey("IMAGE", "FIRST_LINE"))
+                if (metadata.HasKey(g, name))
                 {
-                    return metadata.ReadAsInt("IMAGE", "FIRST_LINE");
+                    return metadata.ReadAsInt(g, name);
                 }
-                return metadata.ReadAsInt("IMAGE_DATA", "FIRST_LINE");
             }
+            throw new PDSParserException(name + " not found in " + string.Join(", ", groups));
         }
 
-        public int FirstSample
+        protected double GetDouble(string[] groups, string name)
         {
-            get {
-
-                if (metadata.HasKey("IMAGE", "FIRST_LINE_SAMPLE"))
-                {
-                    return metadata.ReadAsInt("IMAGE", "FIRST_LINE_SAMPLE");
-                }
-                return metadata.ReadAsInt("IMAGE_DATA", "FIRST_LINE_SAMPLE");
-
-            }
-        }
-
-        private const string Unknown = "UNK";
-        private const string NullStr = "NULL";
-
-        public bool HasMissingConstant
-        {
-            get { return metadata.HasKey("IMAGE", "MISSING_CONSTANT") &&
-                    metadata.ReadAsString("IMAGE", "MISSING_CONSTANT") != Unknown &&
-                    metadata.ReadAsString("IMAGE", "MISSING_CONSTANT") != NullStr;
-            }
-        }
-
-        public float[] MissingConstant
-        {
-            get { return metadata.ReadAsFloatArray("IMAGE", "MISSING_CONSTANT"); }
-        }
-
-        public bool HasInvalidConstant
-        {
-            get { return metadata.HasKey("IMAGE", "INVALID_CONSTANT") && 
-                    metadata.ReadAsString("IMAGE", "INVALID_CONSTANT") != Unknown &&
-                    metadata.ReadAsString("IMAGE", "INVALID_CONSTANT") != NullStr;
-            }
-        }
-
-        public float[] InvalidConstant
-        {
-            get { return metadata.ReadAsFloatArray("IMAGE", "INVALID_CONSTANT"); }
-        }
-
-        public string ProductIdString
-        {
-            get { return metadata.ReadAsString("PRODUCT_ID"); }
-        }
-
-        public double SpacecraftClock
-        {
-            get
+            foreach (var g in groups)
             {
-                return metadata.ReadAsDouble("SPACECRAFT_CLOCK_START_COUNT");
+                if (metadata.HasKey(g, name))
+                {
+                    return metadata.ReadAsDouble(g, name);
+                }
+            }
+            throw new PDSParserException(name + " not found in " + string.Join(", ", groups));
+        }
+
+        protected string GetString(string[] groups, string name, bool throwOnFail = true)
+        {
+            foreach (var g in groups)
+            {
+                if (metadata.HasKey(g, name))
+                {
+                    return metadata.ReadAsString(g, name);
+                }
+            }
+            if (throwOnFail)
+            {
+                throw new PDSParserException(name + " not found in " + string.Join(", ", groups));
+            }
+            return null;
+        }
+
+        protected int[] GetIntArray(string[] groups, string name)
+        {
+            foreach (var g in groups)
+            {
+                if (metadata.HasKey(g, name))
+                {
+                    return metadata.ReadAsIntArray(g, name);
+                }
+            }
+            throw new PDSParserException(name + " not found in " + string.Join(", ", groups));
+        }
+
+        protected float[] GetFloatArray(string[] groups, string name)
+        {
+            foreach (var g in groups)
+            {
+                if (metadata.HasKey(g, name))
+                {
+                    return metadata.ReadAsFloatArray(g, name);
+                }
+            }
+            throw new PDSParserException(name + " not found in " + string.Join(", ", groups));
+        }
+
+        protected double[] GetDoubleArray(string[] groups, string name)
+        {
+            foreach (var g in groups)
+            {
+                if (metadata.HasKey(g, name))
+                {
+                    return metadata.ReadAsDoubleArray(g, name);
+                }
+            }
+            throw new PDSParserException(name + " not found in " + string.Join(", ", groups));
+        }
+
+        protected DateTime GetDateTime(string[] groups, string name)
+        {
+            foreach (var g in groups)
+            {
+                if (metadata.HasKey(g, name))
+                {
+                    return metadata.ReadAsDateTime(g, name);
+                }
+            }
+            throw new PDSParserException(name + " not found in " + string.Join(", ", groups));
+        }
+
+        protected Vector3 GetVector(string[] groups, string name)
+        {
+            foreach (var g in groups)
+            {
+                if (metadata.HasKey(g, name))
+                {
+                    return new Vector3(metadata.ReadAsDoubleArray(g, name));
+                }
+            }
+            throw new PDSParserException(name + " not found in " + string.Join(", ", groups));
+        }
+
+        protected Quaternion GetQuaternion(string[] groups, string name)
+        {
+            foreach (var g in groups)
+            {
+                if (metadata.HasKey(g, name))
+                {
+                    double[] qvals = metadata.ReadAsDoubleArray(g, name);
+                    // IMG stores quaternions in WXYZ order but our class needs them in XYZW
+                    return new Quaternion(qvals[1], qvals[2], qvals[3], qvals[0]);                       
+                }
+            }
+            throw new PDSParserException(name + " not found in " + string.Join(", ", groups));
+        }
+
+        protected bool IsRelativeToSite(string[] groups, int site, bool def = true)
+        {
+            string rcsn = "REFERENCE_COORD_SYSTEM_NAME"; 
+            string rcsi = "REFERENCE_COORD_SYSTEM_INDEX";
+            foreach (var g in groups)
+            {
+                if (metadata.HasGroup(g))
+                {
+                    if (metadata.HasKey(g, rcsn))
+                    {
+                        if (metadata.ReadAsString(g, rcsn) != "SITE_FRAME")
+                        {
+                            return false;
+                        }
+                        if (metadata.HasKey(g, rcsi))
+                        {
+                            if (metadata.ReadAsInt(g, rcsi) != site)
+                            {
+                                return false;
+                            }
+                            return true;
+                        }
+                    }
+                }
+            }
+            return def;
+        }
+
+        protected bool HasConstant(string[] groups, string name)
+        {
+            foreach (var g in groups)
+            {
+                if (metadata.HasKey(g, name))
+                {
+                    string v = metadata.ReadAsString(g, name);
+                    if (v != UNKNOWN && v != NULL)
+                    {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        protected T GetEnum<T>(string[] groups, string name, T def) where T : struct
+        {
+            string str = GetString(groups, name, throwOnFail: false);
+            return  (!string.IsNullOrEmpty(str) && Enum.TryParse<T>(str, true, out T val)) ? val : def;
+        }
+
+        //https://github.jpl.nasa.gov/OnSight/Landform/issues/465
+        protected double GetRadians(string[] groups, string[] names)
+        {
+            string group = null, name = null;
+            string val = null;
+            foreach (var g in groups)
+            {
+                foreach (var n in names)
+                {
+                    if (metadata.HasKey(g, n))
+                    {
+                        group = g;
+                        name = n;
+                        val = metadata.ReadAsString(g, n);
+                        break;
+                    }
+                }
+            }
+            if (string.IsNullOrEmpty(val))
+            {
+                throw new PDSParserException(string.Join(", ", names) + " not found in " + string.Join(", ", groups));
+            }
+            string[] tok = val.Split();
+            string units = "deg"; //default to degrees, e.g. M20 VIC may not have units
+            if (tok.Length > 1)
+            {
+                val = tok[0];
+                units = tok[1];
+            }
+            if (metadata.HasKey(group, name + "__UNIT")) //MSL VIC
+            {
+                units = metadata.ReadAsString(group, name + "__UNIT");
+            }
+            switch (units.ToLower())
+            {
+                case "deg": case "<deg>": return MathHelper.ToRadians(double.Parse(val));
+                case "rad": case "<rad>": return double.Parse(val);
+                default: throw new PDSParserException($"unknown units \"{units}\" for {group} {name} {val}");
+                    
             }
         }
 
-        public string InstrumentId
-        {
-            get
-            {
-                if (metadata.HasKey("INSTRUMENT_ID"))
-                {
-                    return metadata.ReadAsString("INSTRUMENT_ID");
-                }
-                else
-                {
-                    return string.Empty;
-                }
-            }
-        }
+        public string ProductIdString { get { return GetString(ID_GROUPS, "PRODUCT_ID"); } }
+
+        public DateTime ProductCreationTime { get { return GetDateTime(ID_GROUPS, "PRODUCT_CREATION_TIME"); } }
+
+        public double SpacecraftClock { get { return GetDouble(ID_GROUPS, "SPACECRAFT_CLOCK_START_COUNT"); } }
+
+        public int PlanetDayNumber { get { return GetInt(ID_GROUPS, "PLANET_DAY_NUMBER"); } }
+
+        public string InstrumentId { get { return GetString(ID_GROUPS, "INSTRUMENT_ID"); } }
 
         public RoverProductGeometry GeometricProjection
         {
             get
             {
-                if (metadata.HasKey("GEOMETRY_PROJECTION_TYPE"))
-                {
-                    string geoType = metadata.ReadAsString("GEOMETRY_PROJECTION_TYPE");
-                    if (geoType == "RAW")
-                    {
-                        return RoverProductGeometry.Raw;
-                    }
-                    else if (geoType == "LINEARIZED")
-                    {
-                       return RoverProductGeometry.Linearized;
-                    }
-                }
-                return RoverProductGeometry.Unknown;
+                return GetEnum<RoverProductGeometry>(ID_GROUPS, "GEOMETRY_PROJECTION_TYPE",
+                                                     RoverProductGeometry.Unknown);
             }
         }
 
@@ -128,187 +287,23 @@ namespace OPS.Pipeline
         {
             get
             {
-                if (metadata.HasKey("IMAGE_TYPE"))
-                {
-                    string imageType = metadata.ReadAsString("IMAGE_TYPE");
-                    if (imageType == "REGULAR")
-                    {
-                        return RoverProductSize.Regular;
-                    }
-                    else if (imageType == "THUMBNAIL")
-                    {
-                      return RoverProductSize.Thumbnail;
-                    }
-                }
-                return RoverProductSize.Unknown;
-            }          
-        }
-
-        public RoverProductType DerivedImageType
-        {
-            get
-            {
-                if (metadata.HasKey("DERIVED_IMAGE_PARMS", "DERIVED_IMAGE_TYPE"))
-                {
-                    string imageType = metadata.ReadAsString("DERIVED_IMAGE_PARMS", "DERIVED_IMAGE_TYPE");
-                    return RoverProduct.FromPDSDerivedImageType(imageType);
-                }
-
-                //we used to fall back on RoverProductId.ProductType here
-                //but that obscures problems with the PDS header
-                //and it is safer to parse the product ID if the mission is known
-                //if we do need such fallbacks they should be in MissionSpecific
-                
-                return RoverProductType.Unknown;
+                return GetEnum<RoverProductSize>(ID_GROUPS, "IMAGE_TYPE", RoverProductSize.Unknown);
             }
         }
 
-        public bool IsSunFinding
-        {
-            get
-            {
-                //MSSS doesn't put the flag in there
-                return ProducingInstitution == RoverProductProducer.OPGS && metadata.ReadAsString("IMAGE_REQUEST_PARMS", "SOURCE_ID") == "SUN";
-            }
-        }
+        public int[] MotionCounter { get { return GetIntArray(ID_GROUPS, "ROVER_MOTION_COUNTER"); } }
 
-        public RoverProductProducer ProducingInstitution
+        public string RMC
         {
             get
             {
-                if (metadata.HasKey("PRODUCER_INSTITUTION_NAME") && metadata.ReadAsString("PRODUCER_INSTITUTION_NAME").Contains("MULTIMISSION INSTRUMENT PROCESSING"))
+                int[] mc = MotionCounter;
+                StringBuilder builder = new StringBuilder();
+                foreach(int i in mc)
                 {
-                    return RoverProductProducer.OPGS;
+                    builder.Append(i.ToString().PadLeft(5, '0'));
                 }
-                else if (metadata.HasKey("INSTITUTION_NAME") && metadata.ReadAsString("INSTITUTION_NAME").Contains("MALIN SPACE SCIENCE SYSTEMS"))
-                {
-                    return RoverProductProducer.MSSS;
-                }
-                return RoverProductProducer.Unknown;
-            }
-        }
-
-        // Nav and Haz cam only
-        public double ExposureDuration
-        {
-            get
-            {
-                return metadata.ReadAsDouble("INSTRUMENT_STATE_PARMS", "EXPOSURE_DURATION");               
-            }
-        }
-
-        // Mastcam only
-        public int? FilterNumber
-        {
-            get
-            {
-                if (metadata.HasKey("INSTRUMENT_STATE_PARMS", "FILTER_NUMBER"))
-                {
-                    return metadata.ReadAsInt("INSTRUMENT_STATE_PARMS", "FILTER_NUMBER");
-                }
-                if (metadata.HasKey("MINI_HEADER", "FILTER_NUMBER"))
-                {
-                    return metadata.ReadAsInt("MINI_HEADER", "FILTER_NUMBER");
-                }
-                return null;
-            }
-        }
-
-        /// <summary>
-        /// Rover to local level
-        /// </summary>
-        public Quaternion RoverOriginRotation
-        {
-            get
-            {
-                foreach (string group in new string[] { "ROVER_COORDINATE_SYSTEM", "ROVER_COORDINATE_SYSTEM_PARMS" })
-                {
-                    if (metadata.HasGroup(group))
-                    {
-                        double[] qvals = metadata.ReadAsDoubleArray(group, "ORIGIN_ROTATION_QUATERNION");
-                        // IMG stores quaternions in WXYZ order but our class needs them in XYZW
-                        return new Quaternion(qvals[1], qvals[2], qvals[3], qvals[0]);                       
-                    }
-                }
-                throw new PDSParserException("ORIGIN_ROTATION_QUATERNION not found");
-            }
-        }
-
-        public Vector3 OriginOffset
-        {
-            get
-            {
-                foreach (string group in new string[] { "ROVER_COORDINATE_SYSTEM", "ROVER_COORDINATE_SYSTEM_PARMS" })
-                {
-                    if (metadata.HasGroup(group))
-                    {
-                        double[] offset = metadata.ReadAsDoubleArray(group, "ORIGIN_OFFSET_VECTOR");
-                        return new Vector3(offset);
-                    }
-                }
-                throw new PDSParserException("ORIGIN_OFFSET_VECTOR not found");
-            }
-        }
-
-        public bool RoverCoordinateSystemRelativeToSite
-        {
-            get
-            {
-                foreach (string group in new string[] { "ROVER_COORDINATE_SYSTEM", "ROVER_COORDINATE_SYSTEM_PARMS" })
-                {
-                    if (metadata.HasGroup(group))
-                    {
-                        string rcsn = "REFERENCE_COORD_SYSTEM_NAME"; 
-                        string rcsi = "REFERENCE_COORD_SYSTEM_INDEX";
-                        return metadata.HasKey(group, rcsn) && metadata.ReadAsString(group, rcsn) == "SITE_FRAME" &&
-                            metadata.HasKey(group, rcsi) && metadata.ReadAsInt(group, rcsi) == Site;
-                    }
-                }
-                return false;
-            }
-        }
-
-        public bool HasSiteCoordinateSystem
-        {
-            get
-            {
-                string scs = "SITE_COORDINATE_SYSTEM";
-                string csn = "COORDINATE_SYSTEM_NAME";
-                string csi = "COORDINATE_SYSTEM_INDEX"; 
-                string csin = "COORDINATE_SYSTEM_INDEX_NAME";
-                string rcsn = "REFERENCE_COORD_SYSTEM_NAME"; 
-                string rcsi = "REFERENCE_COORD_SYSTEM_INDEX";
-                return metadata.HasGroup(scs) &&
-                    metadata.HasKey(scs, csn) && metadata.ReadAsString(scs, csn) == "SITE_FRAME" &&
-                    metadata.HasKey(scs, csi) && metadata.ReadAsInt(scs, csi) == Site &&
-                    metadata.HasKey(scs, csin) && metadata.ReadAsString(scs, csin) == "SITE" &&
-                    metadata.HasKey(scs, "ORIGIN_OFFSET_VECTOR") &&
-                    metadata.HasKey(scs, rcsn) && metadata.ReadAsString(scs, rcsn) == "SITE_FRAME" &&
-                    metadata.HasKey(scs, rcsi) && metadata.ReadAsInt(scs, rcsi) == (Site - 1);
-            }
-        }
-
-        public Vector3 OffsetToPreviousSite
-        {
-            get
-            {
-                return new Vector3(metadata.ReadAsDoubleArray("SITE_COORDINATE_SYSTEM", "ORIGIN_OFFSET_VECTOR"));
-            }
-        }
-
-        public int[] MotionCounter
-        {
-            get
-            {
-                if (metadata.HasKey("IDENTIFICATION", "ROVER_MOTION_COUNTER"))
-                {
-                    return metadata.ReadAsIntArray("IDENTIFICATION", "ROVER_MOTION_COUNTER");
-                }
-                if (metadata.HasKey("ROVER_MOTION_COUNTER"))
-                {
-                    return metadata.ReadAsIntArray("ROVER_MOTION_COUNTER");
-                }
-                return null;
+                return builder.ToString();
             }
         }
 
@@ -325,51 +320,165 @@ namespace OPS.Pipeline
             }
         }
 
-        public int Site
-        {
-            get { return MotionCounter[0]; }
-        }
+        public int Site { get { return MotionCounter[0]; } }
 
-        public int Drive
-        {
-            get { return MotionCounter[1]; }
-        }
+        public int Drive { get { return MotionCounter[1]; } }
 
-        public string RMC
+        public int FirstLine { get { return GetInt(IMAGE_GROUPS, "FIRST_LINE"); } }
+
+        public int FirstSample { get { return GetInt(IMAGE_GROUPS, "FIRST_LINE_SAMPLE"); } }
+
+        public bool HasMissingConstant { get { return HasConstant(IMAGE_GROUPS, "MISSING_CONSTANT"); } }
+
+        public float[] MissingConstant { get { return GetFloatArray(IMAGE_GROUPS, "MISSING_CONSTANT"); } }
+
+        public bool HasInvalidConstant { get { return HasConstant(IMAGE_GROUPS, "INVALID_CONSTANT"); } }
+
+        public float[] InvalidConstant { get { return GetFloatArray(IMAGE_GROUPS, "INVALID_CONSTANT"); } }
+
+        //MSSS doesn't put this flag in there
+        public bool IsSunFinding
         {
             get
             {
-                int[] mc = MotionCounter;
-                StringBuilder builder = new StringBuilder();
-                foreach(int i in mc)
+                return GetString(IMAGE_REQUEST_GROUPS, "SOURCE_ID", throwOnFail: false) == "SUN";
+            }
+        }
+
+        public RoverProductProducer ProducingInstitution
+        {
+            get
+            {
+                string inst = GetString(ID_GROUPS, "PRODUCER_INSTITUTION_NAME", throwOnFail: false);
+                inst = inst ?? GetString(ID_GROUPS, "INSTITUTION_NAME", throwOnFail: false); //MSL MSSS
+                if (!string.IsNullOrEmpty(inst))
                 {
-                    builder.Append(i.ToString().PadLeft(5, '0'));
+                    if (inst.Contains("MULTIMISSION INSTRUMENT PROCESSING"))
+                    {
+                        return RoverProductProducer.OPGS;
+                    }
+                    if (inst.Contains("MALIN SPACE SCIENCE SYSTEMS"))
+                    {
+                        return RoverProductProducer.MSSS;
+                    }
                 }
-                return builder.ToString();
+                return RoverProductProducer.Unknown;
             }
         }
 
-        public int PlanetDayNumber
+        // navcam and hazcam only
+        public double ExposureDuration { get { return GetDouble(INSTRUMENT_STATE_GROUPS, "EXPOSURE_DURATION"); } }
+
+        // mastcam only
+        public int FilterNumber { get { return GetInt(INSTRUMENT_STATE_GROUPS, "FILTER_NUMBER"); } }
+
+        /// ROVER to LOCAL_LEVEL rotation
+        public Quaternion RoverOriginRotation
         {
             get
             {
-                return metadata.ReadAsInt("PLANET_DAY_NUMBER");
+                return GetQuaternion(ROVER_FRAME_GROUPS, "ORIGIN_ROTATION_QUATERNION");
             }
         }
 
+        /// LOCAL_LEVEL (and ROVER) to SITE translation
+        public Vector3 OriginOffset { get { return GetVector(ROVER_FRAME_GROUPS, "ORIGIN_OFFSET_VECTOR"); } }
+
+        //check if this image has a rover coordinate system
+        //and if so check if that rover coordinate system is relative to the site of the image
+        public bool RoverCoordinateSystemRelativeToSite { get { return IsRelativeToSite(ROVER_FRAME_GROUPS, Site); } }
+
+        public bool HasSiteCoordinateSystem { get { return metadata.HasGroup("SITE_COORDINATE_SYSTEM"); } }
+
+        public Vector3 OffsetToPreviousSite
+        {
+            get
+            {
+                if (Site < 2) //landing is site 1
+                {
+                    return Vector3.Zero;
+                }
+                int prevSite = Site - 1;
+                if (!IsRelativeToSite(SITE_FRAME_GROUPS, prevSite))
+                {
+                    throw new PDSParserException("site frame is not relative to previous site " + prevSite);
+                }
+                return GetVector(SITE_FRAME_GROUPS, "ORIGIN_OFFSET_VECTOR");
+            }
+        }
+
+        public enum ReferenceCoordinateFrame { RoverNav, LocalLevel, Site }
+
+        private ReferenceCoordinateFrame ParseFrame(string frame)
+        {
+            switch (frame)
+            {
+                case "ROVER_NAV_FRAME": return ReferenceCoordinateFrame.RoverNav;
+                case "LOCAL_LEVEL_FRAME": return ReferenceCoordinateFrame.LocalLevel;
+                case "SITE_FRAME": return ReferenceCoordinateFrame.Site;
+                default: throw new PDSParserException("unknown REFERENCE_COORDINATE_SYSTEM " + frame);
+            }
+        }
+
+        public ReferenceCoordinateFrame CameraModelRefFrame
+        {
+            get
+            {
+                return ParseFrame(GetString(CAMERA_FRAME_GROUPS, "REFERENCE_COORD_SYSTEM_NAME"));
+            }
+        }
+
+        //this is the RDR type, e.g. XYZ, UVW, RAS, etc
+        public RoverProductType DerivedImageType
+        {
+            get
+            {
+                var s = GetString(DERIVED_IMAGE_GROUPS, "DERIVED_IMAGE_TYPE", throwOnFail: false);
+                return !string.IsNullOrEmpty(s) ? RoverProduct.FromPDSDerivedImageType(s) : RoverProductType.Unknown;
+            }
+        }
+
+        //only some RDR types have this, e.g. XYZ, UVW, RAS
+        public ReferenceCoordinateFrame DerivedImageRefFrame
+        {
+            get
+            {
+                return ParseFrame(GetString(DERIVED_IMAGE_GROUPS, "REFERENCE_COORD_SYSTEM_NAME"));
+            }
+        }
+
+        //I think this will only work for RNG products (range maps)
+        public Vector3 RangeOrigin
+        {
+            get
+            {
+                return new Vector3(GetDoubleArray(DERIVED_IMAGE_GROUPS, "RANGE_ORIGIN_VECTOR"));
+            } 
+        }
+
+        public double HorizontalFOV { get { return GetRadians(INSTRUMENT_STATE_GROUPS, HFOV_NAMES); } }
+
+        public double VerticalFOV { get { return GetRadians(INSTRUMENT_STATE_GROUPS, VFOV_NAMES); } }
 
         /// <summary>
         /// Indicates that the image was only partially transmitted (i.e. image checksum failed).
         /// The image may contains regions of 0 value.
+        /// see discussion in https://github.jpl.nasa.gov/OnSight/Landform/issues/592
         /// </summary>
         public bool IsPartial
         {
             get
             {
-                string key = "MSL:PRODUCT_COMPLETION_STATUS";
+                string key = "PRODUCT_COMPLETION_STATUS"; //MSL VIC, M2020
                 if (!metadata.HasKey(key))
-                    return false; // Assume full image if key missing
-                return (string)metadata[key] == "PARTIAL";
+                {
+                    key = "MSL:" + key; //MSL PDS
+                }
+                if (!metadata.HasKey(key))
+                {
+                    return false;
+                }
+                return metadata.ReadAsString(key) == "PARTIAL";
             }
         }
 
@@ -377,109 +486,16 @@ namespace OPS.Pipeline
         {
             get
             {             
-                int avgWidth = 1;
-                if (metadata.HasKey("INSTRUMENT_STATE_PARMS", "PIXEL_AVERAGING_WIDTH") &&
-                    metadata.ReadAsString("INSTRUMENT_STATE_PARMS", "PIXEL_AVERAGING_WIDTH") != Unknown)
+                foreach (var name in DOWNSAMPLE_NAMES)
                 {
-                    avgWidth = metadata.ReadAsInt("INSTRUMENT_STATE_PARMS", "PIXEL_AVERAGING_WIDTH");
+                    string v = GetString(INSTRUMENT_STATE_GROUPS, name, throwOnFail: false);
+                    if (!string.IsNullOrEmpty(v) && v != UNKNOWN && int.Parse(v) > 1)
+                    {
+                        return true;
+                    }
                 }
-
-                int avgHeight = 1;
-                if (metadata.HasKey("INSTRUMENT_STATE_PARMS", "PIXEL_AVERAGING_HEIGHT") &&
-                    metadata.ReadAsString("INSTRUMENT_STATE_PARMS", "PIXEL_AVERAGING_HEIGHT") != Unknown)
-                {
-                    avgHeight = metadata.ReadAsInt("INSTRUMENT_STATE_PARMS", "PIXEL_AVERAGING_HEIGHT");
-                }
-
-                return avgWidth > 1 || avgHeight > 1;
+                return false;
             }
         }
-
-        public double HorizontalFOV
-        {
-            get
-            {
-                // Todo: write read angle: issues/465
-                if (this.metadata.HasKey("INSTRUMENT_STATE_PARMS", "AZIMUTH_FOV"))
-                {
-                    return MathHelper.ToRadians(this.metadata.ReadAsDouble("INSTRUMENT_STATE_PARMS", "AZIMUTH_FOV"));
-                }
-
-                return MathHelper.ToRadians(this.metadata.ReadAsDouble("INSTRUMENT_STATE_PARMS", "HORIZONTAL_FOV"));
-                
-               
-            }
-        }
-
-        public double VerticalFOV
-        {
-            get
-            {
-                // Todo: write read angle: issues/465
-
-                if (this.metadata.HasKey("INSTRUMENT_STATE_PARMS", "ELEVATION_FOV"))
-                {
-                    return MathHelper.ToRadians(this.metadata.ReadAsDouble("INSTRUMENT_STATE_PARMS", "ELEVATION_FOV"));
-                }
-                return MathHelper.ToRadians(this.metadata.ReadAsDouble("INSTRUMENT_STATE_PARMS", "VERTICAL_FOV"));
-                
-            }
-        }
-
-        public enum ReferenceCoordinateFrame
-        {
-            RoverNav,
-            LocalLevel,
-            Site
-        }
-
-        private ReferenceCoordinateFrame GetReferenceCoordinateFrame(string group)
-        {
-            if (metadata.ReadAsString(group, "REFERENCE_COORD_SYSTEM_NAME") == "ROVER_NAV_FRAME")
-                return ReferenceCoordinateFrame.RoverNav;
-            else if (metadata.ReadAsString(group, "REFERENCE_COORD_SYSTEM_NAME") == "SITE_FRAME")
-                return ReferenceCoordinateFrame.Site;
-            else if (metadata.ReadAsString(group, "REFERENCE_COORD_SYSTEM_NAME") == "LOCAL_LEVEL_FRAME")
-                return ReferenceCoordinateFrame.LocalLevel;
-            else
-                throw new PDSParserException("unknown reference coordinate system");
-        }
-
-        public ReferenceCoordinateFrame DerivedImageRefFrame
-        {
-            get
-            {
-                return GetReferenceCoordinateFrame("DERIVED_IMAGE_PARMS");
-            }
-        }
-
-
-        public ReferenceCoordinateFrame CameraModelRefFrame
-        {
-            get
-            {
-                if(this.metadata.HasGroup("GEOMETRIC_CAMERA_MODEL"))
-                {
-                    //MSL/M2020 opgs
-                    //M2020 MSSS
-                    return GetReferenceCoordinateFrame("GEOMETRIC_CAMERA_MODEL");
-                }
-                else
-                {
-                    //MSL MSSS
-                    return GetReferenceCoordinateFrame("GEOMETRIC_CAMERA_MODEL_PARMS"); //MSL Specific
-                }
-            }
-        }
-        
-        public Vector3 RangeOrigin
-        {
-            get
-            {
-              double[] originVecv = metadata.ReadAsDoubleArray("DERIVED_IMAGE_PARMS", "RANGE_ORIGIN_VECTOR");
-              return new Vector3(originVecv);
-            } 
-        }
-    
     }
 }

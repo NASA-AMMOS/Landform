@@ -267,6 +267,11 @@ namespace OPS.Landform
             }
             if (serviceMode || serviceUtilMode)
             {
+                if (credentialRefreshSec > 0)
+                {
+                    RefreshCredentials();
+                }
+
                 if (!string.IsNullOrEmpty(lvopts.ProjectName))
                 {
                     throw new Exception("project name must be omitted with " + utils);

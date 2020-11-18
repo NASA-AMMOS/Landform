@@ -227,6 +227,7 @@ namespace OPS.Pipeline.AlignmentServer
             {
                 case RoverProductGeometry.Linearized: return IsLinear;
                 case RoverProductGeometry.Raw: return !IsLinear;
+                case RoverProductGeometry.Any: return true;
                 default: return false;
             }
         }

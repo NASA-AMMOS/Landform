@@ -212,7 +212,7 @@ namespace OPS.Landform
                     //tracked as issues #450, #451
                     Matrix cameraToRoot = adjCameraToScene[obs.Name];
 
-                    RoverCoordinateSystem.GetCameraToRover(adjNode.GetComponent<NodeImage>().CameraModel, out Matrix cameraToRover);
+                    GetCameraToRover(adjNode.GetComponent<NodeImage>().CameraModel, out Matrix cameraToRover);
                     Matrix roverToCamera = Matrix.Invert(cameraToRover);
                     Matrix roverToRoot = roverToCamera * cameraToRoot;
 
@@ -287,9 +287,36 @@ namespace OPS.Landform
             }
         }
 
+        //from sha 938edc12515e3ab8d29f20df077c5ae125af72c2 in terrain tools
+        static void GetCameraToRover(CameraModel m, out Matrix cameraToRover)
+        {
+            CAHV linear = (CAHV)m;
+
+            double h_c = linear.A.Dot(linear.H);
+            double v_c = linear.A.Dot(linear.V);
+
+            double h_s = linear.A.Cross(linear.H).Length();
+            double v_s = linear.A.Cross(linear.V).Length();
+
+            Vector3 fwd = linear.A; fwd.Normalize();
+            Vector3 right = (linear.H - h_c * linear.A) / h_s;
+            Vector3 up = (linear.V - v_c * linear.A) / v_s;
+
+            cameraToRover = Matrix.Identity;
+            for (int i = 0; i < 3; i++)
+            {
+                cameraToRover[0, i] = right[i];
+                cameraToRover[1, i] = up[i];
+                cameraToRover[2, i] = fwd[i];
+            }
+            cameraToRover.Translation = linear.C;
+
+            //TODO: port/validate nonlinear code from terrain tools
+        }
+
         static void GetSceneToCamera(CameraModel m, Matrix roverToScene, out Matrix sceneToCamera)
         {
-            RoverCoordinateSystem.GetCameraToRover(m, out Matrix cameraToRover);
+            GetCameraToRover(m, out Matrix cameraToRover);
             Matrix cameraToScene = cameraToRover * roverToScene;
             sceneToCamera = Matrix.Invert(cameraToScene);
         }
