@@ -858,6 +858,21 @@ namespace OPS.Pipeline
         }
     }
 
+    public class MissionORT11 : MissionM2020
+    {
+        public MissionORT11(string venue = null) : base(venue ?? "sops") { }
+
+        public override Mission GetMission()
+        {
+            return Mission.ORT11;
+        }
+
+        public override string GetTacticalMeshTriggerRegex()
+        {
+            return "auto_iv"; //see ProcessTactical.ParseMeshRegex()
+        }
+    }
+
     public class MissionM20SOPS : MissionM2020
     {
         public MissionM20SOPS(string venue = null) : base(venue ?? "sops") { }
