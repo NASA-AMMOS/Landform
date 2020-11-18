@@ -321,7 +321,13 @@ namespace OPS.Geometry
 
 #if FAST_PARSE
 
-        //these give about a 20% speedup
+        //these give about a 25% speedup
+        //but leaving disabled for now as it's late in the G6.8 release cycle
+        //and the speedup doesn't seem worth the risk
+        //for a large 3.5GB obj with about 25M tris the timings (just to parse, not including building the mesh) are
+        //without FAST_PARSE: 1m53s
+        //with FAST_PARSE (long implementation): 1m26s
+        //with FAST_PARSE (int implementation): 1m24s
 
         private static float ParseFloat(string str)
         {

@@ -16,7 +16,7 @@ namespace UtilTest
                 new Tuple<string,int>("10", 10),
                 new Tuple<string,int>("-10", -10),
                 new Tuple<string,int>("12345", 12345),
-                new Tuple<string,int>("6789 12345", 12345),
+                new Tuple<string,int>("6789 12345", 6789),
                 new Tuple<string,int>("-12345", -12345),
                 new Tuple<string,int>("+12345", 12345),
                 new Tuple<string,int>(" +12345", 12345),
@@ -26,9 +26,11 @@ namespace UtilTest
                 new Tuple<string,int>("boo 12345", 12345),
                 new Tuple<string,int>("boo12345", 12345),
                 new Tuple<string,int>("boo12345foo", 12345),
-                new Tuple<string,int>("1999999999", 1999999999),
-                new Tuple<string,int>("+1999999999", 1999999999),
-                new Tuple<string,int>("-1999999999", -1999999999)
+                new Tuple<string,int>("999999999", 999999999),
+                new Tuple<string,int>("+999999999", 999999999),
+                new Tuple<string,int>("-999999999", -999999999),
+                new Tuple<string,int>("-2147483648", -2147483648),
+                new Tuple<string,int>("2147483647", 2147483647)
             };
 
             foreach (var pair in inputs)
@@ -55,9 +57,11 @@ namespace UtilTest
                 new Tuple<string,float>("boo 12345", 12345f),
                 new Tuple<string,float>("boo12345", 12345f),
                 new Tuple<string,float>("boo12345foo", 12345f),
-                new Tuple<string,float>("1999999999", 1999999999f),
-                new Tuple<string,float>("+1999999999", 1999999999f),
-                new Tuple<string,float>("-1999999999", -1999999999f),
+                new Tuple<string,float>("999999999", 999999999f),
+                new Tuple<string,float>("+999999999", 999999999f),
+                new Tuple<string,float>("-999999999", -999999999f),
+                new Tuple<string,float>("-2147483648", -2147483648),
+                new Tuple<string,float>("2147483647", 2147483647),
                 new Tuple<string,float>("0.", 0f),
                 new Tuple<string,float>(".0", 0f),
                 new Tuple<string,float>("10.1", 10.1f),
@@ -68,7 +72,7 @@ namespace UtilTest
                 new Tuple<string,float>(" 12345.54321", 12345.54321f),
                 new Tuple<string,float>(" 12345.54321 ", 12345.54321f),
                 new Tuple<string,float>("12345.54321 ", 12345.54321f),
-                new Tuple<string,float>("6789 12345.54321 ", 12345.54321f),
+                new Tuple<string,float>("12345.54321 6789", 12345.54321f),
                 new Tuple<string,float>("-12345.12345", -12345.12345f),
                 new Tuple<string,float>("+12345.0001", 12345.0001f),
                 new Tuple<string,float>(" +12345.000", 12345f),
@@ -77,7 +81,6 @@ namespace UtilTest
                 new Tuple<string,float>("-.54321", -0.54321f),
                 new Tuple<string,float>("+.54321", 0.54321f),
                 new Tuple<string,float>(".54321", 0.54321f),
-                new Tuple<string,float>("+ .54321", 0.54321f),
                 new Tuple<string,float>(" .54321", 0.54321f),
                 new Tuple<string,float>("-0.54321", -0.54321f),
                 new Tuple<string,float>("-00.54321", -0.54321f),
@@ -89,9 +92,9 @@ namespace UtilTest
                 new Tuple<string,float>("boo 12345.", 12345f),
                 new Tuple<string,float>("boo12345", 12345f),
                 new Tuple<string,float>("boo12345foo", 12345f),
-                new Tuple<string,float>("1999999999.12345", 1999999999.12345f),
-                new Tuple<string,float>("+1999999999.12345", 1999999999.12345f),
-                new Tuple<string,float>("-1999999999.12345", -1999999999.12345f),
+                new Tuple<string,float>("999999999.12345", 999999999.12345f),
+                new Tuple<string,float>("+999999999.12345", 999999999.12345f),
+                new Tuple<string,float>("-999999999.12345", -999999999.12345f),
                 new Tuple<string,float>("1.2345e6", 1.2345e6f),
                 new Tuple<string,float>("1.2345e-6", 1.2345e-6f),
                 new Tuple<string,float>("-1.2345E+6", -1.2345e6f),
@@ -103,7 +106,7 @@ namespace UtilTest
                 new Tuple<string,float>(".567e-7", 5.67e-8f),
                 new Tuple<string,float>("5e07", 5.0e7f),
                 new Tuple<string,float>("5e-07", 5.0e-7f),
-                new Tuple<string,float>("0.60970000000000368", 0.6097f)
+                new Tuple<string,float>("0.60970000000000368000000000000000000000001", 0.6097f)
             };
 
             float tol = 1e-6f;
