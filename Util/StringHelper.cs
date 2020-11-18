@@ -365,48 +365,138 @@ namespace OPS.Util
         }
 
         private static double[] NEG_POW_10 = new double[]
-            { 1, 1e-1, 1e-2, 1e-3, 1e-4, 1e-5, 1e-6, 1e-7, 1e-8, 1e-9, 1e-10 };
+            { 1, 1e-1, 1e-2, 1e-3, 1e-4, 1e-5, 1e-6, 1e-7, 1e-8, 1e-9 };
 
         /// <summary>
-        /// parse (last) double in str, ignoring leading and trailing garbage
+        /// float range is +/-1.5e-45 to +/-3.4e38 with up to 9 digits of precision
+        /// parse (last) float in str, ignoring leading and trailing garbage
         /// integers to the left and right of the decimal point have the same range as in FastParseInt()
-        /// does not parse scientific notation or special values like inf or nan
+        /// fractional parts with more than 9 digits will be truncated
+        /// does not parse special values like inf or nan
+        /// does parse scientific notation
         /// allows numbers with or without decimal point and with or without leading sign
         /// allows no digits either before or after (but not both before and after) decimal point
         /// </summary>
-        public static double FastParseDouble(string str)
+        public static float FastParseFloat(string str)
         {
-            int pt = str.IndexOf('.');
-            if (pt >= 0)
+            int firstDigit = -1, lastDigit = -1, decimalPoint = -1, exponent = -1, sign = -1, exponentSign = -1;
+            for (int i = str.Length - 1; i >= 0; i--)
             {
-                int s = 0, e = str.Length - 1;
-                int ie = pt - 1;
-                int fs = pt + 1;
-                int il = 0, fl = 0, isn = 1, fsn = 1;
-                double ip = s <= ie ? FastParseInt(str, s, ie, out il, out isn) : 0;
-                double fp = fs <= e ? FastParseInt(str, fs, e, out fl, out fsn) : 0;
-                if (fsn < 0)
+                bool isDigit = str[i] >= '0' && str[i] <= '9';
+                if (isDigit)
                 {
-                    throw new FormatException($"negative fraction parsing number from {str}");
+                    firstDigit = i;
+                    if (lastDigit < 0)
+                    {
+                        lastDigit = i;
+                    }
                 }
-                if (fl >= NEG_POW_10.Length)
+                else if (i < lastDigit)
                 {
-                    throw new FormatException($"fraction too long parsing number from {str}");
+                    if (str[i] == 'e' || str[i] == 'E')
+                    {
+                        if (exponent < 0 && decimalPoint < 0)
+                        {
+                            exponent = i;
+                        }
+                        else
+                        {
+                            break;
+                        }
+                    }
+                    else if (str[i] == '+' || str[i] == '-')
+                    {
+                        if (i > 0 && decimalPoint < 0 && exponent < 0 && exponentSign < 0 &&
+                            (str[i - 1] == 'e' || str[i - 1] == 'E'))
+                        {
+                            exponentSign = i;
+                        }
+                        else
+                        {
+                            sign = i;
+                            break;
+                        }
+                    }
+                    else if (str[i] == '.')
+                    {
+                        if (decimalPoint < 0)
+                        {
+                            decimalPoint = i;
+                        }
+                        else
+                        {
+                            break;
+                        }
+                    }
+                    else
+                    {
+                        break;
+                    }
                 }
-                if (fl == 0 && il == 0)
-                {
-                    throw new FormatException($"error parsing number from {str}");
-                }
-                if (il == 0 && pt > 0 && str[pt-1] == '-') //-.12345
-                {
-                    fp = -fp;
-                }
-                return ip + fp * (isn < 0 ? -1 : 1) * NEG_POW_10[fl];
             }
-            else
+
+            //Console.WriteLine("str=\"{0}\", firstDigit={1}, lastDigit={2}, " +
+            //                  "decimalPoint={3}, exponent={4}, sign={5}, exponentSign={6}",
+            //                  str, firstDigit, lastDigit, decimalPoint, exponent, sign, exponentSign);
+
+            if (lastDigit < 0 ||
+                (exponent > 0 && !(firstDigit < exponent && exponent < lastDigit)) ||
+                (sign > 0 && !(sign == firstDigit - 1)))
             {
-                return FastParseInt(str);
+                throw new FormatException($"error parsing float from {str}");
             }
+
+            int exp = 0;
+            if (exponent > 0)
+            {
+                exp = FastParseInt(str, exponent + 1, lastDigit);
+                lastDigit = exponent - 1;
+                if (lastDigit == decimalPoint)
+                {
+                    lastDigit = decimalPoint - 1;
+                    decimalPoint = -1;
+                }
+                if (exp > 38 || exp < -45)
+                {
+                    throw new FormatException($"exponent out of range parsing float from {str}");
+                }
+            }
+
+            int fpart = 0, flen = 0;
+            if (decimalPoint >= 0 && lastDigit > decimalPoint)
+            {
+                int fstart = decimalPoint + 1;
+                int fend = lastDigit;
+                flen = fend - fstart + 1;
+                if (flen > 9)
+                {
+                    flen = 9;
+                    fend = fstart + flen - 1;
+                }
+                fpart = FastParseInt(str, fstart, fend);
+                lastDigit = decimalPoint - 1;
+            }
+
+            int ipart = lastDigit >= firstDigit ? FastParseInt(str, firstDigit, lastDigit) : 0;
+
+            int sgn = (sign >= 0 && str[sign] == '-') ? -1 : 1;
+
+            //Console.WriteLine("exp={0}, fpart={1}, flen={2}, ipart={3}, sgn={4}", exp, fpart, flen, ipart, sgn);
+
+            double ret = sgn * ipart;
+            if (flen > 0)
+            {
+                ret += sgn * (double)fpart * NEG_POW_10[flen];
+            }
+            if (exp != 0)
+            {
+                ret *= Math.Pow(10, exp);
+            }
+            if (ret < float.MinValue || ret > float.MaxValue)
+            {
+                throw new FormatException($"overflow parsing float from {str}");
+            }
+            return (float)ret;
         }
 
         /// <summary>
@@ -416,11 +506,9 @@ namespace OPS.Util
         /// this impl can parse -1,999,999,999 to 1,999,999,999
         /// return len = number of digits in parsed int, 0 if none
         /// </summary>
-        public static int FastParseInt(string str, int s, int e, out int len, out int sign)
+        public static int FastParseInt(string str, int s, int e)
         {
-            len = 0;
-            sign = 1;
-            int ret = 0, place = 0;
+            int len = 0, ret = 0, place = 0;
             for (int i = e; i >= s; i--)
             {
                 if (str[i] >= '0' && str[i] <= '9')
@@ -438,28 +526,21 @@ namespace OPS.Util
                 {
                     if (str[i] == '-')
                     {
-                        sign = -1;
+                        ret = -ret;
                     }
                     break;
                 }
             }
-            return sign * ret;
-        }
-
-        /// <summary>
-        /// parses (last) int in str
-        /// ignores leading and trailing garbage
-        /// int range is -2,147,483,648 to 2,147,483,647
-        /// this impl can parse -1,999,999,999 to 1,999,999,999
-        /// </summary>
-        public static int FastParseInt(string str)
-        {
-            int val = FastParseInt(str, 0, str.Length - 1, out int len, out int sign);
             if (len == 0)
             {
                 throw new FormatException($"error parsing number from {str}");
             }
-            return val;
+            return ret;
+        }
+
+        public static int FastParseInt(string str)
+        {
+            return FastParseInt(str, 0, str.Length - 1);
         }
     }
 }

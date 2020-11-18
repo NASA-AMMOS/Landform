@@ -1,4 +1,4 @@
-﻿#define FAST_PARSE
+﻿//#define FAST_PARSE
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -6,6 +6,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Diagnostics;
 using Microsoft.Xna.Framework;
 using OPS.Util;
 
@@ -137,17 +138,22 @@ namespace OPS.Geometry
                 vertices.Capacity = (int)nv;
                 uvs.Capacity = (int)nvt;
                 objFaces.Capacity = (int)nt;
+                //if (!onlyGetImageFilename)
+                //{
+                //    Console.WriteLine("{0} {1} bytes, expected {2} tris", filename, Fmt.KMG(bytes), Fmt.KMG(nt));
+                //}
             }
 
+            // OBJs can contain different length arrays of vert, uv, normals.
+            // Thus each face indices each of these attributes individually.
+            // We use lists to temporarily store the vert, uv, normals, and 
+            // faces in the more complicated structure and then convert them 
+            // into a one-2-one indexing scheme where all attribute arrays are 
+            // the same length.           
+                
+            var sw = Stopwatch.StartNew();
             using (StreamReader sr = new StreamReader(filename))
             {
-                // OBJs can contain different length arrays of vert, uv, normals.
-                // Thus each face indices each of these attributes individually.
-                // We use lists to temporarily store the vert, uv, normals, and 
-                // faces in the more complicated structure and then convert them 
-                // into a one-2-one indexing scheme where all attribute arrays are 
-                // the same length.           
-                
                 for (int lineNum = 1; true; lineNum++)
                 {
                     string line = sr.ReadLine();
@@ -186,25 +192,24 @@ namespace OPS.Geometry
                             }
                             case "v":
                             {
-                                vertices.Add(new Vector3(ParseDouble(tok[1]), ParseDouble(tok[2]),
-                                                         ParseDouble(tok[3])));
+                                vertices.Add(new Vector3(ParseFloat(tok[1]), ParseFloat(tok[2]), ParseFloat(tok[3])));
                                 //obj doesn't offically support vertex colors but some tools pack them after xyz
                                 if (tok.Length >= 7)
                                 {
-                                    double a = tok.Length >= 8 ? ParseDouble(tok[7]) : defaultAlpha;
-                                    colors.Add(new Vector4(ParseDouble(tok[4]), ParseDouble(tok[5]),
-                                                           ParseDouble(tok[6]), a));
+                                    double a = tok.Length >= 8 ? ParseFloat(tok[7]) : defaultAlpha;
+                                    colors.Add(new Vector4(ParseFloat(tok[4]), ParseFloat(tok[5]),
+                                                           ParseFloat(tok[6]), a));
                                 }
                                 break;
                             }
                             case "vt":
                             {
-                                uvs.Add(new Vector2(ParseDouble(tok[1]), ParseDouble(tok[2])));
+                                uvs.Add(new Vector2(ParseFloat(tok[1]), ParseFloat(tok[2])));
                                 break;
                             }
                             case "vn":
                             {
-                                normals.Add(new Vector3(ParseDouble(tok[1]), ParseDouble(tok[2]), ParseDouble(tok[3])));
+                                normals.Add(new Vector3(ParseFloat(tok[1]), ParseFloat(tok[2]), ParseFloat(tok[3])));
                                 break;
                             }
                             case "f":
@@ -233,98 +238,108 @@ namespace OPS.Geometry
                         throw new OBJSerializerException($"error parsing OBJ {filename} line {lineNum} ({line})", ex);
                     }
                 }
-                
-                // Generate a mesh
-                Mesh result = new Mesh();
-                result.HasNormals = normals.Count != 0;
-                result.HasUVs = uvs.Count != 0;
-                result.HasColors = colors.Count != 0;
-                if (result.HasColors && vertices.Count != colors.Count)
-                {
-                    throw new OBJSerializerException("Not all vertices in OBJ defined colors.  " +
-                                                     "If any vertex defines a color then they all must");
-                }
-                if (objFaces.Count == 0)
-                {
-                    //This is a weird OBJ file which doesn't define any faces.
-                    //The spec is unclear on how to interpret the relationship between vertices and
-                    //uvs/normals in this case.
-                    //We make the assumption that in the absence of faces,
-                    //the uv and normal elements have a one-to-one mapping with vertices.
-                    //Thus, if either list is defined it must also be the same lenght as the list of vertices.
-                    //This assumption allows us to read in obj point clouds.
-                    if (result.HasUVs && uvs.Count != vertices.Count)
-                    {
-                        throw new OBJSerializerException("OBJ did not contain face description " +
-                                                         "and number of vertices and uvs differs");
-                    }
-                    if (result.HasNormals && normals.Count != vertices.Count)
-                    {
-                        throw new OBJSerializerException("OBJ did not contain face description " +
-                                                         "and number of vertices and uvs differs");
-                    }
-                    result.Vertices.Capacity = vertices.Count;
-                    for (int i = 0; i < vertices.Count; i++)
-                    {
-                        Vertex v = new Vertex();
-                        v.Position = vertices[i];
-                        v.UV = result.HasUVs ? uvs[i] : Vector2.Zero;
-                        v.Normal = result.HasNormals ? normals[i] : Vector3.Zero;
-                        v.Color = result.HasColors ? colors[i] : Vector4.Zero;
-                        result.Vertices.Add(v);
-                    }
-                }
-                else
-                {
-                    //This is a normal obj file.
-                    //Generate a mesh using the faces.
-                    //Any vertices or uvs not referenced by a face will be ommitted.
-                    var vertDefToIndex = new Dictionary<VertexDefinition, int>(3 * objFaces.Count);
-                    result.Vertices.Capacity = 3 * objFaces.Count;
-                    result.Faces.Capacity = objFaces.Count;
-                    foreach (OBJFace f in objFaces)
-                    {
-                        int[] indices = new int[3];
-                        // Construct a vertex object for each of the vertices defined by the face
-                        for (int i = 0; i < 3; i++)
-                        {
-                            VertexDefinition vertDef = f.vertDef[i];
-                            // If we haven't seen a vertex like this before, create a new one
-                            if (!vertDefToIndex.ContainsKey(vertDef))
-                            {
-                                Vertex v = new Vertex();
-                                v = new Vertex();
-                                v.Position = vertices[vertDef.vertIdx];
-                                v.Color = result.HasColors ? colors[vertDef.vertIdx] : Vector4.Zero;
-                                v.UV = result.HasUVs ? uvs[vertDef.uvIdx] : Vector2.Zero;
-                                v.Normal = result.HasNormals ? normals[vertDef.normalIdx] : Vector3.Zero;
-                                vertDefToIndex.Add(vertDef, vertDefToIndex.Count);
-                                result.Vertices.Add(v);
-                            }
-                            indices[i] = vertDefToIndex[vertDef];
-                        }
-                        // Create a face from our vertex indices
-                        result.Faces.Add(new Face(indices));
-                    }
-                    result.Vertices.TrimExcess();
-                }
-                return result;
             }
+
+            //if (!onlyGetImageFilename) Console.WriteLine("parse OBJ: {0}", Fmt.HMS(sw));
+            sw.Restart();
+                
+            Mesh result = new Mesh();
+            result.HasNormals = normals.Count != 0;
+            result.HasUVs = uvs.Count != 0;
+            result.HasColors = colors.Count != 0;
+            if (result.HasColors && vertices.Count != colors.Count)
+            {
+                throw new OBJSerializerException("Not all vertices in OBJ defined colors.  " +
+                                                 "If any vertex defines a color then they all must");
+            }
+            if (objFaces.Count == 0)
+            {
+                //This is a weird OBJ file which doesn't define any faces.
+                //The spec is unclear on how to interpret the relationship between vertices and
+                //uvs/normals in this case.
+                //We make the assumption that in the absence of faces,
+                //the uv and normal elements have a one-to-one mapping with vertices.
+                //Thus, if either list is defined it must also be the same lenght as the list of vertices.
+                //This assumption allows us to read in obj point clouds.
+                if (result.HasUVs && uvs.Count != vertices.Count)
+                {
+                    throw new OBJSerializerException("OBJ did not contain face description " +
+                                                     "and number of vertices and uvs differs");
+                }
+                if (result.HasNormals && normals.Count != vertices.Count)
+                {
+                    throw new OBJSerializerException("OBJ did not contain face description " +
+                                                     "and number of vertices and uvs differs");
+                }
+                result.Vertices.Capacity = vertices.Count;
+                for (int i = 0; i < vertices.Count; i++)
+                {
+                    Vertex v = new Vertex();
+                    v.Position = vertices[i];
+                    v.UV = result.HasUVs ? uvs[i] : Vector2.Zero;
+                    v.Normal = result.HasNormals ? normals[i] : Vector3.Zero;
+                    v.Color = result.HasColors ? colors[i] : Vector4.Zero;
+                    result.Vertices.Add(v);
+                }
+            }
+            else
+            {
+                //This is a normal obj file.
+                //Generate a mesh using the faces.
+                //Any vertices or uvs not referenced by a face will be ommitted.
+                var vertDefToIndex = new Dictionary<VertexDefinition, int>(3 * objFaces.Count);
+                result.Vertices.Capacity = 3 * objFaces.Count;
+                result.Faces.Capacity = objFaces.Count;
+                foreach (OBJFace f in objFaces)
+                {
+                    int[] indices = new int[3];
+                    // Construct a vertex object for each of the vertices defined by the face
+                    for (int i = 0; i < 3; i++)
+                    {
+                        VertexDefinition vertDef = f.vertDef[i];
+                        // If we haven't seen a vertex like this before, create a new one
+                        if (!vertDefToIndex.ContainsKey(vertDef))
+                        {
+                            Vertex v = new Vertex();
+                            v = new Vertex();
+                            v.Position = vertices[vertDef.vertIdx];
+                            v.Color = result.HasColors ? colors[vertDef.vertIdx] : Vector4.Zero;
+                            v.UV = result.HasUVs ? uvs[vertDef.uvIdx] : Vector2.Zero;
+                            v.Normal = result.HasNormals ? normals[vertDef.normalIdx] : Vector3.Zero;
+                            vertDefToIndex.Add(vertDef, vertDefToIndex.Count);
+                            result.Vertices.Add(v);
+                        }
+                        indices[i] = vertDefToIndex[vertDef];
+                    }
+                    // Create a face from our vertex indices
+                    result.Faces.Add(new Face(indices));
+                }
+                result.Vertices.TrimExcess();
+            }
+
+            //if (!onlyGetImageFilename) Console.WriteLine("buid mesh: {0}", Fmt.HMS(sw));
+
+            return result;
         }
 
 #if FAST_PARSE
-        private static double ParseDouble(string str)
+        //these give about a 20% speedup
+        private static float ParseFloat(string str)
         {
-            return StringHelper.FastParseDouble(str);
+            float ret = StringHelper.FastParseFloat(str);
+            //double ck = double.Parse(str);
+            //double diff = Math.Abs(ck - ret);
+            //if (diff > 1e-6) Console.WriteLine("str={0}, fastParse={1}, parse={2}, diff={3}", str, ret, ck, diff);
+            return ret;
         }
         private static int ParseInt(string str)
         {
             return StringHelper.FastParseInt(str);
         }
 #else
-        private static double ParseDouble(string str)
+        private static float ParseFloat(string str)
         {
-            return double.Parse(str);
+            return float.Parse(str);
         }
         private static int ParseInt(string str)
         {
