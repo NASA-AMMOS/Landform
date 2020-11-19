@@ -88,6 +88,9 @@
     <None Include="TestData\json\m2020-contextual-master-g66bt-xyz-event.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <None Include="TestData\json\m2020-contextual-master-ort11-xyz-event.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
     <None Include="TestData\json\m2020-contextual-master-ort8-dry-run-xyz-event.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
