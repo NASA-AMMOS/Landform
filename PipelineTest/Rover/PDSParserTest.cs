@@ -107,7 +107,8 @@ namespace PipelineTest
                 Assert.AreEqual(0.0275015, articulation.LeftRockerAngle);
                 Assert.AreEqual(6.20445, articulation.MastAzimuth);
                 Assert.AreEqual(1.97266, articulation.MastElevation);
-                Assert.AreEqual(PDSParser.ReferenceCoordinateFrame.Site, m.CameraModelRefFrame);
+                Assert.AreEqual(PDSParser.ReferenceCoordinateFrame.RoverNav, m.CameraModelRefFrame);
+                Assert.AreEqual(PDSParser.ReferenceCoordinateFrame.Site, m.DerivedImageRefFrame);
 
                 Assert.AreEqual(MathHelper.ToRadians(45.3641), m.HorizontalFOV);
                 Assert.AreEqual(MathHelper.ToRadians(45.3596), m.VerticalFOV);
