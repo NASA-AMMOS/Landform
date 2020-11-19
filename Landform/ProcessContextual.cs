@@ -876,6 +876,12 @@ namespace OPS.Landform
                 {
                     return string.Format("stereo eye {0} != {1}", id.Camera, preferredEye);
                 }
+                var preferredGeometry = mission.PreferLinearGeometryProducts() ?
+                    RoverProductGeometry.Linearized : RoverProductGeometry.Raw;
+                if (id.Geometry != preferredGeometry)
+                {
+                    return string.Format("linearity {0} != {1}", id.Geometry, preferredGeometry);
+                }
             }
             return null;
         }
