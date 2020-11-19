@@ -302,13 +302,37 @@ namespace OPS.Pipeline
                                                   PreferEyeForGeometry(), this, ext);
         }
 
-        public override IEnumerable<RoverProductId> FilterProductIdGroups(IEnumerable<RoverProductId> products)
+        public override IEnumerable<RoverProductId>
+            FilterProductIdGroups(IEnumerable<RoverProductId> products,
+                                  Action<string, List<RoverProductId>, List<RoverProductId>> spew = null)
         {
-            Func<RoverProductId, bool> isEECAM = id => IsHazcam(id.Camera) || IsNavcam(id.Camera);
-            var groups = products.GroupBy(id => id.GetPartialId(this, includeVariants: false, includeVersion: false));
+            spew = spew ?? ((str, orig, filt) => {});
+
+            //if we have multiple resolutions (downsample levels) within a single observation
+            //then keep only the highest res (lowest downsample)
+            //this is important so that we don't end up with mixed resolutions within one observation
+            //e.g. a mask with a different resolution than the corresponding image
+            var groups = products.GroupBy(id => id.GetPartialId(this, includeProductType: false,
+                                                                includeVariants: false, includeVersion: false));
+            var highestRes = new List<RoverProductId>();
             foreach (var group in groups)
             {
-                var filtered = group.Select(id => id);
+                var orig = group.ToList();
+
+                //downsample 0-3, prefer lower
+                char minDS = orig.Select(id => id.FullId[DOWNSAMPLE_FIELD]).DefaultIfEmpty('0').Min();
+                var filtered = orig.Where(id => id.FullId[DOWNSAMPLE_FIELD] == minDS).ToList();
+                spew("downsample", orig, filtered);
+
+                highestRes.AddRange(filtered);
+            }
+
+            Func<RoverProductId, bool> isEECAM = id => IsHazcam(id.Camera) || IsNavcam(id.Camera);
+
+            groups = highestRes.GroupBy(id => id.GetPartialId(this, includeVariants: false, includeVersion: false));
+            foreach (var group in groups)
+            {
+                var orig = group.ToList();
 
                 //https://docs.google.com/document/d/15iZgxqsecD6svOUuiEQm2J10a2ziKYeQQXU_f-VXGZc#heading=h.76imaw5jdp48
 
@@ -316,28 +340,30 @@ namespace OPS.Pipeline
                 //note the SIS changed to allow only A or M here, but this code should remain correct (prefer M over A)
                 //https://github.jpl.nasa.gov/OnSight/Landform/issues/852
                 //though also see https://github.jpl.nasa.gov/OnSight/Landform/issues/891
-                char maxEDS = filtered
+                char maxEDS = orig
                     .Where(id => isEECAM(id))
                     .Select(id => id.FullId[EECAM_DOWNSAMPLE_FIELD])
                     .DefaultIfEmpty('0')
                     .Max();
-                filtered = filtered.Where(id => !isEECAM(id) || id.FullId[EECAM_DOWNSAMPLE_FIELD] == maxEDS);
+                var filtered = orig.Where(id => !isEECAM(id) || id.FullId[EECAM_DOWNSAMPLE_FIELD] == maxEDS).ToList();
+                spew("ECAM downsampling", orig, filtered);
+                orig = filtered;
 
                 //EECAM reconstruction counter 0-9A-Z, prefer higher
-                char maxERC = filtered
+                char maxERC = orig
                     .Where(id => isEECAM(id))
                     .Select(id => id.FullId[EECAM_RECONSTRUCTION_FIELD])
                     .DefaultIfEmpty('0')
                     .Max();
-                filtered = filtered.Where(id => !isEECAM(id) || id.FullId[EECAM_RECONSTRUCTION_FIELD] == maxERC);
-
-                //downsample 0-3, prefer lower
-                char minDS = filtered.Select(id => id.FullId[DOWNSAMPLE_FIELD]).DefaultIfEmpty('0').Min();
-                filtered = filtered.Where(id => id.FullId[DOWNSAMPLE_FIELD] == minDS);
+                filtered = orig.Where(id => !isEECAM(id) || id.FullId[EECAM_RECONSTRUCTION_FIELD] == maxERC).ToList();
+                spew("ECAM recon counter", orig, filtered);
+                orig = filtered;
 
                 //compresion, prefer higher
-                int maxCP = filtered.Select(id => CompressionPreference(id)).DefaultIfEmpty(0).Max();
-                filtered = filtered.Where(id => CompressionPreference(id) == maxCP);
+                int maxCP = orig.Select(id => CompressionPreference(id)).DefaultIfEmpty(0).Max();
+                filtered = orig.Where(id => CompressionPreference(id) == maxCP).ToList();
+                spew("compression", orig, filtered);
+                orig = filtered;
 
                 foreach (var id in filtered)
                 {

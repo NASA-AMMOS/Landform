@@ -395,6 +395,7 @@ namespace OPS.Pipeline
                                   LinearVariants linVars = LinearVariants.Best,
                                   Action<string> log = null, Func<string, bool> logFilter = null)
         {
+            int maxProductsPerID = 0;
             var idToProducts = new Dictionary<RoverProductId, List<string>>();
             foreach (var product in products)
             {
@@ -407,7 +408,13 @@ namespace OPS.Pipeline
                         idToProducts[id] = new List<string>();
                     }
                     idToProducts[id].Add(product);
+                    maxProductsPerID = Math.Max(maxProductsPerID, idToProducts[id].Count);
                 }
+            }
+
+            if (maxProductsPerID > 1 && log != null)
+            {
+                log($"up to {maxProductsPerID} products associated with each product ID");
             }
 
             string idToFile(RoverProductId id)
@@ -415,18 +422,7 @@ namespace OPS.Pipeline
                 return StringHelper.GetLastUrlPathSegment(idToProducts[id][0]);
             }
 
-            void logFunc(IEnumerable<RoverProductId> orig, IEnumerable<RoverProductId> filtered)
-            {
-                if (log != null && filtered.Count() < orig.Count() &&
-                    (logFilter == null || filtered.Any(id => logFilter(idToFile(id)))))
-                {
-                    log(string.Format
-                        ("keeping best products(s) {0} of {1}", 
-                         String.Join(", ", filtered.Select(idToFile)), String.Join(", ", orig.Select(idToFile))));
-                }
-            }
-
-            foreach (var id in FilterProductIdGroups(idToProducts.Keys, mission, linVars, logFunc))
+            foreach (var id in FilterProductIdGroups(idToProducts.Keys, mission, linVars, log, logFilter, idToFile))
             {
                 foreach (var product in idToProducts[id])
                 {
@@ -441,7 +437,8 @@ namespace OPS.Pipeline
         public static IEnumerable<RoverProductId>
             FilterProductIdGroups(IEnumerable<RoverProductId> products, MissionSpecific mission = null,
                                   LinearVariants linVars = LinearVariants.Best,
-                                  Action<IEnumerable<RoverProductId>, IEnumerable<RoverProductId>> log = null)
+                                  Action<string> log = null, Func<string, bool> logFilter = null,
+                                  Func<RoverProductId, string> idToFile = null)
         {
             //given a set of ids that only differ in product type and version
             //check if there is an XYZ (pointcloud) product
@@ -478,14 +475,33 @@ namespace OPS.Pipeline
                 return RoverProduct.IsGeometry(id.ProductType) && !RoverProduct.IsRaster(id.ProductType);
             }
 
+            //check if id is strictly a raster product, e.g. RAS
+            //note that masks are both raster and geometry products
+            bool isRaster(RoverProductId id)
+            {
+                return RoverProduct.IsRaster(id.ProductType) && !RoverProduct.IsGeometry(id.ProductType);
+            }
+
+            //check if id is strictly a mask product, e.g. MXY
+            //note that masks are both raster and geometry products
             bool isMask(RoverProductId id)
             {
                 return id.ProductType == RoverProductType.RoverMask;
             }
 
-            bool isLin(RoverProductId id, bool lin)
+            bool isLin(RoverProductId id)
             {
-                return id.Geometry == (lin ? RoverProductGeometry.Linearized : RoverProductGeometry.Raw);
+                return id.Geometry == RoverProductGeometry.Linearized;
+            }
+
+            bool isRaw(RoverProductId id)
+            {
+                return id.Geometry == RoverProductGeometry.Raw;
+            }
+
+            bool checkLin(RoverProductId id, bool lin)
+            {
+                return lin ? isLin(id) : isRaw(id);
             }
 
             //given a set of ids that only differ in stereo eye and version
@@ -507,62 +523,83 @@ namespace OPS.Pipeline
                 return ids;
             }
 
-            //given a set of ids that only differ in linearness and version
+            //given a set of ids that only differ in product type, linearness, and version
             //if both linearnesses present
             //then remove products of the non-preferred linearness
-            //note mask products are both geometry and raster
             IEnumerable<RoverProductId> filterLinear(IEnumerable<RoverProductId> ids)
             {
-                //all ids should be of same product type here, but ids could be empty
-                bool hasGeometry = ids.Any(id => RoverProduct.IsGeometry(id.ProductType)); //include masks
-                bool hasRaster = ids.Any(id => RoverProduct.IsRaster(id.ProductType)); //include masks
-                if (hasGeometry && hasRaster &&
-                    mission.PreferLinearGeometryProducts() != mission.PreferLinearRasterProducts())
+                if (!ids.Any(isLin) || !ids.Any(isRaw))
                 {
                     return ids;
                 }
-                var lin = hasGeometry ? mission.PreferLinearGeometryProducts() : mission.PreferLinearRasterProducts();
-                bool hasLinear = ids.Any(id => isLin(id, true));
-                bool hasRaw = ids.Any(id => isLin(id, false));
-                if (hasLinear && hasRaw)
+
+                var gids = ids.Where(isGeom);
+                bool linGeo = mission.PreferLinearGeometryProducts();
+                if (gids.Any(isLin) && gids.Any(isRaw))
                 {
-                    return ids.Where(id => isLin(id, lin));
+                    gids = gids.Where(id => checkLin(id, linGeo));
                 }
-                return ids;
+
+                var rids = ids.Where(isRaster);
+                bool linRas = mission.PreferLinearRasterProducts();
+                if (rids.Any(isLin) && rids.Any(isRaw))
+                {
+                    rids = rids.Where(id => checkLin(id, linRas));
+                }
+
+                var mids = ids.Where(isMask);
+                if (gids.Count() > 0 && rids.Count() == 0)
+                {
+                    mids = mids.Where(id => checkLin(id, linGeo));
+                }
+                else if (rids.Count() > 0 && gids.Count() == 0)
+                {
+                    mids = mids.Where(id => checkLin(id, linRas));
+                }
+                else
+                {
+                    bool hasLin = gids.Any(isLin) || rids.Any(isLin);
+                    bool hasRaw = gids.Any(isRaw) || rids.Any(isRaw);
+                    if (hasLin && !hasRaw)
+                    {
+                        mids = mids.Where(isLin);
+                    }
+                    else if (hasRaw && !hasLin)
+                    {
+                        mids = mids.Where(isRaw);
+                    }
+                }
+
+                return gids.Concat(rids).Concat(mids);
             }
 
-            //given a set of ids that only differ in product type, linearness, and version
-            //then keep only the masks with linearity matching non-mask products in the set
-            IEnumerable<RoverProductId> filterLinearMasks(IEnumerable<RoverProductId> ids)
+            void spew(string what, List<RoverProductId> orig, List<RoverProductId> filtered)
             {
-                bool hasMasks = ids.Any(id => isMask(id));
-                if (!hasMasks)
+                Func<RoverProductId, string> fmt = idToFile != null ? idToFile : (id => id.FullId);
+                if (log != null && filtered.Count() < orig.Count() &&
+                    (logFilter == null || filtered.Any(id => logFilter(idToFile(id)))))
                 {
-                    return ids;
+                    log($"filtered {orig.Count}->{filtered.Count} products by {what}:");
+                    var keepers = new HashSet<RoverProductId>(filtered);
+                    foreach (var id in orig.OrderByDescending(id => id.FullId))
+                    {
+                        log($"  " + fmt(id) + (keepers.Contains(id) ? " *" : ""));
+                    }
                 }
-                bool hasLinNonMask = ids.Any(id => !isMask(id) && isLin(id, true));
-                bool hasRawNonMask = ids.Any(id => !isMask(id) && isLin(id, false));
-                if (hasLinNonMask == hasRawNonMask) //both true or both false
-                {
-                    return ids;
-                }
-                var mids = ids.Where(id => isMask(id)).ToList();
-                bool hasLinMask = mids.Any(id => isLin(id, true));
-                bool hasRawMask = mids.Any(id => isLin(id, false));
-                if (hasLinMask && hasRawMask)
-                {
-                    var ret = mids.Where(id => isLin(id, hasLinNonMask)).Concat(ids.Where(id => !isMask(id)));
-                    return ret;
-                }
-                return ids;
             }
 
             //filter each type of ID separately
             //this keeps us from comparing e.g. MSSS to OPGS ids
             //but the code just doesn't support that
             //KeepBestRoverObservations() does consider producer
-            foreach (var typeGroup in products.GroupBy(id => id.GetType()))
+            var typeGroups = products.GroupBy(id => id.GetType());
+            foreach (var typeGroup in typeGroups)
             {
+                if (typeGroups.Count() > 1 && log != null)
+                {
+                    log($"filtering {typeGroup.Count()} {typeGroup.First().GetType()} product IDs");
+                }
+
                 foreach (var obsGroup in
                          typeGroup.GroupBy(id => id.GetPartialId(mission,
                                                                  includeProductType: false, includeGeometry: false,
@@ -586,61 +623,63 @@ namespace OPS.Pipeline
                     //* all stereo partners
                     
                     var orig = obsGroup.ToList();
-                    var filtered = orig;
                     
                     //where multiple ids differ only in version, keep latest
                     //Note: every product type is independently versioned
-                    filtered = filtered
+                    var filtered = orig
                         .GroupBy(id => id.GetPartialId(includeVersion: false))
                         .Select(ids => ids.OrderByDescending(id => id.Version).First())
                         .ToList();
+                    spew("version", orig, filtered);
+                    orig = filtered;
 
                     //skip RNG if XYZ is available
-                    filtered = filtered
+                    filtered = orig
                         .GroupBy(id => id.GetPartialId(mission, includeProductType: false, includeVersion: false))
                         .SelectMany(ids => filterRNG(ids))
                         .ToList();
+                    spew("RNG->XYZ", orig, filtered);
+                    orig = filtered;
                     
                     if (mission != null)
                     {
                         //if both color and grayscale are available, keep the preferred one
                         //also if multiple grayscale bands are available, keep the preferred one
-                        filtered = filtered
+                        filtered = orig
                             .GroupBy(id => id.GetPartialId(mission, includeColorFilter: false, includeVersion: false))
                             .SelectMany(ids => filterColor(ids, mission.PreferColorToGrayscale()))
                             .ToList();
+                        spew("color", orig, filtered);
+                        orig = filtered;
                         
                         //keep preferred eye for geometry products
                         var preferEyeForGeometry = mission.PreferEyeForGeometry();
                         if (preferEyeForGeometry != RoverStereoEye.Any)
                         {
-                            filtered = filtered
+                            filtered = orig
                                 .GroupBy(id => id.GetPartialId(mission, includeStereoEye: false, includeVersion: false))
                                 .SelectMany(ids => filterEye(ids, preferEyeForGeometry))
                                 .ToList();
+                            spew("eye", orig, filtered);
+                            orig = filtered;
                         }
                         
                         //keep preferred linearness
                         if (linVars == LinearVariants.Best)
                         {
-                            filtered = filtered
-                                .GroupBy(id => id.GetPartialId(mission, includeGeometry: false, includeVersion: false))
-                                .SelectMany(ids => filterLinear(ids))
-                                .ToList();
-                            filtered = filtered
+                            filtered = orig
                                 .GroupBy(id => id.GetPartialId(mission, includeProductType: false,
                                                                includeGeometry: false, includeVersion: false))
-                                .SelectMany(ids => filterLinearMasks(ids))
+                                .SelectMany(ids => filterLinear(ids))
                                 .ToList();
+                            spew("linearity", orig, filtered);
+                            orig = filtered;
                         }
                         
                         //apply any mission specific filtering (e.g. may handle variants)
-                        filtered = mission.FilterProductIdGroups(filtered).ToList();
-                    }
-                    
-                    if (log != null)
-                    {
-                        log(orig, filtered);
+                        filtered = mission.FilterProductIdGroups(orig, spew).ToList();
+                        spew("mission", orig, filtered);
+                        orig = filtered;
                     }
 
                     foreach (var id in filtered)

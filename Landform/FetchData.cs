@@ -645,7 +645,7 @@ namespace OPS.Landform
                     .SelectMany(files => RoverObservationComparator
                                 .FilterProductIdGroups(files, mission, linPref, msg => logger.Info(msg), ShouldTrace))
                     .ToList();
-                logger.InfoFormat("RoverObservationComparator filtered {0} products", nf - filtered.Count);
+                logger.InfoFormat("RoverObservationComparator filtered {0}->{1} products", nf, filtered.Count);
             }
             filterProductIdGroups();
 
@@ -689,7 +689,7 @@ namespace OPS.Landform
                     //then we may have extra masks now
                     //so filterProductIdGroups() again to cull those
                     filterProductIdGroups();
-                    logger.InfoFormat("unified meshes filtered {0} products", filtered.Count - umFiltered.Count);
+                    logger.InfoFormat("unified meshes filtered {0}->{1} products", filtered.Count, umFiltered.Count);
                 }
             }
 
