@@ -63,13 +63,13 @@ namespace OPS.Landform
     [Verb("fetch", HelpText = "Download data products from S3")]
     public class FetchDataOptions
     {
-        [Value(0, Required = true, Default = null, HelpText = "sol numbers to download, e.g. '27-32', '607,609', '27-32,607,609-611'; or a comma-separated list of raw s3 or http URLs if --raw is also specified")]
+        [Value(0, Required = true, Default = null, HelpText = "sol numbers to download, e.g. '27-32', '607,609', '27-32,607,609-611'; or a comma-separated list of URLs (s3:// or http[s]://) (ending in / for recursive) and/or local list files if --raw is also specified")]
         public string Input { get; set; }
 
         [Value(1, Required = true, Default = null, HelpText = "output directory, e.g. c:/Users/$USERNAME/Downloads")]
         public string OutputDir { get; set; }
         
-        [Value(2, Required = false, HelpText = "RDR search locations (only if not using --raw), comma separated, with sol replaced with ##### (e.g. s3://landform/MSL/ods/surface/sol/#####/opgs/rdr). See https://github.jpl.nasa.gov/OnSight/Landform/wiki/M2020-Data-Notes")]
+        [Value(2, Required = false, HelpText = "RDR search locations (only if not using --raw), comma separated, with sol replaced with ##### (e.g. s3://landform/MSL/ods/surface/sol/#####/opgs/rdr). See https://github.jpl.nasa.gov/OnSight/Landform/wiki/M2020-Data-Notes.")]
         public string SearchLocations { get; set; } = null;
 
         [Option(Default = false, HelpText = "Treat input as raw URLs, not sol numbers")]
@@ -1171,13 +1171,63 @@ namespace OPS.Landform
                         logger.Error("must not specify search locations with --raw");
                         return 1;
                     }
-                    var files = StringHelper.ParseList(options.Input).ToList();
+
+                    var inputs = StringHelper.ParseList(options.Input).ToList();
+
+                    var urls = new List<string>();
+                    foreach (var input in inputs)
+                    {
+                        if (!string.IsNullOrEmpty(input))
+                        {
+                            if (input.StartsWith("s3://", StringComparison.OrdinalIgnoreCase))
+                            {
+                                if (input.EndsWith("/"))
+                                {
+                                    urls.AddRange(IndexFiles(input));
+                                }
+                                else
+                                {
+                                    urls.Add(input);
+                                }
+                            }
+                            else if (input.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                                     input.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                            {
+                                if (input.EndsWith("/"))
+                                {
+                                    throw new NotImplementedException("recursive search not implemented for http[s]");
+                                }
+                                else
+                                {
+                                    urls.Add(input);
+                                }
+                            }
+                            else
+                            {
+                                string listFile = input;
+                                if (listFile.StartsWith("file://", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    listFile = input.Substring(7);
+                                }
+                                if (File.Exists(listFile))
+                                {
+                                    urls.AddRange(File.ReadAllLines(listFile));
+                                }
+                                else
+                                {
+                                    throw new ArgumentException($"list file {listFile} not found");
+                                }
+                            }
+                        }
+                    }
+
                     if (options.Summary)
                     {
-                        logger.InfoFormat("--- fetching {0} files ---", files.Count);
-                        files.ForEach(file => logger.Info(file));
+                        logger.InfoFormat("--- fetching {0} files ---", urls.Count);
+                        urls.ForEach(url => logger.Info(url));
                     }
-                    DownloadFiles(files);
+
+                    DownloadFiles(urls);
                 }
                 else
                 {
