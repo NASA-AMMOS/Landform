@@ -417,7 +417,7 @@ namespace OPS.Landform
                     double res = sceneTextureResolution;
 
                     var meshBounds = mesh.Bounds();
-                    var bs = meshBounds.Size();
+                    var bs = meshBounds.Extent();
                     double xyExtent = 0.5 * (bs.X + bs.Y);
 
                     ComputeTextureWarp(xyExtent, surfaceExtent, out double srcSurfaceFrac, out double dstSurfaceFrac);
@@ -974,7 +974,7 @@ namespace OPS.Landform
             {
                 double res = sceneTextureResolution;
 
-                var boundsSize = sceneMesh.GetBounds().Value.Size();
+                var boundsSize = sceneMesh.GetBounds().Value.Extent();
 
                 double xyExtent = 0.5 * (boundsSize.X + boundsSize.Y);
 
@@ -1024,7 +1024,7 @@ namespace OPS.Landform
                     throw new Exception(string.Format("scene mesh {0} missing bounds", sceneMesh.Name));
                 }
             }
-            var boundsSize = bounds.Value.Size();
+            var boundsSize = bounds.Value.Extent();
             pipeline.LogInfo("scene mesh XY plane bounds: {0:F3}x{1:F3}", boundsSize.X, boundsSize.Y);
 
             backprojectIndex = new Image(3, sceneTextureResolution, sceneTextureResolution);
@@ -1076,7 +1076,7 @@ namespace OPS.Landform
             pipeline.LogInfo("reprojecting backproject index top-down");
 
             var bounds = mesh.Bounds();
-            var boundsSize = bounds.Size();
+            var boundsSize = bounds.Extent();
             pipeline.LogInfo("scene mesh XY plane bounds: {0:F3}x{1:F3}", boundsSize.X, boundsSize.Y);
 
             var reprojectedBackprojectIndex = new Image(3, sceneTextureResolution, sceneTextureResolution);

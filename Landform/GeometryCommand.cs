@@ -320,7 +320,7 @@ namespace OPS.Landform
         protected Vector2 PointToUV(BoundingBox meshBounds, Vector3 pt)
         {
             //regarding the Swap() see comments in HeightmapAtlasMesh()
-            var uvScale = meshBounds.Size().XY().Invert();
+            var uvScale = meshBounds.Extent().XY().Invert();
             return ((pt.XY() - meshBounds.Min.XY()) * uvScale).Swap();
         }
 

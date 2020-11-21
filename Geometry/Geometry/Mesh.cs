@@ -539,7 +539,7 @@ namespace OPS.Geometry
         /// </summary>
         public void AddSkirt(SkirtMode axis, double relHeight = 0.02, double threshold = 0.15, bool invert = false)
         {
-            Vector3 size = Bounds().Size();
+            Vector3 size = Bounds().Extent();
             double height = relHeight * Math.Max(Math.Max(size.X, size.Y), size.Z);
             threshold *= height;
 
@@ -1484,7 +1484,7 @@ namespace OPS.Geometry
             }
             var bounds = Bounds();
             var min = project(bounds.Min);
-            var scale = project(bounds.Size());
+            var scale = project(bounds.Extent());
             double eps = MathE.EPSILON;
             scale.X = scale.X > eps ? (1 / scale.X) : 1;
             scale.Y = scale.Y > eps ? (1 / scale.Y) : 1;

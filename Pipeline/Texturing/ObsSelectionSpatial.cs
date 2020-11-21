@@ -117,7 +117,7 @@ namespace OPS.Pipeline.Texturing
             rTree = new RTree<int>();
             for (int i = 0; i < samples.Count; i++)
             {
-                rTree.Add(BoundingBoxExtensions.CreateFromPoint(samples[i]).ToRectangle(), i);
+                rTree.Add(samples[i].ToRectangle(), i);
             }
 
             //exhaustively sort for each sample point

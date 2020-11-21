@@ -282,7 +282,7 @@ namespace OPS.Landform
                     RunPhase("save mesh", SaveSceneMesh);
                 }
 
-                var bounds = mesh.Bounds().Size();
+                var bounds = mesh.Bounds().Extent();
                 pipeline.LogInfo("scene bounds (meters): {0:f3}x{1:f3}x{2:f3}", bounds.X, bounds.Y, bounds.Z);
             }
             catch (Exception ex)
@@ -575,6 +575,10 @@ namespace OPS.Landform
                                  clouds.Length, Fmt.KMG(nv));
                 pointCloud = new Mesh(hasNormals: true);
                 pointCloud.MergeWith(clouds, normalize: false, removeDuplicateVerts: false);
+                if (options.WriteDebug)
+                {
+                    SaveMesh(pointCloud , dbgMeshPrefix + "-cloud");
+                }
             }
             else
             {
@@ -601,12 +605,22 @@ namespace OPS.Landform
                         origins.Add(Vector3.Transform(Vector3.Zero, obsToMesh.Mean));
                     }
                 }
+                if (options.WriteDebug)
+                {
+                    var cloud = new Mesh(hasNormals: true);
+                    cloud.MergeWith(clouds.ToArray(), normalize: false, removeDuplicateVerts: false);
+                    SaveMesh(cloud, dbgMeshPrefix + "-cloud");
+                }
                 int nv = clouds.Sum(pc => pc.Vertices.Count);
                 pipeline.LogInfo("clever combining {0} observation point clouds, cell size {1}, total {2} points",
                                  clouds.Count, options.CleverCombineCellSize, Fmt.KMG(nv));
                 var cc = new CleverCombine(options.CleverCombineCellSize);
                 pointCloud = cc.Combine(origins.ToArray(), clouds.ToArray(), pipeline);
                 pipeline.LogInfo("clever combine returned {0} points", Fmt.KMG(pointCloud.Vertices.Count));
+                if (options.WriteDebug)
+                {
+                    SaveMesh(pointCloud , dbgMeshPrefix + "-cloud-combined");
+                }
             }
 
             //significant memory usage
@@ -672,8 +686,8 @@ namespace OPS.Landform
         {
             var bounds = mesh.Bounds();
             Mesh grid = Shrinkwrap.BuildGrid(bounds,
-                                             (int)(bounds.Size().X * options.ShrinkwrapPointsPerMeter),
-                                             (int)(bounds.Size().Y * options.ShrinkwrapPointsPerMeter),
+                                             (int)(bounds.Extent().X * options.ShrinkwrapPointsPerMeter),
+                                             (int)(bounds.Extent().Y * options.ShrinkwrapPointsPerMeter),
                                              VertexProjection.ProjectionAxis.Z);
             shrinkwrapMesh = Shrinkwrap.Wrap(grid, mesh, Shrinkwrap.ShrinkwrapMode.Project,
                                              VertexProjection.ProjectionAxis.Z,

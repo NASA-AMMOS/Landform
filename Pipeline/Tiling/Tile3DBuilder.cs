@@ -101,7 +101,7 @@ namespace OPS.Pipeline
             });
 
             //some GDS testcases are based on seeing tileset bounds size in log spew
-            var rootSize = root.GetComponent<NodeBounds>().Bounds.Size(); //BuildTileset() ensures root has bounds
+            var rootSize = root.GetComponent<NodeBounds>().Bounds.Extent(); //BuildTileset() ensures root has bounds
             info($"tileset bounds (meters): {rootSize.X:F3}x{rootSize.Y:F3}x{rootSize.Z:F3}");
 
             var sb = new StringBuilder();

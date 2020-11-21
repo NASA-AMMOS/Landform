@@ -225,7 +225,7 @@ namespace OPS.Geometry
                         e.IsPerimeterEdge = false; //Flag as used
                     }
                     //Keep the largest (area) group of edges
-                    var size = BoundingBox.CreateFromPoints(currentGroup.Select(e => e.Src.Position)).Size();
+                    var size = BoundingBox.CreateFromPoints(currentGroup.Select(e => e.Src.Position)).Extent();
                     var area = size.X * size.Y;
                     if (area > maxArea)
                     {

@@ -51,7 +51,8 @@ namespace OPS.Geometry
             Mesh result = null;
             if (!scale.HasValue)
             {
-                scale = MathE.Max(pointCloud.Bounds().Size().ToFloatArray()) / (float)Math.Sqrt(pointCloud.Vertices.Count) * 2;
+                scale = MathE.Max(pointCloud.Bounds().Extent().ToFloatArray()) /
+                    (float)Math.Sqrt(pointCloud.Vertices.Count) * 2;
             }
             TemporaryFile.GetAndDelete(".ply", inputFile => {
                 PLYSerializer.Write(pointCloud, inputFile, new FSSRPlyWriter(scale.Value));

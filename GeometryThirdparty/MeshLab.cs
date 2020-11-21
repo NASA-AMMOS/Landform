@@ -163,7 +163,7 @@ namespace OPS.Geometry
                 throw new MeshLabException("Cannot Resample Decimate mesh without faces");
             }
             BoundingBox bounds = m.Bounds();
-            double deblobRadius =  MathE.Max(bounds.Size().ToDoubleArray()) * 0.2f;
+            double deblobRadius =  MathE.Max(bounds.Extent().ToDoubleArray()) * 0.2f;
             string script = @"<!DOCTYPE FilterScript>
 <FilterScript>
  <filter name=""Re-Compute Vertex Normals"">

@@ -541,7 +541,7 @@ namespace OPS.Landform
             double sceneSize = sceneRadius; //this is actually from center of scene to a corner
             if (sceneBounds.HasValue)
             {
-                Vector3 size = sceneBounds.Value.Size();
+                Vector3 size = sceneBounds.Value.Extent();
                 sceneSize = Math.Max(size.X, size.Y); //what we really want here is center to side
             }
             

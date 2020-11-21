@@ -12,9 +12,9 @@ namespace GeometryTest.Geometry
     {
 
         [TestMethod]
-        public void BoundingBoxSizeTest()
+        public void BoundingBoxExtentTest()
         {
-            Assert.AreEqual(new Vector3(2, 1, 3), new BoundingBox(new Vector3(3, -2, 5), new Vector3(5, -1, 8)).Size());
+            Assert.AreEqual(new Vector3(2, 1, 3), new BoundingBox(new Vector3(3, -2, 5), new Vector3(5, -1, 8)).Extent());
         }
 
         [TestMethod]
