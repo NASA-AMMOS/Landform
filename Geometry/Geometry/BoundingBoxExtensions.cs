@@ -52,6 +52,11 @@ namespace OPS.Geometry
             return box.Max - box.Min;
         }
 
+        public static double Diameter(this BoundingBox box)
+        {
+            return box.Extent().Length();
+        }
+
         public static Vector3 Center(this BoundingBox box)
         {
             return 0.5 * (box.Max + box.Min);

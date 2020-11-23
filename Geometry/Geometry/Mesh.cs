@@ -2312,34 +2312,48 @@ namespace OPS.Geometry
             return stats;
         }
 
-        public void RemoveFloaters(int minIslandVertexCount = 300)
+        //remove disconnected islands whose bounding box diameter
+        //is less than minIslandRatio times the largest island bounding box diameter
+        //returns number of removed islands
+        public int RemoveIslands(double minIslandRatio = 0.1)
         {
-            DisjointSet disjointSet = new DisjointSet(Vertices.Count);
+            var disjointSet = new DisjointSet(Vertices.Count);
             foreach (Face f in Faces)
             {
                 disjointSet.Union(f.P0, f.P1);
                 disjointSet.Union(f.P1, f.P2);
             }
 
-            Dictionary<int, int> islandSizes = new Dictionary<int, int>();
+            var islands = new Dictionary<int, BoundingBox>();
             for (int i = 0; i < Vertices.Count; i++)
             {
-                int p = disjointSet.FindPath(i);
-                if (islandSizes.ContainsKey(p))
+                int p = disjointSet.Find(i);
+                if (islands.ContainsKey(p))
                 {
-                    islandSizes[p]++;
+                    var tmp = islands[p];
+                    islands[p] = BoundingBoxExtensions.Extend(ref tmp, Vertices[i].Position);
                 }
                 else
                 {
-                    islandSizes[p] = 1;
+                    islands[p] = BoundingBoxExtensions.CreateFromPoint(Vertices[i].Position);
                 }
             }
 
-            Faces = Faces.Where(f =>
-                islandSizes[disjointSet.FindPath(f.P0)] >= minIslandVertexCount
-            ).ToList();
+            var islandSizes = new Dictionary<int, double>();
+            foreach (var entry in islands)
+            {
+                islandSizes[entry.Key] = entry.Value.Diameter();
+            }
+
+            double maxIslandSize = islandSizes.Count > 0 ? islandSizes.Values.Max() : 0;
+
+            double threshold = minIslandRatio * maxIslandSize;
+
+            Faces = Faces.Where(f => islandSizes[disjointSet.Find(f.P0)] >= threshold).ToList();
 
             RemoveUnreferencedVertices();
+
+            return islandSizes.Values.Count(d => d < threshold);
         }
     }
 }

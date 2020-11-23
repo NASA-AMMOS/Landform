@@ -131,6 +131,9 @@ namespace OPS.Landform
         [Option(HelpText = "Island removal based on percentage of total surface area (higher means more aggressive, 0 disables)", Default = 0.001)]
         public double TrimmerIslandPct { get; set; }
 
+        [Option(HelpText = "Remove islands whose bounding box diameter is less than this ratio of the max island bounding box diameter", Default = 0.2)]
+        public double MinIslandRatio { get; set; }
+
         [Option(HelpText = "Orbital sampling rate inside blend radius, non-positive to use DEM resolution", Default = 15)]
         public double OrbitalBlendPointsPerMeter { get; set; }
 
@@ -715,17 +718,7 @@ namespace OPS.Landform
                 throw new Exception("failed to build mesh");
             }
 
-            mesh.RemoveFloaters();
-
-            //both FSSR and Poisson require normals on their input mesh and write normals to their output mesh
-            //however we have seen issues with these normals
-            //and also they may be confidence scaled still
-            //one option would be to just clear the normals and not include normals with the output scene mesh
-            //but some kinds of later processing (like building parent tile meshes) will want them
-            //so let's just regenerate them from the faces and write them to the scene mesh
-            //because we're dealing with natural terrain it is pretty reasonable to compute vertex normals from faces
-            //i.e. no sharp crease angles expected
-            mesh.Clean(); //removes degenerate faces
+            CleanMesh();
 
             if (options.WriteDebug)
             {
@@ -737,6 +730,25 @@ namespace OPS.Landform
                 colored.ColorByNormalMagnitude(red, green);
                 SaveMesh(colored, dbgMeshPrefix + "-confidence");
             }
+        }
+
+        private void CleanMesh()
+        {
+            if (options.MinIslandRatio > 0)
+            {
+                int nr = mesh.RemoveIslands(options.MinIslandRatio);
+                pipeline.LogInfo("removed {0} islands", nr);
+            }
+
+            //both FSSR and Poisson require normals on their input mesh and write normals to their output mesh
+            //however we have seen issues with these normals
+            //and also they may be confidence scaled still
+            //one option would be to just clear the normals and not include normals with the output scene mesh
+            //but some kinds of later processing (like building parent tile meshes) will want them
+            //so let's just regenerate them from the faces and write them to the scene mesh
+            //because we're dealing with natural terrain it is pretty reasonable to compute vertex normals from faces
+            //i.e. no sharp crease angles expected
+            mesh.Clean(); //removes degenerate faces
 
             mesh.GenerateVertexNormals();
         }
@@ -833,9 +845,7 @@ namespace OPS.Landform
                                                                  mesh.Vertices[face.P2].Position.Y)) != null);
             }).ToList();
 
-            mesh.RemoveFloaters();
-            mesh.Clean(); //removes degenerate faces
-            mesh.GenerateVertexNormals(); //important, see comments in ReconstructMesh()
+            CleanMesh();
 
             if (options.WriteDebug)
             {
@@ -1073,9 +1083,7 @@ namespace OPS.Landform
                 throw new Exception("clipped mesh is empty");
             }
 
-            mesh.RemoveFloaters();
-            mesh.Clean(); //removes degenerate faces
-            mesh.GenerateVertexNormals();
+            CleanMesh();
 
             if (mesh.Faces.Count == 0)
             {
