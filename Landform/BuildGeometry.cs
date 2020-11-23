@@ -107,6 +107,9 @@ namespace OPS.Landform
         [Option(HelpText = "Disable clever combine point cloud merging", Default = false)]
         public bool NoCleverCombine { get; set; }
 
+        [Option(HelpText = "Apply clever combine to individual observations within sitedrives", Default = false)]
+        public bool IntraSitedriveCleverCombine { get; set; }
+
         [Option(HelpText = "Only include faces that intersect these observations, comma separated", Default = null)]
         public string OnlyFacesForObs { get; set; }
 
@@ -567,64 +570,129 @@ namespace OPS.Landform
 
         private void MergePointClouds()
         {
+            var groups = observationPointClouds.GroupBy(entry =>
+            {
+                var obs = observationCache.GetObservation(entry.Key);
+                if (options.NoCleverCombine || options.IntraSitedriveCleverCombine || !(obs is RoverObservation))
+                {
+                    return entry.Key;
+                }
+                return (obs as RoverObservation).SiteDrive.ToString();
+            }).ToArray();
+
+            int nv = observationPointClouds.Values.Sum(pc => pc.Vertices.Count);
+
+            pointCloud = new Mesh(hasNormals: true, hasColors: (options.WriteDebug && groups.Length > 1));
+
+            var clouds = groups.Select(group =>
+            {
+                var obsClouds = group.Select(pair => pair.Value).ToArray();
+                if (obsClouds.Length == 1)
+                {
+                    return obsClouds[0];
+                }
+                pipeline.LogInfo("merging {0} observation point clouds in sitedrive {1} without clever combine, " +
+                                 "total {2} points", obsClouds.Length, group.Key,
+                                 Fmt.KMG(obsClouds.Sum(c => c.Vertices.Count)));
+                var pc = new Mesh(pointCloud.HasNormals, pointCloud.HasColors);
+                pc.MergeWith(obsClouds, normalize: false, removeDuplicateVerts: false);
+                return pc;
+            }).ToArray();
+
+            if (options.WriteDebug)
+            {
+                var colors = Colorspace.RandomHues(clouds.Length);
+                for (int i = 0; i < clouds.Length; i++)
+                {
+                    clouds[i].SetColor(colors[i]);
+                }
+            }
+
             if (options.NoCleverCombine)
             {
-                var clouds = observationPointClouds.Values.ToArray();
-                int nv = clouds.Sum(pc => pc.Vertices.Count);
                 pipeline.LogInfo("merging {0} observation point clouds without clever combine, total {1} points",
                                  clouds.Length, Fmt.KMG(nv));
-                pointCloud = new Mesh(hasNormals: true);
                 pointCloud.MergeWith(clouds, normalize: false, removeDuplicateVerts: false);
                 if (options.WriteDebug)
                 {
-                    SaveMesh(pointCloud , dbgMeshPrefix + "-cloud");
+                    SaveMesh(pointCloud, dbgMeshPrefix + "-cloud");
                 }
             }
             else
             {
-                var clouds = new List<Mesh>();
-                var origins = new List<Vector3>();
-                foreach (var entry in observationPointClouds)
+                var origins = groups.Select(group =>
                 {
-                    clouds.Add(entry.Value);
-                    var pointsObs = observationCache.GetObservation(entry.Key);
-                    var pointsCam = pointsObs.CameraModel as CAHV;
-                    var obsToMesh = frameCache.GetObservationTransform(pointsObs, meshFrame,
-                                                                       options.UsePriors, options.OnlyAligned);
-                    //obsToMesh cannot be null here because WedgeObservations.BuildPointCloud() returned non-null
-                    if (pointsCam != null)
+                    if (SiteDrive.IsSiteDriveString(group.Key))
                     {
-                        //the reference point used to determine how good a point is for clever combine
-                        //naive version is using distance from camera
-                        origins.Add(Vector3.Transform(pointsCam.C, obsToMesh.Mean));
+                        var xform = frameCache.GetRelativeTransform(group.Key, meshFrame,
+                                                                    options.UsePriors, options.OnlyAligned);
+                        return Vector3.Transform(Vector3.Zero, xform.Mean);
                     }
                     else
                     {
-                        pipeline.LogWarn("no CAHV camera model for observation {0}, " +
-                                         "using observation frame origin for clever combine", entry.Key);
-                        origins.Add(Vector3.Transform(Vector3.Zero, obsToMesh.Mean));
+                        var pointsObs = observationCache.GetObservation(group.Key);
+                        var pointsCam = pointsObs.CameraModel as CAHV;
+                        var obsToMesh = frameCache.GetObservationTransform(pointsObs, meshFrame,
+                                                                           options.UsePriors, options.OnlyAligned);
+                        //obsToMesh cannot be null here because WedgeObservations.BuildPointCloud() returned non-null
+                        if (pointsCam != null && options.IntraSitedriveCleverCombine)
+                        {
+                            //the reference point used to determine how good a point is for clever combine
+                            //naive version is using distance from camera
+                            return Vector3.Transform(pointsCam.C, obsToMesh.Mean);
+                        }
+                        else
+                        {
+                            if (options.IntraSitedriveCleverCombine)
+                            {
+                                pipeline.LogWarn("no CAHV camera model for observation {0}, " +
+                                                 "using observation frame origin for clever combine", group.Key);
+                            }
+                            return Vector3.Transform(Vector3.Zero, obsToMesh.Mean);
+                        }
+                    }
+                }).ToArray();
+
+                if (options.WriteDebug || clouds.Length == 1)
+                {
+                    pointCloud.MergeWith(clouds, normalize: false, removeDuplicateVerts: false);
+                }
+
+                if (options.WriteDebug)
+                {
+                    SaveMesh(pointCloud, dbgMeshPrefix + "-cloud");
+                }
+
+                if (clouds.Length > 1)
+                {
+                    pipeline.LogInfo("clever combining {0} {1} point clouds, cell size {2}, total {3} points",
+                                     clouds.Length, options.IntraSitedriveCleverCombine ? "observation" : "sitedrive",
+                                     options.CleverCombineCellSize, Fmt.KMG(nv));
+                    
+                    pointCloud = (new CleverCombine(options.CleverCombineCellSize)).Combine(clouds, origins, pipeline);
+                    
+                    pipeline.LogInfo("clever combine returned {0} points", Fmt.KMG(pointCloud.Vertices.Count));
+                    
+                    if (options.WriteDebug)
+                    {
+                        SaveMesh(pointCloud , dbgMeshPrefix + "-cloud-combined");
                     }
                 }
-                if (options.WriteDebug)
+                else
                 {
-                    var cloud = new Mesh(hasNormals: true);
-                    cloud.MergeWith(clouds.ToArray(), normalize: false, removeDuplicateVerts: false);
-                    SaveMesh(cloud, dbgMeshPrefix + "-cloud");
-                }
-                int nv = clouds.Sum(pc => pc.Vertices.Count);
-                pipeline.LogInfo("clever combining {0} observation point clouds, cell size {1}, total {2} points",
-                                 clouds.Count, options.CleverCombineCellSize, Fmt.KMG(nv));
-                var cc = new CleverCombine(options.CleverCombineCellSize);
-                pointCloud = cc.Combine(origins.ToArray(), clouds.ToArray(), pipeline);
-                pipeline.LogInfo("clever combine returned {0} points", Fmt.KMG(pointCloud.Vertices.Count));
-                if (options.WriteDebug)
-                {
-                    SaveMesh(pointCloud , dbgMeshPrefix + "-cloud-combined");
+                    if (observationPointClouds.Count < 2)
+                    {
+                        pipeline.LogInfo("skipping clever combine: less than two observations");
+                    }
+                    else
+                    {
+                        pipeline.LogInfo("skipping clever combine: less than two sitedrives " +
+                                         "and --intrasitedriveclevercombine not specified");
+                    }
                 }
             }
 
-            //significant memory usage
-            observationPointClouds.Clear();
+            observationPointClouds.Clear(); //significant memory usage
 
             pointCloudBounds = pointCloud.Bounds();
         }

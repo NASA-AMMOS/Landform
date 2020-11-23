@@ -67,5 +67,32 @@ namespace OPS.Util
         {
             return InterlockedExchangeIfGreaterThan(ref location, newValue, newValue);
         }
+
+        //Fisher-Yates shuffle
+        public static List<T> Shuffle<T>(List<T> list, Random rng = null)
+        {
+            rng = rng ?? MakeRandomGenerator();
+            for (int i = 0; i < list.Count - 1; i++)
+            {
+                int j = rng.Next(i, list.Count);
+                T t = list[i];
+                list[i] = list[j];
+                list[j] = t;
+            }
+            return list;
+        }
+
+        public static T[] Shuffle<T>(T[] arr, Random rng = null)
+        {
+            rng = rng ?? MakeRandomGenerator();
+            for (int i = 0; i < arr.Length - 1; i++)
+            {
+                int j = rng.Next(i, arr.Length);
+                T t = arr[i];
+                arr[i] = arr[j];
+                arr[j] = t;
+            }
+            return arr;
+        }
     }
 }

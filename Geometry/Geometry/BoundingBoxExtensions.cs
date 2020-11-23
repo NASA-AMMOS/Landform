@@ -730,6 +730,28 @@ namespace OPS.Geometry
                 pt.Z >= box.Min.Z && pt.Z <= box.Max.Z;
         }
 
+        public static bool ContainsPoint(this BoundingBox box, Vector3 pt,
+                                         bool includeMaxX, bool includeMaxY, bool includeMaxZ)
+        {
+            if (pt.X < box.Min.X || pt.Y < box.Min.Y || pt.Z < box.Min.Z)
+            {
+                return false;
+            }
+            if (pt.X > box.Max.X || (pt.X == box.Max.X && !includeMaxX))
+            {
+                return false;
+            }
+            if (pt.Y > box.Max.Y || (pt.Y == box.Max.Y && !includeMaxY))
+            {
+                return false;
+            }
+            if (pt.Z > box.Max.Z || (pt.Z == box.Max.Z && !includeMaxZ))
+            {
+                return false;
+            }
+            return true;
+        }
+
         public static bool FuzzyContainsPoint(this BoundingBox box, Vector3 pt, double epsilon = MathE.EPSILON)
         {
             return

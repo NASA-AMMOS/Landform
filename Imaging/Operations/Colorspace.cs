@@ -371,6 +371,17 @@ namespace OPS.Imaging
             Func<double, double> adjust = l => toMedian + ((l - fromMedian) / fromMAD) * toMAD;
             return weight > 0 ? img.AdjustLuminance(adjust, isRGBOrMono) : img;
         }
+
+        public static float[][] RandomHues(int num, float saturation = 1, float value = 1)
+        {
+            var ret = new float[num][];
+            for (int i = 0; i < num; i++)
+            {
+                float hue = i * 360.0f / num;
+                ret[i] = HSVToRGB(new float[] { hue, saturation, value });
+            }
+            return NumberHelper.Shuffle(ret);
+        }
     }
 }
 
