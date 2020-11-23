@@ -140,6 +140,9 @@ namespace OPS.Landform
         [Option(HelpText = "Mask resolution for clipping surface/orbital", Default = 100)]
         public double ShrinkwrapPointsPerMeter { get; set; }
 
+        [Option(HelpText = "Mask offset for clipping surface/orbital", Default = 0.01)]
+        public double MaskOffset { get; set; }
+
         [Option(HelpText = "Blend orbital within this distance from surface in meters, 0 disables blend, negative for default", Default = BuildGeometry.DEF_BLEND_RADIUS)]
         public double OrbitalBlendRadius { get; set; }
 
@@ -762,6 +765,12 @@ namespace OPS.Landform
             }
         }
 
+        //currently "shrinkwrap" just really means
+        //(a) bin verts to grid cells in XY plane
+        //(b) remesh with a 2.5D assumption
+        //also, the shrinkwrap mesh is curently only used for creating the surface mask
+        //which is used for hole filling and orbital geometry below
+        //(BlendImages might also make and use a shrinkwrap mesh, but that now non-default legacy behavior)
         private void CreateShrinkwrappedSurfaceMesh()
         {
             var bounds = mesh.Bounds();
@@ -780,17 +789,73 @@ namespace OPS.Landform
             }
         }
 
+        //populates maskUVMeshOp so that later stages can trim meshes to an XY plane boundary
+        //the boundary is non-convex but does not have holes
+        //we make the mask by
+        //(a) finding the largest boundary edge loop in the shrinkwrap mesh (in principle we could skip the shrinkwrap
+        ///   and just perform this step on the whole surface mesh, but
+        ///   https://github.jpl.nasa.gov/OnSight/Landform/issues/1145)
+        //(b) project that to the XY plane and offset it there by options.MaskOffset (the offset is naive and doesn't
+        ///   check for self intersection, but that shouldn't matter for the purpose here)
+        //(c) triangulating the resulting XY plane polygon
+        //(d) creating a UV MeshOp where U=X and V=Y so that later queries can know if an XY point is inside the
+        ///   boundary (they are iff the MeshOp returns valid barycentric coordinates for the query XY point).
         private void CreateSurfaceMaskMesh()
         {
             try
             {
+                //EdgeGraph edgeGraph = new EdgeGraph(mesh); //TODO causes too many failures
+                //https://github.jpl.nasa.gov/OnSight/Landform/issues/1145
                 EdgeGraph edgeGraph = new EdgeGraph(shrinkwrapMesh);
-                List<Edge> perimeterEdges = edgeGraph.GetLargestPolygonalBoundary();
-                
-                EdgeGraph.EnsureCCW(perimeterEdges);
+
+                double projectedLengthSquared(Edge e)
+                {
+                    var s = e.Src.Position;
+                    var d = e.Dst.Position;
+                    double dx = d.X - s.X;
+                    double dy = d.Y - s.Y;
+                    return dx * dx + dy * dy;
+                }
+
+                List<Edge> perimeterEdges = edgeGraph
+                    .GetLargestPolygonalBoundary()
+                    .Where(edge => projectedLengthSquared(edge) > 0)
+                    .ToList();
+
+                for (int i = 0; i < perimeterEdges.Count; i++)
+                {
+                    perimeterEdges[i].Dst = perimeterEdges[(i + 1) % perimeterEdges.Count].Src;
+                }
+
+                Vector3 nadir = new Vector3(0, 0, 1);
+                if (mission != null)
+                {
+                    mission.GetLocalLevelBasis(out Vector3 north, out Vector3 east, out nadir);
+                }
+
+                if (nadir.Z > 0)
+                {
+                    EdgeGraph.EnsureCCW(perimeterEdges);
+                }
+
+                Vertex projectAndOffset(Vertex src, Vertex dst)
+                {
+                    Vector3 pt = src.Position;
+                    Vector3 edgeDir = dst.Position - src.Position;
+                    pt.Z = 0;
+                    edgeDir.Z = 0;
+                    if (options.MaskOffset != 0 && edgeDir.LengthSquared() > 0)
+                    {
+                        var perp = Vector3.Normalize(edgeDir.Cross(nadir));
+                        pt += perp * options.MaskOffset;
+                    }
+                    return new Vertex(pt);
+                }
                 
                 var maskMesh = new Mesh();
-                maskMesh.Vertices = perimeterEdges.Select(e => new Vertex(e.Src.Position)).ToList();
+                maskMesh.Vertices = perimeterEdges
+                    .Select(e => projectAndOffset(e.Src, e.Dst))
+                    .ToList();
                 
                 int id = 0;
                 foreach (Edge e in perimeterEdges)
@@ -806,8 +871,11 @@ namespace OPS.Landform
                         maskMesh.Faces.Add(new Face(e.Src.ID, e.Dst.ID, e.Left.ID));
                     }
                 }
-                
-                maskMesh.ReverseWinding();
+
+                if (nadir.Z > 0)
+                {
+                    maskMesh.ReverseWinding();
+                }
                 
                 if (options.WriteDebug)
                 {
@@ -825,6 +893,11 @@ namespace OPS.Landform
             }
         }
 
+        //Replace mesh with a new Poisson reconstruction that
+        //(1) uses less picky trimming
+        //(2) but that is clipped in the XY plane to the mask we already created
+        //    from the outer boundary of the original reconstructed mesh.
+        //This is done to fill holes and/or to prepare for orbital geometry to be added outside the mask.
         private void ReconstructSurfaceToMask()
         {
             //TODO: Have Poisson return both clipped and non-clipped to avoid remeshing
