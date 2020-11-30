@@ -155,6 +155,9 @@ namespace OPS.Landform
         [Option(HelpText = "Clever combine cell size (meters)", Default = CleverCombine.DEF_CELL_SIZE)]
         public double CleverCombineCellSize { get; set; }
 
+        [Option(HelpText = "Clever combine cell aspect (height relative to width)", Default = CleverCombine.DEF_CELL_ASPECT)]
+        public double CleverCombineCellAspect { get; set; }
+
         [Option(HelpText = "Poisson cell size (meters), mutually exclusive with PoissonTreeDepth, 0 to disable", Default = 0.0)]
         public double PoissonCellSize { get; set; }
 
@@ -671,11 +674,12 @@ namespace OPS.Landform
 
                 if (clouds.Length > 1)
                 {
-                    pipeline.LogInfo("clever combining {0} {1} point clouds, cell size {2}, total {3} points",
+                    pipeline.LogInfo("clever combining {0} {1} point clouds, cell size {2}, aspect {3}, total {4} pts",
                                      clouds.Length, options.IntraSitedriveCleverCombine ? "observation" : "sitedrive",
-                                     options.CleverCombineCellSize, Fmt.KMG(nv));
+                                     options.CleverCombineCellSize, options.CleverCombineCellAspect, Fmt.KMG(nv));
                     
-                    pointCloud = (new CleverCombine(options.CleverCombineCellSize)).Combine(clouds, origins, pipeline);
+                    var cc = new CleverCombine(options.CleverCombineCellSize, options.CleverCombineCellAspect);
+                    pointCloud = cc.Combine(clouds, origins, pipeline);
                     
                     pipeline.LogInfo("clever combine returned {0} points", Fmt.KMG(pointCloud.Vertices.Count));
                     
@@ -767,7 +771,7 @@ namespace OPS.Landform
 
         //currently "shrinkwrap" just really means
         //(a) bin verts to grid cells in XY plane
-        //(b) remesh with a 2.5D assumption
+        //(b) organized mesh with a 2.5D assumption
         //also, the shrinkwrap mesh is curently only used for creating the surface mask
         //which is used for hole filling and orbital geometry below
         //(BlendImages might also make and use a shrinkwrap mesh, but that now non-default legacy behavior)
@@ -792,9 +796,10 @@ namespace OPS.Landform
         //populates maskUVMeshOp so that later stages can trim meshes to an XY plane boundary
         //the boundary is non-convex but does not have holes
         //we make the mask by
-        //(a) finding the largest boundary edge loop in the shrinkwrap mesh (in principle we could skip the shrinkwrap
-        ///   and just perform this step on the whole surface mesh, but
-        ///   https://github.jpl.nasa.gov/OnSight/Landform/issues/1145)
+        //(a) finding the largest boundary edge loop in the shrinkwrap mesh (in principle we might be able to skip the
+        //    shrinkwrap and just perform this step on the whole surface mesh, but the shrinkwrap helps address cases
+        //    where the outermost XY extent of the mesh may differ from its 3D bounding loop due to concave folds
+        //    https://github.jpl.nasa.gov/OnSight/Landform/issues/1145)
         //(b) project that to the XY plane and offset it there by options.MaskOffset (the offset is naive and doesn't
         ///   check for self intersection, but that shouldn't matter for the purpose here)
         //(c) triangulating the resulting XY plane polygon

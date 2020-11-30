@@ -8,6 +8,7 @@ using System.Linq;
 using Microsoft.Xna.Framework;
 using RTree;
 using OPS.Util;
+using OPS.MathExtensions;
 
 //ported from onsight/terraintools sha 840d24d65f8cc05653e7b8155156cb8bb6d31a75 ClevererCombinePointClouds
 namespace OPS.Geometry
@@ -15,9 +16,13 @@ namespace OPS.Geometry
     public class CleverCombine
     {
         public const double DEF_CELL_SIZE = 0.025;
+        public const double DEF_CELL_ASPECT = 10;
 
         //size of XY grid cell (meters)
         private readonly double CellSize;
+
+        //size of grid cell Z as a multiple of CellSize, used only by CombineXYZ()
+        private readonly double CellAspect;
 
         //if the max distance from a grid cell to a point cloud origin is this many times bigger than the minimum
         //the points from that cloud can be pruned from the grid cell
@@ -36,9 +41,10 @@ namespace OPS.Geometry
 
         private Random rng = NumberHelper.MakeRandomGenerator();
 
-        public CleverCombine(double cellSizeMeters = DEF_CELL_SIZE)
+        public CleverCombine(double cellSizeMeters = DEF_CELL_SIZE, double cellAspect = DEF_CELL_ASPECT)
         {
             this.CellSize = cellSizeMeters;
+            this.CellAspect = cellAspect;
         }
 
         public Mesh Combine(Mesh[] clouds, Vector3[] origins, ILogger logger = null)
@@ -56,12 +62,14 @@ namespace OPS.Geometry
         private class TLSXYZ
         {
             public Dictionary<int, int[]> cloudsInCell;
+            public Dictionary<int, int[]> cloudsInNeighborhood;
             public List<int> dead;
             public List<Vertex> keepers;
 
             public TLSXYZ(int numClouds, int expectedMaxKeepersPerThread)
             {
                 cloudsInCell = new Dictionary<int, int[]>(numClouds);
+                cloudsInNeighborhood = new Dictionary<int, int[]>(numClouds);
                 dead = new List<int>(numClouds);
                 keepers = new List<Vertex>(expectedMaxKeepersPerThread);
             }
@@ -99,7 +107,7 @@ namespace OPS.Geometry
 
             int gridX = (int)Math.Ceiling(totalBoundsExtent.X / CellSize);
             int gridY = (int)Math.Ceiling(totalBoundsExtent.Y / CellSize);
-            int gridZ = (int)Math.Ceiling(totalBoundsExtent.Z / CellSize);
+            int gridZ = (int)Math.Ceiling(totalBoundsExtent.Z / (CellSize * CellAspect));
 
             int numPoints = clouds.Sum(cloud => cloud.Vertices.Count);
 
@@ -147,26 +155,29 @@ namespace OPS.Geometry
                 int j = (cell % gridXY) % gridX; //0 to gridX -1
                 int k = cell / gridXY; //0 to gridZ - 1
 
-                var cellCenter = totalBounds.Min + new Vector3(j + 0.5, i + 0.5, k + 0.5) * CellSize;
-
                 //careful, cellBounds = BoudingBoxExtensions.CreateFromPoint(cellCenter, CellSize);
                 //can lead to points being assigned to more than one box due to numerical errors
                 //use integer math so that the max side of a box is exactly equal to the min side of the adjacent box
-                var cellBounds = new BoundingBox(totalBounds.Min + new Vector3(j, i, k) * CellSize,
-                                                 totalBounds.Min + new Vector3(j + 1, i + 1, k + 1) * CellSize);
-
-                var cellRect = cellBounds.ToRectangle();
+                var cellBounds =
+                new BoundingBox(totalBounds.Min + new Vector3(j, i, k * CellAspect) * CellSize,
+                                totalBounds.Min + new Vector3(j + 1, i + 1, (k + 1) * CellAspect) * CellSize);
 
                 bool includeMaxX = j == gridX - 1;
                 bool includeMaxY = i == gridY - 1;
                 bool includeMaxZ = k == gridZ - 1;
 
+                var nbrBounds = cellBounds.CreateScaled(3 * Vector3.One);
+                var nbrRect = nbrBounds.ToRectangle();
+
                 tls.cloudsInCell.Clear();
+                tls.cloudsInNeighborhood.Clear();
                 for (int c = 0; c < numClouds; c++)
                 {
-                    if (cloudBounds[c].Intersects(cellBounds))
+                    if (cloudBounds[c].Intersects(nbrBounds))
                     {
-                        int[] verts = cloudRTrees[c].Intersects(cellRect)
+                        int[] verts = cloudRTrees[c].Intersects(nbrRect).ToArray();
+                        tls.cloudsInNeighborhood[c] = verts;
+                        verts = verts
                             .Where(v => cellBounds.ContainsPoint(clouds[c].Vertices[v].Position,
                                                                  includeMaxX, includeMaxY, includeMaxZ))
                             .ToArray();
@@ -182,15 +193,16 @@ namespace OPS.Geometry
                     return tls;
                 }
 
-                //first filter: remove clouds whose origin is too far from this grid cell
+                //first filter: remove clouds whose origin in XY plane is too far from this grid cell
                 if (origins != null && tls.cloudsInCell.Count > 1)
                 {
+                    var xyCenter = cellBounds.Center().XY();
                     tls.dead.Clear();
-                    double d2 = tls.cloudsInCell.Keys.Min(c => Vector3.DistanceSquared(origins[c], cellCenter));
+                    double d2 = tls.cloudsInCell.Keys.Min(c => Vector2.DistanceSquared(origins[c].XY(), xyCenter));
                     double t2 = d2 * MinDistRange * MinDistRange;
                     foreach (int c in tls.cloudsInCell.Keys)
                     {
-                        if (Vector3.DistanceSquared(origins[c], cellCenter) > t2)
+                        if (Vector2.DistanceSquared(origins[c].XY(), xyCenter) > t2)
                         {
                             tls.dead.Add(c);
                         }
@@ -202,7 +214,7 @@ namespace OPS.Geometry
                 }
 
                 //second filter: remove clouds where a sampling of their points within this cell
-                //is too far from their nearest neighbors in other clouds in this cell
+                //is too far from their nearest neighbors in other clouds
                 if (tls.cloudsInCell.Count > 1)
                 {
                     foreach (var verts in tls.cloudsInCell.Values)
@@ -221,7 +233,7 @@ namespace OPS.Geometry
                         int ns = Math.Min(verts.Length, MaxMSESamples);
                         double mse = 0;
                         int numDistances = 0;
-                        foreach (var oe in tls.cloudsInCell)
+                        foreach (var oe in tls.cloudsInNeighborhood)
                         {
                             int oc = oe.Key;
                             if (c != oc)

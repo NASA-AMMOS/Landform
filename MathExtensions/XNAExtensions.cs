@@ -6,6 +6,7 @@ using Newtonsoft.Json;
 
 namespace OPS.MathExtensions
 {
+    /// Also see Microsoft.Xna.Framework.Extensions and OPS.Geometry.BoundingBoxExtensions
     public static class XNAExtensions
     {
         /// <summary>

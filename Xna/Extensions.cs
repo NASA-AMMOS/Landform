@@ -4,7 +4,7 @@ namespace Microsoft.Xna.Framework
 { 
     /// <summary>
     /// Extensions to the Xna framework classes
-    /// Also see OPS.Geometry.BoundingBoxExtensions
+    /// Also see OPS.MathExtensions.XNAExtensions and OPS.Geometry.BoundingBoxExtensions
     /// </summary>
     public static class Extensions
     {

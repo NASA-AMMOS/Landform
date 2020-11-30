@@ -10,6 +10,7 @@ namespace OPS.Geometry
 {
    public enum BoxAxis { X, Y, Z };
 
+    /// Also see Microsoft.Xna.Framework.Extensions and OPS.MathExtensions.XNAExtensions
     public static class BoundingBoxExtensions
     {
         public static BoundingBox CreateXY(double size)
