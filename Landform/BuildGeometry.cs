@@ -137,7 +137,7 @@ namespace OPS.Landform
         [Option(HelpText = "Orbital sampling rate inside blend radius, non-positive to use DEM resolution", Default = 15)]
         public double OrbitalBlendPointsPerMeter { get; set; }
 
-        [Option(HelpText = "Mask resolution for clipping surface/orbital", Default = 100)]
+        [Option(HelpText = "Mask resolution for clipping surface/orbital", Default = 5)]
         public double ShrinkwrapPointsPerMeter { get; set; }
 
         [Option(HelpText = "Mask offset for clipping surface/orbital", Default = 0.01)]
