@@ -16,12 +16,18 @@ namespace OPS.Geometry
     public class CleverCombine
     {
         public const double DEF_CELL_SIZE = 0.025;
-        public const double DEF_CELL_ASPECT = 10;
+        public const double DEF_CELL_ASPECT = -1;
 
         //size of XY grid cell (meters)
         private readonly double CellSize;
 
         //size of grid cell Z as a multiple of CellSize, used only by CombineXYZ()
+        //non-positive to use only one layer of full-height cells
+        //unfortunately using multiple layers of cells can result in striation artifacts in datasets with gentle slopes
+        //because near the top/bottom of a layer some of the overlapping clouds will get excluded from the cell
+        //so where the terrain slope is near the layer boundary the culling will be different
+        //than where the slope is not near the layer boundary
+        //dingo gap shows this effect
         private readonly double CellAspect;
 
         //if the max distance from a grid cell to a point cloud origin is this many times bigger than the minimum
@@ -77,7 +83,7 @@ namespace OPS.Geometry
             
         /// <summary>
         /// Implements more or less the same algorithm as CombineXY() but
-        /// (a) uses a full 3D grid
+        /// (a) can use a full 3D grid (though the grid is still 2D if CellAspect is non-positive, which is the default)
         /// (b) should be more memory efficient
         /// (c) allows origins = null which skips the origin filter
         /// (d) returned mesh shares verts of input clouds
@@ -105,9 +111,15 @@ namespace OPS.Geometry
             var totalBounds = BoundingBoxExtensions.Union(cloudBounds);
             var totalBoundsExtent = totalBounds.Extent();
 
+            double aspect = CellAspect;
+            if (aspect <= 0)
+            {
+                aspect = totalBoundsExtent.Z / CellSize;
+            }
+
             int gridX = (int)Math.Ceiling(totalBoundsExtent.X / CellSize);
             int gridY = (int)Math.Ceiling(totalBoundsExtent.Y / CellSize);
-            int gridZ = (int)Math.Ceiling(totalBoundsExtent.Z / (CellSize * CellAspect));
+            int gridZ = (int)Math.Ceiling(totalBoundsExtent.Z / (CellSize * aspect));
 
             int numPoints = clouds.Sum(cloud => cloud.Vertices.Count);
 
@@ -159,8 +171,8 @@ namespace OPS.Geometry
                 //can lead to points being assigned to more than one box due to numerical errors
                 //use integer math so that the max side of a box is exactly equal to the min side of the adjacent box
                 var cellBounds =
-                new BoundingBox(totalBounds.Min + new Vector3(j, i, k * CellAspect) * CellSize,
-                                totalBounds.Min + new Vector3(j + 1, i + 1, (k + 1) * CellAspect) * CellSize);
+                new BoundingBox(totalBounds.Min + new Vector3(j, i, k * aspect) * CellSize,
+                                totalBounds.Min + new Vector3(j + 1, i + 1, (k + 1) * aspect) * CellSize);
 
                 bool includeMaxX = j == gridX - 1;
                 bool includeMaxY = i == gridY - 1;
