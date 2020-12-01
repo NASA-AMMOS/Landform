@@ -43,7 +43,7 @@ namespace OPS.Geometry
         //if the root mean squared error between the nearest neighbor samples of the points from a point cloud
         //within a grid cell to all the other points in the cell is greater than this
         //then prune the points from that cloud from the cell
-        private const double MaxRMSE = 0.01;
+        private const double MaxRMSE = 0.02;
 
         private Random rng = NumberHelper.MakeRandomGenerator();
 
