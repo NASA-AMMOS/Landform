@@ -140,7 +140,7 @@ namespace OPS.Landform
         [Option(HelpText = "Mask resolution for clipping surface/orbital", Default = 5)]
         public double ShrinkwrapPointsPerMeter { get; set; }
 
-        [Option(HelpText = "Mask offset for clipping surface/orbital", Default = 0.01)]
+        [Option(HelpText = "Mask offset for clipping surface/orbital", Default = 0.05)]
         public double MaskOffset { get; set; }
 
         [Option(HelpText = "Blend orbital within this distance from surface in meters, 0 disables blend, negative for default", Default = BuildGeometry.DEF_BLEND_RADIUS)]
