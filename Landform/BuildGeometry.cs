@@ -214,6 +214,8 @@ namespace OPS.Landform
         private int blendSamplesPerPixel;
         private Matrix meshToOrbital, orbitalToMesh;
 
+        private float[][] sourceColors;
+
         public BuildGeometry(BuildGeometryOptions options) : base(options)
         {
             this.options = options;
@@ -610,10 +612,10 @@ namespace OPS.Landform
 
             if (options.WriteDebug && clouds.Length > 1)
             {
-                var colors = Colorspace.RandomHues(clouds.Length);
+                sourceColors = Colorspace.RandomHues(clouds.Length + 1); //extra color for orbital
                 for (int i = 0; i < clouds.Length; i++)
                 {
-                    clouds[i].SetColor(colors[i]);
+                    clouds[i].SetColor(sourceColors[i]);
                 }
                 pointCloud.HasColors = true;
             }
@@ -949,8 +951,13 @@ namespace OPS.Landform
                     pt = Vector3.Transform(pt, orbitalToMesh);
                     return maskOp.UVToBarycentric(new Vector2(pt.X, pt.Y)) == null; //outside surface mesh
                 };
-                return orbitalDEM.OrganizedMesh(outerBounds, innerBounds, subsample, filter, withNormals: true,
-                                                quadsOnly: true);
+                var ret = orbitalDEM.OrganizedMesh(outerBounds, innerBounds, subsample, filter, withNormals: true,
+                                                   quadsOnly: true);
+                if (sourceColors != null && sourceColors.Length > 0)
+                {
+                    ret.SetColor(sourceColors[sourceColors.Length - 1]);
+                }
+                return ret;
             }
 
             int orbitalExtentPixels = (int)Math.Ceiling(0.5 * options.Extent / orbitalDEMMetersPerPixel);
