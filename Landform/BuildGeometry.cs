@@ -591,7 +591,7 @@ namespace OPS.Landform
 
             int nv = observationPointClouds.Values.Sum(pc => pc.Vertices.Count);
 
-            pointCloud = new Mesh(hasNormals: true, hasColors: (options.WriteDebug && groups.Length > 1));
+            pointCloud = new Mesh(hasNormals: true);
 
             var clouds = groups.Select(group =>
             {
@@ -603,18 +603,19 @@ namespace OPS.Landform
                 pipeline.LogInfo("merging {0} observation point clouds in sitedrive {1} without clever combine, " +
                                  "total {2} points", obsClouds.Length, group.Key,
                                  Fmt.KMG(obsClouds.Sum(c => c.Vertices.Count)));
-                var pc = new Mesh(pointCloud.HasNormals, pointCloud.HasColors);
+                var pc = new Mesh(pointCloud.HasNormals);
                 pc.MergeWith(obsClouds, normalize: false, removeDuplicateVerts: false);
                 return pc;
             }).ToArray();
 
-            if (options.WriteDebug)
+            if (options.WriteDebug && clouds.Length > 1)
             {
                 var colors = Colorspace.RandomHues(clouds.Length);
                 for (int i = 0; i < clouds.Length; i++)
                 {
                     clouds[i].SetColor(colors[i]);
                 }
+                pointCloud.HasColors = true;
             }
 
             if (options.NoCleverCombine)
