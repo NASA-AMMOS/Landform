@@ -196,13 +196,13 @@ namespace OPS.Geometry
                 //first filter: remove clouds whose origin in XY plane is too far from this grid cell
                 if (origins != null && tls.cloudsInCell.Count > 1)
                 {
-                    var xyCenter = cellBounds.Center().XY();
+                    var cellCenter = cellBounds.Center().XY();
                     tls.dead.Clear();
-                    double d2 = tls.cloudsInCell.Keys.Min(c => Vector2.DistanceSquared(origins[c].XY(), xyCenter));
+                    double d2 = tls.cloudsInCell.Keys.Min(c => Vector2.DistanceSquared(origins[c].XY(), cellCenter));
                     double t2 = d2 * MinDistRange * MinDistRange;
                     foreach (int c in tls.cloudsInCell.Keys)
                     {
-                        if (Vector2.DistanceSquared(origins[c].XY(), xyCenter) > t2)
+                        if (Vector2.DistanceSquared(origins[c].XY(), cellCenter) > t2)
                         {
                             tls.dead.Add(c);
                         }
