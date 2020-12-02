@@ -31,7 +31,7 @@ namespace OPS.Landform
         [Option(HelpText = "Stereo eye to prefer", Default = "auto")]
         public string StereoEye { get; set; }
 
-        //need to be able to default this differently for bev-align vs heighmap-align
+        //need to be able to default this differently for bev-align vs heightmap-align
         //unfortunately can't just make it virtual bool because can't default a bool flag to true
         //https://github.jpl.nasa.gov/OnSight/Landform/issues/1001
         [Option(HelpText = "Use mesh RDRs when available instead of reconstructing wedge meshes from observation pointclouds (\"true\", \"false\", or \"auto\")", Default = "auto")]
@@ -758,21 +758,29 @@ namespace OPS.Landform
                     var rec = BirdsEyeView.Find(pipeline, project.Name, siteDrive, bevOptions);
                     if (rec == null)
                     {
-                        pipeline.LogVerbose("no cached BEV for {0}", siteDrive);
+                        pipeline.LogInfo("no cached BEV/DEM for {0}", siteDrive);
                     }
                     else if (rec.CreationOptions != bevOptions.Serialize())
                     {
-                        pipeline.LogVerbose("options mismatch for cached BEV {0}", siteDrive);
+                        pipeline.LogInfo("options mismatch for cached BEV {0}", siteDrive);
                         pipeline.LogVerbose("cached options: {0}", rec.CreationOptions);
                         pipeline.LogVerbose("required options: {0}", bevOptions.Serialize());
                     }
                     else if ((includeBEVs && rec.BEVGuid == null) || (includeDEMs && rec.DEMGuid == null))
                     {
-                        pipeline.LogVerbose("missing BEV or DEM image for cached BEV {0}", siteDrive);
+                        pipeline.LogInfo("missing BEV or DEM image for cached BEV {0}", siteDrive);
+                    }
+                    else if ((includeBEVs || includeDEMs) && rec.MaskGuid == null)
+                    {
+                        pipeline.LogInfo("missing BEV or DEM mask image for cached BEV {0}", siteDrive);
                     }
                     else
                     {
-                        var mask = pipeline.GetDataProduct<PngDataProduct>(project, rec.MaskGuid).Image;
+                        pipeline.LogInfo("loading cached BEV/DEM for {0}", siteDrive);
+
+                        var mask = pipeline.GetDataProduct<TiffDataProduct>(project, rec.MaskGuid).Image;
+                        pipeline.LogInfo("loaded {0}x{1} BEV/DEM mask for site drive {2}",
+                                         mask.Width, mask.Height, siteDrive);
 
                         if (includeBEVs)
                         {
