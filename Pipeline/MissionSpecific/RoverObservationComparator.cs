@@ -399,7 +399,9 @@ namespace OPS.Pipeline
             var idToProducts = new Dictionary<RoverProductId, List<string>>();
             foreach (var product in products)
             {
-                string idStr = StringHelper.GetLastUrlPathSegment(product, stripExtension: true);
+                string idStr =
+                    mission != null ? mission.GetProductIDString(product) :
+                    StringHelper.GetLastUrlPathSegment(product, stripExtension: true);
                 var id = RoverProductId.Parse(idStr, mission, throwOnFail: false);
                 if (id != null)
                 {

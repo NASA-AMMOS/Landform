@@ -42,21 +42,25 @@ using OPS.Pipeline;
 /// s3://BUCKET/ods/VER/sol/TTTTT/ids/rdr but during ground tests can be in the form
 /// s3://BUCKET/ods/VER/YYYY/DDD/ids/rdr.
 ///
-/// Fetching RDRs for windjana contextual mesh:
+/// Fetch RDRs for windjana contextual mesh:
 ///
 /// Landform.exe fetch 609-630 out/windjana/rdrs s3://m20-ids-g-landform/MSL/ods/surface/sol/#####/opgs/rdr
 ///   --mission=MSL --summary
 ///
-/// Fetching RDRs for ROASTT20 Dec12 (both tactical meshes and contextual mesh):
+/// Fetch RDRs for ROASTT20 Dec12 (both tactical meshes and contextual mesh):
 ///
 /// Landform.exe fetch 0700 out/roastt20-dec12-d/rdrs s3://roastt-marsyard-12-12-d/ods/g64/sol/#####/ids/rdr
 ///   --mission=ROASTT20 --summary
 ///
-/// Fetching a single specific file (the --mission M2020 flag defines the AWS region and profile to use):
+/// Fetch a single specific file (the --mission M2020 flag defines the AWS region and profile to use):
 ///
 /// Landform.exe fetch s3://m20-ids-g-landform/Unity3DTilesWeb.zip . --raw --nosubdirs --mission M2020
 ///
-/// "Stop Trying to Make Fetch Happen" - Regina George (Mean Girls)
+/// Fetch mesh RDRs for ORT11:
+///
+/// Landform.exe fetch 1-4 out/ort11/rdrs s3://m20-sstage-ods/ods/surface/sol/#####/ids/rdr --mission M2020 --summary
+///   --withpng --useunifiedmeshes=false --onlymeshproducts --onlyforeye=Left
+///
 ///<Summary>
 namespace OPS.Landform
 {
@@ -87,6 +91,9 @@ namespace OPS.Landform
 
         [Option(HelpText = "Only use specific cameras, comma separated (e.g. Hazcam, Mastcam, Navcam, FrontHazcam, FrontHazcamLeft, etc)", Default = null)]
         public string OnlyForCameras { get; set; }
+
+        [Option(HelpText = "Only use specific eyes, comma separated (e.g. Left, Right, Mono, Any)", Default = RoverStereoEye.Any)]
+        public RoverStereoEye OnlyForEye { get; set; }
 
         [Option(HelpText = "Only use observations from specific site drives SSSSSDDDDD, comma separated, wildcard xxxxx", Default = null)]
         public string OnlyForSiteDrives { get; set; }
@@ -120,6 +127,9 @@ namespace OPS.Landform
 
         [Option(Default = false, HelpText = "Don't download any mesh products")]
         public bool NoMeshes { get; set; }
+
+        [Option(Default = false, HelpText = "Only download products that match an OBJ or IV mesh product ID")]
+        public bool OnlyMeshProducts { get; set; }
 
         [Option(Default = false, HelpText = "Download VIC products")]
         public bool WithVIC { get; set; }
@@ -346,6 +356,12 @@ namespace OPS.Landform
                 .ToArray();
         }
 
+        private string GetProductIDString(string product)
+        {
+            return mission != null ?
+                mission.GetProductIDString(product) : StringHelper.GetLastUrlPathSegment(product, stripExtension: true);
+        }
+
         private List<string> Filter(List<string> products)
         {
             var acceptedSiteDrives = SiteDrive.ParseList(options.OnlyForSiteDrives);
@@ -559,19 +575,39 @@ namespace OPS.Landform
                 return false;
             }
 
+            HashSet<string> meshIds = null;
+            if (options.OnlyMeshProducts && (!options.NoIV || !options.NoOBJ))
+            {
+                meshIds = new HashSet<String>();
+                foreach (var product in products) {
+                    string ext = StringHelper.GetUrlExtension(product).ToUpper();
+                    if (ext == ".IV" || ext == ".OBJ") {
+                        meshIds.Add(GetProductIDString(product));
+                    }
+                }
+            }
+
             var filtered = new List<string>();
             foreach (var product in products.OrderBy(p => p)) //sort makes spew more readable
             {
                 string reason = null;
                 string ext = StringHelper.GetUrlExtension(product).ToUpper();
-                string idStr = StringHelper.GetLastUrlPathSegment(product, stripExtension: true);
+                string idStr = GetProductIDString(product);
+
+                string fn = StringHelper.GetLastUrlPathSegment(product).ToUpper();
+                bool isLODTar = fn.EndsWith("_LOD.TAR");
+
                 if (excludeSubdirs.Any(sd => product.IndexOf(sd) >= 0))
                 {
                     reason = "excluded subdir " + excludeSubdirs.Where(sd => product.IndexOf(sd) >= 0).First();
                 }
-                else if (!acceptedExtensions.Contains(ext)) //acceptedExtensions.Count == 0 means let nothing in
+                else if (!isLODTar && !acceptedExtensions.Contains(ext)) //acceptedExtensions.Count == 0 -> reject all
                 {
                     reason = "disallowed extension " + ext;
+                }
+                else if (isLODTar && !acceptedExtensions.Contains(".OBJ"))
+                {
+                    reason = "rejecting OBJ LOD TAR because OBJ excluded";
                 }
                 else if ((acceptedProductIds.Count > 0 && !acceptedProductIds.Contains(idStr)) ||
                          (rejectedProductIds.Count > 0 && rejectedProductIds.Contains(idStr)))
@@ -582,6 +618,10 @@ namespace OPS.Landform
                          (excludeRegex.Count > 0 && excludeRegex.Any(r => r.IsMatch(idStr))))
                 {
                     reason = "product excluded by pattern " + idStr;
+                }
+                else if (meshIds != null && !meshIds.Contains(idStr))
+                {
+                    reason = "product ID does not match any mesh ID " + idStr;
                 }
                 else
                 {
@@ -607,6 +647,11 @@ namespace OPS.Landform
                              !acceptedCameras.Any(ac => RoverCamera.IsCamera(ac, id.Camera)))
                     {
                         reason = "excluded camera " + id.Camera;
+                    }
+                    else if (options.OnlyForEye != RoverStereoEye.Any &&
+                             !RoverStereoPair.IsStereoEye(id.Camera, options.OnlyForEye))
+                    {
+                        reason = "excluded eye " + id.Camera;
                     }
                     else
                     {
@@ -657,7 +702,7 @@ namespace OPS.Landform
                 var umFiltered = new List<string>();
                 foreach (var product in filtered)
                 {
-                    string idStr = StringHelper.GetLastUrlPathSegment(product, stripExtension: true);
+                    string idStr = GetProductIDString(product);
                     var id = RoverProductId.Parse(idStr, mission); //all ids should parse at this point
                     if (checkUnifiedMeshes(id))
                     {
@@ -1299,7 +1344,7 @@ namespace OPS.Landform
                         foreach (var sol in sols)
                         {
                             var groups = solToProducts[sol]
-                                .Select(product => StringHelper.GetLastUrlPathSegment(product, stripExtension: true))
+                                .Select(product => GetProductIDString(product))
                                 .Select(idStr => RoverProductId.Parse(idStr, mission))
                                 .GroupBy(id => id.GetPartialId(mission, includeProductType: false,
                                                                includeGeometry: false, includeVariants: false,

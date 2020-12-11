@@ -3,6 +3,7 @@ using System.IO;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using OPS.Util;
 using OPS.Cloud;
@@ -249,6 +250,18 @@ namespace OPS.Pipeline
         public override bool PreferLinearGeometryProducts()
         {
             return MissionM2020Config.Instance.PreferLinearGeometryProducts;
+        }
+
+        public override string GetProductIDString(string product)
+        {
+            string idStr = StringHelper.GetLastUrlPathSegment(product, stripExtension: true);
+            string pat = @"_LOD(\d*)(_\d+)?$";
+            var match = Regex.Match(idStr, pat, RegexOptions.IgnoreCase);
+            if (match.Success)
+            {
+                idStr = idStr.Substring(0, idStr.Length - match.Groups[0].Value.Length);
+            }
+            return idStr;
         }
 
         public override RoverObservationComparator GetRoverObservationComparator()

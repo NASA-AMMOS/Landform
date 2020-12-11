@@ -258,6 +258,11 @@ namespace OPS.Pipeline
 
         public abstract double? GetMaximumFocusDistance(PDSMetadata metadata);
 
+        public virtual string GetProductIDString(string product)
+        {
+            return StringHelper.GetLastUrlPathSegment(product, stripExtension: true);
+        }
+
         /// <summary>
         /// ordering a sequence with this function should put the "better" observations earlier in the list
         /// thus a "better" observation should be *less than* a "worse" observation, uses
