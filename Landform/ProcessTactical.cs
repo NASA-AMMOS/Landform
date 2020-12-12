@@ -162,7 +162,11 @@ namespace OPS.Landform
                 }
                 else
                 {
-                    RunPhase("build tileset " + id, () => BuildTacticalTileset(mip));
+                    try {
+                        RunPhase("build tileset " + id, () => BuildTacticalTileset(mip));
+                    } catch (Exception) {
+                        //already logged
+                    }
                 }
             }
         }
