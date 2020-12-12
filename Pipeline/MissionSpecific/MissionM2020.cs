@@ -567,7 +567,8 @@ namespace OPS.Pipeline
 
         public override string GetTacticalMeshTriggerRegex()
         {
-            return "auto_obj_lod_fn"; //see ProcessTactical.ParseMeshRegex()
+            //return "auto_obj_lod_fn"; //see ProcessTactical.ParseMeshRegex()
+            return "auto_iv";
         }
     }
 
