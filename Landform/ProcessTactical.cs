@@ -208,12 +208,32 @@ namespace OPS.Landform
             var id = RoverProductId.Parse(idStr, mission, throwOnFail: false);
             if (!(id is OPGSProductId))
             {
-                reason = "unrecognized product ID format: " + url;
+                reason = "not an OPGS product ID: " + url;
+                return false;
+            }
+            if (id is UnifiedMeshProductIdBase)
+            {
+                reason = "unified mesh: " + url;
                 return false;
             }
             if ((id as OPGSProductId).Size == RoverProductSize.Thumbnail)
             {
                 reason = "thumbnail product: " + url;
+                return false;
+            }
+            if (!id.IsSingleFrame())
+            {
+                reason = "multi frame product: " + url;
+                return false;
+            }
+            if (!id.IsSingleCamera())
+            {
+                reason = "multi camera product: " + url;
+                return false;
+            }
+            if (!id.IsSingleSiteDrive())
+            {
+                reason = "multi sitedrive product: " + url;
                 return false;
             }
             if (!RoverStereoPair.IsStereoEye(id.Camera, options.MeshStereoEye))
