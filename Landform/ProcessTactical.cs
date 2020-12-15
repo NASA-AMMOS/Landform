@@ -42,10 +42,20 @@ using OPS.Pipeline.AlignmentServer;
 /// tool the input meshes are searched, optionally recursively, under a specified directory or s3 folder.  When run as a
 /// service, s3 URLs to individual tactical mesh RDRs are given in SQS messages.
 ///
-/// The output tileset is named PRODUCT_ID, where PRODUCT_ID is the basename of the input mesh RDR.  It is written to
-/// rdrDir/tileset/PRODUCT_ID (*), unless --outputfolder is specified, in which case it is written to a subdirectory
-/// PRODUCT_ID there. (*) actually if rdrDir contains a prefix ending /rdr then the output directory is that prefix but
-/// with rdr replaced with rdr/tileset/PRODUCT_ID.
+/// The output tileset is named PRODUCT_ID, where PRODUCT_ID is the basename of the texture used by the input mesh RDR.
+/// It is written to rdrDir/tileset/PRODUCT_ID (*), unless --outputfolder is specified, in which case it is written to a
+/// subdirectory PRODUCT_ID there. (*) actually if rdrDir contains a prefix ending /rdr then the output directory is
+/// that prefix but with rdr replaced with rdr/tileset/PRODUCT_ID.
+///
+/// The tileset PRODUCT_ID is taken from the texture filename because
+/// (a) the texture product ID may differ from the mesh: e.g. the versions may differ, the product type may differ,
+///     and the mesh type span may differ https://github.jpl.nasa.gov/OnSight/Landform/issues/1149.
+/// (b) the texture filename is guaranteed to have counterpart in a format with PDS headers, but the mesh is not
+/// (c) it is possible that the same mesh could be processed as multiple tilesets with different texture images.
+///
+/// It is not currently supported to produce a tactical mesh tileset with no texture, but if that were to occur, the
+/// tileset PRODUCT_ID would be the product ID extracted from the mesh filename.  This is generally the basename of the
+/// mesh filename, but in some situations (e.g. _LOD suffixes) it may be only a portion of the mesh filename.
 ///
 /// When run as a service the input RDR directory is also given as part of each SQS message.  Thus, the service will
 /// write tilesets back to the same RDR tree as the source RDRs, but under the rdr/tileset subdirectory.
@@ -896,6 +906,10 @@ namespace OPS.Landform
             if (mip.image == null)
             {
                 return warn($"mesh {mip.mesh} texture unavailable", mip.mesh);
+            }
+            else
+            {
+                mip.id = StringHelper.GetLastUrlPathSegment(mip.image, stripExtension: true);
             }
 
             if (!options.NoRequirePDSTexture && !IsPDS(mip.image))
