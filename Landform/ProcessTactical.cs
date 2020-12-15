@@ -812,6 +812,11 @@ namespace OPS.Landform
                 fallbackExts = exts.ToArray();
             }
 
+            string clearMeshType(string idStr)
+            {
+                return GeometryCommand.ClearMeshType(idStr, mission);
+            }
+
             void tryFallbackTextureExts(string msg)
             {
                 string[] bns = null;
@@ -819,17 +824,19 @@ namespace OPS.Landform
                 {
                     //did successfully extract a texture filename from the mesh file
                     //but it didn't exist, so just try other formats of that file
-                    bns = new string[] { StringHelper.StripUrlExtension(textureFilename) };
+                    string bn = StringHelper.StripUrlExtension(textureFilename);
+                    bns = new string[] { bn, clearMeshType(bn) };
                 }
                 else
                 {
                     //no texture filename in mesh file
                     //try sibling files with same basename or same product id
-                    bns = new string[] { StringHelper.StripUrlExtension(meshFilename), mip.id };
+                    string bn = StringHelper.StripUrlExtension(meshFilename);
+                    bns = new string[] { bn, clearMeshType(bn), mip.id, clearMeshType(mip.id) };
                 }
-                foreach (string bn in bns)
+                foreach (string tx in fallbackExts)
                 {
-                    foreach (string tx in fallbackExts)
+                    foreach (string bn in bns)
                     {
                         string tf = folder + bn + tx;
                         if (FileExists(tf))
@@ -856,7 +863,6 @@ namespace OPS.Landform
             }
             if (textureFilename != null)
             {
-                string tbn = StringHelper.StripUrlExtension(textureFilename);
                 var exts = new List<string>();
                 if (!options.NoPreferPDSTexture)
                 {
@@ -865,11 +871,15 @@ namespace OPS.Landform
                 exts.Add(StringHelper.GetUrlExtension(textureFilename));
                 foreach (var tx in exts)
                 {
-                    string textureUrl = folder + tbn + tx;
-                    if (FileExists(textureUrl))
+                    string tbn = StringHelper.StripUrlExtension(textureFilename);
+                    foreach (var bn in new string[] { tbn, clearMeshType(tbn) })
                     {
-                        mip.image = textureUrl;
-                        break;
+                        string textureUrl = folder + bn + tx;
+                        if (FileExists(textureUrl))
+                        {
+                            mip.image = textureUrl;
+                            break;
+                        }
                     }
                 }
                 if (mip.image == null && fallbackExts.Length > 0)

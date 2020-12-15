@@ -379,5 +379,21 @@ namespace OPS.Landform
                              srcOrbitalPixels, dstOrbitalPixels,
                              orbitalExtent / srcOrbitalPixels, orbitalExtent / dstOrbitalPixels);
         }
+
+        //https://github.jpl.nasa.gov/OnSight/Landform/issues/1149
+        public static string ClearMeshType(string idStr, MissionSpecific mission)
+        {
+            var id = RoverProductId.Parse(idStr, mission, throwOnFail: false);
+            if (id != null && id.GetMeshTypeSpan(out int s, out int l))
+            {
+                return idStr.Substring(0, s) + (new String('_', l)) + idStr.Substring(s + l);
+            }
+            return idStr;
+        }
+
+        protected string ClearMeshType(string idStr)
+        {
+            return ClearMeshType(idStr, mission);
+        }
     }
 }

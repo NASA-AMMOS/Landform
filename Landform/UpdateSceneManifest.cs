@@ -860,17 +860,20 @@ namespace OPS.Landform
                     //see comments in ProcessTactical.cs AddImage()
                     
                     string pdsFile = null;
-                    foreach (string tryId in id.DescendingVersions(10))
+                    foreach (string vid in id.DescendingVersions(10))
                     {
-                        if (rdrs.ContainsKey(tryId))
+                        foreach (string cid in new string[] { vid, ClearMeshType(vid) })
                         {
-                            var rdrSet = rdrs[tryId];
-                            foreach (var ext in pdsExts)
+                            if (rdrs.ContainsKey(cid))
                             {
-                                if (rdrSet.HasUrlExtension(ext))
+                                var rdrSet = rdrs[cid];
+                                foreach (var ext in pdsExts)
                                 {
-                                    pdsFile = rdrSet.GetUrlWithExtension(ext);
-                                    break;
+                                    if (rdrSet.HasUrlExtension(ext))
+                                    {
+                                        pdsFile = rdrSet.GetUrlWithExtension(ext);
+                                        break;
+                                    }
                                 }
                             }
                         }

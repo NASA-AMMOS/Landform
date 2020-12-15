@@ -243,6 +243,12 @@ namespace OPS.Pipeline
             return false;
         }
 
+        public virtual bool GetMeshTypeSpan(out int start, out int length)
+        {
+            start = length = -1;
+            return false;
+        }
+
         public string GetPartialId(int start, int length)
         {
             return FullId.Substring(start, length);
@@ -252,12 +258,12 @@ namespace OPS.Pipeline
                                            bool includeGeometry = true, bool includeColorFilter = true,
                                            bool includeInstrument = true, bool includeVariants = true,
                                            bool includeStereoEye = true, bool includeStereoPartner = true,
-                                           bool includeSize = true)
+                                           bool includeSize = true, bool includeMeshType = true)
         {
             return GetPartialId(null,
                                 includeVersion, includeProductType, includeGeometry, includeColorFilter,
                                 includeInstrument, includeVariants, includeStereoEye, includeStereoPartner,
-                                includeSize);
+                                includeSize, includeMeshType);
         }
 
         public virtual string GetPartialId(MissionSpecific mission,
@@ -265,7 +271,7 @@ namespace OPS.Pipeline
                                            bool includeGeometry = true, bool includeColorFilter = true,
                                            bool includeInstrument = true, bool includeVariants = true,
                                            bool includeStereoEye = true, bool includeStereoPartner = true,
-                                           bool includeSize = true)
+                                           bool includeSize = true, bool includeMeshType = true)
         {
             string ret = FullId;
             int start, length;
@@ -303,6 +309,10 @@ namespace OPS.Pipeline
                 spans.Add(new int[] { start, length });
             }
             if (!includeSize && GetSizeSpan(out start, out length))
+            {
+                spans.Add(new int[] { start, length });
+            }
+            if (!includeMeshType && GetMeshTypeSpan(out start, out length))
             {
                 spans.Add(new int[] { start, length });
             }
@@ -1123,13 +1133,14 @@ namespace OPS.Pipeline
     {
         public const int LENGTH = 54;
 
-        public readonly string ColorFilter, Venue, Sequence, Camspec, Downsample, Compression;
+        public readonly string ColorFilter, Venue, Sequence, Camspec, Downsample, Compression, MeshType;
         public readonly int Ts0, Ts1, Ts2;
 
         protected M2020OPGSProductId(string fullId, string producer, string productType, string camera, string geometry,
                                      string color, string version, string size, int site, int drive,
                                      string spec, int ts0, string venue, int ts1, int ts2,
-                                     string sequence, string camspec, string downsample, string compression)
+                                     string sequence, string camspec, string downsample, string compression,
+                                     string meshType)
             : base(fullId, ParseM2020Producer(producer), productType, camera, geometry, color, version, size,
                    site, drive, spec)
         {
@@ -1162,6 +1173,7 @@ namespace OPS.Pipeline
             string ts0Str = productId.Substring(4, 4);
             string venue = productId.Substring(8, 1);
             string ts1Str = productId.Substring(9, 10);
+            string meshType = productId.Substring(19, 1);
             string ts2Str = productId.Substring(20, 3);
             string prodType = productId.Substring(23, 3);
             string geometry = productId.Substring(26, 1);
@@ -1192,7 +1204,7 @@ namespace OPS.Pipeline
                                           geometry: geometry, color: colorFilter, version: version, size: thumb,
                                           site: site, drive: drive, spec: spec, ts0: ts0, venue: venue, ts1: ts1,
                                           ts2: ts2, sequence: sequence, camspec: camspec, downsample: downsample,
-                                          compression: compression);
+                                          compression: compression, meshType: meshType);
         }
 
         //parse a 4 character sol string
@@ -1308,6 +1320,13 @@ namespace OPS.Pipeline
         public override bool GetSizeSpan(out int start, out int length)
         {
             start = 27;
+            length = 1;
+            return true;
+        }
+
+        public override bool GetMeshTypeSpan(out int start, out int length)
+        {
+            start = 19;
             length = 1;
             return true;
         }
