@@ -109,7 +109,7 @@ namespace OPS.Landform
         [Option(Default = false, HelpText = "Don't expect PRODUCTID.obj to exist if PRODUCTID_LOD01[_NN].obj does")]
         public bool NoExpectNonLODOBJ { get; set; }
 
-        [Option(Default = false, HelpText = "Just print resolved input mesh and image URLs, whitespace separated, one wedge per line, only in batch mode")]
+        [Option(Default = false, HelpText = "Just print resolved product IDs and input URLs, whitespace separated, one wedge per line, only in batch mode")]
         public bool ResolveInputs { get; set; }
 
         [Option(Default = false, HelpText = "Don't load existing tactical mesh LODs")]
@@ -445,7 +445,7 @@ namespace OPS.Landform
             pipeline.LogInfo("found {0} meshes", meshes.Count);
         }
 
-        //There are a number of possible scenarios the input files for tactical mesh processing.
+        //There are a number of possible scenarios for the input files for tactical mesh processing.
         //
         //This function has the job of
         //* determining what scenario is in effect
@@ -521,7 +521,6 @@ namespace OPS.Landform
         //  PRODUCTID_LOD03_03.obj, PRODUCTID_LOD03_03.mtl
         //  - similar to above, but LOD count included in filenames
         //    LOD count does not include PRODUCTID.obj itself
-        //  - *** Landform currently expects this scenario by default ***
         //  - the non-LOD PRODUCTID.obj will optionally be used if
         //    (a) it's available on S3 when PRODUCTID_LOD01_03.obj is
         //    (b) it's less than or equal to options.MaxOBJBytes
