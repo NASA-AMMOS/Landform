@@ -440,7 +440,7 @@ namespace OPS.Pipeline
                                tilesetId != imageId ? $" (PDS image {imageId})" : "");
             }
 
-            string tmFrame = mission.GetTacticalMeshFrame();
+            string tmFrame = mission.GetTacticalMeshFrame(tilesetId);
             if (tmFrame != "site")
             {
                 throw new Exception(string.Format("unhandled tactical mesh frame {0} (not site)", tmFrame));

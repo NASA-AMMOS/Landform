@@ -565,6 +565,20 @@ namespace OPS.Pipeline
             return RoverProductGeometry.Raw;
         }
 
+        public override string GetTacticalMeshFrame(RoverProductId id = null)
+        {
+            if (id is M2020OPGSProductId)
+            {
+                //https://github.jpl.nasa.gov/OnSight/Landform/issues/1149
+                switch ((id as M2020OPGSProductId).MeshType.ToUpper())
+                {
+                    case "R": return "rover";
+                    default: return base.GetTacticalMeshFrame();
+                }
+            }
+            return base.GetTacticalMeshFrame();
+        }
+
         public override string GetTacticalMeshTriggerRegex()
         {
             //return "auto_obj_lod_fn"; //see ProcessTactical.ParseMeshRegex()

@@ -925,9 +925,14 @@ namespace OPS.Pipeline
         /// Get frame of tactical meshes as loaded from file.
         /// Should be one of the frame meta-names accepted by FrameCache.GetObservationTransform().
         /// </summary>
-        public virtual string GetTacticalMeshFrame()
+        public virtual string GetTacticalMeshFrame(RoverProductId id = null)
         {
             return "site";
+        }
+
+        public string GetTacticalMeshFrame(string idStr)
+        {
+            return GetTacticalMeshFrame(ParseProductId(idStr));
         }
 
         /// <summary>

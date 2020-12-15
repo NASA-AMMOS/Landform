@@ -403,6 +403,10 @@ namespace OPS.Landform
                     }
                     var mo = wedgeMeshOpts.Clone();
                     mo.Decimate = mbs;
+                    if (mbsObs != null && mbsObs == obs.MeshObservation)
+                    {
+                        mo.LoadedFrame = mission.GetTacticalMeshFrame(mbsObs.Name);
+                    }
                     Mesh mesh = obs.BuildMesh(pipeline, frameCache, masker, mo);
 
                     Image img = null;

@@ -430,16 +430,6 @@ namespace OPS.Landform
                 return;
             }
 
-            string meshFrame = tacticalFrame ? mission.GetTacticalMeshFrame() : this.meshFrame;
-            meshFrame = meshFrame.ToLower();
-
-            var allowed = new string[] { "local_level", "sitedrive", "site", "rover", "observation" };
-            if (!allowed.Contains(meshFrame))
-            {
-                pipeline.LogInfo("cannot project texture, unhandled mesh frame {0}", meshFrame);
-                return;
-            }
-            
             if (string.IsNullOrEmpty(options.InputMesh) || string.IsNullOrEmpty(options.InputTexture))
             {
                 pipeline.LogInfo("cannot project texture, both --inputmesh and --inputtexture are required");
@@ -467,6 +457,16 @@ namespace OPS.Landform
                 return;
             }
 
+            string meshFrame = tacticalFrame ? mission.GetTacticalMeshFrame(meshId) : this.meshFrame;
+            meshFrame = meshFrame.ToLower();
+
+            var allowed = new string[] { "local_level", "sitedrive", "site", "rover", "observation" };
+            if (!allowed.Contains(meshFrame))
+            {
+                pipeline.LogInfo("cannot project texture, unhandled mesh frame {0}", meshFrame);
+                return;
+            }
+            
             //allow specifying e.g. --inputtexture=foo.png but use e.g. foo.IMG for metadata if it exists
             var pdsExts = StringHelper.ParseExts(mission.GetPDSExts(), bothCases: true);
             if (pdsExts.Any(ext => options.InputTexture.EndsWith(ext)))
