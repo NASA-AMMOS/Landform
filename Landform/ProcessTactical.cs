@@ -42,7 +42,7 @@ using OPS.Pipeline.AlignmentServer;
 /// tool the input meshes are searched, optionally recursively, under a specified directory or s3 folder.  When run as a
 /// service, s3 URLs to individual tactical mesh RDRs are given in SQS messages.
 ///
-/// The output tileset is named PRODUCT_ID, where PRODUCT_ID is the basename of the input mesh RDR.  It is written to
+/// The output tileset is named PRODUCT_ID, where PRODUCT_ID is the product ID of the input mesh RDR.  It is written to
 /// rdrDir/tileset/PRODUCT_ID (*), unless --outputfolder is specified, in which case it is written to a subdirectory
 /// PRODUCT_ID there. (*) actually if rdrDir contains a prefix ending /rdr then the output directory is that prefix but
 /// with rdr replaced with rdr/tileset/PRODUCT_ID.
@@ -950,10 +950,10 @@ namespace OPS.Landform
 
                     if (IsPDS(imageFile))
                     {
-                        RunCommand("update-scene-manifest", "--mission", fullMissionStr,
+                        RunCommand("update-scene-manifest", project, "--mission", fullMissionStr,
                                    "--awsprofile", awsProfile, "--awsregion", awsRegion,
                                    "--manifestfile", tilesetDir + "/" + SCENE_JSON,
-                                   "--nocontextual", "--nourls", "--tacticalpdsfile", imageFile);
+                                   "--nocontextual", "--nourls", "--tacticalpdsimage", imageFile);
                     }
 
                     SaveTileset(tilesetDir, project, destDir);
