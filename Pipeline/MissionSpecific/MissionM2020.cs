@@ -445,14 +445,9 @@ namespace OPS.Pipeline
         {
             id = StringHelper.GetLastUrlPathSegment(id, stripExtension: true);
 
-            //TODO for now the M2020 SIS for unified mesh product IDs is incomplete
-            //and M2020 datasets we're working with so far that have unified meshes seem to use the MSL format
-            //https://github.jpl.nasa.gov/OnSight/Landform/issues/793
-            //MSL unified mesh IDs can be from 32 to 36 chars long
-            //Unfortunately regular MSL IDs are 36 chars long - first try as unified
-            if (id.Length >= MSLUnifiedMeshProductId.MIN_LENGTH && id.Length <= MSLUnifiedMeshProductId.MAX_LENGTH)
+            if (id.Length >= M2020UnifiedMeshProductId.MIN_LENGTH && id.Length <= M2020UnifiedMeshProductId.MAX_LENGTH)
             {
-                var unified = MSLUnifiedMeshProductId.Parse(id);
+                var unified = M2020UnifiedMeshProductId.Parse(id);
                 if (unified != null)
                 {
                     return unified;
