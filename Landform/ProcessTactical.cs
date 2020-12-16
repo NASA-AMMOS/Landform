@@ -109,6 +109,9 @@ namespace OPS.Landform
         [Option(Default = false, HelpText = "Don't expect PRODUCTID.obj to exist if PRODUCTID_LOD01[_NN].obj does")]
         public bool NoExpectNonLODOBJ { get; set; }
 
+        [Option(Default = false, HelpText = "Expect PRODUCTID_LOD.tar to exist if PRODUCTID.obj does")]
+        public bool ExpectOBJLODTAR { get; set; }
+
         [Option(Default = false, HelpText = "Just print resolved product IDs and input URLs, whitespace separated, one wedge per line, only in batch mode")]
         public bool ResolveInputs { get; set; }
 
@@ -524,6 +527,9 @@ namespace OPS.Landform
         //  - the non-LOD PRODUCTID.obj will optionally be used if
         //    (a) it's available on S3 when PRODUCTID_LOD01_03.obj is
         //    (b) it's less than or equal to options.MaxOBJBytes
+        //
+        //* PRODUCTID.obj, PRODUCTID.mtl, PRODUCTID2.png, PRODUCTID_LOD.tar
+        //  - similar to above, but PRODUCTID_LODnn[_mm].{obj[,mtl]} expected in tar
         private MeshImagePair GetMeshImagePair(string url, bool throwOnUnrecoverableError = true)
         {
             url = StringHelper.NormalizeSlashes(url);
@@ -703,6 +709,16 @@ namespace OPS.Landform
                     if (mip.mesh == nonLOD)
                     {
                         lodUrls.Insert(0, mip.mesh);
+
+                        if (options.ExpectOBJLODTAR)
+                        {
+                            string lodTar = folder + mip.id + "_LOD.tar";
+                            if (!FileExists(lodTar))
+                            {
+                                return warn($"tar {lodTar} not found", lodTar);
+                            }
+                            mip.extraFiles.Add(lodTar);
+                        }
                     }
                     else if (!options.NoExpectNonLODOBJ)
                     {
@@ -724,7 +740,9 @@ namespace OPS.Landform
                         }
                     }
 
-                    if (options.MaxOBJBytes > 0) //keep longest contiguous suffix of lodUrls within size limit
+                    //keep longest contiguous suffix of lodUrls within size limit
+                    //(this gets skipped if the LODs are tarred)
+                    if (options.MaxOBJBytes > 0 && lodUrls.Count > 1)
                     {
                         int winners = 0, losers = 0;
                         for (int i = lodUrls.Count - 1; i >= 0; i--) //coarse to fine
@@ -932,7 +950,12 @@ namespace OPS.Landform
 
                 foreach (var file in mip.extraFiles)
                 {
-                    GetFile(file);
+                    string localPath = GetFile(file);
+                    if (localPath.EndsWith(".tar", StringComparison.OrdinalIgnoreCase))
+                    {
+                        pipeline.LogInfo("extracting {0}", file);
+                        TarFile.Extract(localPath);
+                    }
                 }
                 
                 if (mip.mesh.IndexOf("/") >= 0)
