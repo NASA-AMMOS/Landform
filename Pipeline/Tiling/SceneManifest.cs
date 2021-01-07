@@ -441,14 +441,17 @@ namespace OPS.Pipeline
             }
 
             string tmFrame = mission.GetTacticalMeshFrame(tilesetId);
-            if (tmFrame != "site")
+            if (tmFrame != "site" && tmFrame != "rover")
             {
-                throw new Exception(string.Format("unhandled tactical mesh frame {0} (not site)", tmFrame));
+                throw new Exception(string.Format("unhandled tactical mesh frame {0} (not site or rover)", tmFrame));
             }
 
             var camera = RoverStereoPair.GetStereoCamera(RoverCamera.FromPDSInstrumentID(parser.InstrumentId));
 
-            var meshFrameId = string.Format("site_{0}", OPGSProductId.SiteToString(parser.Site));
+            var meshFrameId =
+                string.Format("{0}_{1}", tmFrame, tmFrame == "site" ? OPGSProductId.SiteToString(parser.Site) :
+                              parser.SiteDrive.ToString());
+
             var imageFrameId = mission.GetObservationFrameName(parser);
 
             var tileset = GetOrAddTileset(tilesetId);
@@ -478,8 +481,13 @@ namespace OPS.Pipeline
 
             var meshFrame = GetOrAddFrame(meshFrameId);
             meshFrame.parent_id = sdFrame.id;
-            meshFrame.translation= -parser.OriginOffset; //site -> sitedrive (aka local_level)
-            meshFrame.rotation = Quaternion.Identity;
+            if (meshFrameId == "site") {
+                meshFrame.translation= -parser.OriginOffset; //site -> sitedrive (aka local_level)
+                meshFrame.rotation = Quaternion.Identity;
+            } else {
+                meshFrame.translation = Vector3.Zero;
+                meshFrame.rotation = parser.RoverOriginRotation; //rover -> sitedrive (aka local_level)
+            }
             
             var imageFrame = GetOrAddFrame(imageFrameId);
             imageFrame.parent_id = sdFrame.id;
