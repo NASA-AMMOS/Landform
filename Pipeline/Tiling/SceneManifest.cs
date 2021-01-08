@@ -481,12 +481,12 @@ namespace OPS.Pipeline
 
             var meshFrame = GetOrAddFrame(meshFrameId);
             meshFrame.parent_id = sdFrame.id;
-            if (meshFrameId == "site") {
-                meshFrame.translation= -parser.OriginOffset; //site -> sitedrive (aka local_level)
-                meshFrame.rotation = Quaternion.Identity;
-            } else {
+            if (tmFrame == "rover") {
                 meshFrame.translation = Vector3.Zero;
                 meshFrame.rotation = parser.RoverOriginRotation; //rover -> sitedrive (aka local_level)
+            } else {
+                meshFrame.translation= -parser.OriginOffset; //site -> sitedrive (aka local_level)
+                meshFrame.rotation = Quaternion.Identity;
             }
             
             var imageFrame = GetOrAddFrame(imageFrameId);
