@@ -118,8 +118,7 @@ namespace OPS.Landform
         [Option(Default = false, HelpText = "Don't load existing tactical mesh LODs")]
         public bool NoLoadExistingLODs { get; set; }
 
-        [Option(Default = "90000-300000,20000-60000,4000-15000,1000-3000,100-600",
-                HelpText = "Create or fix LOD meshes, comma separated list of min-max ranges, finest to coarsest")]
+        [Option(Default = TextureCommand.DEF_FIXUP_LODS, HelpText = "Create or fix LOD meshes, comma separated list of min-max ranges, finest to coarsest")]
         public string FixupLODs{ get; set; }
 
         [Option(Default = 512, HelpText = "Max tile image resolution, negative for unlimited, 0 disables texturing")]
