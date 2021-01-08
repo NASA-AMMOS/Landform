@@ -92,7 +92,8 @@ namespace OPS.Util
                 {
                     error("size");
                 }
-                ulong fsz = Convert.ToUInt64(Encoding.ASCII.GetString(buf, 0, 12).Trim(), 8); //octal
+                string szStr = Encoding.ASCII.GetString(buf, 0, 12).Trim('\0').Trim();
+                ulong fsz = Convert.ToUInt64(szStr, 8); //octal
 
                 if (!expect(376, stream))
                 {
@@ -109,15 +110,15 @@ namespace OPS.Util
 
                 using (var fstr = File.Open(file, FileMode.OpenOrCreate, FileAccess.Write)) //overwrite
                 {
-                    ulong fr = 0;
-                    while (fr < fsz)
+                    int gotBytes = 0;
+                    for (ulong fr = 0; fr < fsz; fr += (ulong)gotBytes)
                     {
                         ulong tryBytes = fsz - fr;
                         if (tryBytes > (ulong)(buf.Length))
                         {
                             tryBytes = (ulong)(buf.Length);
                         }
-                        int gotBytes = read((int)tryBytes, fstr);
+                        gotBytes = read((int)tryBytes, stream);
                         if ((ulong)gotBytes < tryBytes)
                         {
                             error("data");

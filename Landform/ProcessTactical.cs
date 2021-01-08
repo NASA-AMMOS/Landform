@@ -971,7 +971,7 @@ namespace OPS.Landform
                     string localPath = GetFile(file);
                     if (localPath.EndsWith(".tar", StringComparison.OrdinalIgnoreCase))
                     {
-                        pipeline.LogInfo("extracting {0}", file);
+                        pipeline.LogInfo("extracting {0}", localPath);
                         TarFile.Extract(localPath);
                     }
                 }
