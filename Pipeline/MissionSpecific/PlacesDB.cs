@@ -1,4 +1,3 @@
-//#define DEBUG_PLACES
 using System;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
@@ -83,6 +82,8 @@ namespace OPS.Pipeline
 
         private ILogger logger;
 
+        private bool debug;
+
         private PlacesConfig config;
 
         private string view;
@@ -98,9 +99,10 @@ namespace OPS.Pipeline
         private ConcurrentDictionary<SiteDrive, Vector3> cachedOffsetFromStart =
             new ConcurrentDictionary<SiteDrive, Vector3>();
 
-        public PlacesDB(ILogger logger = null)
+        public PlacesDB(ILogger logger = null, bool debug = false)
         {
             this.logger = logger;
+            this.debug = debug;
 
             config = PlacesConfig.Instance;
 
@@ -233,16 +235,17 @@ namespace OPS.Pipeline
 
         private void Debug(string msg, params Object[] args)
         {
-#if DEBUG_PLACES
-            if (logger != null)
+            if (debug)
             {
-                logger.LogInfo(msg, args);
+                if (logger != null)
+                {
+                    logger.LogInfo(msg, args);
+                }
+                else
+                {
+                    Console.WriteLine(msg, args);
+                }
             }
-            else
-            {
-                Console.WriteLine(msg, args);
-            }
-#endif
         }
 
         private XmlDocument ParseXml(string query, string response)

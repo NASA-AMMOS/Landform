@@ -341,7 +341,7 @@ namespace OPS.Landform
         {
             try
             {
-                return new PlacesDB(pipeline);
+                return new PlacesDB(pipeline, pipeline.Debug);
             }
             catch (Exception ex)
             {
