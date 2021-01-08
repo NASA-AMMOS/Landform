@@ -490,7 +490,7 @@ namespace OPS.Landform
             }
         }
 
-        protected void Cleanup(string venueDir)
+        protected void Cleanup(string venueDir, bool deleteDownloadCache = true)
         {
             if (lsopts.NoCleanup || lsopts.DryRun)
             {
@@ -508,8 +508,12 @@ namespace OPS.Landform
                 {
                     File.Delete(subcommandConfigFile);
                 }
-                
-                pipeline.DeleteDownloadCache();
+
+                if (deleteDownloadCache)
+                {
+                    pipeline.DeleteDownloadCache();
+                }
+
                 PathHelper.EnsureExists(Path.GetFullPath(pipeline.DownloadCache));
             }
             catch (Exception ex)

@@ -118,7 +118,7 @@ namespace OPS.Landform
         [Option(Default = false, HelpText = "Don't load existing tactical mesh LODs")]
         public bool NoLoadExistingLODs { get; set; }
 
-        [Option(Default = "75000-300000,20000-60000,4000-15000,1000-3000,100-600",
+        [Option(Default = "90000-300000,20000-60000,4000-15000,1000-3000,100-600",
                 HelpText = "Create or fix LOD meshes, comma separated list of min-max ranges, finest to coarsest")]
         public string FixupLODs{ get; set; }
 
@@ -208,10 +208,20 @@ namespace OPS.Landform
         private bool AcceptID(string url, string idStr, out string reason)
         {
             reason = null;
-            var id = RoverProductId.Parse(idStr, mission, throwOnFail: false);
+            RoverProductId id = null;
+            try
+            {
+                id = RoverProductId.Parse(idStr, mission, throwOnFail: true);
+            }
+            catch (Exception ex)
+            {
+                reason = "error parsing \"" + idStr + "\" as product ID: " + ex.Message + ": " + url;
+                return false;
+            }
             if (!(id is OPGSProductId))
             {
-                reason = "not an OPGS product ID: " + url;
+                reason = "\"" + idStr + "\" parsed as " + (id != null ? id.GetType().Name : "null") +
+                    ", not an OPGS product ID: " + url;
                 return false;
             }
             if (id is UnifiedMeshProductIdBase)
@@ -840,7 +850,7 @@ namespace OPS.Landform
                 if (textureFilename != null)
                 {
                     //did successfully extract a texture filename from the mesh file
-                    //but it didn't exist, so just try other formats of that file
+                    //but it didn't exist, so try other formats of that file
                     string bn = StringHelper.StripUrlExtension(textureFilename);
                     bns = new string[] { bn, clearMeshType(bn) };
                 }
@@ -863,6 +873,9 @@ namespace OPS.Landform
                             break;
                         }
                     }
+                    if (mip.image != null) {
+                        break;
+                    }
                 }
                 if (mip.image == null)
                 {
@@ -878,6 +891,7 @@ namespace OPS.Landform
             {
                 return error($"error parsing {mip.mesh} to determine texture filename", mip.mesh, ex);
             }
+
             if (textureFilename != null)
             {
                 var exts = new List<string>();
@@ -885,11 +899,12 @@ namespace OPS.Landform
                 {
                     exts.AddRange(pdsExts);
                 }
+                string tbn = StringHelper.StripUrlExtension(textureFilename);
+                var bns = new string[] { tbn, clearMeshType(tbn) };
                 exts.Add(StringHelper.GetUrlExtension(textureFilename));
                 foreach (var tx in exts)
                 {
-                    string tbn = StringHelper.StripUrlExtension(textureFilename);
-                    foreach (var bn in new string[] { tbn, clearMeshType(tbn) })
+                    foreach (var bn in bns)
                     {
                         string textureUrl = folder + bn + tx;
                         if (FileExists(textureUrl))
@@ -897,6 +912,9 @@ namespace OPS.Landform
                             mip.image = textureUrl;
                             break;
                         }
+                    }
+                    if (mip.image != null) {
+                        break;
                     }
                 }
                 if (mip.image == null && fallbackExts.Length > 0)
@@ -941,7 +959,7 @@ namespace OPS.Landform
 
             try
             {
-                Cleanup(venueDir);
+                Cleanup(venueDir, deleteDownloadCache: false);
 
                 Configure(venue);
 

@@ -1153,6 +1153,7 @@ namespace OPS.Pipeline
             this.Camspec = camspec;
             this.Downsample = downsample;
             this.Compression = compression;
+            this.MeshType = meshType;
         }
 
         public static M2020OPGSProductId Parse(string productId)
@@ -1162,7 +1163,7 @@ namespace OPS.Pipeline
             //0 234   89        1920 23 26 27 31 35       44  48 51
 
             productId = StringHelper.StripUrlExtension(productId);
-            if (productId.Length != LENGTH || productId[19] != '_')
+            if (productId.Length != LENGTH)
             {
                 return null;
             }
