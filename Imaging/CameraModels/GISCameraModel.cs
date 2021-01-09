@@ -389,15 +389,16 @@ namespace OPS.Imaging
             eastingNorthingElevToColRowElev = Matrix.Invert(colRowElevToEastingNorthingElev);
         }
 
-        public void Dump(ILogger logger)
+        public void Dump(ILogger logger, string prefix = null)
         {
+            prefix = prefix ?? "";
             var x = colRowToEastingNorthing;
-            logger.LogInfo("{0} bits, {1} bands, {2}x{3} pixels, {4:f3}x{5:f3}m",
-                           Bits, Bands, Width, Height, WidthMeters, HeightMeters);
-            logger.LogInfo("easting  = {0} + col * {1} + row * {2}", x[0], x[1], x[2]);
-            logger.LogInfo("northing = {0} + col * {1} + row * {2}", x[3], x[4], x[5]);
-            logger.LogInfo("projection ref: {0}", ProjectionRef);
-            logger.LogInfo("planetary body: {0}", BodyName);
+            logger.LogInfo("{0}{1} bits, {2} bands, {3}x{4} pixels, {5:f3}x{6:f3}m",
+                           prefix, Bits, Bands, Width, Height, WidthMeters, HeightMeters);
+            logger.LogInfo("{0}easting  = {1} + col * {2} + row * {3}", prefix, x[0], x[1], x[2]);
+            logger.LogInfo("{0}northing = {1} + col * {2} + row * {3}", prefix, x[3], x[4], x[5]);
+            logger.LogInfo("{0}projection ref: {1}", prefix, ProjectionRef);
+            logger.LogInfo("{0}planetary body: {1}", prefix, BodyName);
         }
 
         /* start CameraModel implementation ***************************************************************************/
@@ -661,29 +662,31 @@ namespace OPS.Imaging
         /// calculate this as on the order of about 16cm at 1km from the tangent point for a planet the size of Mars.
         /// </summary>
         public Vector2 CheckLocalGISImageBasisAndGetResolution(Vector2 originPixel, ILogger logger = null,
-                                                               bool throwOnError = false)
+                                                               string prefix = null, bool throwOnError = false)
         {
+            prefix = prefix ?? "";
+
             Vector3 bodyNorth = Vector3.Normalize(LonLatToXYZ(new Vector2(0, 90)));
 
             if (logger != null)
             {
-                logger.LogInfo("North (latitude 90) direction in body: ({0:f3}, {1:f3}, {2:f3})",
-                               bodyNorth.X, bodyNorth.Y, bodyNorth.Z);
+                logger.LogInfo("{0}North (latitude 90) direction in body: ({1:f3}, {2:f3}, {3:f3})",
+                               prefix, bodyNorth.X, bodyNorth.Y, bodyNorth.Z);
                 
                 var meridian = Vector3.Normalize(LonLatToXYZ(new Vector2(0, 0)));
-                logger.LogInfo("prime meridian (longitude 0) at equator direction in body: ({0:f3}, {1:f3}, {2:f3})",
-                               meridian.X, meridian.Y, meridian.Z);
+                logger.LogInfo("{0}prime meridian (longitude 0) at equator direction in body: ({1:f3}, {2:f3}, {3:f3})",
+                               prefix, meridian.X, meridian.Y, meridian.Z);
 
                 var meridian90 = Vector3.Normalize(LonLatToXYZ(new Vector2(90, 0)));
-                logger.LogInfo("longitude 90 at equator direction in body: ({0:f3}, {1:f3}, {2:f3})",
-                               meridian90.X, meridian90.Y, meridian90.Z);
+                logger.LogInfo("{0}longitude 90 at equator direction in body: ({1:f3}, {2:f3}, {3:f3})",
+                               prefix, meridian90.X, meridian90.Y, meridian90.Z);
 
                 var xLonLat = XYZToLonLat(new Vector3(1, 0, 0));
                 var yLonLat = XYZToLonLat(new Vector3(0, 1, 0));
                 var zLonLat = XYZToLonLat(new Vector3(0, 0, 1));
-                logger.LogInfo("body frame +X: lat={0:f7}, lon={1:f7}", xLonLat.Y, xLonLat.X);
-                logger.LogInfo("body frame +Y: lat={0:f7}, lon={1:f7}", yLonLat.Y, yLonLat.X);
-                logger.LogInfo("body frame +Z: lat={0:f7}, lon={1:f7}", zLonLat.Y, zLonLat.X);
+                logger.LogInfo("{0}body frame +X: lat={1:f7}, lon={2:f7}", prefix, xLonLat.Y, xLonLat.X);
+                logger.LogInfo("{0}body frame +Y: lat={1:f7}, lon={2:f7}", prefix, yLonLat.Y, yLonLat.X);
+                logger.LogInfo("{0}body frame +Z: lat={1:f7}, lon={2:f7}", prefix, zLonLat.Y, zLonLat.X);
             }
 
             GetLocalGISImageBasisInBodyFrame(originPixel, out Vector3 elevationInBody,
@@ -703,9 +706,10 @@ namespace OPS.Imaging
 
             if (logger != null)
             {
-                logger.LogInfo("GIS local image basis at pixel ({0:f3}, {1:f3})", originPixel.X, originPixel.Y);
-                logger.LogInfo("GIS local meters per pixel: {0:f3}x, {1:f3}y, aspect {2:f6}",
-                               metersPerPixel.X, metersPerPixel.Y, pixelAspect);
+                logger.LogInfo("{0}GIS local image basis at pixel ({1:f3}, {2:f3})",
+                               prefix, originPixel.X, originPixel.Y);
+                logger.LogInfo("{0}GIS local meters per pixel: {1:f3}x, {2:f3}y, aspect {3:f6}",
+                               prefix, metersPerPixel.X, metersPerPixel.Y, pixelAspect);
             }
 
             elevationInBody = Vector3.Normalize(elevationInBody);
@@ -726,12 +730,13 @@ namespace OPS.Imaging
 
             if (logger != null)
             {
-                logger.LogInfo("GIS local image basis skew angle: {0:f3}deg", skewAngleDeg);
+                logger.LogInfo("{0}GIS local image basis skew angle: {1:f3}deg", prefix, skewAngleDeg);
             }
 
             if (!skewOK)
             {
-                string msg = string.Format("GIS local image basis skew angle {0:f3}deg > {1:f3}", skewAngleDeg, tolDeg);
+                string msg = string.Format("{0}GIS local image basis skew angle {1:f3}deg > {2:f3}",
+                                           prefix, skewAngleDeg, tolDeg);
                 if (logger != null)
                 {
                     logger.LogWarn(msg);
@@ -747,12 +752,13 @@ namespace OPS.Imaging
 
             if (logger != null)
             {
-                logger.LogInfo("GIS local image basis roll angle: {0:f3}deg", rollAngleDeg);
+                logger.LogInfo("{0}GIS local image basis roll angle: {1:f3}deg", prefix, rollAngleDeg);
             }
 
             if (!rollOK)
             {
-                string msg = string.Format("GIS local image basis roll angle {0:f3}deg > {1:f3}", rollAngleDeg, tolDeg);
+                string msg = string.Format("{0}GIS local image basis roll angle {1:f3}deg > {2:f3}",
+                                           prefix, rollAngleDeg, tolDeg);
                 if (logger != null)
                 {
                     logger.LogWarn(msg);

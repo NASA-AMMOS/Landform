@@ -153,6 +153,10 @@ namespace OPS.Pipeline
             else
             {
                 pipeline.LogInfo("not ingesting surface observations");
+                var frameCache = new FrameCache(pipeline, project.Name);
+                frameCache.Preload();
+                EnsureLandingFrame(frameCache);
+                AddOrUpdateGISMetadata(places, frameCache);
             }
 
             if (!noOrbital && places != null)
@@ -470,6 +474,53 @@ namespace OPS.Pipeline
                 }
             }
 
+            pipeline.LogInfo("deleting {0} orphan transforms", transformsToDelete.Count);
+            foreach (var transformName in transformsToDelete)
+            {
+                pipeline.LogVerbose("deleting orphan transform {0}", transformName);
+                var transform = frameCache.GetTransform(transformName);
+                transform.Delete(pipeline);
+                frameCache.Remove(transform);
+            }
+
+            if (!frameCache.ChainPriors(pdsSiteOffsets))
+            {
+                pipeline.LogError("failed to chain all PDS priors");
+            }
+
+            rootSiteDrive = frameCache.CheckPriors(mission.GetLandingSiteDrive());
+            if (!rootSiteDrive.HasValue)
+            {
+                pipeline.LogError("incomplete priors: not all sitedrives are connected");
+            }
+            else
+            {
+                pipeline.LogInfo("effective root frame for project {0}: {1}", project.Name, rootSiteDrive.Value);
+                //in most production workflows the effective root frame for the project is the mission landing site
+                //because e.g. PlacesDB is available during ingestion
+                //so all sitedrive frames have priors that take them back to mission root
+                //but it's possible that there are no observations in the project actually in the landing sitedrive
+                //so at this point there may not actually be a frame in the project for the landing site
+                //we add it here so that particularly orbital codepaths can look it up cleanly later
+                if (rootSiteDrive.Value == mission.GetLandingSiteDrive())
+                {
+                    EnsureLandingFrame(frameCache);
+                }
+            }
+
+            AddOrUpdateGISMetadata(places, frameCache, framesToSave);
+
+            pipeline.LogInfo("saving {0} updated frames", framesToSave.Count);
+            foreach (var frame in framesToSave)
+            {
+                frameCache.GetFrame(frame).Save(pipeline);
+            }
+        }
+
+        private void AddOrUpdateGISMetadata(PlacesDB places, FrameCache frameCache, HashSet<string> framesToSave = null)
+        {
+            var toSave = framesToSave ?? new HashSet<string>();
+            
             //add/update GIS metadata for sitedrive frames if we have PlacesDB
             int demIndex = OrbitalConfig.Instance.DEMPlacesDBIndex;
             if (demIndex >= 0 && places != null)
@@ -499,7 +550,7 @@ namespace OPS.Pipeline
                             frame.HasEastingNorthing = true;
                             frame.HasElevation = true;
                             frame.HasLonLat = true;
-                            framesToSave.Add(frame.Name);
+                            toSave.Add(frame.Name);
                         }
                         catch (Exception ex)
                         {
@@ -508,60 +559,36 @@ namespace OPS.Pipeline
                         }
                     }
                 }
-            }
-
-            pipeline.LogInfo("deleting {0} orphan transforms", transformsToDelete.Count);
-            foreach (var transformName in transformsToDelete)
-            {
-                pipeline.LogVerbose("deleting orphan transform {0}", transformName);
-                var transform = frameCache.GetTransform(transformName);
-                transform.Delete(pipeline);
-                frameCache.Remove(transform);
-            }
-
-            pipeline.LogInfo("saving {0} updated frames", framesToSave.Count);
-            foreach (var frame in framesToSave)
-            {
-                frameCache.GetFrame(frame).Save(pipeline);
-            }
-
-            if (!frameCache.ChainPriors(pdsSiteOffsets))
-            {
-                pipeline.LogError("failed to chain all PDS priors");
-            }
-
-            rootSiteDrive = frameCache.CheckPriors(mission.GetLandingSiteDrive());
-            if (!rootSiteDrive.HasValue)
-            {
-                pipeline.LogError("incomplete priors: not all sitedrives are connected");
-            }
-            else
-            {
-                pipeline.LogInfo("effective root frame for project {0}: {1}", project.Name, rootSiteDrive.Value);
-
-                //in most production workflows the effective root frame for the project is the mission landing site
-                //because e.g. PlacesDB is available during ingestion
-                //so all sitedrive frames have priors that take them back to mission root
-                //but it's possible that there are no observations in the project actually in the landing sitedrive
-                //so at this point there may not actually be a frame in the project for the landing site
-                //we add it here so that particularly orbital codepaths can look it up cleanly later
-
-                var landingSite = mission.GetLandingSiteDrive();
-                if (rootSiteDrive.Value == landingSite && !frameCache.ContainsFrame(landingSite.ToString()))
+                if (toSave != framesToSave)
                 {
-                    pipeline.LogInfo("adding frame for landing sitedrive {0} to database", landingSite);
-                    var rootFrame = Frame.Find(pipeline, project.Name,  mission.RootFrameName());
-                    var landingFrame = Frame.FindOrCreate(pipeline, project.Name, landingSite.ToString(), rootFrame);
-                    var source = TransformSource.Prior;
-                    var frameTransform = FrameTransform.Find(pipeline, landingFrame, source);
-                    if (frameTransform == null)
+                    pipeline.LogInfo("saving {0} updated frames", toSave.Count);
+                    foreach (var frame in toSave)
                     {
-                        var identity = new UncertainRigidTransform();
-                        frameTransform = FrameTransform.Create(pipeline, landingFrame, source, identity);
-                        frameTransform.Save(pipeline);
+                        frameCache.GetFrame(frame).Save(pipeline);
                     }
-                    landingFrame.Save(pipeline);
                 }
+            }
+        }
+
+        private void EnsureLandingFrame(FrameCache frameCache)
+        {
+            var landingSite = mission.GetLandingSiteDrive();
+            if (!frameCache.ContainsFrame(landingSite.ToString()))
+            {
+                pipeline.LogInfo("adding frame for landing sitedrive {0} to database", landingSite);
+
+                var identity = new UncertainRigidTransform();
+                var source = TransformSource.Prior;
+
+                var rootFrame = Frame.FindOrCreate(pipeline, project.Name, mission.RootFrameName());
+                var rootTransform = FrameTransform.FindOrCreate(pipeline, rootFrame, source, identity);
+                rootFrame.Save(pipeline);
+                rootTransform.Save(pipeline);
+
+                var landingFrame = Frame.FindOrCreate(pipeline, project.Name, landingSite.ToString(), rootFrame);
+                var landingTransform = FrameTransform.FindOrCreate(pipeline, landingFrame, source, identity);
+                landingFrame.Save(pipeline);
+                landingTransform.Save(pipeline);
             }
         }
 
@@ -813,21 +840,21 @@ namespace OPS.Pipeline
 
             if (!isGeoTIFF && !isOrthographic)
             {
-                throw new Exception($"{what} must use GeoTIFF metadata or OrthographicCameraModel (or both)");
+                throw new Exception($"orbital {what} must use GeoTIFF metadata or OrthographicCameraModel (or both)");
             }
 
             //maybe load the GeoTIFF metadata
             var gisCam = isGeoTIFF ? new GISCameraModel(filePath, cfg.BodyName) : null;
             if (gisCam != null)
             {
-                pipeline.LogInfo("loaded GeoTIFF metadata from {0}", filePath);
-                gisCam.Dump(pipeline);
+                pipeline.LogInfo("orbital {0}: loaded GeoTIFF metadata from {1}", what, filePath);
+                gisCam.Dump(pipeline, $"orbital {what}: ");
             }
 
             double nominalMPP = isDEM ? cfg.DEMMetersPerPixel : cfg.ImageMetersPerPixel;
             if (nominalMPP <= 0 && !isGeoTIFF)
             {
-                throw new Exception($"{what} must use GeoTIFF metadata or have configured meters per pixel");
+                throw new Exception($"orbital {what} must use GeoTIFF metadata or have configured meters per pixel");
             }
             if (gisCam != null)
             {
@@ -849,7 +876,7 @@ namespace OPS.Pipeline
                 throw new Exception($"no PlacesDB index for orbital {what}");
             }
 
-            pipeline.LogInfo("using PlacesDB metadata at index {0} for orbital {1}", placesIndex, what);
+            pipeline.LogInfo("orbital {0}: using PlacesDB metadata at index {1}", what, placesIndex);
 
             //could pass filename = Path.GetFileName(filePath) here
             //but leaving it out will make the comparison vs the last path segment of OrbitalConfig.{DEM,Image}URL
@@ -860,7 +887,7 @@ namespace OPS.Pipeline
                 : places.CheckOrbitalImageMetadata(placesIndex, nominalMPP, ulcEastingNorthing);
             if (variances != null && variances.Length > 0)
             {
-                string msg = $"PlacesDB metadata variances for orbital {what} at index {placesIndex}: " +
+                string msg = $"orbital {what}: PlacesDB metadata variances at index {placesIndex}: " +
                     $"{string.Join("; ", variances)}";
                 if (isDEM ? cfg.EnforceDEMPlacesDBMetadata : cfg.EnforceImagePlacesDBMetadata)
                 {
@@ -875,26 +902,27 @@ namespace OPS.Pipeline
             //get sitedrive specifics
             var eastingNorthingElev = places.GetEastingNorthingElevation(sd, placesIndex, absolute: true);
             double sdElevation = eastingNorthingElev.Z;
-            pipeline.LogInfo("site drive {0} absolute (easting, northing, elevation) = " +
-                             "({1:f3}, {2:f3}, {3:f3})m, source PlacesDB",
-                             sd, eastingNorthingElev.X, eastingNorthingElev.Y, eastingNorthingElev.Z);
+            pipeline.LogInfo("orbital {0}: site drive {1} absolute (easting, northing, elevation) = " +
+                             "({2:f3}, {3:f3}, {4:f3})m, source PlacesDB",
+                             what, sd, eastingNorthingElev.X, eastingNorthingElev.Y, eastingNorthingElev.Z);
                 
             var sdLonLat = gisCam != null ? gisCam.EastingNorthingToLonLat(eastingNorthingElev).XY()
                 : PlanetaryBody.GetByName(cfg.BodyName).EastingNorthingToLonLat(eastingNorthingElev).XY();
-            pipeline.LogInfo("site drive {0} (lon, lat) = ({1:f7}, {2:f7})deg, source {3}",
-                             sd, sdLonLat.X, sdLonLat.Y, gisCam != null ? filePath : "PlacesDB");
+            pipeline.LogInfo("orbital {0}: site drive {1} (lon, lat) = ({2:f7}, {3:f7})deg, source {4}",
+                             what, sd, sdLonLat.X, sdLonLat.Y, gisCam != null ? filePath : "PlacesDB");
             
             var sdPixel = gisCam != null ? gisCam.EastingNorthingToImage(eastingNorthingElev).XY()
                 : places.GetOrbitalPixel(sd, placesIndex, nominalMPP);
-            pipeline.LogInfo("site drive {0} pixel (x, y) = ({1:f3}, {2:f3})px, source {3}",
-                             sd, sdPixel.X, sdPixel.Y, gisCam != null ? filePath : "PlacesDB");
+            pipeline.LogInfo("orbital {0}: site drive {1} pixel (x, y) = ({2:f3}, {3:f3})px, source {4}",
+                             what, sd, sdPixel.X, sdPixel.Y, gisCam != null ? filePath : "PlacesDB");
 
             var effectiveMPP = nominalMPP * Vector2.One;
             if (gisCam != null)
             {
-                effectiveMPP = gisCam.CheckLocalGISImageBasisAndGetResolution(sdPixel, pipeline, throwOnError: true);
-                pipeline.LogInfo("site drive {0} effective meters per pixel: ({1:f3}, {2:f3}), source {3}",
-                                 sd, effectiveMPP.X, effectiveMPP.Y, filePath);
+                effectiveMPP = gisCam.CheckLocalGISImageBasisAndGetResolution(sdPixel, pipeline, $"orbital {what}: ",
+                                                                              throwOnError: true);
+                pipeline.LogInfo("orbital {0}: site drive {1} effective meters per pixel: ({2:f3}, {3:f3}), source {4}",
+                                 what, sd, effectiveMPP.X, effectiveMPP.Y, filePath);
             }
 
             //do some cross-checks if we have GeoTIFF metadata
@@ -903,43 +931,47 @@ namespace OPS.Pipeline
                 try
                 {
                     var px = places.GetOrbitalPixel(sd, placesIndex, nominalMPP, gisCam.ULCEastingNorthing);
-                    pipeline.LogInfo("site drive {0} pixel (x, y) = ({1:f3}, {2:f3})px, source PlacesDB",
-                                     sd, px.X, px.Y);
+                    pipeline.LogInfo("orbital {0}: site drive {1} pixel (x, y) = ({2:f3}, {3:f3})px, source PlacesDB",
+                                     what, sd, px.X, px.Y);
 
                     if (Vector2.Distance(px, sdPixel) > 1)
                     {
-                        pipeline.LogWarn("PlacesDB disagrees with {0} for sitedrive {1} pixel", filePath, sd);
+                        pipeline.LogWarn("orbital {0}: PlacesDB disagrees with {1} for sitedrive {2} pixel",
+                                         what, filePath, sd);
                     }
 
                     px = gisCam.LonLatToImage(sdLonLat);
-                    pipeline.LogInfo("site drive {0} pixel (x, y) = ({1:f3}, {2:f3})px at " +
-                                     "(lon, lat) = ({3:f7}, {4:f7})deg, source {5}",
-                                     sd, px.X, px.Y, sdLonLat.X, sdLonLat.Y, filePath);
+                    pipeline.LogInfo("orbital {0}: site drive {1} pixel (x, y) = ({2:f3}, {3:f3})px at " +
+                                     "(lon, lat) = ({4:f7}, {5:f7})deg, source {6}",
+                                     what, sd, px.X, px.Y, sdLonLat.X, sdLonLat.Y, filePath);
                     
                     if (Vector2.Distance(px, sdPixel) > 1)
                     {
-                        pipeline.LogWarn("easting/northing disagrees with lon/lat for sitedrive {0} pixel", sd);
+                        pipeline.LogWarn("orbital {0}: easting/northing disagrees with lon/lat for sitedrive {1} pixel",
+                                         what, sd);
                     }
 
                     var gisULC = gisCam.ULCEastingNorthing;
-                    pipeline.LogInfo("ULC (easting, northing) = ({0:f3}, {1:f3})m, source {2}",
-                                     gisULC.X, gisULC.Y, filePath);
+                    pipeline.LogInfo("orbital {0}: ULC (easting, northing) = ({1:f3}, {2:f3})m, source {3}",
+                                     what, gisULC.X, gisULC.Y, filePath);
 
                     var placesULC = places.GetULCEastingNorthing(placesIndex);
                     if (placesULC.HasValue)
                     {
-                        pipeline.LogInfo("ULC (easting, northing) = ({0:f3}, {1:f3})m, source PlacesDB",
-                                         placesULC.Value.X, placesULC.Value.Y);
+                        pipeline.LogInfo("orbital {0}: ULC (easting, northing) = ({1:f3}, {2:f3})m, source PlacesDB",
+                                         what, placesULC.Value.X, placesULC.Value.Y);
                         if (Vector2.Distance(gisULC, placesULC.Value) > 1)
                         {
-                            pipeline.LogWarn("PlacesDB disagrees with {0} for ULC (easting, northing)", filePath);
+                            pipeline.LogWarn("orbital {0}: PlacesDB disagrees with {1} for ULC (easting, northing)",
+                                             what, filePath);
                         }
                     }
                 }
                 catch (Exception ex)
                 {
-                    pipeline.LogWarn("error checking site drive origin pixel or ULC (easting, northing): {0}",
-                                     ex.Message);
+                    pipeline.LogWarn("orbital {0}: " +
+                                     "error checking site drive origin pixel or ULC (easting, northing): {1}",
+                                     what, ex.Message);
                 }
             }
 
@@ -954,8 +986,8 @@ namespace OPS.Pipeline
             {
                 asset = isGeoTIFF ? new SparseGISImage(filePath) : Image.Load(filePath);
             }
-            pipeline.LogInfo("loaded {0}x{1} orbital {2} as {3}",
-                             asset.Width, asset.Height, what, asset.GetType().Name);
+            pipeline.LogInfo("orbital {0}: loaded {1}x{2} orbital {3} as {4}",
+                             what, asset.Width, asset.Height, what, asset.GetType().Name);
 
             //prefer the elevation at sdOriginPixel in the DEM to the value we got from PlacesDB
             if (isDEM)
@@ -969,16 +1001,16 @@ namespace OPS.Pipeline
             {
                 if (Math.Abs(orbitalDEMElevation.Value - sdElevation) > 1e-3)
                 {
-                    pipeline.LogWarn("using site drive {0} DEM elevation {1:f3}m, " +
-                                     "differs from PlacesDB {2:f3}m", sd, orbitalDEMElevation.Value, sdElevation);
+                    pipeline.LogWarn("orbital {0}: using site drive {1} DEM elevation {2:f3}m, " +
+                                     "differs from PlacesDB {3:f3}m", what, sd, orbitalDEMElevation.Value, sdElevation);
                     sdElevation = orbitalDEMElevation.Value;
                 }
             }
             else
             {
-                pipeline.LogWarn("did not get elevation for site drive {0} at pixel ({1:f3}, {2:f3}) " +
-                                 "from orbital DEM, using {3:f3}m from PlacesDB",
-                                 sd, sdPixel.X, sdPixel.Y, sdElevation);
+                pipeline.LogWarn("orbital {0}: did not get elevation for site drive {1} at pixel ({2:f3}, {3:f3}) " +
+                                 "from orbital DEM, using {4:f3}m from PlacesDB",
+                                 what, sd, sdPixel.X, sdPixel.Y, sdElevation);
             }
 
             ConformalCameraModel cmod = gisCam;
@@ -1013,9 +1045,9 @@ namespace OPS.Pipeline
 
             var originPixel = cmod.Project(Vector3.Zero);
 
-            pipeline.LogInfo("using {0}x{1} {2} for orbital {3} at site drive {4}, pixel ({5:f3}, {6:f3}), " +
+            pipeline.LogInfo("orbital {0}: using {1}x{2} {3} at site drive {4}, pixel ({5:f3}, {6:f3}), " +
                              "({7:f3}, {8:f3}) meters per pixel, source {9}PlacesDB",
-                             cmod.Width, cmod.Height, cmod.GetType().Name, what, sd,
+                             what, cmod.Width, cmod.Height, cmod.GetType().Name, sd,
                              originPixel.X, originPixel.Y, cmod.MetersPerPixel.X, cmod.MetersPerPixel.Y,
                              gisCam != null ? $"{filePath} and " : "");
 
@@ -1032,7 +1064,8 @@ namespace OPS.Pipeline
             }
             frame.Save(pipeline);
 
-            pipeline.LogInfo("added observation {0} (index {1}) at site drive {2}: {3}", obsName, obsIndex, sd, url);
+            pipeline.LogInfo("orbital {0}: added observation {1} (index {2}) at site drive {3}: {4}",
+                             what, obsName, obsIndex, sd, url);
         }
     }
 }

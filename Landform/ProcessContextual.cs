@@ -114,6 +114,11 @@ using OPS.Pipeline.AlignmentServer;
 /// Landform.exe process-contextual --mission=M2020 --rdrdir=../rdrs --sols=0609-0630
 ///   --sitedrives=0311472,0311256,0311444,0311330 --nocombinedmanifest
 ///
+/// Ingest MSL orbital only:
+///
+/// Landform.exe process-contextual --mission=MSL --rdrdir=. --sols=1 --sitedrives=0010000 --nosurface --notileset
+///    --nocombinedmanifest 
+///
 /// </summary>
 namespace OPS.Landform
 {
@@ -777,14 +782,22 @@ namespace OPS.Landform
                     {
                         if (!string.IsNullOrEmpty(url) && !string.IsNullOrEmpty(file))
                         {
-                            string dir = Path.GetDirectoryName(file);
-                            Fetch(options.MaxOrbital, url, dir, "--raw", "--nosubdirs");
-                            string srcFile = StringHelper.GetLastUrlPathSegment(url);
-                            string destFile = Path.GetFileName(file);
-                            string fetchedFile = Path.Combine(dir, srcFile);
-                            if (srcFile != destFile && File.Exists(fetchedFile))
+                            if (!File.Exists(file))
                             {
-                                PathHelper.MoveFileAtomic(fetchedFile, file); //overwrites existing
+                                pipeline.LogInfo("fetching orbital asset {0} -> {1}", url, file);
+                                string dir = Path.GetDirectoryName(file);
+                                Fetch(options.MaxOrbital, url, dir, "--raw", "--nosubdirs");
+                                string srcFile = StringHelper.GetLastUrlPathSegment(url);
+                                string destFile = Path.GetFileName(file);
+                                string fetchedFile = Path.Combine(dir, srcFile);
+                                if (srcFile != destFile && File.Exists(fetchedFile))
+                                {
+                                    PathHelper.MoveFileAtomic(fetchedFile, file); //overwrites existing
+                                }
+                            }
+                            else
+                            {
+                                pipeline.LogInfo("using cached orbital asset {0} -> {1}", url, file);
                             }
                         }
                     };
