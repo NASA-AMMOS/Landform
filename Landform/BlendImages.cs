@@ -211,6 +211,13 @@ namespace OPS.Landform
                     return 0; //help
                 }
 
+                if (roverImages.Count == 0)
+                {
+                    pipeline.LogWarn("no surface observations available");
+                    StopStopwatch();
+                    return 0;
+                }
+
                 if (!useExistingLeaves)
                 {
                     if (sceneMesh.Variant == MeshVariant.Shrinkwrap)
@@ -359,6 +366,11 @@ namespace OPS.Landform
             {
                 throw new Exception("tile list missing backproject index images");
             }
+        }
+
+        protected override bool AllowNoObservations()
+        {
+            return true; //we'll abort with warning but zero return code if no surface observations
         }
 
         private void LoadOrBuildShrinkwrapMesh()

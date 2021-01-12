@@ -949,7 +949,7 @@ namespace OPS.Landform
                 Func<Vector3, bool> filter = pt => 
                 {
                     pt = Vector3.Transform(pt, orbitalToMesh);
-                    return maskOp.UVToBarycentric(new Vector2(pt.X, pt.Y)) == null; //outside surface mesh
+                    return maskOp == null || maskOp.UVToBarycentric(new Vector2(pt.X, pt.Y)) == null; //not in surf mesh
                 };
                 var ret = orbitalDEM.OrganizedMesh(outerBounds, innerBounds, subsample, filter, withNormals: true,
                                                    quadsOnly: true);

@@ -620,7 +620,8 @@ namespace OPS.Landform
             {
                 if (!Directory.Exists(tilesetDir))
                 {
-                    throw new Exception(string.Format("local tileset directory {0} not found", tilesetDir));
+                    pipeline.LogWarn("local tileset directory {0} not found", tilesetDir);
+                    return;
                 }
                 
                 string tilesetFile = string.Format("{0}/{1}", tilesetDir, TILESET_JSON);

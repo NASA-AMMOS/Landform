@@ -147,6 +147,11 @@ namespace OPS.Landform
             return "";
         }
 
+        protected virtual bool AllowNoObservations()
+        {
+            return false;
+        }
+
         protected virtual void LoadObservationCache()
         {
             var observations = StringHelper.ParseList(wcopts.OnlyForObservations);
@@ -164,9 +169,9 @@ namespace OPS.Landform
                          (frames.Length == 0 || frames.Any(name => name == obs.FrameName)) &&
                          (cams.Length == 0 || cams.Any(c => RoverCamera.IsCamera(c, ((RoverObservation)obs).Camera)))));
 
-            if (num == 0)
+            if (num == 0 && !AllowNoObservations())
             {
-                throw new Exception("no surface or orbital data available");
+                throw new Exception("no" + DescribeObservationFilter() + " observations available");
             }
 
             int numOrbital = wcopts.NoOrbital ? 0 : observationCache.GetAllObservations().Count(obs => obs.IsOrbital);

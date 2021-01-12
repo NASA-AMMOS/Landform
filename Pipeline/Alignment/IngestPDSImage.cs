@@ -15,6 +15,30 @@ namespace OPS.Pipeline
 {
     public class IngestPDSImage : IngestImage
     {
+        private static readonly double quarterDegSqr = Math.Pow(0.25 * Math.PI / 180, 2);
+        private static readonly double halfDegSqr = Math.Pow(0.5 * Math.PI / 180, 2);
+        private static readonly double degSqr = Math.Pow(Math.PI / 180, 2);
+
+        // TODO: examine values here
+        public static readonly Matrix<double> PDS_COVARIANCE = CreateMatrix
+            .Diagonal<double>(new double[] { 0.25, 0.25, 0.25, halfDegSqr, halfDegSqr, degSqr });
+
+        // TODO: examine values here
+        public static readonly Matrix<double> PLACES_COVARIANCE = CreateMatrix
+            .Diagonal<double>(new double[] { 0.25, 0.25, 0.25, halfDegSqr, halfDegSqr, degSqr });
+
+        // TODO: examine values here
+        public static readonly Matrix<double> LEGACY_MANIFEST_COVARIANCE = CreateMatrix
+            .Diagonal<double>(new double[] { 0.25, 0.25, 0.25, halfDegSqr, halfDegSqr, degSqr });
+
+        // TODO: examine values here
+        public static readonly Matrix<double> LOCATIONS_COVARIANCE = CreateMatrix
+            .Diagonal<double>(new double[] { 8, 8, 8, 5 * degSqr, 5 * degSqr, 5 * degSqr });
+
+        // TODO: examine values here
+        public static readonly Matrix<double> OBSERVATION_COVARIANCE = CreateMatrix
+            .Diagonal<double>(new double[] { 0.01, 0.01, 0.01, quarterDegSqr, quarterDegSqr, halfDegSqr });
+
         public PlacesDB Places;
 
         public MSLLocations Locations;
@@ -218,11 +242,8 @@ namespace OPS.Pipeline
                     {
                         int site = parser.Site;
                         var key = new Tuple<int, int>(site, site - 1);
-                        // TODO: examine values here
-                        var covariance = CreateMatrix
-                            .Diagonal<double>(new double[] { 0.25, 0.25, 0.25, 0.5 * degSqr, 0.5 * degSqr, 1.0 * degSqr });
                         var xform = new UncertainRigidTransform(Matrix.CreateTranslation(parser.OffsetToPreviousSite),
-                                                                covariance);
+                                                                PDS_COVARIANCE);
                         pdsSiteOffsets.AddOrUpdate(key, _ => xform, (_, __) => xform);
                     }
                     else if (parser.Site != 1)
@@ -292,10 +313,6 @@ namespace OPS.Pipeline
             }
         }
 
-        private double quarterDegSqr = Math.Pow(0.25 * Math.PI / 180, 2);
-        private double halfDegSqr = Math.Pow(0.5 * Math.PI / 180, 2);
-        private double degSqr = Math.Pow(Math.PI / 180, 2);
-
         /// <summary>
         /// Get transform from a site drive frame to root.  This is just the translation of the site drive frame from
         /// the MSLLocations database.
@@ -316,11 +333,7 @@ namespace OPS.Pipeline
                 Locations.SetZFromBasemap(loc);
             }
 
-            // TODO: examine values here
-            var covariance = CreateMatrix
-                .Diagonal<double>(new double[] { 8, 8, 8, 5 * degSqr, 5 * degSqr, 5 * degSqr });
-
-            return new UncertainRigidTransform(Matrix.CreateTranslation(loc.Position), covariance);
+            return new UncertainRigidTransform(Matrix.CreateTranslation(loc.Position), LOCATIONS_COVARIANCE);
         }
 
         private ConcurrentDictionary<string, bool> alreadyWarned = new ConcurrentDictionary<string, bool>();
@@ -361,11 +374,7 @@ namespace OPS.Pipeline
                 }
             }
 
-            // TODO: examine values here
-            var covariance = CreateMatrix
-                .Diagonal<double>(new double[] { 0.25, 0.25, 0.25, 0.5 * degSqr, 0.5 * degSqr, 1.0 * degSqr });
-
-            return new UncertainRigidTransform(Matrix.CreateTranslation(loc), covariance);
+            return new UncertainRigidTransform(Matrix.CreateTranslation(loc), PLACES_COVARIANCE);
         }
 
         private UncertainRigidTransform GetSiteDriveTransformFromLegacyManifest(PDSParser parser)
@@ -381,11 +390,7 @@ namespace OPS.Pipeline
             else
             {
                 Matrix siteDriveToPrimarySiteDrive = Matrix.Invert(mat.Value);
-                // TODO: examine values here
-                var covariance = CreateMatrix
-                    .Diagonal<double>(new double[] { 0.25, 0.25, 0.25, 0.5 * degSqr, 0.5 * degSqr, 1.0 * degSqr });
-
-                return new UncertainRigidTransform(siteDriveToPrimarySiteDrive, covariance);
+                return new UncertainRigidTransform(siteDriveToPrimarySiteDrive, LEGACY_MANIFEST_COVARIANCE);
             }
         }
         /// <summary>
@@ -398,11 +403,8 @@ namespace OPS.Pipeline
             {
                 throw new Exception("rover frame not relative to site frame");
             }
-            // TODO: examine values here
-            var covariance = CreateMatrix
-                .Diagonal<double>(new double[] { 0.01, 0.01, 0.01, quarterDegSqr, quarterDegSqr, halfDegSqr });
             return new UncertainRigidTransform(RoverCoordinateSystem.RoverToLocalLevel(parser.RoverOriginRotation),
-                                               covariance);
+                                               OBSERVATION_COVARIANCE);
         }
 
         private ConcurrentDictionary<string, bool> alreadyResetTransforms = new ConcurrentDictionary<string, bool>();

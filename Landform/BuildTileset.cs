@@ -168,5 +168,10 @@ namespace OPS.Landform
                 base.LoadObservationCache();
             }
         }
+
+        protected override bool AllowNoObservations()
+        {
+            return true;
+        }
     }
 }

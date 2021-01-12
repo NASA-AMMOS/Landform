@@ -48,18 +48,19 @@ namespace OPS.Pipeline
         private ConcurrentDictionary<Tuple<int, int>, UncertainRigidTransform> pdsSiteOffsets =
             new ConcurrentDictionary<Tuple<int, int>, UncertainRigidTransform>();
 
-        private string orbitalDEM, orbitalImage, orbitalFrame;
+        private string orbitalDEM, orbitalImage, orbitalFrameName;
         private bool noSurface, noOrbital;
+        private Frame orbitalFrame;
 
-        private SiteDrive? rootSiteDrive;
         private double? orbitalDEMElevation;
 
         public IngestAlignmentInputs(PipelineCore pipeline, Project project, MissionSpecific mission,
                                      bool recreateObservations = false, bool resetTransforms = false,
                                      string onlyForObservations = null, string onlyForFrames = null,
                                      string onlyForCameras = null, string onlyForSiteDrives = null, 
-                                     string orbitalDEM = null, string orbitalImage = null, string orbitalFrame = null,
-                                     bool noSurface = false, bool noOrbital = false, bool noProgress = false)
+                                     string orbitalDEM = null, string orbitalImage = null,
+                                     string orbitalFrameName = null, bool noSurface = false, bool noOrbital = false,
+                                     bool noProgress = false)
             : base(pipeline)
         {
             this.project = project;
@@ -116,7 +117,7 @@ namespace OPS.Pipeline
 
             this.orbitalDEM = orbitalDEM;
             this.orbitalImage = orbitalImage;
-            this.orbitalFrame = orbitalFrame;
+            this.orbitalFrameName = orbitalFrameName;
 
             this.noSurface = noSurface;
             this.noOrbital = noOrbital;
@@ -153,9 +154,13 @@ namespace OPS.Pipeline
             else
             {
                 pipeline.LogInfo("not ingesting surface observations");
+                //this stuff is normally done in UpdateFrames()
                 var frameCache = new FrameCache(pipeline, project.Name);
                 frameCache.Preload();
-                EnsureLandingFrame(frameCache);
+                if (!noOrbital)
+                {
+                    EnsureOrbitalFrame(places, frameCache);
+                }
                 AddOrUpdateGISMetadata(places, frameCache);
             }
 
@@ -411,8 +416,10 @@ namespace OPS.Pipeline
 
             //register each observation with the frame it uses
             var framesToSave = new HashSet<string>();
+            int numObs = 0;
             foreach (var observation in observationCache.GetAllObservations())
             {
+                numObs++;
                 var frame = frameCache.GetFrame(observation.FrameName);
                 lock (frame.ObservationNames)
                 {
@@ -432,7 +439,9 @@ namespace OPS.Pipeline
                 {
                     var dead = frame.ObservationNames.Where(obs => !observationCache.ContainsObservation(obs)).ToList();
                     frame.ObservationNames.ExceptWith(dead);
-                    if (frame.ObservationNames.Count == 0 && frameCache.GetChildren(frame).Count() == 0)
+                    if (frame.ObservationNames.Count == 0 &&
+                        frameCache.GetChildren(frame).Count() == 0 && //only consider leaf frames
+                        frame.ParentName != null) //don't delete root frame even if it's a leaf (degenerate case)
                     {
                         framesToDelete.Add(frame.Name);
                     }
@@ -488,24 +497,39 @@ namespace OPS.Pipeline
                 pipeline.LogError("failed to chain all PDS priors");
             }
 
-            rootSiteDrive = frameCache.CheckPriors(mission.GetLandingSiteDrive());
-            if (!rootSiteDrive.HasValue)
+            SiteDrive? rootSiteDrive = null;
+
+            if (numObs > 0)
             {
-                pipeline.LogError("incomplete priors: not all sitedrives are connected");
-            }
-            else
-            {
-                pipeline.LogInfo("effective root frame for project {0}: {1}", project.Name, rootSiteDrive.Value);
-                //in most production workflows the effective root frame for the project is the mission landing site
-                //because e.g. PlacesDB is available during ingestion
-                //so all sitedrive frames have priors that take them back to mission root
-                //but it's possible that there are no observations in the project actually in the landing sitedrive
-                //so at this point there may not actually be a frame in the project for the landing site
-                //we add it here so that particularly orbital codepaths can look it up cleanly later
-                if (rootSiteDrive.Value == mission.GetLandingSiteDrive())
+                rootSiteDrive = frameCache.CheckPriors(mission.GetLandingSiteDrive());
+                if (!rootSiteDrive.HasValue)
                 {
-                    EnsureLandingFrame(frameCache);
+                    throw new Exception("incomplete priors: not all sitedrives are connected");
                 }
+                
+                //in the common case that PlacesDB priors are available
+                //the project root frame will be the landing sitedrive
+                //but if there are no observations in that sitedrive in the project (also common)
+                //then that frame itself will not actually be in the database yet
+                //
+                //another possibility is that PlacesDB priors were not available but PDS prior chaining succeeded
+                //in that situation rootSiteDrive is the first site in the project
+                //but that site (with drive = 0) may also not actually be in the database yet
+                //
+                //the terminology is a little confusing because "root frame" is always just a sentiniel
+                //(it's created in InitializeAlignmentProject) and is not the same as (the frame of) rootSiteDrive
+                //
+                // rootFrame <- identity certain transform ------ rootSiteDrive
+                // rootFrame <- nonidentity uncertain transform - otherSiteDriveA
+                // rootFrame <- nonidentity uncertain transform - otherSiteDriveB
+                // ...
+                pipeline.LogInfo("effective root frame for project {0}: {1}", project.Name, rootSiteDrive.Value);
+                EnsureRootFrame(frameCache, rootSiteDrive.Value);
+            }
+
+            if (!noOrbital)
+            {
+                EnsureOrbitalFrame(places, frameCache, rootSiteDrive);
             }
 
             AddOrUpdateGISMetadata(places, frameCache, framesToSave);
@@ -515,6 +539,105 @@ namespace OPS.Pipeline
             {
                 frameCache.GetFrame(frame).Save(pipeline);
             }
+        }
+
+        private Frame EnsureRootFrame(FrameCache frameCache, SiteDrive rootSiteDrive)
+        {
+            if (frameCache.ContainsFrame(rootSiteDrive.ToString()))
+            {
+                return frameCache.GetFrame(rootSiteDrive.ToString());
+            }
+
+            pipeline.LogInfo("adding frame for root sitedrive {0}", rootSiteDrive);
+            var identity = new UncertainRigidTransform();
+            var source = TransformSource.Prior; 
+            var rootFrame = Frame.Create(pipeline, project.Name, rootSiteDrive.ToString()); //saves
+            var ft = FrameTransform.Create(pipeline, rootFrame, source, identity); //saves
+
+            frameCache.Add(rootFrame);
+            frameCache.Add(ft);
+
+            return rootFrame;
+        }
+
+        private Frame EnsureOrbitalFrame(PlacesDB places, FrameCache frameCache, SiteDrive? rootSiteDrive = null)
+        {
+            if (string.IsNullOrEmpty(orbitalFrameName))
+            {
+                orbitalFrameName = "project_root";
+            }
+
+            orbitalFrameName = orbitalFrameName.ToLower();
+
+            //by now rootSiteDrive will either be
+            //* landing site (common case) if we ingested at least one surface observation and all had full priors
+            //* the earliest site of any ingested surface observation (chained PDS priors)
+            //* null iff we didn't ingest any surface observations
+
+            if (orbitalFrameName == "project_root" || orbitalFrameName == "root")
+            {
+                string rootSDName = rootSiteDrive.HasValue ? rootSiteDrive.Value.ToString() : null;
+                if (rootSDName != null)
+                {
+                    pipeline.LogInfo("using root sitedrive {0} as orbital frame", rootSDName);
+                    orbitalFrameName = rootSDName;
+                }
+                else
+                {
+                    throw new Exception("incomplete priors: cannot ingest orbital in project root frame");
+                }
+            }
+
+            if (!SiteDrive.IsSiteDriveString(orbitalFrameName))
+            {
+                throw new Exception("unsupported orbital frame " + orbitalFrameName);
+            }
+
+            if (frameCache.ContainsFrame(orbitalFrameName))
+            {
+                orbitalFrame = frameCache.GetFrame(orbitalFrameName);
+            }
+            else
+            {
+                pipeline.LogInfo("orbital frame {0} not found", orbitalFrameName);
+
+                var rootFrame = EnsureRootFrame(frameCache, rootSiteDrive ?? new SiteDrive(orbitalFrameName));
+
+                if (orbitalFrameName == rootFrame.Name)
+                {
+                    pipeline.LogInfo("using project root frame {0} as orbital frame", rootFrame.Name);
+                    orbitalFrame = rootFrame;
+                }
+                else if (places != null)
+                {
+                    try
+                    {
+                        pipeline.LogInfo("adding transform from orbital frame {0} to project root {1} from PlacesDB",
+                                         orbitalFrameName, rootFrame.Name);
+                        Vector3 orbitalToRoot = places.GetOffset(new SiteDrive(orbitalFrameName),
+                                                                 new SiteDrive(rootFrame.Name));
+                        var xform = new UncertainRigidTransform(Matrix.CreateTranslation(orbitalToRoot),
+                                                                IngestPDSImage.PLACES_COVARIANCE);
+                        var source = TransformSource.PlacesDB;
+                        orbitalFrame = Frame.Create(pipeline, project.Name, orbitalFrameName); //saves
+                        var ft = FrameTransform.Create(pipeline, orbitalFrame, source, xform); //saves
+                        frameCache.Add(orbitalFrame);
+                        frameCache.Add(ft);
+                    }
+                    catch (Exception ex)
+                    {
+                        pipeline.LogWarn("failed to add transform from orbital frame {0} to project root {1}: {2}",
+                                         orbitalFrameName, rootFrame.Name, ex.Message);
+                    }
+                }
+                else
+                {
+                    pipeline.LogWarn("cannot add transform from orbital frame {0} to project root {1} without PlacesDB",
+                                     orbitalFrameName, rootFrame.Name);
+                }
+            }
+
+            return orbitalFrame;
         }
 
         private void AddOrUpdateGISMetadata(PlacesDB places, FrameCache frameCache, HashSet<string> framesToSave = null)
@@ -528,6 +651,7 @@ namespace OPS.Pipeline
                 var body = PlanetaryBody.GetByName(OrbitalConfig.Instance.BodyName);
                 pipeline.LogInfo("adding GIS metadata for sitedrive frames from PlacesDB DEM index {0} for planet {1}",
                                  demIndex, body.Name);
+
                 foreach (var frame in frameCache.GetAllFrames())
                 {
                     if (SiteDrive.IsSiteDriveString(frame.Name))
@@ -567,28 +691,6 @@ namespace OPS.Pipeline
                         frameCache.GetFrame(frame).Save(pipeline);
                     }
                 }
-            }
-        }
-
-        private void EnsureLandingFrame(FrameCache frameCache)
-        {
-            var landingSite = mission.GetLandingSiteDrive();
-            if (!frameCache.ContainsFrame(landingSite.ToString()))
-            {
-                pipeline.LogInfo("adding frame for landing sitedrive {0} to database", landingSite);
-
-                var identity = new UncertainRigidTransform();
-                var source = TransformSource.Prior;
-
-                var rootFrame = Frame.FindOrCreate(pipeline, project.Name, mission.RootFrameName());
-                var rootTransform = FrameTransform.FindOrCreate(pipeline, rootFrame, source, identity);
-                rootFrame.Save(pipeline);
-                rootTransform.Save(pipeline);
-
-                var landingFrame = Frame.FindOrCreate(pipeline, project.Name, landingSite.ToString(), rootFrame);
-                var landingTransform = FrameTransform.FindOrCreate(pipeline, landingFrame, source, identity);
-                landingFrame.Save(pipeline);
-                landingTransform.Save(pipeline);
             }
         }
 
@@ -732,29 +834,9 @@ namespace OPS.Pipeline
 
         private int IngestOrbitalObservations(PlacesDB places)
         {
-            if (!SiteDrive.IsSiteDriveString(orbitalFrame))
+            if (orbitalFrame == null)
             {
-                orbitalFrame = orbitalFrame.ToLower();
-                if (orbitalFrame == "project_root" || orbitalFrame == "root")
-                {
-                    if (!rootSiteDrive.HasValue)
-                    {
-                        pipeline.LogError("cannot ingest orbital in project_root frame: incomplete priors");
-                        return 0;
-                    }
-                    orbitalFrame = rootSiteDrive.Value.ToString();
-                }
-                else
-                {
-                    pipeline.LogError("unsupported orbital frame \"{0}\"", orbitalFrame);
-                    return 0;
-                }
-            }
-
-            var frame = Frame.Find(pipeline, project.Name, orbitalFrame);
-            if (frame == null)
-            {
-                pipeline.LogError("no frame {0}, cannot ingest orbital", orbitalFrame);
+                pipeline.LogError("no frame {0}, cannot ingest orbital", orbitalFrameName);
                 return 0;
             }
 
@@ -762,7 +844,7 @@ namespace OPS.Pipeline
             try
             {
                 //ingest DEM first to set orbitalDEMElevation
-                IngestOrbitalAsset(frame, Observation.ORBITAL_DEM_INDEX, places);
+                IngestOrbitalAsset(Observation.ORBITAL_DEM_INDEX, places);
                 na++;
             }
             catch (Exception ex)
@@ -772,7 +854,7 @@ namespace OPS.Pipeline
 
             try
             {
-                IngestOrbitalAsset(frame, Observation.ORBITAL_IMAGE_INDEX, places);
+                IngestOrbitalAsset(Observation.ORBITAL_IMAGE_INDEX, places);
                 na++;
             }
             catch (Exception ex)
@@ -783,7 +865,7 @@ namespace OPS.Pipeline
             return na;
         }
 
-        protected void IngestOrbitalAsset(Frame frame, int obsIndex, PlacesDB places)
+        protected void IngestOrbitalAsset(int obsIndex, PlacesDB places)
         {
             int demIdx = Observation.ORBITAL_DEM_INDEX;
             int imgIdx = Observation.ORBITAL_IMAGE_INDEX;
@@ -796,7 +878,7 @@ namespace OPS.Pipeline
             }
             string what = isDEM ? "DEM" : "image";
 
-            var sdName = frame.Name;
+            var sdName = orbitalFrame.Name;
             if (!SiteDrive.IsSiteDriveString(sdName))
             {
                 throw new Exception($"orbital frame must be a site drive, got \"{sdName}\"");
@@ -1053,16 +1135,16 @@ namespace OPS.Pipeline
 
             string obsName = "Orbital" + StringHelper.UppercaseFirst(what);
             string url = StringHelper.NormalizeUrl(Path.GetFullPath(filePath), "file://");
-            Observation.Create(pipeline, frame, obsName, url, cmod, day: 0, version: 0, index: obsIndex,
+            Observation.Create(pipeline, orbitalFrame, obsName, url, cmod, day: 0, version: 0, index: obsIndex,
                                useForAlignment: isDEM, useForMeshing: isDEM, useForTexturing: isImg,
                                width: asset.Width, height: asset.Height, bands: asset.Bands,
                                bits: gisCam != null ? gisCam.Bits : isDEM ? 32 : 8);
 
-            lock (frame.ObservationNames)
+            lock (orbitalFrame.ObservationNames)
             {
-                frame.ObservationNames.Add(obsName);
+                orbitalFrame.ObservationNames.Add(obsName);
             }
-            frame.Save(pipeline);
+            orbitalFrame.Save(pipeline);
 
             pipeline.LogInfo("orbital {0}: added observation {1} (index {2}) at site drive {3}: {4}",
                              what, obsName, obsIndex, sd, url);

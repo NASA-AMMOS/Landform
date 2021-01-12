@@ -190,7 +190,7 @@ namespace OPS.Landform
 
                 if (roverImages.Count == 0)
                 {
-                    pipeline.LogWarn("no sky observations available");
+                    pipeline.LogWarn("no surface observations available");
                     StopStopwatch();
                     return 0;
                 }
@@ -237,6 +237,11 @@ namespace OPS.Landform
         protected override bool SpewTilesetFormats()
         {
             return true;
+        }
+
+        protected override bool AllowNoObservations()
+        {
+            return true; //we'll abort with warning but zero return code if no surface observations
         }
 
         private bool ParseArgumentsAndLoadCaches()
