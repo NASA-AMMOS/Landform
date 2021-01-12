@@ -720,10 +720,13 @@ namespace OPS.Pipeline
                 int i = 0;
                 foreach (var ex2 in innerExceptions)
                 {
-                    LogException(ex2, null, maxAggregateSpew, stackTrace);
-                    if (!(Debug || StackTraces) && ++i >= maxAggregateSpew)
+                    if (ex2 != null)
                     {
-                        break;
+                        LogException(ex2, null, maxAggregateSpew, stackTrace);
+                        if (!(Debug || StackTraces) && ++i >= maxAggregateSpew)
+                        {
+                            break;
+                        }
                     }
                 }
             }
