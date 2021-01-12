@@ -70,6 +70,20 @@ namespace OPS.Pipeline
         //application/xml or application/json (experimental)
         [ConfigEnvironmentVariable("LANDFORM_PLACES_RESPONSE_TYPE")]
         public string ResponseType { get; set; } = "application/xml";
+
+        //max response time including all retries
+        //unlimited if non-positive
+        //default may be overridden by MissionSpecific.GetPlacesConfigDefaults()
+        //https://github.jpl.nasa.gov/OnSight/Landform/issues/1154
+        [ConfigEnvironmentVariable("LANDFORM_PLACES_TIMEOUT_SECONDS")]
+        public int TimeoutSeconds { get; set; } = 600;
+
+        //max number of request retries
+        //non-positive same as 1
+        //default may be overridden by MissionSpecific.GetPlacesConfigDefaults()
+        //https://github.jpl.nasa.gov/OnSight/Landform/issues/1154
+        [ConfigEnvironmentVariable("LANDFORM_PLACES_MAX_RETRIES")]
+        public int MaxRetries { get; set; } = 20;
     }
 
     /// <summary>
@@ -212,24 +226,48 @@ namespace OPS.Pipeline
                 {
                     request.AddHeader("Accept", config.ResponseType);
                 }
-                
-                IRestResponse response = client.Execute(request);
-                
-                if (response.ResponseStatus != ResponseStatus.Completed ||
-                    response.StatusCode != System.Net.HttpStatusCode.OK)
+
+                int maxSec = config.TimeoutSeconds;
+                if (maxSec > 0)
                 {
-                    cache[query] = null;
-                    throw new Exception(string.Format("PlacesDB: {0} connecting for request {1}: {2}",
-                                                      response.StatusCode, config.Url + "/" + query,
-                                                      response.ErrorMessage));
+                    request.Timeout = maxSec * 1000;
                 }
+
+                double startSec = UTCTime.Now();
+                int maxRetries = Math.Max(config.MaxRetries, 1);
+                string err = null;
+                for (int i = 0; i < maxRetries; i++)
+                {
+                    IRestResponse response = client.Execute(request);
                 
-                string content = response.Content;
-                cache[query] = content;
-
-                Debug("PlacesDB request: {0}, response:\n{1}", config.Url + "/" + query, content);
-
-                return content;
+                    if (response.ResponseStatus == ResponseStatus.Completed &&
+                        response.StatusCode == HttpStatusCode.OK)
+                    {
+                        string content = response.Content;
+                        cache[query] = content;
+                        Debug("request: {0}, response:\n{1}", config.Url + "/" + query, content);
+                        return content;
+                    }
+                    else
+                    {
+                        err = string.Format("got status code {0} for {1} on try {2}: {3}", response.StatusCode,
+                                            config.Url + "/" + query, i, response.ErrorMessage);
+                        Debug(err);
+                        if (response.StatusCode != HttpStatusCode.BadGateway && //proxies can impose their own timeout
+                            response.ResponseStatus != ResponseStatus.TimedOut)
+                        {
+                            throw new Exception(err);
+                        }
+                    }
+                    if (maxSec > 0 && ((UTCTime.Now() - startSec) > maxSec))
+                    {
+                        err = string.Format("exceeded max time {0} for {1} on try {2}", Fmt.HMS(maxSec * 1000),
+                                            config.Url + "/" + query, i);
+                        Debug(err);
+                        throw new Exception(err);
+                    }
+                }
+                throw new Exception(err);
             }
         }
 
@@ -239,11 +277,11 @@ namespace OPS.Pipeline
             {
                 if (logger != null)
                 {
-                    logger.LogInfo(msg, args);
+                    logger.LogInfo("PlacesDB " + msg, args);
                 }
                 else
                 {
-                    Console.WriteLine(msg, args);
+                    Console.WriteLine("PlacesDB " + msg, args);
                 }
             }
         }
@@ -305,7 +343,7 @@ namespace OPS.Pipeline
                                      double.Parse(nodes[0].Attributes["z"].Value));
             }
 
-            Debug("PlacesDB request: {0}, offset {1}", query, offset);
+            Debug("request: {0}, offset {1}", query, offset);
 
             return offset;
         }
