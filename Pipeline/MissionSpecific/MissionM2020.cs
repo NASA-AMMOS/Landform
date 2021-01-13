@@ -530,14 +530,19 @@ namespace OPS.Pipeline
             return new Vector2(77.403, 18.488); //Jezero crater
         }
 
+        public virtual string GetOrbitalS3Folder()
+        {
+            return "s3://m20-ids-g-landform/M2020/orbital/";
+        }
+
         public override string GetOrbitalConfigDefaults()
         {
             //greyscale image: M20_PrimeMission_HiRISE_ORR_25cm.tif
             //color image: M20_PrimeMission_HiRISE_CLR_25cm.tif
-            string s3Folder = "s3://m20-ids-g-landform/M2020/orbital/";
+            string s3Folder = GetOrbitalS3Folder();
             return "{\n" +
                 "\"DEMURL\": \"" + s3Folder + "M20_PrimeMission_HiRISE_DEM_1m.tif\",\n" +
-                "\"ImageURL\": \"" + s3Folder + "M20_PrimeMission_HiRISE_ORR_25cm.tif\",\n" +
+                "\"ImageURL\": \"" + s3Folder + "M20_PrimeMission_HiRISE_CLR_25cm.tif\",\n" +
                 "\"StoragePath\": \"M2020/orbital\",\n" +
                 "\"DEMMetersPerPixel\": 1,\n" +
                 "\"ImageMetersPerPixel\": 0.25,\n" +
@@ -921,20 +926,9 @@ namespace OPS.Pipeline
             return Mission.M20SOPS;
         }
 
-        public override string GetOrbitalConfigDefaults()
+        public override string GetOrbitalS3Folder()
         {
-            //greyscale image: M20_PrimeMission_HiRISE_ORR_25cm.tif
-            //color image: M20_PrimeMission_HiRISE_CLR_25cm.tif
-            string s3Folder = "s3://m20-sops-ods/ods/surface/strategic/ids/orbital/";
-            return "{\n" +
-                "\"DEMURL\": \"" + s3Folder + "M20_PrimeMission_HiRISE_DEM_1m.tif\",\n" +
-                "\"ImageURL\": \"" + s3Folder + "M20_PrimeMission_HiRISE_ORR_25cm.tif\",\n" +
-                "\"StoragePath\": \"M2020/orbital\",\n" +
-                "\"DEMMetersPerPixel\": 1,\n" +
-                "\"ImageMetersPerPixel\": 0.25,\n" +
-                "\"DEMPlacesDBIndex\": 0,\n" +
-                "\"ImagePlacesDBIndex\": 0\n" +
-                "}";
+            return "s3://m20-sops-ods/ods/surface/strategic/ids/orbital/";
         }
     }
 }
