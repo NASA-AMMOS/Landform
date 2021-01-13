@@ -956,7 +956,6 @@ namespace OPS.Pipeline
             pipeline.LogInfo("orbital {0}: ingesting {1}{2}in frame {3}: {4}",
                              what, isOrthographic ? "orthographic " : "", isGeoTIFF ? "GeoTIFF " : "", sd, filePath);
 
-
             //maybe load the GeoTIFF metadata
             var gisCam = isGeoTIFF ? new GISCameraModel(filePath, cfg.BodyName) : null;
             if (gisCam != null)
@@ -966,12 +965,13 @@ namespace OPS.Pipeline
             }
 
             PlanetaryBody body = PlanetaryBody.GetByName(cfg.BodyName);
+            int placesENEIndex = placesIndex >= 0 ? placesIndex : placesDEMIndex;
             Vector3 eastingNorthingElev =
-                places != null ? places.GetEastingNorthingElevation(sd, placesDEMIndex, absolute: true)
+                places != null ? places.GetEastingNorthingElevation(sd, placesENEIndex, absolute: true)
                 : isLanding ? body.LonLatToEastingNorthing(landingLonLatElev)
                 : new Vector3(double.NaN, double.NaN, double.NaN);
             var eneSource =
-                places != null ? $"PlacesDB orbital({placesDEMIndex})"
+                places != null ? $"PlacesDB orbital({placesENEIndex})"
                 : isLanding ? "expected landing (lon, lat)" : null;
 
             double nominalMPP = isDEM ? cfg.DEMMetersPerPixel : cfg.ImageMetersPerPixel;
