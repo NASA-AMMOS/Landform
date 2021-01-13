@@ -450,8 +450,9 @@ namespace OPS.Landform
                 return;
             }
 
-            if (texId.GetPartialId(mission, includeVariants: false, includeProductType: false) !=
-                meshId.GetPartialId(mission, includeVariants: false, includeProductType: false))
+            if (texId.GetPartialId(mission, includeVariants: false, includeProductType: false, includeMeshType: false)
+                !=
+                meshId.GetPartialId(mission, includeVariants: false, includeProductType: false, includeMeshType: false))
             {
                 pipeline.LogInfo("cannot project texture, --inputmesh ID does not match --inputtexture ID");
                 return;
