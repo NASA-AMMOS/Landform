@@ -645,12 +645,16 @@ namespace OPS.Pipeline
             var toSave = framesToSave ?? new HashSet<string>();
             
             //add/update GIS metadata for sitedrive frames if we have PlacesDB
-            int demIndex = OrbitalConfig.Instance.DEMPlacesDBIndex;
-            if (demIndex >= 0 && places != null)
+            int placesDEMIndex = OrbitalConfig.Instance.DEMPlacesDBIndex;
+            if (placesDEMIndex >= 0 && places != null)
             {
-                var body = PlanetaryBody.GetByName(OrbitalConfig.Instance.BodyName);
-                pipeline.LogInfo("adding GIS metadata for sitedrive frames from PlacesDB DEM index {0} for planet {1}",
-                                 demIndex, body.Name);
+                var cfg = OrbitalConfig.Instance;
+                var body = PlanetaryBody.GetByName(cfg.BodyName);
+                var demFile = GetOrbitalAssetFile(Observation.ORBITAL_DEM_INDEX);
+                var gisCam = cfg.DEMIsGeoTIFF && demFile != null ? new GISCameraModel(demFile, cfg.BodyName) : null;
+
+                pipeline.LogInfo("adding GIS metadata for sitedrives from PlacesDB orbital({0}) for planet {1}{2}",
+                                 placesDEMIndex, body.Name, gisCam != null ? $" using GeoTIFF {demFile}" : "");
 
                 foreach (var frame in frameCache.GetAllFrames())
                 {
@@ -659,13 +663,14 @@ namespace OPS.Pipeline
                         var sd = new SiteDrive(frame.Name);
                         try
                         {
-                            var ene = places.GetEastingNorthingElevation(sd, demIndex, absolute: true);
-                            var lonLat = body.EastingNorthingToLonLat(ene);
+                            var ene = places.GetEastingNorthingElevation(sd, placesDEMIndex, absolute: true);
+                            var lonLat = gisCam != null ? gisCam.EastingNorthingToLonLat(ene)
+                                : body.EastingNorthingToLonLat(ene); //assumes standard parallel is equator
                             pipeline.LogInfo("site drive {0} absolute (easting, northing, elevation) = " +
                                              "({1:f3}, {2:f3}, {3:f3})m, " +
-                                             "(longitude, latitude) = ({4:f7}, {5:f7})deg, " +
-                                             "source PlacesDB orbital DEM index {6}",
-                                             sd, ene.X, ene.Y, ene.Z, lonLat.X, lonLat.Y, demIndex);
+                                             "(longitude, latitude) = ({4:f7}, {5:f7})deg, source {6}",
+                                             sd, ene.X, ene.Y, ene.Z, lonLat.X, lonLat.Y,
+                                             gisCam != null ? "GeoTIFF" : $"PlacesDB orbital({placesDEMIndex})");
                             frame.EastingMeters = ene.X;
                             frame.NorthingMeters = ene.Y;
                             frame.ElevationMeters = ene.Z;

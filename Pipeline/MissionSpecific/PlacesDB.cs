@@ -544,8 +544,13 @@ namespace OPS.Pipeline
 
         /// <summary>
         /// returns X = easting meters, Y = northing meters
-        /// easting is distance along equator east from prime meridian
-        /// northing is distance above equator along a meridian
+        ///
+        /// standard parallel is equator by default but missions not landing close to the equator may use
+        /// equirectangular projections with a different standard parallel to get approximately square pixels in the DEM
+        ///
+        /// easting is distance along standard parallel from longitude=0 if absolute, else from ULC for orbitalIndex
+        /// northing is distance along a meridian above equator if absolute, else from ULC for orbitalIndex
+        ///
         /// requires both upper_left_{easting,northing}_m to be present in the metadata for orbitalIndex
         /// </summary>
         public Vector2? GetULCEastingNorthing(int orbitalIndex)
@@ -606,8 +611,11 @@ namespace OPS.Pipeline
 
         /// <summary>
         /// returns X = easting meters, Y = northing meters, Z = elevation meters
+        ////
+        /// standard parallel is equator by default but missions not landing close to the equator may use
+        /// equirectangular projections with a different standard parallel to get approximately square pixels in the DEM
         ///
-        /// easting is distance along equator east from prime meridian if absolute, else east from ULC for orbitalIndex
+        /// easting is distance along standard parallel from longitude=0 if absolute, else from ULC for orbitalIndex
         /// northing is distance along a meridian above equator if absolute, else north from ULC for orbitalIndex
         ///
         /// proper behavior with absolute=false requires both upper_left_{easting,northing}_m to be present
@@ -620,8 +628,8 @@ namespace OPS.Pipeline
 
             //offset is in standard mission local level frame: +X north, +Y east, +Z down
             var v = GetOffset(query);
-            double easting = v.Y; // distance along surface on equator east of prime meridian
-            double northing = v.X; // distance along surface on prime meridian north of equator
+            double easting = v.Y;
+            double northing = v.X;
             double elevation = -v.Z;
 
             var ulc = GetULCEastingNorthing(orbitalIndex);
