@@ -58,6 +58,7 @@
     <Compile Include="Statistics\ThunkContext.cs" />
     <Compile Include="Statistics\UnscentedTransform.cs" />
     <Compile Include="Statistics\VectorThunk.cs" />
+    <Compile Include="Vector3Int.cs" />
     <Compile Include="XNAExtensions.cs" />
   </ItemGroup>
   <ItemGroup>

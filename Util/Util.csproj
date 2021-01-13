@@ -82,6 +82,7 @@
     <Compile Include="TemporaryFile.cs" />
     <Compile Include="StringHelper.cs" />
     <Compile Include="TypeDispatcher.cs" />
+    <Compile Include="UnorderedList.cs" />
     <Compile Include="URLPair.cs" />
     <Compile Include="UTCTime.cs" />
     <Compile Include="WeakDictionary.cs" />
