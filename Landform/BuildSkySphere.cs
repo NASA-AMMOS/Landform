@@ -188,7 +188,7 @@ namespace OPS.Landform
                     return 0; //help
                 }
 
-                if (roverImages.Count == 0)
+                if (roverImages.Count == 0 && options.SkyMode != SkyMode.TopoSphere)
                 {
                     pipeline.LogWarn("no surface observations available");
                     StopStopwatch();
