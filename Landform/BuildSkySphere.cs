@@ -489,7 +489,7 @@ namespace OPS.Landform
                 }
             }
             InitBackprojectStrategy(skyMesh, new MeshOperator(skyMesh), new SceneCaster(skyMesh),
-                                    sceneOccludesSky ? sceneCaster : null);
+                                    sceneOccludesSky ? sceneCaster : null, useSurfaceBounds: false);
         }
 
         protected override Backproject.Options CustomizeBackprojectOptions(Backproject.Options opts)

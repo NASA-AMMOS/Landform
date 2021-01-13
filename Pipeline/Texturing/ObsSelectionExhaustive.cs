@@ -38,11 +38,18 @@ namespace OPS.Pipeline.Texturing
         public override List<ScoredContext> FilterAndSortContexts(Vector3 meshPoint, List<Backproject.Context> contexts,
                                                                   SceneCaster meshCaster = null)
         {
+            if (contexts == null || contexts.Count == 0)
+            {
+                return null;
+            }
+
             if (!meshPoint.IsFinite())
             {
                 return null; //backproject options sampleTransform (used e.g. by BuildSkySphere) can kill points
             }
+
             var bestContexts = new BestContexts(this);
+
             //testing the frustum hull can be a bit expensive
             //InFrame() uses the (possibly nonlinear) camera model and gives a better answer with reasonable perf
             //in the nonlin case the hull can be poorly fitting
@@ -62,6 +69,7 @@ namespace OPS.Pipeline.Texturing
                     }
                 }
             };
+
             return bestContexts.GetSortedContexts();
         }
     }

@@ -749,7 +749,7 @@ namespace OPS.Landform
         }
 
         protected void InitBackprojectStrategy(Mesh mesh, MeshOperator meshOp, SceneCaster meshCaster,
-                                               SceneCaster occlusionScene)
+                                               SceneCaster occlusionScene, bool useSurfaceBounds = true)
         {
             backprojectStrategy = ObsSelectionStrategy.Create(tcopts.ObsSelectionStrategy);
 
@@ -758,6 +758,7 @@ namespace OPS.Landform
             backprojectStrategy.RaycastTolerance = tcopts.RaycastTolerance;
             backprojectStrategy.PreferNonlinear = !mission.PreferLinearRasterProducts();
             backprojectStrategy.DebugOutputPath = tcopts.WriteBackprojectDebug ? backprojectDebugDir : null;
+            backprojectStrategy.Logger = pipeline;
 
             int numOrbital = 0;
             if (!tcopts.NoOrbital && observationCache.ContainsObservation(Observation.ORBITAL_IMAGE_INDEX))
@@ -765,6 +766,10 @@ namespace OPS.Landform
                 var texObs = observationCache.GetObservation(Observation.ORBITAL_IMAGE_INDEX);
                 backprojectStrategy.OrbitalMetersPerPixel =
                     (texObs.CameraModel as ConformalCameraModel).AvgMetersPerPixel;
+                if (useSurfaceBounds && sceneMesh != null)
+                {
+                    backprojectStrategy.SurfaceExtent = sceneMesh.SurfaceExtent;
+                }
                 numOrbital = 1;
             }
 
