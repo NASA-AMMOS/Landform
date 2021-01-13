@@ -111,13 +111,13 @@ using OPS.Pipeline.AlignmentServer;
 ///
 /// Windjana in batch mode using already downloaded RDRs:
 ///
-/// Landform.exe process-contextual --mission=M2020 --rdrdir=../rdrs --sols=0609-0630
+/// Landform.exe process-contextual --mission=M2020 --rdrdir=out/windjana/rdrs --sols=0609-0630
 ///   --sitedrives=0311472,0311256,0311444,0311330 --nocombinedmanifest
 ///
-/// Ingest MSL orbital only:
+/// Ingest MSL orbital only (assuming out/windjana/orbital-only does not contain RDRs; add --nosurface --notileset
+/// --nocombinedmanifest to just ingest and spew oribtal metadata):
 ///
-/// Landform.exe process-contextual --mission=MSL --rdrdir=. --sols=1 --sitedrives=0010000 --nosurface --notileset
-///    --nocombinedmanifest 
+/// Landform.exe process-contextual --mission=MSL --rdrdir=out/windjana/orbital-only --sols=0609 --sitedrives=0311472
 ///
 /// </summary>
 namespace OPS.Landform
@@ -748,14 +748,14 @@ namespace OPS.Landform
             string destDir = GetDestDir(solDir);
 
             var orbitalCfg = OrbitalConfig.Instance;
-            var orbitalDir = fetchDir + "/orbital/";
-            Func<string, string, string> orbitalOpt = (opt, cfg) => !string.IsNullOrEmpty(opt) ? opt : cfg;
-            string orbitalDEMUrl = orbitalOpt(options.OrbitalDEMURL, orbitalCfg.DEMURL);
-            string orbitalDEMFile = orbitalOpt(options.OrbitalDEM, orbitalDir + orbitalCfg.DEMStoragePath);
-            string orbitalImageUrl = orbitalOpt(options.OrbitalImageURL, orbitalCfg.ImageURL);
-            string orbitalImageFile = orbitalOpt(options.OrbitalImage, orbitalDir + orbitalCfg.ImageStoragePath);
+            var orbitalDir = fetchDir + "/orbital/" + missionStr + "/";
+            Func<string, string, string> oopt = (opt, cfg) => !string.IsNullOrEmpty(opt) ? opt : cfg;
+            string orbitalDEMUrl = oopt(options.OrbitalDEMURL, orbitalCfg.DEMURL);
+            string orbitalImageUrl = oopt(options.OrbitalImageURL, orbitalCfg.ImageURL);
+            string orbitalDEMFile = oopt(options.OrbitalDEM, orbitalCfg.GetDEMFile(orbitalDir, orbitalDEMUrl));
+            string orbitalImageFile = oopt(options.OrbitalImage, orbitalCfg.GetImageFile(orbitalDir, orbitalImageUrl));
             string noOrbital = "";
-            if (options.NoOrbital || (string.IsNullOrEmpty(orbitalDEMUrl) && string.IsNullOrEmpty(orbitalImageUrl)))
+            if (options.NoOrbital || (string.IsNullOrEmpty(orbitalDEMFile) && string.IsNullOrEmpty(orbitalImageFile)))
             {
                 noOrbital = "--noorbital";
             }
@@ -812,9 +812,10 @@ namespace OPS.Landform
                         throw new NotImplementedException("ingestion from multi-sol s3 wildcard not implemented");
                     }
                     RunCommand("ingest", project, "--mission", fullMissionStr, "--onlyforsitedrives", sdsStr,
-                               "--inputpath", ingestDir + "/" + (options.RecursiveSearch ? "**" : "*"),
-                               noOrbital, noSurface, "--orbitaldem", orbitalDEMFile, "--orbitalimage", orbitalImageFile,
-                               "--orbitalframe", sdStr);
+                               "--inputpath", ingestDir + "/" + (options.RecursiveSearch ? "**" : "*"), noSurface,
+                               noOrbital, "--orbitalframe", sdStr,
+                               !string.IsNullOrEmpty(orbitalDEMFile) ? $"--orbitaldem={orbitalDEMFile}" : null,
+                               !string.IsNullOrEmpty(orbitalImageFile) ? $"--orbitalimage={orbitalImageFile}" : null);
                 }
 
                 if (!options.NoTileset)

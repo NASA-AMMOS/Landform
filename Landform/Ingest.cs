@@ -217,11 +217,15 @@ namespace OPS.Landform
 
         private void InitIngester()
         {
+            var oc = OrbitalConfig.Instance;
+            string orbitalDEM = !string.IsNullOrEmpty(options.OrbitalDEM) ? options.OrbitalDEM : oc.GetDEMFile();
+            string orbitalImage =
+                !string.IsNullOrEmpty(options.OrbitalImage) ? options.OrbitalImage : oc.GetImageFile();
             ingester = new IngestAlignmentInputs(pipeline, project, mission,
                                                  options.RedoObservations, options.RedoPriors,
                                                  options.OnlyForObservations, options.OnlyForFrames,
                                                  options.OnlyForCameras, options.OnlyForSiteDrives,
-                                                 options.OrbitalDEM, options.OrbitalImage, options.OrbitalFrame,
+                                                 orbitalDEM, orbitalImage, options.OrbitalFrame,
                                                  options.NoSurface, options.NoOrbital, options.NoProgress);
             baseUrls = ingester.BaseUrls.Select(b => b.Url).ToList();
         }

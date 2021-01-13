@@ -205,6 +205,11 @@ namespace OPS.Pipeline
             return new SiteDrive(1, 0);
         }
 
+        public virtual Vector2? GetExpectedLandingLonLat()
+        {
+            return null;
+        }
+
         public virtual string RoverMotionCounter(PDSParser parser)
         {
             return parser.RMC;

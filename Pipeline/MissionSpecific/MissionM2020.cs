@@ -525,23 +525,29 @@ namespace OPS.Pipeline
             return MissionM2020Config.Instance.S3Proxy.Replace("{venue}", venue);
         }
 
+        public override Vector2? GetExpectedLandingLonLat()
+        {
+            return new Vector2(77.403, 18.488); //Jezero crater
+        }
+
         public override string GetOrbitalConfigDefaults()
         {
-            //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/1019
-            //use assets at s3://m20-ids-g-landform/M2020/orbital
+            //greyscale image: M20_PrimeMission_HiRISE_ORR_25cm.tif
+            //color image: M20_PrimeMission_HiRISE_CLR_25cm.tif
+            string s3Folder = "s3://m20-ids-g-landform/M2020/orbital/";
             return "{\n" +
-                "\"DEMURL\": \"\",\n" +
-                "\"ImageURL\": \"\",\n" +
-                "\"DEMStoragePath\": \"\",\n" +
-                "\"ImageStoragePath\": \"\",\n" +
-                "\"DEMPlacesDBIndex\": -1,\n" +
-                "\"ImagePlacesDBIndex\": -1\n" +
+                "\"DEMURL\": \"" + s3Folder + "M20_PrimeMission_HiRISE_DEM_1m.tif\",\n" +
+                "\"ImageURL\": \"" + s3Folder + "M20_PrimeMission_HiRISE_ORR_25cm.tif\",\n" +
+                "\"StoragePath\": \"M2020/orbital\",\n" +
+                "\"DEMMetersPerPixel\": 1,\n" +
+                "\"ImageMetersPerPixel\": 0.25,\n" +
+                "\"DEMPlacesDBIndex\": 0,\n" +
+                "\"ImagePlacesDBIndex\": 0\n" +
                 "}";
         }
 
         public override string GetPlacesConfigDefaults()
         {
-            //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/725#issuecomment-267319
             return "{\n" +
                 $"\"Url\": \"https://places.{venue}.m20.jpl.nasa.gov\",\n" +
                 "\"View\": \"best_tactical\",\n" +
@@ -786,15 +792,7 @@ namespace OPS.Pipeline
         {
             //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/1004
             //use assets at s3://m20-ids-g-landform/MarsYard_Aerial06062019
-            return "{\n" +
-                "\"DEMURL\": \"\",\n" +
-                "\"ImageURL\": \"\",\n" +
-                "\"DEMStoragePath\": \"\",\n" +
-                "\"ImageStoragePath\": \"\",\n" +
-                "\"BodyName\": \"Earth\",\n" +
-                "\"DEMPlacesDBIndex\": -1,\n" +
-                "\"ImagePlacesDBIndex\": -1\n" +
-                "}";
+            return null;
         }
 
         public override bool AllowPlacesDB()
@@ -872,15 +870,7 @@ namespace OPS.Pipeline
         {
             //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/1004
             //use assets at s3://m20-ids-g-landform/ROASTT20/orbital
-            return "{\n" +
-                "\"DEMURL\": \"\",\n" +
-                "\"ImageURL\": \"\",\n" +
-                "\"DEMStoragePath\": \"\",\n" +
-                "\"ImageStoragePath\": \"\",\n" +
-                "\"BodyName\": \"Earth\",\n" +
-                "\"DEMPlacesDBIndex\": -1,\n" +
-                "\"ImagePlacesDBIndex\": -1\n" +
-                "}";
+            return null;
         }
 
         public override string GetPlacesConfigDefaults()
@@ -933,14 +923,17 @@ namespace OPS.Pipeline
 
         public override string GetOrbitalConfigDefaults()
         {
-            //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/1019
+            //greyscale image: M20_PrimeMission_HiRISE_ORR_25cm.tif
+            //color image: M20_PrimeMission_HiRISE_CLR_25cm.tif
+            string s3Folder = "s3://m20-sops-ods/ods/surface/strategic/ids/orbital/";
             return "{\n" +
-                "\"DEMURL\": \"\",\n" +
-                "\"ImageURL\": \"\",\n" +
-                "\"DEMStoragePath\": \"\",\n" +
-                "\"ImageStoragePath\": \"\",\n" +
-                "\"DEMPlacesDBIndex\": -1,\n" +
-                "\"ImagePlacesDBIndex\": -1\n" +
+                "\"DEMURL\": \"" + s3Folder + "M20_PrimeMission_HiRISE_DEM_1m.tif\",\n" +
+                "\"ImageURL\": \"" + s3Folder + "M20_PrimeMission_HiRISE_ORR_25cm.tif\",\n" +
+                "\"StoragePath\": \"M2020/orbital\",\n" +
+                "\"DEMMetersPerPixel\": 1,\n" +
+                "\"ImageMetersPerPixel\": 0.25,\n" +
+                "\"DEMPlacesDBIndex\": 0,\n" +
+                "\"ImagePlacesDBIndex\": 0\n" +
                 "}";
         }
     }

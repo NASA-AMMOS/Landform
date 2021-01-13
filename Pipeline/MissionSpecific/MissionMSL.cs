@@ -302,11 +302,10 @@ namespace OPS.Pipeline
             return "{\n" +
                 "\"DEMURL\": \"s3://m20-ids-g-landform/MSL/orbital/out_deltaradii_smg_1m.tif\",\n" +
                 "\"ImageURL\": \"s3://m20-ids-g-landform/MSL/orbital/out_clean_25cm.iGrid.ClipToDEM.tif\",\n" +
-                "\"DEMStoragePath\": \"MSL/orbital/out_deltaradii_smg_1m.tif\",\n" +
-                "\"ImageStoragePath\": \"MSL/orbital/out_clean_25cm.iGrid.ClipToDEM.tif\",\n" +
+                "\"StoragePath\": \"MSL/orbital\",\n" +
                 "\"DEMMetersPerPixel\": 1,\n" +
                 "\"ImageMetersPerPixel\": 0.25,\n" +
-                "\"DEMPlacesDBIndex\": 0, \n" +
+                "\"DEMPlacesDBIndex\": 0,\n" +
                 "\"ImagePlacesDBIndex\": 0\n" +
                 "}";
         }

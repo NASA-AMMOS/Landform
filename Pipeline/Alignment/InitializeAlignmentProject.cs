@@ -57,9 +57,9 @@ namespace OPS.Pipeline
                     {
                         transforms = oldRoot.Transforms.ToArray();
                     }
-                    foreach (var source in transforms)
+                    foreach (var ts in transforms)
                     {
-                        var transform = FrameTransform.Find(pipeline, oldRoot, source);
+                        var transform = FrameTransform.Find(pipeline, oldRoot, ts);
                         if (transform != null)
                         {
                             pipeline.DeleteDatabaseItem(transform);
@@ -84,11 +84,10 @@ namespace OPS.Pipeline
                 pipeline.LogInfo("using existing alignment project {0}", projectName);
             }
 
-            var rootFrame = Frame.FindOrCreate(pipeline, projectName, rootName);
-            var ut = new UncertainRigidTransform(); //identity, certain
-            var rootTransform = FrameTransform.FindOrCreate(pipeline, rootFrame, TransformSource.Prior, ut);
-            rootFrame.Save(pipeline);
-            rootTransform.Save(pipeline);
+            var source = TransformSource.Prior; 
+            var identity = new UncertainRigidTransform();
+            var rootFrame = Frame.FindOrCreate(pipeline, projectName, rootName); //saves
+            var rootTransform = FrameTransform.FindOrCreate(pipeline, rootFrame, source, identity); //saves
 
             return project;
         }

@@ -164,7 +164,7 @@ namespace OPS.Pipeline
                 AddOrUpdateGISMetadata(places, frameCache);
             }
 
-            if (!noOrbital && places != null)
+            if (!noOrbital)
             {
                 pipeline.LogInfo("ingesting orbital observations");
                 na += IngestOrbitalObservations(places);
@@ -549,8 +549,8 @@ namespace OPS.Pipeline
             }
 
             pipeline.LogInfo("adding frame for root sitedrive {0}", rootSiteDrive);
-            var identity = new UncertainRigidTransform();
             var source = TransformSource.Prior; 
+            var identity = new UncertainRigidTransform();
             var rootFrame = Frame.Create(pipeline, project.Name, rootSiteDrive.ToString()); //saves
             var ft = FrameTransform.Create(pipeline, rootFrame, source, identity); //saves
 
@@ -865,6 +865,29 @@ namespace OPS.Pipeline
             return na;
         }
 
+        protected string GetOrbitalAssetFile(int obsIndex)
+        {
+            var cfg = OrbitalConfig.Instance;
+            bool isDEM = obsIndex == Observation.ORBITAL_DEM_INDEX;
+            string filePath = isDEM ? orbitalDEM : orbitalImage;
+            if (!string.IsNullOrEmpty(filePath))
+            {
+                if (filePath.Contains("://"))
+                {
+                    if (!filePath.ToLower().StartsWith("file://"))
+                    {
+                        throw new Exception($"only file:// URLs and paths are supported, got {filePath}");
+                    }
+                    filePath = filePath.Substring(7);
+                }
+            }
+            else
+            {
+                filePath = isDEM ? cfg.GetDEMFile() : cfg.GetImageFile();
+            }
+            return filePath;
+        }
+
         protected void IngestOrbitalAsset(int obsIndex, PlacesDB places)
         {
             int demIdx = Observation.ORBITAL_DEM_INDEX;
@@ -885,177 +908,191 @@ namespace OPS.Pipeline
             }
             var sd = new SiteDrive(sdName);
 
-            var cfg = OrbitalConfig.Instance;
-
-            string filePath = isDEM ? orbitalDEM : orbitalImage;
-
-            if (!string.IsNullOrEmpty(filePath))
-            {
-                if (filePath.Contains("://"))
-                {
-                    if (!filePath.StartsWith("file://"))
-                    {
-                        throw new Exception($"only file:// URLs and paths are supported for orbital, got {filePath}");
-                    }
-                    filePath = filePath.Substring(7);
-                }
-            }
-            else
-            {
-                string storagePath = isDEM ? cfg.DEMStoragePath : cfg.ImageStoragePath;
-                if (!string.IsNullOrEmpty(storagePath))
-                {
-                    filePath = Path.Combine(LocalPipelineConfig.Instance.StorageDir, storagePath);
-                }
-            }
-
+            string filePath = GetOrbitalAssetFile(obsIndex);
             if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath))
             {
-                throw new Exception($"orbital {what} not found: {filePath}");
+                throw new Exception($"file not found: {filePath}");
+            }
+
+            var cfg = OrbitalConfig.Instance;
+
+            Vector2? lll = mission.GetExpectedLandingLonLat();
+            bool isLanding = sd == mission.GetLandingSiteDrive() && lll.HasValue && cfg.AllowExpectedLandingLonLat;
+            var landingLonLatElev = new Vector3(lll.HasValue ? lll.Value.X : double.NaN,
+                                                lll.HasValue ? lll.Value.Y : double.NaN,
+                                                0); //will get corrected below from DEM
+
+            if (isLanding)
+            {
+                pipeline.LogInfo("orbital {0}: landing sitedrive {1} (lon, lat) = ({2:f3}, {3:f3})deg",
+                                 what, sd, landingLonLatElev.X, landingLonLatElev.Y);
+            }
+            
+            if (places == null && !isLanding)
+            {
+                throw new Exception("no PlacesDB");
+            }
+
+            int placesIndex = isDEM ? cfg.DEMPlacesDBIndex : cfg.ImagePlacesDBIndex;
+            int placesDEMIndex = cfg.DEMPlacesDBIndex;
+            if (placesDEMIndex < 0 && !isLanding)
+            {
+                throw new Exception("DEM PlacesDB index must be non-negative, got " + placesDEMIndex);
             }
 
             bool isGeoTIFF = isDEM ? cfg.DEMIsGeoTIFF : cfg.ImageIsGeoTIFF;
             bool isOrthographic = isDEM ? cfg.DEMIsOrthographic : cfg.ImageIsOrthographic;
 
-            pipeline.LogInfo("ingesting {0}{1}orbital {2} in frame {3}: {4}",
-                             isOrthographic ? "orthographic " : "", isGeoTIFF ? "GeoTIFF " : "", what, sd, filePath);
-
             if (!isGeoTIFF && !isOrthographic)
             {
-                throw new Exception($"orbital {what} must use GeoTIFF metadata or OrthographicCameraModel (or both)");
+                throw new Exception($"must use GeoTIFF metadata or OrthographicCameraModel (or both)");
             }
+
+            pipeline.LogInfo("orbital {0}: ingesting {1}{2}in frame {3}: {4}",
+                             what, isOrthographic ? "orthographic " : "", isGeoTIFF ? "GeoTIFF " : "", sd, filePath);
+
 
             //maybe load the GeoTIFF metadata
             var gisCam = isGeoTIFF ? new GISCameraModel(filePath, cfg.BodyName) : null;
             if (gisCam != null)
             {
-                pipeline.LogInfo("orbital {0}: loaded GeoTIFF metadata from {1}", what, filePath);
+                pipeline.LogInfo("orbital {0}: loaded GeoTIFF metadata", what);
                 gisCam.Dump(pipeline, $"orbital {what}: ");
             }
 
+            PlanetaryBody body = PlanetaryBody.GetByName(cfg.BodyName);
+            Vector3 eastingNorthingElev =
+                places != null ? places.GetEastingNorthingElevation(sd, placesDEMIndex, absolute: true)
+                : isLanding ? body.LonLatToEastingNorthing(landingLonLatElev)
+                : new Vector3(double.NaN, double.NaN, double.NaN);
+            var eneSource =
+                places != null ? $"PlacesDB orbital({placesDEMIndex})"
+                : isLanding ? "expected landing (lon, lat)" : null;
+
             double nominalMPP = isDEM ? cfg.DEMMetersPerPixel : cfg.ImageMetersPerPixel;
-            if (nominalMPP <= 0 && !isGeoTIFF)
-            {
-                throw new Exception($"orbital {what} must use GeoTIFF metadata or have configured meters per pixel");
-            }
+            Vector2 effectiveMPP = nominalMPP * Vector2.One;
+            Vector2 sdLonLat = body.EastingNorthingToLonLat(eastingNorthingElev).XY();
+            Vector2 sdPixel = new Vector2(double.NaN, double.NaN);
+            
             if (gisCam != null)
             {
                 if (nominalMPP <= 0)
                 {
                     nominalMPP = gisCam.AvgMetersPerPixel;
+                    effectiveMPP = nominalMPP * Vector2.One;
                 }
                 else if (Math.Abs(gisCam.AvgMetersPerPixel - nominalMPP) > 1e-3)
                 {
-                    throw new Exception(string.Format("expected {0:f3} meters per pixel orbital {1}, got {2:f3} in {3}",
-                                                      nominalMPP, what, gisCam.AvgMetersPerPixel, filePath));
+                    throw new Exception
+                        ($"expected {nominalMPP:f3} meters per pixel, got {gisCam.AvgMetersPerPixel:f3} from GeoTIFF");
                 }
-            }
 
-            //check PlacesDB metadata
-            int placesIndex = isDEM ? cfg.DEMPlacesDBIndex : cfg.ImagePlacesDBIndex;
-            if (placesIndex < 0)
-            {
-                throw new Exception($"no PlacesDB index for orbital {what}");
-            }
-
-            pipeline.LogInfo("orbital {0}: using PlacesDB metadata at index {1}", what, placesIndex);
-
-            //could pass filename = Path.GetFileName(filePath) here
-            //but leaving it out will make the comparison vs the last path segment of OrbitalConfig.{DEM,Image}URL
-            //which is probably a better idea
-            //because perhaps the local copy of the asset was renamed (which is probably not a good idea...)
-            Vector2? ulcEastingNorthing = gisCam != null ? gisCam.ULCEastingNorthing : (Vector2?)null;
-            var variances = isDEM ? places.CheckOrbitalDEMMetadata(placesIndex, nominalMPP, ulcEastingNorthing)
-                : places.CheckOrbitalImageMetadata(placesIndex, nominalMPP, ulcEastingNorthing);
-            if (variances != null && variances.Length > 0)
-            {
-                string msg = $"orbital {what}: PlacesDB metadata variances at index {placesIndex}: " +
-                    $"{string.Join("; ", variances)}";
-                if (isDEM ? cfg.EnforceDEMPlacesDBMetadata : cfg.EnforceImagePlacesDBMetadata)
+                if (isLanding)
                 {
-                    throw new Exception(msg);
+                    eastingNorthingElev = gisCam.LonLatToEastingNorthing(landingLonLatElev);
+                }
+
+                sdLonLat = gisCam.EastingNorthingToLonLat(eastingNorthingElev).XY();
+                
+                sdPixel = gisCam.EastingNorthingToImage(eastingNorthingElev).XY();
+
+                var px = gisCam.LonLatToImage(sdLonLat);
+                if (Vector2.Distance(px, sdPixel) > 1)
+                {
+                    throw new Exception
+                        ($"site drive {sd} pixel (x, y) = ({sdPixel.X:f3}, {sdPixel.Y:f3}) from GeoTIFF != " +
+                         $"({px.X:f3}, {px.Y:f3}) at (lon, lat) = ({sdLonLat.X:f7}, {sdLonLat.Y:f7})deg");
+                }
+                        
+            }
+            else if (nominalMPP <= 0 || placesIndex < 0)
+            {
+                throw new Exception($"must use GeoTIFF or have configured meters per pixel and PlacesDB index");
+            }
+
+            try
+            {
+                if (placesIndex < 0)
+                {
+                    throw new Exception("invalid PlacesDB index " + placesIndex);
+                }
+
+                pipeline.LogInfo("orbital {0}: using PlacesDB metadata at index {1}", what, placesIndex);
+                
+                Vector2? ulcEastingNorthing = gisCam != null ? gisCam.ULCEastingNorthing : (Vector2?)null;
+                string fileName = Path.GetFileName(filePath);
+                
+                var variances =
+                    isDEM ? places.CheckOrbitalDEMMetadata(placesIndex, nominalMPP, ulcEastingNorthing, fileName)
+                    : places.CheckOrbitalImageMetadata(placesIndex, nominalMPP, ulcEastingNorthing, fileName);
+                
+                if (variances != null && variances.Length > 0)
+                {
+                    throw new Exception
+                        ($"PlacesDB orbital(placesIndex) variances: " + string.Join("; ", variances));
+                }
+                
+                if (gisCam == null)
+                {
+                    sdPixel = places.GetOrbitalPixel(sd, placesIndex, nominalMPP);
                 }
                 else
                 {
-                    pipeline.LogWarn(msg);
+                    var px = places.GetOrbitalPixel(sd, placesIndex, nominalMPP, gisCam.ULCEastingNorthing);
+                    if (Vector2.Distance(px, sdPixel) > 1)
+                    {
+                        throw new Exception
+                            ($"site drive {sd} pixel (x, y) = ({px.X:f3}, {px.Y:f3}) from PlacesDB " +
+                             $"orbital({placesIndex}) != ({sdPixel.X:f3}, {sdPixel.Y:f3}) from GeoTIFF");
+                    }
+                    
+                    var gisULC = gisCam.ULCEastingNorthing;
+                    var placesULC = places.GetULCEastingNorthing(placesIndex);
+                    if (placesULC.HasValue && Vector2.Distance(gisULC, placesULC.Value) > 1)
+                    {
+                        throw new Exception
+                            ($"ULC (easting, northing) = ({placesULC.Value.X:f3}, {placesULC.Value.Y:f3})m from " +
+                             $"PlacesDB orbital({placesIndex}) != ({gisULC.X:f3}, {gisULC.Y:f3})m from GeoTIFF");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                if (isDEM ? cfg.EnforceDEMPlacesDBMetadata : cfg.EnforceImagePlacesDBMetadata)
+                {
+                    throw;
+                }
+                else
+                {
+                    pipeline.LogWarn($"orbital {what}: " + ex.Message);
                 }
             }
 
-            //get sitedrive specifics
-            var eastingNorthingElev = places.GetEastingNorthingElevation(sd, placesIndex, absolute: true);
-            double sdElevation = eastingNorthingElev.Z;
-            pipeline.LogInfo("orbital {0}: site drive {1} absolute (easting, northing, elevation) = " +
-                             "({2:f3}, {3:f3}, {4:f3})m, source PlacesDB",
-                             what, sd, eastingNorthingElev.X, eastingNorthingElev.Y, eastingNorthingElev.Z);
-                
-            var sdLonLat = gisCam != null ? gisCam.EastingNorthingToLonLat(eastingNorthingElev).XY()
-                : PlanetaryBody.GetByName(cfg.BodyName).EastingNorthingToLonLat(eastingNorthingElev).XY();
-            pipeline.LogInfo("orbital {0}: site drive {1} (lon, lat) = ({2:f7}, {3:f7})deg, source {4}",
-                             what, sd, sdLonLat.X, sdLonLat.Y, gisCam != null ? filePath : "PlacesDB");
-            
-            var sdPixel = gisCam != null ? gisCam.EastingNorthingToImage(eastingNorthingElev).XY()
-                : places.GetOrbitalPixel(sd, placesIndex, nominalMPP);
-            pipeline.LogInfo("orbital {0}: site drive {1} pixel (x, y) = ({2:f3}, {3:f3})px, source {4}",
-                             what, sd, sdPixel.X, sdPixel.Y, gisCam != null ? filePath : "PlacesDB");
+            if (!sdPixel.IsFinite())
+            {
+                throw new Exception($"failed to get pixel for sitedrive {sd} from PlacesDB orbital({placesIndex})");
+            }
 
-            var effectiveMPP = nominalMPP * Vector2.One;
             if (gisCam != null)
             {
                 effectiveMPP = gisCam.CheckLocalGISImageBasisAndGetResolution(sdPixel, pipeline, $"orbital {what}: ",
                                                                               throwOnError: true);
-                pipeline.LogInfo("orbital {0}: site drive {1} effective meters per pixel: ({2:f3}, {3:f3}), source {4}",
-                                 what, sd, effectiveMPP.X, effectiveMPP.Y, filePath);
             }
 
-            //do some cross-checks if we have GeoTIFF metadata
-            if (gisCam != null)
-            {
-                try
-                {
-                    var px = places.GetOrbitalPixel(sd, placesIndex, nominalMPP, gisCam.ULCEastingNorthing);
-                    pipeline.LogInfo("orbital {0}: site drive {1} pixel (x, y) = ({2:f3}, {3:f3})px, source PlacesDB",
-                                     what, sd, px.X, px.Y);
+            pipeline.LogInfo("orbital {0}: site drive {1} absolute (easting, northing, elevation) = " +
+                             "({2:f3}, {3:f3}, {4:f3})m, source {5}",
+                             what, sd, eastingNorthingElev.X, eastingNorthingElev.Y, eastingNorthingElev.Z, eneSource);
 
-                    if (Vector2.Distance(px, sdPixel) > 1)
-                    {
-                        pipeline.LogWarn("orbital {0}: PlacesDB disagrees with {1} for sitedrive {2} pixel",
-                                         what, filePath, sd);
-                    }
+            pipeline.LogInfo("orbital {0}: site drive {1} effective meters per pixel: ({2:f3}, {3:f3}), " +
+                             "source {4}", what, sd, effectiveMPP.X, effectiveMPP.Y,
+                             gisCam != null ? $"GeoTIFF and {eneSource}" : "config");
 
-                    px = gisCam.LonLatToImage(sdLonLat);
-                    pipeline.LogInfo("orbital {0}: site drive {1} pixel (x, y) = ({2:f3}, {3:f3})px at " +
-                                     "(lon, lat) = ({4:f7}, {5:f7})deg, source {6}",
-                                     what, sd, px.X, px.Y, sdLonLat.X, sdLonLat.Y, filePath);
-                    
-                    if (Vector2.Distance(px, sdPixel) > 1)
-                    {
-                        pipeline.LogWarn("orbital {0}: easting/northing disagrees with lon/lat for sitedrive {1} pixel",
-                                         what, sd);
-                    }
+            pipeline.LogInfo("orbital {0}: site drive {1} (lon, lat) = ({2:f7}, {3:f7})deg, source {4}",
+                             what, sd, sdLonLat.X, sdLonLat.Y, gisCam != null ? $"GeoTIFF and {eneSource}" : eneSource);
 
-                    var gisULC = gisCam.ULCEastingNorthing;
-                    pipeline.LogInfo("orbital {0}: ULC (easting, northing) = ({1:f3}, {2:f3})m, source {3}",
-                                     what, gisULC.X, gisULC.Y, filePath);
-
-                    var placesULC = places.GetULCEastingNorthing(placesIndex);
-                    if (placesULC.HasValue)
-                    {
-                        pipeline.LogInfo("orbital {0}: ULC (easting, northing) = ({1:f3}, {2:f3})m, source PlacesDB",
-                                         what, placesULC.Value.X, placesULC.Value.Y);
-                        if (Vector2.Distance(gisULC, placesULC.Value) > 1)
-                        {
-                            pipeline.LogWarn("orbital {0}: PlacesDB disagrees with {1} for ULC (easting, northing)",
-                                             what, filePath);
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    pipeline.LogWarn("orbital {0}: " +
-                                     "error checking site drive origin pixel or ULC (easting, northing): {1}",
-                                     what, ex.Message);
-                }
-            }
+            pipeline.LogInfo("orbital {0}: site drive {1} pixel (x, y) = ({2:f3}, {3:f3})px, source {4}",
+                             what, sd, sdPixel.X, sdPixel.Y,
+                             gisCam != null ? "GeoTIFF" : $"PlacesDB orbital({placesIndex}");
 
             //load the asset
             Image asset = null;
@@ -1071,7 +1108,7 @@ namespace OPS.Pipeline
             pipeline.LogInfo("orbital {0}: loaded {1}x{2} orbital {3} as {4}",
                              what, asset.Width, asset.Height, what, asset.GetType().Name);
 
-            //prefer the elevation at sdOriginPixel in the DEM to the value we got from PlacesDB
+            //prefer the elevation at sdOriginPixel in the DEM to the value we got from eneSource
             if (isDEM)
             {
                 //GetInterpolatedElevation() does not need CameraModel
@@ -1079,20 +1116,21 @@ namespace OPS.Pipeline
                 orbitalDEMElevation = (new DEM(asset, cfg.DEMElevationScale)).GetInterpolatedElevation(sdPixel);
             }
 
+            double sdElevation = eastingNorthingElev.Z;
             if (orbitalDEMElevation.HasValue)
             {
                 if (Math.Abs(orbitalDEMElevation.Value - sdElevation) > 1e-3)
                 {
-                    pipeline.LogWarn("orbital {0}: using site drive {1} DEM elevation {2:f3}m, " +
-                                     "differs from PlacesDB {3:f3}m", what, sd, orbitalDEMElevation.Value, sdElevation);
+                    pipeline.LogWarn("orbital {0}: using sitedrive {1} DEM elevation {2:f3}m, differs from {3} {4:f3}m",
+                                     what, sd, orbitalDEMElevation.Value, eneSource, sdElevation);
                     sdElevation = orbitalDEMElevation.Value;
                 }
             }
             else
             {
                 pipeline.LogWarn("orbital {0}: did not get elevation for site drive {1} at pixel ({2:f3}, {3:f3}) " +
-                                 "from orbital DEM, using {4:f3}m from PlacesDB",
-                                 what, sd, sdPixel.X, sdPixel.Y, sdElevation);
+                                 "from orbital DEM, using {4:f3}m from {5}",
+                                 what, sd, sdPixel.X, sdPixel.Y, sdElevation, eneSource);
             }
 
             ConformalCameraModel cmod = gisCam;
@@ -1131,7 +1169,7 @@ namespace OPS.Pipeline
                              "({7:f3}, {8:f3}) meters per pixel, source {9}PlacesDB",
                              what, cmod.Width, cmod.Height, cmod.GetType().Name, sd,
                              originPixel.X, originPixel.Y, cmod.MetersPerPixel.X, cmod.MetersPerPixel.Y,
-                             gisCam != null ? $"{filePath} and " : "");
+                             gisCam != null ? $"GeoTIFF and " : "");
 
             string obsName = "Orbital" + StringHelper.UppercaseFirst(what);
             string url = StringHelper.NormalizeUrl(Path.GetFullPath(filePath), "file://");
