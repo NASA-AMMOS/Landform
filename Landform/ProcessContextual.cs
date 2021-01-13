@@ -119,11 +119,10 @@ using OPS.Pipeline.AlignmentServer;
 ///
 /// Landform.exe process-contextual --mission=MSL --rdrdir=out/windjana/orbital-only --sols=0609 --sitedrives=0311472
 ///
-/// M2020 orbital only, 1km extent, without PlacesDB:
+/// M2020 orbital only without PlacesDB:
 ///
 /// export LANDFORM_ORBITAL_ALLOW_EXPECTED_LANDING_LON_LAT=true
 /// Landform.exe process-contextual --mission=M2020 --rdrdir=out/M2020-landing-orbital --sols=0001 --sitedrives=0010000
-///     --extent=1024
 ///
 /// </summary>
 namespace OPS.Landform
