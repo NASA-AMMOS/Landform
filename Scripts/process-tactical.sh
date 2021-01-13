@@ -18,8 +18,8 @@
 # defaults to . (current directory).  Remaining arguments must be in the form --flag or --name value. Unknown arguments
 # are ignored.
 #
-# The tileset name is the basename of the mesh file, PRODUCT_ID, with an optional suffix if specified with the
-# --suffix option.  Suffixes are useful for segregating the output of multiple runs with different custom options.
+# The tileset name is taken from the basename of the mesh file, PRODUCT_ID, with an optional suffix if specified with
+# the --suffix option.  Suffixes are useful for segregating the output of multiple runs with different custom options.
 # Custom options can include --nolods, which disables use of precomputed LODs (build-tiling-input option --loadlods).
 # Additional custom options can also be specified for each stage with the --STAGEargs options.
 #
@@ -118,8 +118,7 @@ if [[ $# -gt 0 ]] && [[ $1 != -* ]]; then
     shift
 fi
 
-# should match ProcessTacticalOptions.FixupLODs default
-lods="--loadlods --fixuplods=75000-300000,20000-60000,4000-15000,1000-3000,100-600"
+lods="--loadlods"
 
 manifest=true
 dry=
@@ -227,8 +226,8 @@ while read -r line; do
             if [ -f $outproj/stats.txt ]; then ${dry}mv $outproj/stats.txt $outproj/${proj}_stats.txt; fi
 
             if [[ "$manifest" && $img == *.IMG ]]; then
-                ${dry}$landform update-scene-manifest $stdopts --mission $mission --nocontextual --nourls \
-                      --manifestfile $outproj/${proj}_scene.json --tacticalpdsfile $img $manifestargs | tee -a $log
+                ${dry}$landform update-scene-manifest $proj $stdopts --mission $mission --nocontextual --nourls \
+                      --manifestfile $outproj/${proj}_scene.json --tacticalpdsimage $img $manifestargs | tee -a $log
             fi
         fi
         

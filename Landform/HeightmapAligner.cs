@@ -212,7 +212,16 @@ namespace OPS.Landform
 
         protected override bool AutoUseMeshRDRs()
         {
-            return true;
+            //we used to default to true here
+            //but BEVAligner defaults to false
+            //which meant that BEV align uses BEV meshes reconstructed from the point clouds (or range maps)
+            //but heightmap align would load existing iv/obj wedge meshes if available
+            //at some point it seemed like the iv/obj meshes worked a bit better for heightmap align
+            //however in M20 workflows we currently don't even download the iv/obj meshes in ProcessContextual.cs
+            //so let's return false here to avoid using them if they happen to already be downloaded
+            //which is the case on some dev machines
+            //return true;
+            return false;
         }
 
         protected override void MakeCollectOpts()

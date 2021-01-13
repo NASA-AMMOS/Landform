@@ -706,9 +706,11 @@ namespace OPS.Pipeline.AlignmentServer
         ///
         /// Spews warning or error messages depending on the badness.
         ///
-        /// Returns root site drive as long as the frame tree is at least connected. If all siteDriveFrames have
-        /// complete priors then that will be landingSiteDrive.  Otherwise it will be the earliest site in the
-        /// FrameCache.
+        /// Returns root site drive (sitedrive parented to root frame with identity transform) as long as the frame tree
+        /// is at least connected. If all siteDriveFrames have complete priors then that will be landingSiteDrive.
+        /// Otherwise it will be the earliest site in the FrameCache.
+        ///
+        /// Returns null if the frame tree is disconnected.
         /// </summary>
         public SiteDrive? CheckPriors(SiteDrive landingSiteDrive)
         {
@@ -732,7 +734,7 @@ namespace OPS.Pipeline.AlignmentServer
                         prior.Source == TransformSource.PlacesDBSitePDSLocal ? sdsWithMixedPriors :
                         sdsWithFullPriors;
                     group.Add(frame.Name);
-                    int site = (new SiteDrive(frame.Name)).Site;
+                    int site = (new SiteDrive(frame.Name)).Site; //ArgumentException if frame.Name not a SiteDrive
                     if (firstSite < 0 || site < firstSite)
                     {
                         firstSite = site;
@@ -757,43 +759,47 @@ namespace OPS.Pipeline.AlignmentServer
                 pipeline.LogError("incomplete priors! {0} sitedrives with no priors", sdsWithNoPriors.Count);
                 rootSiteDrive = null;
             }
-            else if (sdsWithPDSPriors.Count > 0)
+            else if (sdsWithPDSPriors.Count > 0 || sdsWithChainedPriors.Count > 0)
             {
-                int toRoot = sdsWithFullPriors.Count + sdsWithMixedPriors.Count;
-                if (toRoot > 0)
+                var baseSites = new HashSet<int>();
+                foreach (var sd in sdsWithPDSPriors)
                 {
-                    pipeline.LogError("incomplete priors: {0} sitedrives relative to root and {1} relative to site",
-                                      toRoot, sdsWithPDSPriors.Count);
+                    baseSites.Add((new SiteDrive(sd)).Site);
+                }
+                
+                if (sdsWithChainedPriors.Count > 0)
+                {
+                    baseSites.Add(firstSite);
+                }
+                
+                int relativeToLanding = sdsWithFullPriors.Count + sdsWithMixedPriors.Count;
+
+                if (baseSites.Count > 1)
+                {
+                    pipeline.LogError("incomplete priors: sitedrives relative to {0} different site frames",
+                                      baseSites.Count);
+                    rootSiteDrive = null;
+                }
+                else if (relativeToLanding > 0 && landingSiteDrive.Site != baseSites.First())
+                {
+                    int relativeToFirst = sdsWithPDSPriors.Count + sdsWithChainedPriors.Count;
+                    pipeline.LogWarn("incomplete priors: {0} sitedrives relative to site {1}, " +
+                                     "but {2} relative to landing sitedrive {3}",
+                                     relativeToFirst, baseSites.First(), relativeToLanding, landingSiteDrive);
                     rootSiteDrive = null;
                 }
                 else
                 {
-                    var sites = new HashSet<int>();
-                    foreach (var sd in sdsWithPDSPriors)
+                    rootSiteDrive = new SiteDrive(baseSites.First(), 0);
+                    if (rootSiteDrive != landingSiteDrive)
                     {
-                        sites.Add((new SiteDrive(sd)).Site);
-                    }
-
-                    if (sdsWithChainedPriors.Count > 0)
-                    {
-                        sites.Add(firstSite);
-                    }
-
-                    if (sites.Count > 1)
-                    {
-                        pipeline.LogError("incomplete priors: sitedrives relative to {0} different site frames",
-                                          sites.Count);
-                        rootSiteDrive = null;
-                    }
-                    else
-                    {
-                        pipeline.LogWarn("incomplete priors: all sitedrives relative to site {0} frame, not root",
-                                         firstSite);
-                        rootSiteDrive = new SiteDrive(firstSite, 0);
+                        pipeline.LogWarn("incomplete priors: all sitedrives relative to site {0}, " +
+                                         "not landing sitedrive {1}", baseSites.First(), landingSiteDrive);
                     }
                 }
             }
-            else if (sdsWithMixedPriors.Count > 0)
+
+            if (sdsWithMixedPriors.Count > 0)
             {
                 pipeline.LogWarn("mixed priors: {0} sitedrives with PlacesDB site offset but PDS local_level",
                                  sdsWithMixedPriors.Count);

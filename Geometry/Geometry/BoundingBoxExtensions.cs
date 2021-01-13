@@ -10,6 +10,7 @@ namespace OPS.Geometry
 {
    public enum BoxAxis { X, Y, Z };
 
+    /// Also see Microsoft.Xna.Framework.Extensions and OPS.MathExtensions.XNAExtensions
     public static class BoundingBoxExtensions
     {
         public static BoundingBox CreateXY(double size)
@@ -46,11 +47,15 @@ namespace OPS.Geometry
 
         /// <summary>
         /// Returns the size of the bounding box (max-min)
-        /// same as box.Extent()
         /// </summary>
-        public static Vector3 Size(this BoundingBox box)
+        public static Vector3 Extent(this BoundingBox box)
         {
             return box.Max - box.Min;
+        }
+
+        public static double Diameter(this BoundingBox box)
+        {
+            return box.Extent().Length();
         }
 
         public static Vector3 Center(this BoundingBox box)
@@ -60,13 +65,13 @@ namespace OPS.Geometry
 
         public static double Volume(this BoundingBox box)
         {
-            Vector3 size = box.Size();
+            Vector3 size = box.Extent();
             return size.X * size.Y * size.Z;
         }
 
         public static Vector2 GetFaceSizePerpendicularToAxis(this BoundingBox box, BoxAxis axis)
         {
-            var sz = box.Size();
+            var sz = box.Extent();
             switch (axis)
             {
                 case BoxAxis.X: return new Vector2(sz.Y, sz.Z);
@@ -78,13 +83,13 @@ namespace OPS.Geometry
 
         public static double MaxDimension(this BoundingBox box)
         {
-            Vector3 size = box.Size();
+            Vector3 size = box.Extent();
             return Math.Max(size.X, Math.Max(size.Y, size.Z));
         }
 
         public static BoxAxis MaxAxis(this BoundingBox box, out double maxDim)
         {
-            Vector3 size = box.Size();
+            Vector3 size = box.Extent();
             maxDim = box.MaxDimension();
             if (maxDim == size.X)
             {
@@ -108,14 +113,14 @@ namespace OPS.Geometry
 
         public static double MinDimension(this BoundingBox box)
         {
-            Vector3 size = box.Size();
+            Vector3 size = box.Extent();
             return Math.Min(size.X, Math.Min(size.Y, size.Z));
         }
 
         public static BoxAxis MinAxis(this BoundingBox box, out double minDim)
         {
             minDim = box.MinDimension();
-            Vector3 size = box.Size();
+            Vector3 size = box.Extent();
             if (minDim == size.X)
             {
                 return BoxAxis.X;
@@ -255,8 +260,7 @@ namespace OPS.Geometry
         /// <returns></returns>
         public static double FurthestDistanceSquared(this BoundingBox a, BoundingBox b)
         {
-            BoundingBox union = Union(a, b);
-            return Size(union).LengthSquared();
+            return Union(a, b).Extent().LengthSquared();
         }
 
         /// <summary>
@@ -314,7 +318,7 @@ namespace OPS.Geometry
         public static BoundingBox CreateScaled(this BoundingBox box, Vector3 ratio)
         {
             var center = box.Center();
-            var size = box.Size() * ratio;
+            var size = box.Extent() * ratio;
             return new BoundingBox(center - (0.5 * size), center + (0.5 * size));
         }
 
@@ -662,7 +666,14 @@ namespace OPS.Geometry
         {
             return new RTree.Rectangle((float)box.Min.X, (float)box.Min.Y,
                                        (float)box.Max.X, (float)box.Max.Y,
-                                       (float)box.Min.Z, (float)box.Max.Z);
+                                       (float)box.Min.Z, (float)box.Max.Z); //yes, z last
+        }
+
+        public static RTree.Rectangle ToRectangle(this Vector3 v)
+        {
+            return new RTree.Rectangle((float)v.X, (float)v.Y,
+                                       (float)v.X, (float)v.Y,
+                                       (float)v.Z, (float)v.Z); //yes, z last
         }
 
         public static BoundingBox ToBoundingBox(this RTree.Rectangle rect)
@@ -723,6 +734,28 @@ namespace OPS.Geometry
                 pt.X >= box.Min.X && pt.X <= box.Max.X &&
                 pt.Y >= box.Min.Y && pt.Y <= box.Max.Y &&
                 pt.Z >= box.Min.Z && pt.Z <= box.Max.Z;
+        }
+
+        public static bool ContainsPoint(this BoundingBox box, Vector3 pt,
+                                         bool includeMaxX, bool includeMaxY, bool includeMaxZ)
+        {
+            if (pt.X < box.Min.X || pt.Y < box.Min.Y || pt.Z < box.Min.Z)
+            {
+                return false;
+            }
+            if (pt.X > box.Max.X || (pt.X == box.Max.X && !includeMaxX))
+            {
+                return false;
+            }
+            if (pt.Y > box.Max.Y || (pt.Y == box.Max.Y && !includeMaxY))
+            {
+                return false;
+            }
+            if (pt.Z > box.Max.Z || (pt.Z == box.Max.Z && !includeMaxZ))
+            {
+                return false;
+            }
+            return true;
         }
 
         public static bool FuzzyContainsPoint(this BoundingBox box, Vector3 pt, double epsilon = MathE.EPSILON)
@@ -898,9 +931,9 @@ namespace OPS.Geometry
             return string.Format(fmt, box.Min.X, box.Min.Y, box.Min.Z, box.Max.X, box.Max.Y, box.Max.Z);
         }
 
-        public static string FmtSize(this BoundingBox box, int decimalPlaces = 3)
+        public static string FmtExtent(this BoundingBox box, int decimalPlaces = 3)
         {
-            Vector3 sz = box.Size();
+            Vector3 sz = box.Extent();
             string fmt = string.Format("{{0:f{0}}}x{{1:f{0}}}x{{2:f{0}}}", decimalPlaces);
             return string.Format(fmt, sz.X, sz.Y, sz.Z);
         }

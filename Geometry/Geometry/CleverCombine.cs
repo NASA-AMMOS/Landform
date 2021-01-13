@@ -1,11 +1,14 @@
 ﻿//#define LEGACY_IMPL
+#define XYZ_IMPL
 using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
 using System.Linq;
 using Microsoft.Xna.Framework;
+using RTree;
 using OPS.Util;
+using OPS.MathExtensions;
 
 //ported from onsight/terraintools sha 840d24d65f8cc05653e7b8155156cb8bb6d31a75 ClevererCombinePointClouds
 namespace OPS.Geometry
@@ -13,9 +16,19 @@ namespace OPS.Geometry
     public class CleverCombine
     {
         public const double DEF_CELL_SIZE = 0.025;
+        public const double DEF_CELL_ASPECT = -1;
 
         //size of XY grid cell (meters)
         private readonly double CellSize;
+
+        //size of grid cell Z as a multiple of CellSize, used only by CombineXYZ()
+        //non-positive to use only one layer of full-height cells
+        //unfortunately using multiple layers of cells can result in striation artifacts in datasets with gentle slopes
+        //because near the top/bottom of a layer some of the overlapping clouds will get excluded from the cell
+        //so where the terrain slope is near the layer boundary the culling will be different
+        //than where the slope is not near the layer boundary
+        //dingo gap shows this effect
+        private readonly double CellAspect;
 
         //if the max distance from a grid cell to a point cloud origin is this many times bigger than the minimum
         //the points from that cloud can be pruned from the grid cell
@@ -25,41 +38,332 @@ namespace OPS.Geometry
         private const int MaxMSESamples = 30;
 
         //if any point's distance to another is < this number stop searching for nearest neighbors
-        private const double SmallestNNDistance = 0.005;
+        private const double SmallestNNDistance = 0.001;
 
-        //if the mean squared error between the nearest neighbor samples of the points from a point cloud
+        //if the root mean squared error between the nearest neighbor samples of the points from a point cloud
         //within a grid cell to all the other points in the cell is greater than this
         //then prune the points from that cloud from the cell
-        private const double MaxMSEThreshold = 0.0001;
+        private const double MaxRMSE = 0.02;
 
-        public CleverCombine(double cellSizeMeters = DEF_CELL_SIZE)
+        private Random rng = NumberHelper.MakeRandomGenerator();
+
+        public CleverCombine(double cellSizeMeters = DEF_CELL_SIZE, double cellAspect = DEF_CELL_ASPECT)
         {
             this.CellSize = cellSizeMeters;
+            this.CellAspect = cellAspect;
+        }
+
+        public Mesh Combine(Mesh[] clouds, Vector3[] origins, ILogger logger = null)
+        {
+#if LEGACY_IMPL
+            return CombineXYLegacy(clouds, origins, logger);
+#elif XYZ_IMPL
+            return CombineXYZ(clouds, origins, logger);
+#else
+            return CombineXY(clouds, origins, logger);
+#endif
+        }
+
+        //thread local storage
+        private class TLSXYZ
+        {
+            public Dictionary<int, int[]> cloudsInCell;
+            public Dictionary<int, int[]> cloudsInNeighborhood;
+            public List<int> dead;
+            public List<Vertex> keepers;
+
+            public TLSXYZ(int numClouds, int expectedMaxKeepersPerThread)
+            {
+                cloudsInCell = new Dictionary<int, int[]>(numClouds);
+                cloudsInNeighborhood = new Dictionary<int, int[]>(numClouds);
+                dead = new List<int>(numClouds);
+                keepers = new List<Vertex>(expectedMaxKeepersPerThread);
+            }
+        }
+            
+        /// <summary>
+        /// Implements more or less the same algorithm as CombineXY() but
+        /// (a) can use a full 3D grid (though the grid is still 2D if CellAspect is non-positive, which is the default)
+        /// (b) should be more memory efficient
+        /// (c) allows origins = null which skips the origin filter
+        /// (d) returned mesh shares verts of input clouds
+        /// </summary>
+        public Mesh CombineXYZ(Mesh[] clouds, Vector3[] origins, ILogger logger = null)
+        {
+            int numClouds = clouds.Length;
+
+            if (origins != null && origins.Length != numClouds)
+            {
+                throw new ArgumentException("number of point clouds must match number of origins");
+            }
+            
+            if (numClouds < 1)
+            {
+                return new Mesh();
+            }
+            
+            if (numClouds == 1)
+            {
+                return clouds[0];
+            }
+
+            var cloudBounds = clouds.Select(c => c.Bounds()).ToArray();
+            var totalBounds = BoundingBoxExtensions.Union(cloudBounds);
+            var totalBoundsExtent = totalBounds.Extent();
+
+            double aspect = CellAspect;
+            if (aspect <= 0)
+            {
+                aspect = totalBoundsExtent.Z / CellSize;
+            }
+
+            int gridX = (int)Math.Ceiling(totalBoundsExtent.X / CellSize);
+            int gridY = (int)Math.Ceiling(totalBoundsExtent.Y / CellSize);
+            int gridZ = (int)Math.Ceiling(totalBoundsExtent.Z / (CellSize * aspect));
+
+            int numPoints = clouds.Sum(cloud => cloud.Vertices.Count);
+
+            int gridXY = gridX * gridY;
+            int gridXYZ = gridXY * gridZ;
+
+            if (logger != null)
+            {
+                logger.LogInfo("CleverCombine: building {0} RTrees, total {1} points, up to {2} points per cloud",
+                               numClouds, Fmt.KMG(numPoints), Fmt.KMG(clouds.Max(cloud => cloud.Vertices.Count))); 
+            }
+            var cloudRTrees = new RTree<int>[numClouds];
+            CoreLimitedParallel.For(0, numClouds, c =>
+            {
+                var cloud = clouds[c];
+                var rt = new RTree<int>();
+                for (int v = 0; v < cloud.Vertices.Count; v++)
+                {
+                    rt.Add(cloud.Vertices[v].Position.ToRectangle(), v);
+                }
+                cloudRTrees[c] = rt;
+            });
+
+            if (logger != null)
+            {
+                logger.LogInfo("CleverCombine: preallocating output cloud of up to {0} points", Fmt.KMG(numPoints));
+            }
+            bool hasNormals = clouds.Any(cloud => cloud.HasNormals);
+            bool hasUVs = clouds.Any(cloud => cloud.HasUVs);
+            bool hasColors = clouds.Any(cloud => cloud.HasColors);
+            Mesh output = new Mesh(hasNormals, hasUVs, hasColors);
+            output.Vertices.Capacity = numPoints;
+
+            double smallestNNDistanceSq = SmallestNNDistance * SmallestNNDistance;
+            double maxMSEThreshold = MaxRMSE * MaxRMSE;
+
+            if (logger != null)
+            {
+                logger.LogInfo("CleverCombine: pruning {0}x{1}x{2} ({3}) cells", gridX, gridY, gridZ, Fmt.KMG(gridXYZ));
+            }
+            int expectedMaxKeepersPerThread = numPoints / CoreLimitedParallel.GetMaxCores();
+            CoreLimitedParallel.For(0, gridXYZ, () => new TLSXYZ(numClouds, expectedMaxKeepersPerThread), (cell, tls) =>
+            {
+                int i = (cell % gridXY) / gridX; //0 to gridY - 1
+                int j = (cell % gridXY) % gridX; //0 to gridX -1
+                int k = cell / gridXY; //0 to gridZ - 1
+
+                //careful, cellBounds = BoudingBoxExtensions.CreateFromPoint(cellCenter, CellSize);
+                //can lead to points being assigned to more than one box due to numerical errors
+                //use integer math so that the max side of a box is exactly equal to the min side of the adjacent box
+                var cellBounds =
+                new BoundingBox(totalBounds.Min + new Vector3(j, i, k * aspect) * CellSize,
+                                totalBounds.Min + new Vector3(j + 1, i + 1, (k + 1) * aspect) * CellSize);
+
+                bool includeMaxX = j == gridX - 1;
+                bool includeMaxY = i == gridY - 1;
+                bool includeMaxZ = k == gridZ - 1;
+
+                var nbrBounds = cellBounds.CreateScaled(3 * Vector3.One);
+                var nbrRect = nbrBounds.ToRectangle();
+
+                tls.cloudsInCell.Clear();
+                tls.cloudsInNeighborhood.Clear();
+                for (int c = 0; c < numClouds; c++)
+                {
+                    if (cloudBounds[c].Intersects(nbrBounds))
+                    {
+                        int[] verts = cloudRTrees[c].Intersects(nbrRect).ToArray();
+                        tls.cloudsInNeighborhood[c] = verts;
+                        verts = verts
+                            .Where(v => cellBounds.ContainsPoint(clouds[c].Vertices[v].Position,
+                                                                 includeMaxX, includeMaxY, includeMaxZ))
+                            .ToArray();
+                        if (verts.Length > 0)
+                        {
+                            tls.cloudsInCell[c] = verts;
+                        }
+                    }
+                }
+
+                if (tls.cloudsInCell.Count == 0)
+                {
+                    return tls;
+                }
+
+                //first filter: remove clouds whose origin in XY plane is too far from this grid cell
+                if (origins != null && tls.cloudsInCell.Count > 1)
+                {
+                    var cellCenter = cellBounds.Center().XY();
+                    tls.dead.Clear();
+                    double d2 = tls.cloudsInCell.Keys.Min(c => Vector2.DistanceSquared(origins[c].XY(), cellCenter));
+                    double t2 = d2 * MinDistRange * MinDistRange;
+                    foreach (int c in tls.cloudsInCell.Keys)
+                    {
+                        if (Vector2.DistanceSquared(origins[c].XY(), cellCenter) > t2)
+                        {
+                            tls.dead.Add(c);
+                        }
+                    }
+                    foreach (var c in tls.dead)
+                    {
+                        tls.cloudsInCell.Remove(c);
+                    }
+                }
+
+                //second filter: remove clouds where a sampling of their points within this cell
+                //is too far from their nearest neighbors in other clouds
+                if (tls.cloudsInCell.Count > 1)
+                {
+                    foreach (var verts in tls.cloudsInCell.Values)
+                    {
+                        NumberHelper.Shuffle(verts, rng);
+                    }
+                }
+                while (tls.cloudsInCell.Count > 1)
+                {
+                    double maxMSE = double.NegativeInfinity;
+                    int maxMSECloud = -1;
+                    foreach (var entry in tls.cloudsInCell.OrderBy(e => e.Value.Length))
+                    {
+                        int c = entry.Key;
+                        int[] verts = entry.Value;
+                        int ns = Math.Min(verts.Length, MaxMSESamples);
+                        double mse = 0;
+                        int numDistances = 0;
+                        foreach (var oe in tls.cloudsInNeighborhood)
+                        {
+                            int oc = oe.Key;
+                            if (c != oc)
+                            {
+                                int[] ov = oe.Value;
+                                for (int s = 0; s < ns; s++)
+                                {
+                                    Vector3 sample = clouds[c].Vertices[verts[s]].Position;
+                                    double minDistSq = double.PositiveInfinity;
+                                    foreach (var m in ov)
+                                    {
+                                        double d2 = Vector3.DistanceSquared(sample, clouds[oc].Vertices[m].Position);
+                                        minDistSq = Math.Min(d2, minDistSq);
+                                        if (d2 < smallestNNDistanceSq)
+                                        {
+                                            break;
+                                        }
+                                    }
+                                    mse += minDistSq;
+                                    numDistances++;
+                                }
+                            }
+                        }
+                        if (numDistances > 0)
+                        {
+                            mse /= numDistances;
+                        }
+                        if (mse > maxMSE)
+                        {
+                            maxMSE = mse;
+                            maxMSECloud = c;
+                        }
+                        if (tls.cloudsInCell.Count == 2)
+                        {
+                            //it *should* be redundant to compute the MSE for the second cloud
+                            //but it might be different
+                            //and if we're going to discard either of them, we should discard the smaller one
+                            break;
+                        }
+                    }
+                    
+                    if (maxMSE > maxMSEThreshold)
+                    {
+                        tls.cloudsInCell.Remove(maxMSECloud);
+                        continue;
+                    }
+                    
+                    break; //no more outlier clouds
+                }
+
+                foreach (var entry in tls.cloudsInCell)
+                {
+                    foreach (var v in entry.Value)
+                    {
+                        tls.keepers.Add(clouds[entry.Key].Vertices[v]);
+                    }
+                }
+
+                return tls;
+            },
+            tls => { lock (output) { output.Vertices.AddRange(tls.keepers); } });
+
+            if (logger != null)
+            {
+                logger.LogInfo("CleverCombine: kept {0} vertices", Fmt.KMG(output.Vertices.Count));
+                logger.LogInfo("CleverCombine: removing duplicate vertices");
+            }
+
+            //output.RemoveDuplicateVertices(new Vertex.Comparer(matchColors: false));
+
+            output.Vertices.TrimExcess();
+
+            if (logger != null)
+            {
+                logger.LogInfo("CleverCombine: returning {0} vertices", Fmt.KMG(output.Vertices.Count));
+            }
+
+            return output;
         }
 
         //thread-local storage
-        private class TLS
+        private class TLSXY
         {
             public List<int> cloudsInCell;
             public List<double> cellToCloudOrigin;
             public List<int> samples;
 
-            public TLS(int numClouds)
+            public TLSXY(int numClouds)
             {
                 cloudsInCell = new List<int>(numClouds);
                 cellToCloudOrigin = new List<double>(numClouds);
                 samples = new List<int>();
             }
         }
-            
+
         /// <summary>
-        /// a weighted combination of redundant point cloud data resulting in a single winner per voxel
-        //  note: all input pointclouds are expected to be in the same reference frame
+        /// combines redundant point cloud data
+        ///
+        /// divides the combined bounding box of all clouds into a grid of voxels
+        /// in this implementation each voxel is the full Z height of the bounding box
+        /// and the voxels are distributed in the XY plane
+        ///
+        /// let dst(i, j, k) be the XY plane distance from the center of cell (i, j) to origins[k]
+        ///
+        /// let mse(i, j, k) be the mean squared error from a sampling of points in clouds[k] in cell (i, j) to their
+        /// nearest neighbors in other clouds in the cell
+        ///
+        /// for each voxel (i, j), if there are points from more than one input cloud
+        ///
+        /// (1) discard points from clouds k where dist(i, j, k) is greater than MinDistRange times the minimum
+        ///     dst(i, j, c) for all clouds c in the cell
+        ///
+        /// (2) while there is still at least one cloud in the cell, discard points repeatedly from each cloud k
+        ///     where mse(i, j, k) is (a) the maximum for all clouds k still in the cell and (b) greater than MaxRMSE^2
         /// </summary>
-        /// <param name="origins">a position from which the distance of each point is a meaningful quality estimate (eg. site drive center, camera origin, etc) </param>
-        /// <param name="clouds">point clouds to combine, order should match pointcloudorigins</param>
-        public Mesh Combine(Vector3[] origins, Mesh[] clouds, ILogger logger = null)
-#if !LEGACY_IMPL
+        /// <param name="origins">reference points of highest confidence for each cloud</param>
+        /// <param name="clouds">point clouds to combine, all in same reference frame</param>
+        public Mesh CombineXY(Mesh[] clouds, Vector3[] origins, ILogger logger = null)
         {
             int numClouds = clouds.Length;
             if (origins.Length != numClouds)
@@ -70,6 +374,11 @@ namespace OPS.Geometry
             if (numClouds < 1)
             {
                 return new Mesh();
+            }
+            
+            if (numClouds == 1)
+            {
+                return clouds[0];
             }
 
             BoundingBox bbox = clouds[0].Bounds();
@@ -83,7 +392,7 @@ namespace OPS.Geometry
             int height = (int)Math.Ceiling(bbox.Extent().Y / CellSize);
 
             //collect points into grid cells
-            //grid[i, j][c] = list of indices of points in cloud c in cell (i, j)
+            //grid[c][i, j] = list of indices of points in cloud c in cell (i, j)
             if (logger != null)
             {
                 logger.LogInfo("CleverCombine: allocating {0}x{1} grid of {2} {3}x{3}m cells",
@@ -120,18 +429,8 @@ namespace OPS.Geometry
                 }
             });
 
-            //Fisher-Yates shuffle
-            var rng = NumberHelper.MakeRandomGenerator();
-            void shuffle(List<int> list)
-            {
-                for (int i = 0; i < list.Count - 1; i++)
-                {
-                    int j = rng.Next(i, list.Count);
-                    int t = list[i];
-                    list[i] = list[j];
-                    list[j] = t;
-                }
-            }
+            double smallestNNDistanceSq = SmallestNNDistance * SmallestNNDistance;
+            double maxMSEThreshold = MaxRMSE * MaxRMSE;
 
             //prune points from outlier clouds in each cell
             if (logger != null)
@@ -139,7 +438,7 @@ namespace OPS.Geometry
                 logger.LogInfo("CleverCombine: pruning {0} cells", Fmt.KMG(width * height));
             }
             var keepers = new ConcurrentBag<Vertex>();
-            CoreLimitedParallel.For(0, width * height, () => new TLS(numClouds), (cell, tls) =>
+            CoreLimitedParallel.For(0, width * height, () => new TLSXY(numClouds), (cell, tls) =>
             {
                 int i = cell / width, j = cell % width;
 
@@ -182,7 +481,7 @@ namespace OPS.Geometry
                         tls.samples.AddRange(cloudPts);
                         if (tls.samples.Count > MaxMSESamples)
                         {
-                            shuffle(tls.samples);
+                            NumberHelper.Shuffle(tls.samples, rng);
                         }
                         int ns = Math.Min(tls.samples.Count, MaxMSESamples);
                         
@@ -206,7 +505,7 @@ namespace OPS.Geometry
                                         {
                                             minDist = dist;
                                         }
-                                        if (dist < SmallestNNDistance)
+                                        if (dist < smallestNNDistanceSq)
                                         {
                                             break;
                                         }
@@ -227,7 +526,7 @@ namespace OPS.Geometry
                         }
                     }
                     
-                    if (maxMSE > MaxMSEThreshold)
+                    if (maxMSE > maxMSEThreshold)
                     {
                         tls.cloudsInCell.RemoveAt(maxMSECloud);
                         continue;
@@ -267,7 +566,7 @@ namespace OPS.Geometry
                 logger.LogInfo("CleverCombine: removing duplicate vertices");
             }
 
-            output.RemoveDuplicateVertices();
+            //output.RemoveDuplicateVertices(new Vertex.Comparer(matchColors: false));
 
             if (logger != null)
             {
@@ -276,7 +575,15 @@ namespace OPS.Geometry
 
             return output;
         }
-#else //LEGACY_IMPL
+
+        /// <summary>
+        /// This is the legacy impl that came more or less dircectly from terraintools, afaik
+        ///
+        /// onsight/terraintools sha 840d24d65f8cc05653e7b8155156cb8bb6d31a75 ClevererCombinePointClouds
+        ///
+        /// Should implement the same algorithm as CombineXY(), but this impl is not parallelized.
+        /// </summary>
+        public Mesh CombineXYLegacy(Mesh[] clouds, Vector3[] origins, ILogger logger = null)
         {
             // Compute bounds of surface area
             BoundingBox bbox = clouds.FirstOrDefault().Bounds();
@@ -330,7 +637,8 @@ namespace OPS.Geometry
 
             // Filter points
             {
-                Random random = NumberHelper.MakeRandomGenerator();
+                double smallestNNDistanceSq = SmallestNNDistance * SmallestNNDistance;
+                double maxMSEThreshold = MaxRMSE * MaxRMSE;
                 for (int i = 0; i < width; i++)
                 {
                     for (int j = 0; j < height; j++)
@@ -388,7 +696,7 @@ namespace OPS.Geometry
                                 int cloudIdx = cloudIndices[idx];
                                 int numNNSamples = Math.Min(points[cloudIdx][i, j].Count, 30);
                                 int[] nnIndices = Enumerable.Range(0, points[cloudIdx][i, j].Count)
-                                    .OrderBy(x => random.NextDouble())
+                                    .OrderBy(x => rng.NextDouble())
                                     .Take(numNNSamples).ToArray();
 
                                 double nnDistMSE = 0;
@@ -410,7 +718,7 @@ namespace OPS.Geometry
                                             if (dist < minNNDist)
                                                 minNNDist = dist;
 
-                                            if (dist <SmallestNNDistance)
+                                            if (dist < smallestNNDistanceSq)
                                                 break;
                                         }
                                         nnDistMSE += minNNDist;
@@ -436,7 +744,7 @@ namespace OPS.Geometry
                                 }
                             }
 
-                            if (maxNNMSE > MaxMSEThreshold)
+                            if (maxNNMSE > maxMSEThreshold)
                             {
                                 cloudIndices.RemoveAt(maxDistIdx);
                                 continue;
@@ -476,6 +784,5 @@ namespace OPS.Geometry
 
             return output;
         }
-#endif
     }
 }

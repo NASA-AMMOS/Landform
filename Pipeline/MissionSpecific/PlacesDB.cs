@@ -1,4 +1,3 @@
-//#define DEBUG_PLACES
 using System;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
@@ -71,6 +70,20 @@ namespace OPS.Pipeline
         //application/xml or application/json (experimental)
         [ConfigEnvironmentVariable("LANDFORM_PLACES_RESPONSE_TYPE")]
         public string ResponseType { get; set; } = "application/xml";
+
+        //max response time including all retries
+        //unlimited if non-positive
+        //default may be overridden by MissionSpecific.GetPlacesConfigDefaults()
+        //https://github.jpl.nasa.gov/OnSight/Landform/issues/1154
+        [ConfigEnvironmentVariable("LANDFORM_PLACES_TIMEOUT_SECONDS")]
+        public int TimeoutSeconds { get; set; } = 600;
+
+        //max number of request retries
+        //non-positive same as 1
+        //default may be overridden by MissionSpecific.GetPlacesConfigDefaults()
+        //https://github.jpl.nasa.gov/OnSight/Landform/issues/1154
+        [ConfigEnvironmentVariable("LANDFORM_PLACES_MAX_RETRIES")]
+        public int MaxRetries { get; set; } = 20;
     }
 
     /// <summary>
@@ -82,6 +95,8 @@ namespace OPS.Pipeline
         public string FALLBACK_VIEW = "telemetry";
 
         private ILogger logger;
+
+        private bool debug;
 
         private PlacesConfig config;
 
@@ -98,9 +113,10 @@ namespace OPS.Pipeline
         private ConcurrentDictionary<SiteDrive, Vector3> cachedOffsetFromStart =
             new ConcurrentDictionary<SiteDrive, Vector3>();
 
-        public PlacesDB(ILogger logger = null)
+        public PlacesDB(ILogger logger = null, bool debug = false)
         {
             this.logger = logger;
+            this.debug = debug;
 
             config = PlacesConfig.Instance;
 
@@ -210,39 +226,64 @@ namespace OPS.Pipeline
                 {
                     request.AddHeader("Accept", config.ResponseType);
                 }
-                
-                IRestResponse response = client.Execute(request);
-                
-                if (response.ResponseStatus != ResponseStatus.Completed ||
-                    response.StatusCode != System.Net.HttpStatusCode.OK)
+
+                int maxSec = config.TimeoutSeconds;
+                if (maxSec > 0)
                 {
-                    cache[query] = null;
-                    throw new Exception(string.Format("PlacesDB: {0} connecting for request {1}: {2}",
-                                                      response.StatusCode, config.Url + "/" + query,
-                                                      response.ErrorMessage));
+                    request.Timeout = maxSec * 1000;
                 }
+
+                double startSec = UTCTime.Now();
+                int maxRetries = Math.Max(config.MaxRetries, 1);
+                string err = null;
+                for (int i = 0; i < maxRetries; i++)
+                {
+                    IRestResponse response = client.Execute(request);
                 
-                string content = response.Content;
-                cache[query] = content;
-
-                Debug("PlacesDB request: {0}, response:\n{1}", config.Url + "/" + query, content);
-
-                return content;
+                    if (response.ResponseStatus == ResponseStatus.Completed &&
+                        response.StatusCode == HttpStatusCode.OK)
+                    {
+                        string content = response.Content;
+                        cache[query] = content;
+                        Debug("request: {0}, response:\n{1}", config.Url + "/" + query, content);
+                        return content;
+                    }
+                    else
+                    {
+                        err = string.Format("got status code {0} for {1} on try {2}: {3}", response.StatusCode,
+                                            config.Url + "/" + query, i, response.ErrorMessage);
+                        Debug(err);
+                        if (response.StatusCode != HttpStatusCode.BadGateway && //proxies can impose their own timeout
+                            response.ResponseStatus != ResponseStatus.TimedOut)
+                        {
+                            throw new Exception(err);
+                        }
+                    }
+                    if (maxSec > 0 && ((UTCTime.Now() - startSec) > maxSec))
+                    {
+                        err = string.Format("exceeded max time {0} for {1} on try {2}", Fmt.HMS(maxSec * 1000),
+                                            config.Url + "/" + query, i);
+                        Debug(err);
+                        throw new Exception(err);
+                    }
+                }
+                throw new Exception(err);
             }
         }
 
         private void Debug(string msg, params Object[] args)
         {
-#if DEBUG_PLACES
-            if (logger != null)
+            if (debug)
             {
-                logger.LogInfo(msg, args);
+                if (logger != null)
+                {
+                    logger.LogInfo("PlacesDB " + msg, args);
+                }
+                else
+                {
+                    Console.WriteLine("PlacesDB " + msg, args);
+                }
             }
-            else
-            {
-                Console.WriteLine(msg, args);
-            }
-#endif
         }
 
         private XmlDocument ParseXml(string query, string response)
@@ -302,7 +343,7 @@ namespace OPS.Pipeline
                                      double.Parse(nodes[0].Attributes["z"].Value));
             }
 
-            Debug("PlacesDB request: {0}, offset {1}", query, offset);
+            Debug("request: {0}, offset {1}", query, offset);
 
             return offset;
         }
@@ -503,8 +544,13 @@ namespace OPS.Pipeline
 
         /// <summary>
         /// returns X = easting meters, Y = northing meters
-        /// easting is distance along equator east from prime meridian
-        /// northing is distance above equator along a meridian
+        ///
+        /// standard parallel is equator by default but missions not landing close to the equator may use
+        /// equirectangular projections with a different standard parallel to get approximately square pixels in the DEM
+        ///
+        /// easting is distance along standard parallel from longitude=0 if absolute, else from ULC for orbitalIndex
+        /// northing is distance along a meridian above equator if absolute, else from ULC for orbitalIndex
+        ///
         /// requires both upper_left_{easting,northing}_m to be present in the metadata for orbitalIndex
         /// </summary>
         public Vector2? GetULCEastingNorthing(int orbitalIndex)
@@ -565,8 +611,11 @@ namespace OPS.Pipeline
 
         /// <summary>
         /// returns X = easting meters, Y = northing meters, Z = elevation meters
+        ////
+        /// standard parallel is equator by default but missions not landing close to the equator may use
+        /// equirectangular projections with a different standard parallel to get approximately square pixels in the DEM
         ///
-        /// easting is distance along equator east from prime meridian if absolute, else east from ULC for orbitalIndex
+        /// easting is distance along standard parallel from longitude=0 if absolute, else from ULC for orbitalIndex
         /// northing is distance along a meridian above equator if absolute, else north from ULC for orbitalIndex
         ///
         /// proper behavior with absolute=false requires both upper_left_{easting,northing}_m to be present
@@ -579,8 +628,8 @@ namespace OPS.Pipeline
 
             //offset is in standard mission local level frame: +X north, +Y east, +Z down
             var v = GetOffset(query);
-            double easting = v.Y; // distance along surface on equator east of prime meridian
-            double northing = v.X; // distance along surface on prime meridian north of equator
+            double easting = v.Y;
+            double northing = v.X;
             double elevation = -v.Z;
 
             var ulc = GetULCEastingNorthing(orbitalIndex);

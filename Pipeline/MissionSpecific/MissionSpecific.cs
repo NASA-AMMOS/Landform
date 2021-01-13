@@ -205,6 +205,11 @@ namespace OPS.Pipeline
             return new SiteDrive(1, 0);
         }
 
+        public virtual Vector2? GetExpectedLandingLonLat()
+        {
+            return null;
+        }
+
         public virtual string RoverMotionCounter(PDSParser parser)
         {
             return parser.RMC;
@@ -258,6 +263,11 @@ namespace OPS.Pipeline
 
         public abstract double? GetMaximumFocusDistance(PDSMetadata metadata);
 
+        public virtual string GetProductIDString(string product)
+        {
+            return StringHelper.GetLastUrlPathSegment(product, stripExtension: true);
+        }
+
         /// <summary>
         /// ordering a sequence with this function should put the "better" observations earlier in the list
         /// thus a "better" observation should be *less than* a "worse" observation, uses
@@ -274,7 +284,9 @@ namespace OPS.Pipeline
         /// <summary>
         /// see RoverObservationComparator.FilterProductIdGroups()  
         /// </summary>
-        public virtual IEnumerable<RoverProductId> FilterProductIdGroups(IEnumerable<RoverProductId> products)
+        public virtual IEnumerable<RoverProductId>
+            FilterProductIdGroups(IEnumerable<RoverProductId> products,
+                                  Action<string, List<RoverProductId>, List<RoverProductId>> spew = null)
         {
             return products;
         }
@@ -918,9 +930,14 @@ namespace OPS.Pipeline
         /// Get frame of tactical meshes as loaded from file.
         /// Should be one of the frame meta-names accepted by FrameCache.GetObservationTransform().
         /// </summary>
-        public virtual string GetTacticalMeshFrame()
+        public virtual string GetTacticalMeshFrame(RoverProductId id = null)
         {
             return "site";
+        }
+
+        public string GetTacticalMeshFrame(string idStr)
+        {
+            return GetTacticalMeshFrame(ParseProductId(idStr));
         }
 
         /// <summary>

@@ -94,7 +94,7 @@ namespace OPS.Geometry
                 vertexTree = new RTree<int>(maxEntries, minEntries);
                 for(int i = 0; i < vertices.Count; i++)
                 {
-                    vertexTree.Add(vertices[i].Bounds().ToRectangle(), i);
+                    vertexTree.Add(vertices[i].Position.ToRectangle(), i);
                 }
             }
             if (HasUVs && buildUVFaceTree)
@@ -272,7 +272,7 @@ namespace OPS.Geometry
                 // Try to clip each face to the box
                 foreach (Triangle t in faces)
                 {
-                    // If clip ever returns a triangle it means there is at least one triangle in the box and we can exit
+                    // If clip ever returns a triangle it means there is at least one triangle in the box
                     foreach (Triangle clippedT in t.Clip(box))
                     {
                         return false;

@@ -3,6 +3,7 @@ using System.IO;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using OPS.Util;
 using OPS.Cloud;
@@ -251,6 +252,18 @@ namespace OPS.Pipeline
             return MissionM2020Config.Instance.PreferLinearGeometryProducts;
         }
 
+        public override string GetProductIDString(string product)
+        {
+            string idStr = StringHelper.GetLastUrlPathSegment(product, stripExtension: true);
+            string pat = @"_LOD(\d*)(_\d+)?$";
+            var match = Regex.Match(idStr, pat, RegexOptions.IgnoreCase);
+            if (match.Success)
+            {
+                idStr = idStr.Substring(0, idStr.Length - match.Groups[0].Value.Length);
+            }
+            return idStr;
+        }
+
         public override RoverObservationComparator GetRoverObservationComparator()
         {
             // 0 if a and b are equivalently good
@@ -302,13 +315,37 @@ namespace OPS.Pipeline
                                                   PreferEyeForGeometry(), this, ext);
         }
 
-        public override IEnumerable<RoverProductId> FilterProductIdGroups(IEnumerable<RoverProductId> products)
+        public override IEnumerable<RoverProductId>
+            FilterProductIdGroups(IEnumerable<RoverProductId> products,
+                                  Action<string, List<RoverProductId>, List<RoverProductId>> spew = null)
         {
-            Func<RoverProductId, bool> isEECAM = id => IsHazcam(id.Camera) || IsNavcam(id.Camera);
-            var groups = products.GroupBy(id => id.GetPartialId(this, includeVariants: false, includeVersion: false));
+            spew = spew ?? ((str, orig, filt) => {});
+
+            //if we have multiple resolutions (downsample levels) within a single observation
+            //then keep only the highest res (lowest downsample)
+            //this is important so that we don't end up with mixed resolutions within one observation
+            //e.g. a mask with a different resolution than the corresponding image
+            var groups = products.GroupBy(id => id.GetPartialId(this, includeProductType: false,
+                                                                includeVariants: false, includeVersion: false));
+            var highestRes = new List<RoverProductId>();
             foreach (var group in groups)
             {
-                var filtered = group.Select(id => id);
+                var orig = group.ToList();
+
+                //downsample 0-3, prefer lower
+                char minDS = orig.Select(id => id.FullId[DOWNSAMPLE_FIELD]).DefaultIfEmpty('0').Min();
+                var filtered = orig.Where(id => id.FullId[DOWNSAMPLE_FIELD] == minDS).ToList();
+                spew("downsample", orig, filtered);
+
+                highestRes.AddRange(filtered);
+            }
+
+            Func<RoverProductId, bool> isEECAM = id => IsHazcam(id.Camera) || IsNavcam(id.Camera);
+
+            groups = highestRes.GroupBy(id => id.GetPartialId(this, includeVariants: false, includeVersion: false));
+            foreach (var group in groups)
+            {
+                var orig = group.ToList();
 
                 //https://docs.google.com/document/d/15iZgxqsecD6svOUuiEQm2J10a2ziKYeQQXU_f-VXGZc#heading=h.76imaw5jdp48
 
@@ -316,28 +353,30 @@ namespace OPS.Pipeline
                 //note the SIS changed to allow only A or M here, but this code should remain correct (prefer M over A)
                 //https://github.jpl.nasa.gov/OnSight/Landform/issues/852
                 //though also see https://github.jpl.nasa.gov/OnSight/Landform/issues/891
-                char maxEDS = filtered
+                char maxEDS = orig
                     .Where(id => isEECAM(id))
                     .Select(id => id.FullId[EECAM_DOWNSAMPLE_FIELD])
                     .DefaultIfEmpty('0')
                     .Max();
-                filtered = filtered.Where(id => !isEECAM(id) || id.FullId[EECAM_DOWNSAMPLE_FIELD] == maxEDS);
+                var filtered = orig.Where(id => !isEECAM(id) || id.FullId[EECAM_DOWNSAMPLE_FIELD] == maxEDS).ToList();
+                spew("ECAM downsampling", orig, filtered);
+                orig = filtered;
 
                 //EECAM reconstruction counter 0-9A-Z, prefer higher
-                char maxERC = filtered
+                char maxERC = orig
                     .Where(id => isEECAM(id))
                     .Select(id => id.FullId[EECAM_RECONSTRUCTION_FIELD])
                     .DefaultIfEmpty('0')
                     .Max();
-                filtered = filtered.Where(id => !isEECAM(id) || id.FullId[EECAM_RECONSTRUCTION_FIELD] == maxERC);
-
-                //downsample 0-3, prefer lower
-                char minDS = filtered.Select(id => id.FullId[DOWNSAMPLE_FIELD]).DefaultIfEmpty('0').Min();
-                filtered = filtered.Where(id => id.FullId[DOWNSAMPLE_FIELD] == minDS);
+                filtered = orig.Where(id => !isEECAM(id) || id.FullId[EECAM_RECONSTRUCTION_FIELD] == maxERC).ToList();
+                spew("ECAM recon counter", orig, filtered);
+                orig = filtered;
 
                 //compresion, prefer higher
-                int maxCP = filtered.Select(id => CompressionPreference(id)).DefaultIfEmpty(0).Max();
-                filtered = filtered.Where(id => CompressionPreference(id) == maxCP);
+                int maxCP = orig.Select(id => CompressionPreference(id)).DefaultIfEmpty(0).Max();
+                filtered = orig.Where(id => CompressionPreference(id) == maxCP).ToList();
+                spew("compression", orig, filtered);
+                orig = filtered;
 
                 foreach (var id in filtered)
                 {
@@ -406,14 +445,9 @@ namespace OPS.Pipeline
         {
             id = StringHelper.GetLastUrlPathSegment(id, stripExtension: true);
 
-            //TODO for now the M2020 SIS for unified mesh product IDs is incomplete
-            //and M2020 datasets we're working with so far that have unified meshes seem to use the MSL format
-            //https://github.jpl.nasa.gov/OnSight/Landform/issues/793
-            //MSL unified mesh IDs can be from 32 to 36 chars long
-            //Unfortunately regular MSL IDs are 36 chars long - first try as unified
-            if (id.Length >= MSLUnifiedMeshProductId.MIN_LENGTH && id.Length <= MSLUnifiedMeshProductId.MAX_LENGTH)
+            if (id.Length >= M2020UnifiedMeshProductId.MIN_LENGTH && id.Length <= M2020UnifiedMeshProductId.MAX_LENGTH)
             {
-                var unified = MSLUnifiedMeshProductId.Parse(id);
+                var unified = M2020UnifiedMeshProductId.Parse(id);
                 if (unified != null)
                 {
                     return unified;
@@ -491,23 +525,34 @@ namespace OPS.Pipeline
             return MissionM2020Config.Instance.S3Proxy.Replace("{venue}", venue);
         }
 
+        public override Vector2? GetExpectedLandingLonLat()
+        {
+            return new Vector2(77.403, 18.488); //Jezero crater
+        }
+
+        public virtual string GetOrbitalS3Folder()
+        {
+            return "s3://m20-ids-g-landform/M2020/orbital/";
+        }
+
         public override string GetOrbitalConfigDefaults()
         {
-            //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/1019
-            //use assets at s3://m20-ids-g-landform/M2020/orbital
+            //greyscale image: M20_PrimeMission_HiRISE_ORR_25cm.tif
+            //color image: M20_PrimeMission_HiRISE_CLR_25cm.tif
+            string s3Folder = GetOrbitalS3Folder();
             return "{\n" +
-                "\"DEMURL\": \"\",\n" +
-                "\"ImageURL\": \"\",\n" +
-                "\"DEMStoragePath\": \"\",\n" +
-                "\"ImageStoragePath\": \"\",\n" +
-                "\"DEMPlacesDBIndex\": -1,\n" +
-                "\"ImagePlacesDBIndex\": -1\n" +
+                "\"DEMURL\": \"" + s3Folder + "M20_PrimeMission_HiRISE_DEM_1m.tif\",\n" +
+                "\"ImageURL\": \"" + s3Folder + "M20_PrimeMission_HiRISE_CLR_25cm.tif\",\n" +
+                "\"StoragePath\": \"M2020/orbital\",\n" +
+                "\"DEMMetersPerPixel\": 1,\n" +
+                "\"ImageMetersPerPixel\": 0.25,\n" +
+                "\"DEMPlacesDBIndex\": 0,\n" +
+                "\"ImagePlacesDBIndex\": 0\n" +
                 "}";
         }
 
         public override string GetPlacesConfigDefaults()
         {
-            //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/725#issuecomment-267319
             return "{\n" +
                 $"\"Url\": \"https://places.{venue}.m20.jpl.nasa.gov\",\n" +
                 "\"View\": \"best_tactical\",\n" +
@@ -526,9 +571,24 @@ namespace OPS.Pipeline
             return RoverProductGeometry.Raw;
         }
 
+        public override string GetTacticalMeshFrame(RoverProductId id = null)
+        {
+            if (id is M2020OPGSProductId)
+            {
+                //https://github.jpl.nasa.gov/OnSight/Landform/issues/1149
+                switch ((id as M2020OPGSProductId).MeshType.ToUpper())
+                {
+                    case "R": return "rover";
+                    default: return base.GetTacticalMeshFrame();
+                }
+            }
+            return base.GetTacticalMeshFrame();
+        }
+
         public override string GetTacticalMeshTriggerRegex()
         {
-            return "auto_obj_lod_fn"; //see ProcessTactical.ParseMeshRegex()
+            //return "auto_obj_lod_fn"; //see ProcessTactical.ParseMeshRegex()
+            return "auto_iv";
         }
     }
 
@@ -737,15 +797,7 @@ namespace OPS.Pipeline
         {
             //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/1004
             //use assets at s3://m20-ids-g-landform/MarsYard_Aerial06062019
-            return "{\n" +
-                "\"DEMURL\": \"\",\n" +
-                "\"ImageURL\": \"\",\n" +
-                "\"DEMStoragePath\": \"\",\n" +
-                "\"ImageStoragePath\": \"\",\n" +
-                "\"BodyName\": \"Earth\",\n" +
-                "\"DEMPlacesDBIndex\": -1,\n" +
-                "\"ImagePlacesDBIndex\": -1\n" +
-                "}";
+            return null;
         }
 
         public override bool AllowPlacesDB()
@@ -823,15 +875,7 @@ namespace OPS.Pipeline
         {
             //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/1004
             //use assets at s3://m20-ids-g-landform/ROASTT20/orbital
-            return "{\n" +
-                "\"DEMURL\": \"\",\n" +
-                "\"ImageURL\": \"\",\n" +
-                "\"DEMStoragePath\": \"\",\n" +
-                "\"ImageStoragePath\": \"\",\n" +
-                "\"BodyName\": \"Earth\",\n" +
-                "\"DEMPlacesDBIndex\": -1,\n" +
-                "\"ImagePlacesDBIndex\": -1\n" +
-                "}";
+            return null;
         }
 
         public override string GetPlacesConfigDefaults()
@@ -882,17 +926,9 @@ namespace OPS.Pipeline
             return Mission.M20SOPS;
         }
 
-        public override string GetOrbitalConfigDefaults()
+        public override string GetOrbitalS3Folder()
         {
-            //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/1019
-            return "{\n" +
-                "\"DEMURL\": \"\",\n" +
-                "\"ImageURL\": \"\",\n" +
-                "\"DEMStoragePath\": \"\",\n" +
-                "\"ImageStoragePath\": \"\",\n" +
-                "\"DEMPlacesDBIndex\": -1,\n" +
-                "\"ImagePlacesDBIndex\": -1\n" +
-                "}";
+            return "s3://m20-sops-ods/ods/surface/strategic/ids/orbital/";
         }
     }
 }

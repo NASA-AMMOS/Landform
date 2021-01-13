@@ -26,6 +26,7 @@ namespace OPS.Util
             parent[i] = i;
         }
 
+        // Path compression, O(log*n). For practical values of n, log* n <= 5
         public int Find(int i)
         {
             while (i != parent[i]) // If i is not root of tree we set i to his parent until we reach root (parent of all parents)
@@ -33,16 +34,6 @@ namespace OPS.Util
                 i = parent[i];
             }
             return i;
-        }
-
-        // Path compression, O(log*n). For practical values of n, log* n <= 5
-        public int FindPath(int i)
-        {
-            if (i != parent[i])
-            {
-                parent[i] = FindPath(parent[i]);
-            }
-            return parent[i];
         }
 
         public void Union(int i, int j)

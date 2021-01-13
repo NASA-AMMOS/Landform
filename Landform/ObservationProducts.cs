@@ -364,6 +364,11 @@ namespace OPS.Landform
                 var mo = meshOpts.Clone();
                 mo.Decimate = mbs;
 
+                if (mbsObs != null && mbsObs == obs.MeshObservation)
+                {
+                    mo.LoadedFrame = mission.GetTacticalMeshFrame(mbsObs.Name);
+                }
+
                 int npts = 0, nn = 0, nt = 0;
                 Mesh mesh = null;
                 if (buildWedgeMeshes && ((options.UseMeshRDRs && obs.Meshable) ||

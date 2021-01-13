@@ -355,6 +355,8 @@ fi
 
 if [ "$dry" -o "$only_ingest" -o "$only_cleanup" ]; then log=; else mkdir -p $logdir; printf "${cmdline}\r\n" > $log; fi
 
+if [ ! -d "$outdir" ]; then mkdir -p $outdir; fi
+
 echo "processing ${mission} contextual mesh ${sol}_${sd} (${num_sd} sitedrives) from ${indir} to ${outdir}"
 
 if [ "$cleanup" -a -d $storagedir/$venue ]; then

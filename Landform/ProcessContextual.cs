@@ -46,7 +46,7 @@ using OPS.Pipeline.AlignmentServer;
 /// developers only, and has additional options for development and debugging workflows.  process-contextual
 /// (ProcessContextual.cs) can be used by developers but is mainly intended for deployment and production use.
 ///
-/// Also see ProcessTactical.cs and processTactical.sh which automate the tactical mesh tileset workflow.
+/// Also see ProcessTactical.cs and process-tactical.sh which automate the tactical mesh tileset workflow.
 ///
 /// A contextual mesh is generated for a specific primary sol and primary sitedrive.  It combines data from a set of
 /// sols and sitedrives (which must contain the primary sol/sitedrive), as well as orbital assets if available.  (Note
@@ -111,8 +111,19 @@ using OPS.Pipeline.AlignmentServer;
 ///
 /// Windjana in batch mode using already downloaded RDRs:
 ///
-/// Landform.exe process-contextual --mission=M2020 --rdrdir=../rdrs --sols=0609-0630
+/// Landform.exe process-contextual --mission=M2020 --rdrdir=out/windjana/rdrs --sols=0609-0630
 ///   --sitedrives=0311472,0311256,0311444,0311330 --nocombinedmanifest
+///
+/// MSL orbital only (assuming out/windjana/orbital-only does not contain RDRs; add --nosurface --notileset
+/// --nocombinedmanifest to just ingest and spew oribtal metadata):
+///
+/// Landform.exe process-contextual --mission=MSL --rdrdir=out/windjana/orbital-only --sols=0609 --sitedrives=0311472
+///
+/// M2020 orbital only, 1km extent, without PlacesDB:
+///
+/// export LANDFORM_ORBITAL_ALLOW_EXPECTED_LANDING_LON_LAT=true
+/// Landform.exe process-contextual --mission=M2020 --rdrdir=out/M2020-landing-orbital --sols=0001 --sitedrives=0010000
+///     --extent=1024
 ///
 /// </summary>
 namespace OPS.Landform
@@ -310,6 +321,26 @@ namespace OPS.Landform
             public HashSet<SiteDrive> SiteDrives = new HashSet<SiteDrive>();
         }
 
+        private string Dump(ContextualMeshParameters parameters, bool verbose = false, ContextualMeshMessage cmm = null)
+        {
+            var ret = string.Format("contextual mesh {0}_{1}",
+                                    SolToString(parameters.PrimarySol), parameters.PrimarySiteDrive);
+            if (verbose)
+            {
+                ret += string.Format(" for {0}; sols {1}; sitedrives {2}",
+                                     parameters.RDRDir, MakeSolRanges(parameters.Sols),
+                                     string.Join(",", parameters.SiteDrives));
+                if (cmm != null)
+                {
+                    ret += string.Format(", {3} wedges, timestamp {4} UTC",
+                                         cmm.numWedges >= 0 ? cmm.numWedges.ToString() : "??",
+                                         cmm.timestamp > 0 ? UTCTime.MSSinceEpochToDate(cmm.timestamp).ToString()
+                                         : "??");
+                }
+            }
+            return ret;
+        }
+
         //RDR directory -> sitedrive -> list or wedge URL -> last changed UTC milliseconds
         //list and wedge URLs for which we recently recived ObjectCreated (i.e. changed) messages
         //when MasterLoop() sees that none have changed for a given RDR directory in at least options.MasterDebounceSec
@@ -339,24 +370,11 @@ namespace OPS.Landform
                 {
                     var cmm = (msg as ContextualMeshMessage);
                     var parameters = MakeParameters(cmm);
-
                     if (parameters == null)
                     {
                         return "(invalid contextual mesh message)";
                     }
-
-                    var desc = string.Format("contextual mesh {0}_{1}",
-                                             SolToString(parameters.PrimarySol), parameters.PrimarySiteDrive);
-                    if (verbose)
-                    {
-                        desc += string.Format(" for {0}; sols {1}; sitedrives {2}, {3} wedges, timestamp {4} UTC",
-                                              parameters.RDRDir, MakeSolRanges(parameters.Sols),
-                                              string.Join(",", parameters.SiteDrives),
-                                              cmm.numWedges >= 0 ? cmm.numWedges.ToString() : "??",
-                                              cmm.timestamp > 0 ? UTCTime.MSSinceEpochToDate(cmm.timestamp).ToString()
-                                              : "??");
-                    }
-                    return desc;
+                    return Dump(parameters, verbose, cmm);
                 }
                 catch //this entire method is never supposed to throw
                 {
@@ -554,11 +572,12 @@ namespace OPS.Landform
                     }
                     workerQueue = GetWorkerMessageQueue();
                 }
-
-                solRange = options.MaxSolRange >= 0 ? options.MaxSolRange : DEF_MAX_SOL_RANGE;
-                maxWedges = options.MaxContextualMeshWedges > 0 ? options.MaxContextualMeshWedges : int.MaxValue;
-                maxSDs = options.MaxSiteDrives > 0 ? options.MaxSiteDrives : int.MaxValue;
             }
+
+            solRange = options.MaxSolRange >= 0 ? options.MaxSolRange : DEF_MAX_SOL_RANGE;
+            maxWedges = options.MaxContextualMeshWedges > 0 ? options.MaxContextualMeshWedges : int.MaxValue;
+            maxSDs = options.MaxSiteDrives > 0 ? options.MaxSiteDrives : int.MaxValue;
+            pipeline.LogInfo("max sol range {0}, max wedges {1}, max sitedrives {2}", solRange, maxWedges, maxSDs);
 
             return true;
         }
@@ -675,7 +694,8 @@ namespace OPS.Landform
         {
             var ret = new ContextualMeshParameters();
             ret.RDRDir = rdrDir;
-            int sep = Math.Max(sols.Length, Math.Min(sols.IndexOf('-'), sols.IndexOf(',')));
+            int sep = sols.IndexOfAny(new char[] { ',', '-' });
+            sep = sep < 0 ? sols.Length : sep;
             ret.PrimarySol = int.Parse(sols.Substring(0, sep));
             ret.Sols.UnionWith(FetchData.ExpandSolSpecifier(sols));
             var sds = SiteDrive.ParseList(siteDrives);
@@ -686,6 +706,7 @@ namespace OPS.Landform
 
         private void BuildContextualTileset(ContextualMeshParameters p)
         {
+            pipeline.LogInfo(Dump(p, verbose: true));
             BuildContextualTileset(p.RDRDir, p.PrimarySol, p.Sols, p.PrimarySiteDrive, p.SiteDrives);
         }
 
@@ -733,14 +754,14 @@ namespace OPS.Landform
             string destDir = GetDestDir(solDir);
 
             var orbitalCfg = OrbitalConfig.Instance;
-            var orbitalDir = fetchDir + "/orbital/";
-            Func<string, string, string> orbitalOpt = (opt, cfg) => !string.IsNullOrEmpty(opt) ? opt : cfg;
-            string orbitalDEMUrl = orbitalOpt(options.OrbitalDEMURL, orbitalCfg.DEMURL);
-            string orbitalDEMFile = orbitalOpt(options.OrbitalDEM, orbitalDir + orbitalCfg.DEMStoragePath);
-            string orbitalImageUrl = orbitalOpt(options.OrbitalImageURL, orbitalCfg.ImageURL);
-            string orbitalImageFile = orbitalOpt(options.OrbitalImage, orbitalDir + orbitalCfg.ImageStoragePath);
+            var orbitalDir = fetchDir + "/orbital/" + missionStr + "/";
+            Func<string, string, string> oopt = (opt, cfg) => !string.IsNullOrEmpty(opt) ? opt : cfg;
+            string orbitalDEMUrl = oopt(options.OrbitalDEMURL, orbitalCfg.DEMURL);
+            string orbitalImageUrl = oopt(options.OrbitalImageURL, orbitalCfg.ImageURL);
+            string orbitalDEMFile = oopt(options.OrbitalDEM, orbitalCfg.GetDEMFile(orbitalDir, orbitalDEMUrl));
+            string orbitalImageFile = oopt(options.OrbitalImage, orbitalCfg.GetImageFile(orbitalDir, orbitalImageUrl));
             string noOrbital = "";
-            if (options.NoOrbital || (string.IsNullOrEmpty(orbitalDEMUrl) && string.IsNullOrEmpty(orbitalImageUrl)))
+            if (options.NoOrbital || (string.IsNullOrEmpty(orbitalDEMFile) && string.IsNullOrEmpty(orbitalImageFile)))
             {
                 noOrbital = "--noorbital";
             }
@@ -767,14 +788,22 @@ namespace OPS.Landform
                     {
                         if (!string.IsNullOrEmpty(url) && !string.IsNullOrEmpty(file))
                         {
-                            string dir = Path.GetDirectoryName(file);
-                            Fetch(options.MaxOrbital, url, dir, "--raw", "--nosubdirs");
-                            string srcFile = StringHelper.GetLastUrlPathSegment(url);
-                            string destFile = Path.GetFileName(file);
-                            string fetchedFile = Path.Combine(dir, srcFile);
-                            if (srcFile != destFile && File.Exists(fetchedFile))
+                            if (!File.Exists(file))
                             {
-                                PathHelper.MoveFileAtomic(fetchedFile, file); //overwrites existing
+                                pipeline.LogInfo("fetching orbital asset {0} -> {1}", url, file);
+                                string dir = Path.GetDirectoryName(file);
+                                Fetch(options.MaxOrbital, url, dir, "--raw", "--nosubdirs");
+                                string srcFile = StringHelper.GetLastUrlPathSegment(url);
+                                string destFile = Path.GetFileName(file);
+                                string fetchedFile = Path.Combine(dir, srcFile);
+                                if (srcFile != destFile && File.Exists(fetchedFile))
+                                {
+                                    PathHelper.MoveFileAtomic(fetchedFile, file); //overwrites existing
+                                }
+                            }
+                            else
+                            {
+                                pipeline.LogInfo("using cached orbital asset {0} -> {1}", url, file);
                             }
                         }
                     };
@@ -789,9 +818,10 @@ namespace OPS.Landform
                         throw new NotImplementedException("ingestion from multi-sol s3 wildcard not implemented");
                     }
                     RunCommand("ingest", project, "--mission", fullMissionStr, "--onlyforsitedrives", sdsStr,
-                               "--inputpath", ingestDir + "/" + (options.RecursiveSearch ? "**" : "*"),
-                               noOrbital, noSurface, "--orbitaldem", orbitalDEMFile, "--orbitalimage", orbitalImageFile,
-                               "--orbitalframe", sdStr);
+                               "--inputpath", ingestDir + "/" + (options.RecursiveSearch ? "**" : "*"), noSurface,
+                               noOrbital, "--orbitalframe", sdStr,
+                               !string.IsNullOrEmpty(orbitalDEMFile) ? $"--orbitaldem={orbitalDEMFile}" : null,
+                               !string.IsNullOrEmpty(orbitalImageFile) ? $"--orbitalimage={orbitalImageFile}" : null);
                 }
 
                 if (!options.NoTileset)
@@ -865,6 +895,12 @@ namespace OPS.Landform
                 if (!RoverStereoPair.IsStereoEye(id.Camera, preferredEye))
                 {
                     return string.Format("stereo eye {0} != {1}", id.Camera, preferredEye);
+                }
+                var preferredGeometry = mission.PreferLinearGeometryProducts() ?
+                    RoverProductGeometry.Linearized : RoverProductGeometry.Raw;
+                if (id.Geometry != preferredGeometry)
+                {
+                    return string.Format("linearity {0} != {1}", id.Geometry, preferredGeometry);
                 }
             }
             return null;

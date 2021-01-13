@@ -38,7 +38,7 @@ namespace OPS.Landform
         [Option(HelpText = "Use level of detail meshes provided in input mesh", Default = false)]
         public bool LoadLODs { get; set; }
 
-        [Option(HelpText = "Create or fix LOD meshes, comma separated list of min-max ranges, finest to coarsest", Default = null)]
+        [Option(HelpText = "Create or fix LOD meshes, comma separated list of min-max ranges, finest to coarsest", Default = TextureCommand.DEF_FIXUP_LODS)]
         public string FixupLODs { get; set; }
 
         [Option(HelpText = "Occlusion mesh in same frame as input mesh, defaults to input mesh", Default = null)]
@@ -98,6 +98,8 @@ namespace OPS.Landform
 
     public class TextureCommand : GeometryCommand
     {
+        public const string DEF_FIXUP_LODS = "90000-300000,20000-90000,4000-20000,1000-4000,100-1000";
+
         protected TextureCommandOptions tcopts;
 
         protected IDictionary<string, ConvexHull> obsToHull;
@@ -747,7 +749,7 @@ namespace OPS.Landform
         }
 
         protected void InitBackprojectStrategy(Mesh mesh, MeshOperator meshOp, SceneCaster meshCaster,
-                                               SceneCaster occlusionScene)
+                                               SceneCaster occlusionScene, bool useSurfaceBounds = true)
         {
             backprojectStrategy = ObsSelectionStrategy.Create(tcopts.ObsSelectionStrategy);
 
@@ -756,6 +758,7 @@ namespace OPS.Landform
             backprojectStrategy.RaycastTolerance = tcopts.RaycastTolerance;
             backprojectStrategy.PreferNonlinear = !mission.PreferLinearRasterProducts();
             backprojectStrategy.DebugOutputPath = tcopts.WriteBackprojectDebug ? backprojectDebugDir : null;
+            backprojectStrategy.Logger = pipeline;
 
             int numOrbital = 0;
             if (!tcopts.NoOrbital && observationCache.ContainsObservation(Observation.ORBITAL_IMAGE_INDEX))
@@ -763,6 +766,10 @@ namespace OPS.Landform
                 var texObs = observationCache.GetObservation(Observation.ORBITAL_IMAGE_INDEX);
                 backprojectStrategy.OrbitalMetersPerPixel =
                     (texObs.CameraModel as ConformalCameraModel).AvgMetersPerPixel;
+                if (useSurfaceBounds && sceneMesh != null)
+                {
+                    backprojectStrategy.SurfaceExtent = sceneMesh.SurfaceExtent;
+                }
                 numOrbital = 1;
             }
 

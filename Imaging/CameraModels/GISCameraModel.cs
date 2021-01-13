@@ -37,8 +37,10 @@ namespace OPS.Imaging
         /// <summary>
         /// input: X = easting meters, Y = northing meters, Z = elevation meters
         /// output: X = longitude degrees, Y = latitude degrees, Z = elevation meters
-        /// easting is distance along equator east from prime meridian
+        /// easting is distance along equator east from longitude=0
         /// northing is distance above equator along a meridian
+        /// NOTE: do not use this when (easting, northing) is defined relative to an equirectangular projection
+        /// with nonzero standard parallel; use GISCameraModel.EastingNorthingToLonLat() instead
         /// </summary>
         public static Vector3 EastingNorthingToLonLat(Vector3 eastingNorthingElev, double bodyRadius)
         {
@@ -52,8 +54,10 @@ namespace OPS.Imaging
         /// <summary>
         /// input: X = easting meters, Y = northing meters
         /// output: X = longitude degrees, Y = latitude degrees
-        /// easting is distance along equator east from prime meridian
+        /// easting is distance along equator east from longitude=0
         /// northing is distance above equator along a meridian
+        /// NOTE: do not use this when (easting, northing) is defined relative to an equirectangular projection
+        /// with nonzero standard parallel; use GISCameraModel.EastingNorthingToLonLat() instead
         /// </summary>
         public static Vector2 EastingNorthingToLonLat(Vector2 eastingNorthing, double bodyRadius)
         {
@@ -63,8 +67,10 @@ namespace OPS.Imaging
         /// <summary>
         /// input: X = easting meters, Y = northing meters, Z = elevation meters
         /// output: X = longitude degrees, Y = latitude degrees, Z = elevation meters
-        /// easting is distance along equator east from prime meridian
+        /// easting is distance along equator east from longitude=0
         /// northing is distance above equator along a meridian
+        /// NOTE: do not use this when (easting, northing) is defined relative to an equirectangular projection
+        /// with nonzero standard parallel; use GISCameraModel.EastingNorthingToLonLat() instead
         /// </summary>
         public Vector3 EastingNorthingToLonLat(Vector3 eastingNorthingElev)
         {
@@ -74,8 +80,10 @@ namespace OPS.Imaging
         /// <summary>
         /// input: X = easting meters, Y = northing meters
         /// output: X = longitude degrees, Y = latitude degrees
-        /// easting is distance along equator east from prime meridian
+        /// easting is distance along equator east from longitude=0
         /// northing is distance above equator along a meridian
+        /// NOTE: do not use this when (easting, northing) is defined relative to an equirectangular projection
+        /// with nonzero standard parallel; use GISCameraModel.EastingNorthingToLonLat() instead
         /// </summary>
         public Vector2 EastingNorthingToLonLat(Vector2 eastingNorthing)
         {
@@ -85,8 +93,10 @@ namespace OPS.Imaging
         /// <summary>
         /// input: X = longitude degrees, Y = latitude degrees, Z = elevation meters
         /// output: X = easting meters, Y = northing meters, Z = elevation meters
-        /// easting is distance along equator east from prime meridian
+        /// easting is distance along equator east from longitude=0
         /// northing is distance above equator along a meridian
+        /// NOTE: do not use this when (easting, northing) is defined relative to an equirectangular projection
+        /// with nonzero standard parallel; use GISCameraModel.LonLatToEastingNorthing() instead
         /// </summary>
         public static Vector3 LonLatToEastingNorthing(Vector3 lonLatElev, double bodyRadius)
         {
@@ -100,8 +110,10 @@ namespace OPS.Imaging
         /// <summary>
         /// input: X = longitude degrees, Y = latitude degrees
         /// output: X = easting meters, Y = northing meters
-        /// easting is distance along equator east from prime meridian
+        /// easting is distance along equator east from longitude=0
         /// northing is distance above equator along a meridian
+        /// NOTE: do not use this when (easting, northing) is defined relative to an equirectangular projection
+        /// with nonzero standard parallel; use GISCameraModel.LonLatToEastingNorthing() instead
         /// </summary>
         public static Vector2 LonLatToEastingNorthing(Vector2 lonLat, double bodyRadius)
         {
@@ -111,8 +123,10 @@ namespace OPS.Imaging
         /// <summary>
         /// input: X = longitude degrees, Y = latitude degrees, Z = elevation meters
         /// output: X = easting meters, Y = northing meters, Z = elevation meters
-        /// easting is distance along equator east from prime meridian
+        /// easting is distance along equator east from longitude=0
         /// northing is distance above equator along a meridian
+        /// NOTE: do not use this when (easting, northing) is defined relative to an equirectangular projection
+        /// with nonzero standard parallel; use GISCameraModel.LonLatToEastingNorthing() instead
         /// </summary>
         public Vector3 LonLatToEastingNorthing(Vector3 lonLatElev)
         {
@@ -122,8 +136,10 @@ namespace OPS.Imaging
         /// <summary>
         /// input: X = longitude degrees, Y = latitude degrees
         /// output: X = easting meters, Y = northing meters
-        /// easting is distance along equator east from prime meridian
+        /// easting is distance along equator east from longitude=0
         /// northing is distance above equator along a meridian
+        /// NOTE: do not use this when (easting, northing) is defined relative to an equirectangular projection
+        /// with nonzero standard parallel; use GISCameraModel.LonLatToEastingNorthing() instead
         /// </summary>
         public Vector2 LonLatToEastingNorthing(Vector2 lonLat)
         {
@@ -218,7 +234,11 @@ namespace OPS.Imaging
     ///
     /// Optionally uses GDAL to load metadata from a GeoTIFF file.
     ///
-    /// Easting is distance along equator east from prime meridian.
+    /// Standard parallel is equator by default but missions not landing close to the equator may use
+    /// equirectangular projections with a different standard parallel to get approximately square pixels in the DEM.
+    ///
+    /// Easting is distance along standard parallel from longitude=0.
+    ///
     /// Northing is distance north of equator along a meridian.
     ///
     /// For JPL missions it's usually safe and correct to assume for GeoTIFF orbital assets that
@@ -240,7 +260,7 @@ namespace OPS.Imaging
     ///
     /// Planetary body frame origin is the center of the body.
     ///
-    /// Planetary body frame +X is lat=0, lon=0 (prime meridian at equator)
+    /// Planetary body frame +X is lat=0, lon=0
     /// Planetary body frame +Y is lat=0, lon=90deg
     /// planetary body frame +Z is lat=90deg, lon=0 (North)
     ///
@@ -311,6 +331,8 @@ namespace OPS.Imaging
         //colRowToEastingNorthing[5] = n-s pixel resolution (negative value)
         private double[] colRowToEastingNorthing = new double[6];
 
+        private double standardParallelDegrees;
+
         private Matrix colRowElevToEastingNorthingElev, eastingNorthingElevToColRowElev;
 
         //(longitude degrees, latitude degrees, elevation meters) -> (easting, northing, elevation) meters
@@ -365,17 +387,19 @@ namespace OPS.Imaging
 
         private void Init()
         {
-            InitColRowToEastingNorthing();
-            
             var projectionSpatialRef = new SpatialReference(ProjectionRef);
             
             var sphericalBodySpatialRef = Body.MakeSphericalSpatialReference();
-            
+
             lonLatElevToEastingNorthingElev =
                 new CoordinateTransformation(sphericalBodySpatialRef, projectionSpatialRef);
             
             eastingNorthingElevToLonLatElev =
                 new CoordinateTransformation(projectionSpatialRef, sphericalBodySpatialRef);
+
+            standardParallelDegrees = projectionSpatialRef.GetProjParm("standard_parallel_1", 0);
+
+            InitColRowToEastingNorthing();
         }
 
         private void InitColRowToEastingNorthing()
@@ -389,15 +413,19 @@ namespace OPS.Imaging
             eastingNorthingElevToColRowElev = Matrix.Invert(colRowElevToEastingNorthingElev);
         }
 
-        public void Dump(ILogger logger)
+        public void Dump(ILogger logger, string prefix = null)
         {
+            prefix = prefix ?? "";
             var x = colRowToEastingNorthing;
-            logger.LogInfo("{0} bits, {1} bands, {2}x{3} pixels, {4:f3}x{5:f3}m",
-                           Bits, Bands, Width, Height, WidthMeters, HeightMeters);
-            logger.LogInfo("easting  = {0} + col * {1} + row * {2}", x[0], x[1], x[2]);
-            logger.LogInfo("northing = {0} + col * {1} + row * {2}", x[3], x[4], x[5]);
-            logger.LogInfo("projection ref: {0}", ProjectionRef);
-            logger.LogInfo("planetary body: {0}", BodyName);
+            logger.LogInfo("{0}{1} bits, {2} bands, {3}x{4} pixels, {5:f3}x{6:f3}m",
+                           prefix, Bits, Bands, Width, Height, WidthMeters, HeightMeters);
+            logger.LogInfo("Geotransform: GT(0)={0}, GT(1)={1}, GT(2)={2}, GT(3)={3}, GT(4)={4}, GT(5)={5}",
+                           x[0], x[1], x[2], x[3], x[4], x[5]); //https://gdal.org/tutorials/geotransforms_tut.html
+            logger.LogInfo("standard parallel: {0:f7}deg", standardParallelDegrees);
+            logger.LogInfo("{0}easting  = {1} + col * {2} + row * {3}", prefix, x[0], x[1], x[2]);
+            logger.LogInfo("{0}northing = {1} + col * {2} + row * {3}", prefix, x[3], x[4], x[5]);
+            logger.LogInfo("{0}projection ref: {1}", prefix, ProjectionRef);
+            logger.LogInfo("{0}planetary body: {1}", prefix, BodyName);
         }
 
         /* start CameraModel implementation ***************************************************************************/
@@ -661,29 +689,31 @@ namespace OPS.Imaging
         /// calculate this as on the order of about 16cm at 1km from the tangent point for a planet the size of Mars.
         /// </summary>
         public Vector2 CheckLocalGISImageBasisAndGetResolution(Vector2 originPixel, ILogger logger = null,
-                                                               bool throwOnError = false)
+                                                               string prefix = null, bool throwOnError = false)
         {
+            prefix = prefix ?? "";
+
             Vector3 bodyNorth = Vector3.Normalize(LonLatToXYZ(new Vector2(0, 90)));
 
             if (logger != null)
             {
-                logger.LogInfo("North (latitude 90) direction in body: ({0:f3}, {1:f3}, {2:f3})",
-                               bodyNorth.X, bodyNorth.Y, bodyNorth.Z);
+                logger.LogInfo("{0}North (latitude 90) direction in body: ({1:f3}, {2:f3}, {3:f3})",
+                               prefix, bodyNorth.X, bodyNorth.Y, bodyNorth.Z);
                 
                 var meridian = Vector3.Normalize(LonLatToXYZ(new Vector2(0, 0)));
-                logger.LogInfo("prime meridian (longitude 0) at equator direction in body: ({0:f3}, {1:f3}, {2:f3})",
-                               meridian.X, meridian.Y, meridian.Z);
+                logger.LogInfo("{0}longitude 0 at equator direction in body: ({1:f3}, {2:f3}, {3:f3})",
+                               prefix, meridian.X, meridian.Y, meridian.Z);
 
                 var meridian90 = Vector3.Normalize(LonLatToXYZ(new Vector2(90, 0)));
-                logger.LogInfo("longitude 90 at equator direction in body: ({0:f3}, {1:f3}, {2:f3})",
-                               meridian90.X, meridian90.Y, meridian90.Z);
+                logger.LogInfo("{0}longitude 90 at equator direction in body: ({1:f3}, {2:f3}, {3:f3})",
+                               prefix, meridian90.X, meridian90.Y, meridian90.Z);
 
                 var xLonLat = XYZToLonLat(new Vector3(1, 0, 0));
                 var yLonLat = XYZToLonLat(new Vector3(0, 1, 0));
                 var zLonLat = XYZToLonLat(new Vector3(0, 0, 1));
-                logger.LogInfo("body frame +X: lat={0:f7}, lon={1:f7}", xLonLat.Y, xLonLat.X);
-                logger.LogInfo("body frame +Y: lat={0:f7}, lon={1:f7}", yLonLat.Y, yLonLat.X);
-                logger.LogInfo("body frame +Z: lat={0:f7}, lon={1:f7}", zLonLat.Y, zLonLat.X);
+                logger.LogInfo("{0}body frame +X: lat={1:f7}, lon={2:f7}", prefix, xLonLat.Y, xLonLat.X);
+                logger.LogInfo("{0}body frame +Y: lat={1:f7}, lon={2:f7}", prefix, yLonLat.Y, yLonLat.X);
+                logger.LogInfo("{0}body frame +Z: lat={1:f7}, lon={2:f7}", prefix, zLonLat.Y, zLonLat.X);
             }
 
             GetLocalGISImageBasisInBodyFrame(originPixel, out Vector3 elevationInBody,
@@ -703,9 +733,10 @@ namespace OPS.Imaging
 
             if (logger != null)
             {
-                logger.LogInfo("GIS local image basis at pixel ({0:f3}, {1:f3})", originPixel.X, originPixel.Y);
-                logger.LogInfo("GIS local meters per pixel: {0:f3}x, {1:f3}y, aspect {2:f6}",
-                               metersPerPixel.X, metersPerPixel.Y, pixelAspect);
+                logger.LogInfo("{0}GIS local image basis at pixel ({1:f3}, {2:f3})",
+                               prefix, originPixel.X, originPixel.Y);
+                logger.LogInfo("{0}GIS local meters per pixel: {1:f3}x, {2:f3}y, aspect {3:f6}",
+                               prefix, metersPerPixel.X, metersPerPixel.Y, pixelAspect);
             }
 
             elevationInBody = Vector3.Normalize(elevationInBody);
@@ -726,12 +757,13 @@ namespace OPS.Imaging
 
             if (logger != null)
             {
-                logger.LogInfo("GIS local image basis skew angle: {0:f3}deg", skewAngleDeg);
+                logger.LogInfo("{0}GIS local image basis skew angle: {1:f3}deg", prefix, skewAngleDeg);
             }
 
             if (!skewOK)
             {
-                string msg = string.Format("GIS local image basis skew angle {0:f3}deg > {1:f3}", skewAngleDeg, tolDeg);
+                string msg = string.Format("{0}GIS local image basis skew angle {1:f3}deg > {2:f3}",
+                                           prefix, skewAngleDeg, tolDeg);
                 if (logger != null)
                 {
                     logger.LogWarn(msg);
@@ -747,12 +779,13 @@ namespace OPS.Imaging
 
             if (logger != null)
             {
-                logger.LogInfo("GIS local image basis roll angle: {0:f3}deg", rollAngleDeg);
+                logger.LogInfo("{0}GIS local image basis roll angle: {1:f3}deg", prefix, rollAngleDeg);
             }
 
             if (!rollOK)
             {
-                string msg = string.Format("GIS local image basis roll angle {0:f3}deg > {1:f3}", rollAngleDeg, tolDeg);
+                string msg = string.Format("{0}GIS local image basis roll angle {1:f3}deg > {2:f3}",
+                                           prefix, rollAngleDeg, tolDeg);
                 if (logger != null)
                 {
                     logger.LogWarn(msg);
@@ -769,7 +802,7 @@ namespace OPS.Imaging
         /// <summary>
         /// input: X = column, Y = row, Z = elevation above body radius  
         /// output: X = easting meters, Y = northing meters, Z = elevation above body radius  
-        /// easting is distance along equator east from prime meridian
+        /// easting is distance along standard parallel east from longitude=0
         /// northing is distance above equator along a meridian
         /// </summary>
         public Vector3 ImageToEastingNorthing(Vector3 colRowElev)
@@ -780,7 +813,7 @@ namespace OPS.Imaging
         /// <summary>
         /// input: X = column, Y = row
         /// output: X = easting meters, Y = northing meters
-        /// easting is distance along equator east from prime meridian
+        /// easting is distance along standard parallel east from longitude=0
         /// northing is distance above equator along a meridian
         /// </summary>
         public Vector2 ImageToEastingNorthing(Vector2 colRow)
@@ -791,7 +824,7 @@ namespace OPS.Imaging
         /// <summary>
         /// input: X = easting meters, Y = northing meters, Z = elevation above body radius  
         /// output: X = column, Y = row, Z = elevation above body radius  
-        /// easting is distance along equator east from prime meridian
+        /// easting is distance along standard parallel east from longitude=0
         /// northing is distance above equator along a meridian
         /// </summary>
         public Vector3 EastingNorthingToImage(Vector3 eastingNorthingElev)
@@ -802,7 +835,7 @@ namespace OPS.Imaging
         /// <summary>
         /// input: X = easting meters, Y = northing meters
         /// output: X = column, Y = row
-        /// easting is distance along equator east from prime meridian
+        /// easting is distance along standard parallel east from longitude=0
         /// northing is distance above equator along a meridian
         /// </summary>
         public Vector2 EastingNorthingToImage(Vector2 eastingNorthing)
@@ -813,34 +846,41 @@ namespace OPS.Imaging
         /// <summary>
         /// input: X = easting meters, Y = northing meters, Z = elevation meters
         /// output: X = longitude degrees, Y = latitude degrees, Z = elevation meters
-        /// easting is distance along equator east from prime meridian
+        /// easting is distance along standard parallel east from longitude=0
         /// northing is distance above equator along a meridian
         /// </summary>
         public Vector3 EastingNorthingToLonLat(Vector3 eastingNorthingElev)
         {
-            return Body.EastingNorthingToLonLat(eastingNorthingElev);
+            //return Body.EastingNorthingToLonLat(eastingNorthingElev); //assumes standard parallel = equator
+            double[] res = new double[3];
+            eastingNorthingElevToLonLatElev
+                .TransformPoint(res, eastingNorthingElev.X, eastingNorthingElev.Y, eastingNorthingElev.Z);
+            return new Vector3(res[0], res[1], res[2]);
         }
 
         /// <summary>
         /// input: X = easting meters, Y = northing meters
         /// output: X = longitude degrees, Y = latitude degrees
-        /// easting is distance along equator east from prime meridian
+        /// easting is distance along standard parallel east from longitude=0
         /// northing is distance above equator along a meridian
         /// </summary>
         public Vector2 EastingNorthingToLonLat(Vector2 eastingNorthing)
         {
-            return Body.EastingNorthingToLonLat(eastingNorthing);
+            return EastingNorthingToLonLat(new Vector3(eastingNorthing.X, eastingNorthing.Y, 0)).XY();
         }
 
         /// <summary>
         /// input: X = longitude degrees, Y = latitude degrees, Z = elevation meters
         /// output: X = easting meters, Y = northing meters, Z = elevation meters
-        /// easting is distance along equator east from prime meridian
+        /// easting is distance along standard parallel east from longitude=0
         /// northing is distance above equator along a meridian
         /// </summary>
         public Vector3 LonLatToEastingNorthing(Vector3 lonLatElev)
         {
-            return Body.LonLatToEastingNorthing(lonLatElev);
+            //return Body.LonLatToEastingNorthing(lonLatElev); //assumes standard parallel = equator
+            double[] res = new double[3];
+            lonLatElevToEastingNorthingElev.TransformPoint(res, lonLatElev.X, lonLatElev.Y, lonLatElev.Z);
+            return new Vector3(res[0], res[1], res[2]);
         }
 
         /// <summary>
@@ -849,11 +889,7 @@ namespace OPS.Imaging
         /// </summary>
         public Vector3 ImageToLonLat(Vector3 colRowElev)
         {
-            var eastingNorthingElev = Vector3.Transform(colRowElev, colRowElevToEastingNorthingElev);
-            double[] res = new double[3];
-            eastingNorthingElevToLonLatElev
-                .TransformPoint(res, eastingNorthingElev.X, eastingNorthingElev.Y, eastingNorthingElev.Z);
-            return new Vector3(res[0], res[1], res[2]);
+            return EastingNorthingToLonLat(ImageToEastingNorthing(colRowElev));
         }
 
         /// <summary>
@@ -871,9 +907,7 @@ namespace OPS.Imaging
         /// </summary>
         public Vector3 LonLatToImage(Vector3 lonLatElev)
         {
-            double[] res = new double[3];
-            lonLatElevToEastingNorthingElev.TransformPoint(res, lonLatElev.X, lonLatElev.Y, lonLatElev.Z);
-            return Vector3.Transform(new Vector3(res[0], res[1], res[2]), eastingNorthingElevToColRowElev);
+            return EastingNorthingToImage(LonLatToEastingNorthing(lonLatElev));
         }
 
         /// <summary>

@@ -132,11 +132,14 @@ namespace OPS.Util
             {
                 return (ex as AggregateException).InnerExceptions;
             }
-            if (ex is TargetInvocationException)
+            else if (ex.InnerException != null)
             {
-                return new Exception[] { (ex as TargetInvocationException).InnerException };
+                return new Exception[] { ex.InnerException };
             }
-            return null;
+            else
+            {
+                return new Exception[] { };
+            }
         }
 
         public static void LogException(ILog logger, Exception ex)

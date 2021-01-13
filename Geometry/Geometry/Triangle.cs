@@ -2,9 +2,10 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Diagnostics;
 using Microsoft.Xna.Framework;
 using OPS.MathExtensions;
-using System.Diagnostics;
+using OPS.Util;
 
 namespace OPS.Geometry
 {
@@ -408,6 +409,34 @@ namespace OPS.Geometry
             if (t < 0) t = 0;
 
             return new BarycentricPoint(s, t, this);
+        }
+
+        /// <summary>
+        /// Picks a uniformly random point on the given triangle in barycentric coordinates and returns its cartesian
+        /// coordinates
+        /// </summary>
+        /// <returns>Point in cartesian space of the random point on the triangle's surface</returns>
+        public Vector3 RandomPoint(Random rng = null)
+        {
+            rng = rng ?? NumberHelper.MakeRandomGenerator();
+
+            // Pick random coordinates across a square that gets squished onto the triangle
+            double a = rng.NextDouble();
+            double b = rng.NextDouble();
+
+            // If the random coordinates cross the boundary of the triangle into the extents of the imaginary square,
+            // flip back onto the triangle
+            if (a + b >= 1)
+            {
+                a = 1 - a;
+                b = 1 - b;
+            }
+
+            // Map the square coordinates onto the triangle
+            Vector3 v1 = V0.Position;
+            Vector3 v2 = V1.Position;
+            Vector3 v3 = V2.Position;
+            return v1 + a * (v2 - v1) + b * (v3 - v1);
         }
 
         /// <summary>

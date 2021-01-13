@@ -42,7 +42,7 @@ using OPS.Pipeline.AlignmentServer;
 /// tool the input meshes are searched, optionally recursively, under a specified directory or s3 folder.  When run as a
 /// service, s3 URLs to individual tactical mesh RDRs are given in SQS messages.
 ///
-/// The output tileset is named PRODUCT_ID, where PRODUCT_ID is the basename of the input mesh RDR.  It is written to
+/// The output tileset is named PRODUCT_ID, where PRODUCT_ID is the product ID of the input mesh RDR.  It is written to
 /// rdrDir/tileset/PRODUCT_ID (*), unless --outputfolder is specified, in which case it is written to a subdirectory
 /// PRODUCT_ID there. (*) actually if rdrDir contains a prefix ending /rdr then the output directory is that prefix but
 /// with rdr replaced with rdr/tileset/PRODUCT_ID.
@@ -109,14 +109,16 @@ namespace OPS.Landform
         [Option(Default = false, HelpText = "Don't expect PRODUCTID.obj to exist if PRODUCTID_LOD01[_NN].obj does")]
         public bool NoExpectNonLODOBJ { get; set; }
 
-        [Option(Default = false, HelpText = "Just print resolved input mesh and image URLs, whitespace separated, one wedge per line, only in batch mode")]
+        [Option(Default = false, HelpText = "Expect PRODUCTID_LOD.tar to exist if PRODUCTID.obj does")]
+        public bool ExpectOBJLODTAR { get; set; }
+
+        [Option(Default = false, HelpText = "Just print resolved product IDs and input URLs, whitespace separated, one wedge per line, only in batch mode")]
         public bool ResolveInputs { get; set; }
 
         [Option(Default = false, HelpText = "Don't load existing tactical mesh LODs")]
         public bool NoLoadExistingLODs { get; set; }
 
-        [Option(Default = "75000-300000,20000-60000,4000-15000,1000-3000,100-600",
-                HelpText = "Create or fix LOD meshes, comma separated list of min-max ranges, finest to coarsest")]
+        [Option(Default = TextureCommand.DEF_FIXUP_LODS, HelpText = "Create or fix LOD meshes, comma separated list of min-max ranges, finest to coarsest")]
         public string FixupLODs{ get; set; }
 
         [Option(Default = 512, HelpText = "Max tile image resolution, negative for unlimited, 0 disables texturing")]
@@ -162,7 +164,11 @@ namespace OPS.Landform
                 }
                 else
                 {
-                    RunPhase("build tileset " + id, () => BuildTacticalTileset(mip));
+                    try {
+                        RunPhase("build tileset " + id, () => BuildTacticalTileset(mip));
+                    } catch (Exception) {
+                        //already logged
+                    }
                 }
             }
         }
@@ -201,15 +207,45 @@ namespace OPS.Landform
         private bool AcceptID(string url, string idStr, out string reason)
         {
             reason = null;
-            var id = RoverProductId.Parse(idStr, mission, throwOnFail: false);
+            RoverProductId id = null;
+            try
+            {
+                id = RoverProductId.Parse(idStr, mission, throwOnFail: true);
+            }
+            catch (Exception ex)
+            {
+                reason = "error parsing \"" + idStr + "\" as product ID: " + ex.Message + ": " + url;
+                return false;
+            }
             if (!(id is OPGSProductId))
             {
-                reason = "unrecognized product ID format: " + url;
+                reason = "\"" + idStr + "\" parsed as " + (id != null ? id.GetType().Name : "null") +
+                    ", not an OPGS product ID: " + url;
+                return false;
+            }
+            if (id is UnifiedMeshProductIdBase)
+            {
+                reason = "unified mesh: " + url;
                 return false;
             }
             if ((id as OPGSProductId).Size == RoverProductSize.Thumbnail)
             {
                 reason = "thumbnail product: " + url;
+                return false;
+            }
+            if (!id.IsSingleFrame())
+            {
+                reason = "multi frame product: " + url;
+                return false;
+            }
+            if (!id.IsSingleCamera())
+            {
+                reason = "multi camera product: " + url;
+                return false;
+            }
+            if (!id.IsSingleSiteDrive())
+            {
+                reason = "multi sitedrive product: " + url;
                 return false;
             }
             if (!RoverStereoPair.IsStereoEye(id.Camera, options.MeshStereoEye))
@@ -421,7 +457,7 @@ namespace OPS.Landform
             pipeline.LogInfo("found {0} meshes", meshes.Count);
         }
 
-        //There are a number of possible scenarios the input files for tactical mesh processing.
+        //There are a number of possible scenarios for the input files for tactical mesh processing.
         //
         //This function has the job of
         //* determining what scenario is in effect
@@ -497,10 +533,12 @@ namespace OPS.Landform
         //  PRODUCTID_LOD03_03.obj, PRODUCTID_LOD03_03.mtl
         //  - similar to above, but LOD count included in filenames
         //    LOD count does not include PRODUCTID.obj itself
-        //  - *** Landform currently expects this scenario by default ***
         //  - the non-LOD PRODUCTID.obj will optionally be used if
         //    (a) it's available on S3 when PRODUCTID_LOD01_03.obj is
         //    (b) it's less than or equal to options.MaxOBJBytes
+        //
+        //* PRODUCTID.obj, PRODUCTID.mtl, PRODUCTID2.png, PRODUCTID_LOD.tar
+        //  - similar to above, but PRODUCTID_LODnn[_mm].{obj[,mtl]} expected in tar
         private MeshImagePair GetMeshImagePair(string url, bool throwOnUnrecoverableError = true)
         {
             url = StringHelper.NormalizeSlashes(url);
@@ -680,6 +718,16 @@ namespace OPS.Landform
                     if (mip.mesh == nonLOD)
                     {
                         lodUrls.Insert(0, mip.mesh);
+
+                        if (options.ExpectOBJLODTAR)
+                        {
+                            string lodTar = folder + mip.id + "_LOD.tar";
+                            if (!FileExists(lodTar))
+                            {
+                                return warn($"tar {lodTar} not found", lodTar);
+                            }
+                            mip.extraFiles.Add(lodTar);
+                        }
                     }
                     else if (!options.NoExpectNonLODOBJ)
                     {
@@ -701,7 +749,9 @@ namespace OPS.Landform
                         }
                     }
 
-                    if (options.MaxOBJBytes > 0) //keep longest contiguous suffix of lodUrls within size limit
+                    //keep longest contiguous suffix of lodUrls within size limit
+                    //(this gets skipped if the LODs are tarred)
+                    if (options.MaxOBJBytes > 0 && lodUrls.Count > 1)
                     {
                         int winners = 0, losers = 0;
                         for (int i = lodUrls.Count - 1; i >= 0; i--) //coarse to fine
@@ -788,24 +838,31 @@ namespace OPS.Landform
                 fallbackExts = exts.ToArray();
             }
 
+            string clearMeshType(string idStr)
+            {
+                return GeometryCommand.ClearMeshType(idStr, mission);
+            }
+
             void tryFallbackTextureExts(string msg)
             {
                 string[] bns = null;
                 if (textureFilename != null)
                 {
                     //did successfully extract a texture filename from the mesh file
-                    //but it didn't exist, so just try other formats of that file
-                    bns = new string[] { StringHelper.StripUrlExtension(textureFilename) };
+                    //but it didn't exist, so try other formats of that file
+                    string bn = StringHelper.StripUrlExtension(textureFilename);
+                    bns = new string[] { bn, clearMeshType(bn) };
                 }
                 else
                 {
                     //no texture filename in mesh file
                     //try sibling files with same basename or same product id
-                    bns = new string[] { StringHelper.StripUrlExtension(meshFilename), mip.id };
+                    string bn = StringHelper.StripUrlExtension(meshFilename);
+                    bns = new string[] { bn, clearMeshType(bn), mip.id, clearMeshType(mip.id) };
                 }
-                foreach (string bn in bns)
+                foreach (string tx in fallbackExts)
                 {
-                    foreach (string tx in fallbackExts)
+                    foreach (string bn in bns)
                     {
                         string tf = folder + bn + tx;
                         if (FileExists(tf))
@@ -814,6 +871,9 @@ namespace OPS.Landform
                             warn(msg + ", using " + tf, mip.mesh);
                             break;
                         }
+                    }
+                    if (mip.image != null) {
+                        break;
                     }
                 }
                 if (mip.image == null)
@@ -830,21 +890,29 @@ namespace OPS.Landform
             {
                 return error($"error parsing {mip.mesh} to determine texture filename", mip.mesh, ex);
             }
+
             if (textureFilename != null)
             {
-                string tbn = StringHelper.StripUrlExtension(textureFilename);
                 var exts = new List<string>();
                 if (!options.NoPreferPDSTexture)
                 {
                     exts.AddRange(pdsExts);
                 }
+                string tbn = StringHelper.StripUrlExtension(textureFilename);
+                var bns = new string[] { tbn, clearMeshType(tbn) };
                 exts.Add(StringHelper.GetUrlExtension(textureFilename));
                 foreach (var tx in exts)
                 {
-                    string textureUrl = folder + tbn + tx;
-                    if (FileExists(textureUrl))
+                    foreach (var bn in bns)
                     {
-                        mip.image = textureUrl;
+                        string textureUrl = folder + bn + tx;
+                        if (FileExists(textureUrl))
+                        {
+                            mip.image = textureUrl;
+                            break;
+                        }
+                    }
+                    if (mip.image != null) {
                         break;
                     }
                 }
@@ -890,7 +958,7 @@ namespace OPS.Landform
 
             try
             {
-                Cleanup(venueDir);
+                Cleanup(venueDir, deleteDownloadCache: false);
 
                 Configure(venue);
 
@@ -899,7 +967,12 @@ namespace OPS.Landform
 
                 foreach (var file in mip.extraFiles)
                 {
-                    GetFile(file);
+                    string localPath = GetFile(file);
+                    if (localPath.EndsWith(".tar", StringComparison.OrdinalIgnoreCase))
+                    {
+                        pipeline.LogInfo("extracting {0}", localPath);
+                        TarFile.Extract(localPath);
+                    }
                 }
                 
                 if (mip.mesh.IndexOf("/") >= 0)
@@ -917,10 +990,10 @@ namespace OPS.Landform
 
                     if (IsPDS(imageFile))
                     {
-                        RunCommand("update-scene-manifest", "--mission", fullMissionStr,
+                        RunCommand("update-scene-manifest", project, "--mission", fullMissionStr,
                                    "--awsprofile", awsProfile, "--awsregion", awsRegion,
                                    "--manifestfile", tilesetDir + "/" + SCENE_JSON,
-                                   "--nocontextual", "--nourls", "--tacticalpdsfile", imageFile);
+                                   "--nocontextual", "--nourls", "--tacticalpdsimage", imageFile);
                     }
 
                     SaveTileset(tilesetDir, project, destDir);

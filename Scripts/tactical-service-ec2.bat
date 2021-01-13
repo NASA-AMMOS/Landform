@@ -120,6 +120,10 @@ if not "%LANDFORM_TACTICAL_NO_PREFER_PDS_TEXTURE%"=="" set preferpds=--nopreferp
 set requirepds=
 if not "%LANDFORM_TACTICAL_NO_REQUIRE_PDS_TEXTURE%"=="" set requirepds=--norequirepdstexture
 
+set objopts=
+if not "%LANDFORM_TACTICAL_NO_EXPECT_NON_LOD_OBJ%"=="" set objopts=--noexpectnonlodobj
+if not "%LANDFORM_TACTICAL_EXPECT_OBJ_LOD_TAR%"=="" set objopts=%objopts% --expectobjlodtar
+
 rem --- end service specific ---
 
 set stdopts=--configdir=%cfgdir% --configfolder=%cfgfolder% --logdir=%logdir% --tempdir=%tmpdir%
@@ -128,7 +132,7 @@ set svcopts=%stdopts% --stacktraces --service --mission=%mission% --queuename=%q
 set svcopts=%svcopts% --awsprofile=%awsprofile% --awsregion=%awsregion% %credentialrefresh%
 set svcopts=%svcopts% %msgopts%
 
-set tacticalopts=%meshregex% %mesheye% %meshgeom% %noloadlods% %fixuplods% %tileres% %preferpds% %requirepds%
+set tacticalopts=%meshregex% %mesheye% %meshgeom% %noloadlods% %fixuplods% %tileres% %preferpds% %requirepds% %objopts%
 set tacticalopts=%tacticalopts% %noindices% %embedindices% %tilesetimageformat% %tilesetindexformat%
 
 set appsdir=%bindir%\ExternalApps

@@ -9,7 +9,8 @@ namespace OPS.Util
     public class Serial
     {
         /// <summary>
-        /// Like Parallel.ForEach but not multi-threaded.  Useful drop in replacement for when you want to test a parallel algorithm serially.
+        /// Like Parallel.ForEach but not multi-threaded.  Useful drop in replacement for when you want to test a
+        /// parallel algorithm serially.
         /// </summary>
         /// <typeparam name="T"></typeparam>
         /// <param name="list"></param>
@@ -40,12 +41,34 @@ namespace OPS.Util
             }
         }
 
+        public static void ForEach<T,TLocal>(IEnumerable<T> list, Func<TLocal> localInit,
+                                             Func<T,TLocal,TLocal> action, Action<TLocal> localFinally)
+        {
+            TLocal tls = localInit();
+            foreach (T item in list)
+            {
+                tls = action(item, tls);
+            }
+            localFinally(tls);
+        }
+
         public static void For(int fromInclusive, int toExclusive, Action<int> action)
         {            
-            for(int i = fromInclusive; i < toExclusive; i++ )
+            for (int i = fromInclusive; i < toExclusive; i++ )
             {
                 action(i);
             }
+        }
+
+        public static void For<TLocal>(int fromInclusive, int toExclusive, Func<TLocal> localInit,
+                                       Func<int,TLocal,TLocal> action, Action<TLocal> localFinally)
+        {            
+            TLocal tls = localInit();
+            for (int i = fromInclusive; i < toExclusive; i++ )
+            {
+                tls = action(i, tls);
+            }
+            localFinally(tls);
         }
     }
 

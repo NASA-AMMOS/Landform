@@ -320,7 +320,7 @@ namespace OPS.Landform
         protected Vector2 PointToUV(BoundingBox meshBounds, Vector3 pt)
         {
             //regarding the Swap() see comments in HeightmapAtlasMesh()
-            var uvScale = meshBounds.Size().XY().Invert();
+            var uvScale = meshBounds.Extent().XY().Invert();
             return ((pt.XY() - meshBounds.Min.XY()) * uvScale).Swap();
         }
 
@@ -378,6 +378,22 @@ namespace OPS.Landform
                              centralExtent / srcSurfacePixels, centralExtent / dstSurfacePixels,
                              srcOrbitalPixels, dstOrbitalPixels,
                              orbitalExtent / srcOrbitalPixels, orbitalExtent / dstOrbitalPixels);
+        }
+
+        //https://github.jpl.nasa.gov/OnSight/Landform/issues/1149
+        public static string ClearMeshType(string idStr, MissionSpecific mission)
+        {
+            var id = RoverProductId.Parse(idStr, mission, throwOnFail: false);
+            if (id != null && id.GetMeshTypeSpan(out int s, out int l))
+            {
+                return idStr.Substring(0, s) + (new String('_', l)) + idStr.Substring(s + l);
+            }
+            return idStr;
+        }
+
+        protected string ClearMeshType(string idStr)
+        {
+            return ClearMeshType(idStr, mission);
         }
     }
 }

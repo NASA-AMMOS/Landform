@@ -34,13 +34,20 @@ namespace OPS.Pipeline.Texturing
     public class ObsSelectionSpatial : ObsSelectionStrategy
     {
         public const double QUALITY_TO_SAMPLES_PER_SQUARE_METER = 100;
+
+        public const double ORBITAL_QUALITY_TO_SAMPLES_PER_SQUARE_METER = 1;
+
+        public const double EXTEND_SURFACE_EXTENT = 2;
+
         public const double SEARCH_RADIUS_SAMPLES = 2; //multipled by average sample spacing to get search radius
 
         public override ObsSelectionStrategyName Name { get { return ObsSelectionStrategyName.Spatial; } }
 
         public SpatialSelectionMode SelectionMode = SpatialSelectionMode.CombinedFilteredWeightedNeighbors;
 
-        private double sampleSpacing;
+        private double sampleSpacing, orbitalSampleSpacing;
+
+        private BoundingBox? surfaceBounds = null;
 
         private List<Vector3> samples;
 
@@ -53,14 +60,86 @@ namespace OPS.Pipeline.Texturing
         public override void Initialize(Mesh mesh, MeshOperator meshOp, SceneCaster meshCaster,
                                         SceneCaster occlusionScene, List<Backproject.Context> contexts)
         {
-            // collect points on the surface of the mesh
-            double samplesPerSquareMeter = Quality * QUALITY_TO_SAMPLES_PER_SQUARE_METER;
-            sampleSpacing = 1 / Math.Sqrt(2 * samplesPerSquareMeter); //https://mathoverflow.net/a/124740
+            if (Logger != null)
+            {
+                Logger.LogInfo("ObsSelectionSpatial quality: {0}", Quality);
+            }
 
-            samples = new SurfacePointSampler()
-                .Sample(mesh, samplesPerSquareMeter)
-                .Select(vertex => vertex.Position)
-                .ToList();
+            double orbitalSamplesPerSquareMeter = 0;
+            if (OrbitalMetersPerPixel > 0)
+            {
+                //orbitalSamplesPerSquareMeter = 1 / (OrbitalMetersPerPixel * OrbitalMetersPerPixel);
+                orbitalSamplesPerSquareMeter = Quality * ORBITAL_QUALITY_TO_SAMPLES_PER_SQUARE_METER;
+                orbitalSampleSpacing = SurfacePointSampler.DensityToSampleSpacing(orbitalSamplesPerSquareMeter);
+            }
+
+            double samplesPerSquareMeter = Quality * QUALITY_TO_SAMPLES_PER_SQUARE_METER;
+            if (OrbitalMetersPerPixel > 0 && contexts.Count == 0) //only orbital
+            {
+                samplesPerSquareMeter = Quality * ORBITAL_QUALITY_TO_SAMPLES_PER_SQUARE_METER;
+            }
+
+            sampleSpacing = SurfacePointSampler.DensityToSampleSpacing(samplesPerSquareMeter);
+
+            Vector3 meshCtr = meshOp.Bounds.Center();
+
+            if (SurfaceExtent > 0)
+            {
+                surfaceBounds = BoundingBoxExtensions.CreateFromPoint(meshCtr, EXTEND_SURFACE_EXTENT * SurfaceExtent);
+            }
+
+            if (orbitalSamplesPerSquareMeter > 0 && surfaceBounds.HasValue &&
+                meshOp.Bounds.Contains(surfaceBounds.Value) == ContainmentType.Contains)
+            {
+                if (Logger != null)
+                {
+                    Logger.LogInfo("ObsSelectionSpatial orbital meters per pixel: {0}, " +
+                                   "orbital samples per square meter: {1}, orbital sample spacing: {2}, " +
+                                   "surface samples per square meter: {3}, surface sample spacing: {3}",
+                                   OrbitalMetersPerPixel, orbitalSamplesPerSquareMeter, orbitalSampleSpacing,
+                                   samplesPerSquareMeter, sampleSpacing);
+                    Logger.LogInfo("ObsSelectionSpatial: mesh bounds: {0}, surface bounds: {1}",
+                                   meshOp.Bounds.Fmt(), surfaceBounds.Value.Fmt());
+                }
+
+                samples = new SurfacePointSampler()
+                    .Sample(meshOp.Clip(surfaceBounds.Value), samplesPerSquareMeter, positionsOnly: true)
+                    .Select(vertex => vertex.Position)
+                    .ToList();
+
+                var orbitalSamples = new SurfacePointSampler()
+                    .Sample(Mesh.Cut(mesh, surfaceBounds.Value), orbitalSamplesPerSquareMeter, positionsOnly: true)
+                    .Select(vertex => vertex.Position)
+                    .ToList();
+
+                if (Logger != null)
+                {
+                    Logger.LogInfo("ObsSelectionSpatial surface samples: {0}, orbital samples: {1}",
+                                   samples.Count, orbitalSamples.Count);
+                }
+
+                samples.AddRange(orbitalSamples);
+            }
+            else
+            {
+                surfaceBounds = null;
+
+                if (Logger != null)
+                {
+                    Logger.LogInfo("ObsSelectionSpatial samples per square meter: {0}, sample spacing: {1}",
+                                   samplesPerSquareMeter, sampleSpacing);
+                }
+
+                samples = new SurfacePointSampler()
+                    .Sample(mesh, samplesPerSquareMeter, positionsOnly: true)
+                    .Select(vertex => vertex.Position)
+                    .ToList();
+
+                if (Logger != null)
+                {
+                    Logger.LogInfo("ObsSelectionSpatial samples: {0}", samples.Count);
+                }
+            }
 
             //we had a bug here https://github.jpl.nasa.gov/OnSight/Landform/issues/1102
             //we were getting way more points than thought we asked for
@@ -78,19 +157,18 @@ namespace OPS.Pipeline.Texturing
             //with no noticeable change in result
             //
             //that bug should be fixed now
-            //but it still shouldn't hurt to re-estimate the actual sample spacing here
             //(well it does require computing the mesh surface area)
-            double area = mesh.SurfaceArea();
-            double actualDensity = samples.Count / area;
-            double actualSampleSpacing = 1 / Math.Sqrt(2 * actualDensity);
+            //double area = mesh.SurfaceArea();
+            //double actualDensity = samples.Count / area;
+            //double actualSampleSpacing = 1 / Math.Sqrt(2 * actualDensity);
             //Console.WriteLine("generated {0} samples for {1}m^2 mesh (density {2} samples / m^2), requested {3}, " +
             //                  "correcting sample spacing from {4} to {5}", samples.Count, area, actualDensity,
             //                  samplesPerSquareMeter, sampleSpacing, actualSampleSpacing);
-            sampleSpacing = actualSampleSpacing;
+            //sampleSpacing = actualSampleSpacing;
 
             if (samples.Count == 0) //handle case of very small mesh
             {
-                samples.Add(mesh.Bounds().Center());
+                samples.Add(meshCtr);
             }
 
             //add center point of each observation to make sure small fov images are considered
@@ -117,7 +195,7 @@ namespace OPS.Pipeline.Texturing
             rTree = new RTree<int>();
             for (int i = 0; i < samples.Count; i++)
             {
-                rTree.Add(BoundingBoxExtensions.CreateFromPoint(samples[i]).ToRectangle(), i);
+                rTree.Add(samples[i].ToRectangle(), i);
             }
 
             //exhaustively sort for each sample point
@@ -158,19 +236,30 @@ namespace OPS.Pipeline.Texturing
         public override List<ScoredContext> FilterAndSortContexts(Vector3 meshPoint, List<Backproject.Context> contexts,
                                                                   SceneCaster meshCaster = null)
         {
+            if (contexts == null || contexts.Count == 0)
+            {
+                return null;
+            }
+
             if (!meshPoint.IsFinite())
             {
                 return null; //backproject options sampleTransform (used e.g. by BuildSkySphere) can kill points
             }
 
-            double searchRadius = SEARCH_RADIUS_SAMPLES * sampleSpacing;
+            double spacing = sampleSpacing;
+            if (surfaceBounds.HasValue && !surfaceBounds.Value.ContainsPoint(meshPoint))
+            {
+                spacing = orbitalSampleSpacing;
+            }
+
+            double searchRadius = SEARCH_RADIUS_SAMPLES * spacing;
             var searchBounds = BoundingBoxExtensions.CreateFromPoint(meshPoint, 2 * searchRadius).ToRectangle();
             var neighborIndices = rTree.Intersects(searchBounds).ToList();
 
-            while (neighborIndices.Count == 0 && searchRadius < 10 * sampleSpacing)
+            while (neighborIndices.Count == 0 && searchRadius < 10 * spacing)
             {
                 //shouldn't get here often, but there is randomness in this world
-                searchRadius += 0.5 * sampleSpacing;
+                searchRadius += 0.5 * spacing;
                 searchBounds = BoundingBoxExtensions.CreateFromPoint(meshPoint, 2 * searchRadius).ToRectangle();
                 neighborIndices = rTree.Intersects(searchBounds).ToList();
             }

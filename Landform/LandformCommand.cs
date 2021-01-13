@@ -149,9 +149,9 @@ namespace OPS.Landform
                 var ms = msPerPhase[phase] = msEnd - msStart;
                 pipeline.LogInfo("{0}: {1}, total {2}", phase, Fmt.HMS(ms), Fmt.HMS(msEnd));
             }
-            catch
+            catch (Exception ex)
             {
-                pipeline.LogError("{0} failed", phase);
+                pipeline.LogException(ex, phase + " failed");
                 throw;
             }
         }

@@ -188,9 +188,9 @@ namespace OPS.Landform
                     return 0; //help
                 }
 
-                if (roverImages.Count == 0)
+                if (roverImages.Count == 0 && options.SkyMode != SkyMode.TopoSphere)
                 {
-                    pipeline.LogWarn("no sky observations available");
+                    pipeline.LogWarn("no surface observations available");
                     StopStopwatch();
                     return 0;
                 }
@@ -237,6 +237,11 @@ namespace OPS.Landform
         protected override bool SpewTilesetFormats()
         {
             return true;
+        }
+
+        protected override bool AllowNoObservations()
+        {
+            return true; //we'll abort with warning but zero return code if no surface observations
         }
 
         private bool ParseArgumentsAndLoadCaches()
@@ -484,7 +489,7 @@ namespace OPS.Landform
                 }
             }
             InitBackprojectStrategy(skyMesh, new MeshOperator(skyMesh), new SceneCaster(skyMesh),
-                                    sceneOccludesSky ? sceneCaster : null);
+                                    sceneOccludesSky ? sceneCaster : null, useSurfaceBounds: false);
         }
 
         protected override Backproject.Options CustomizeBackprojectOptions(Backproject.Options opts)
@@ -541,7 +546,7 @@ namespace OPS.Landform
             double sceneSize = sceneRadius; //this is actually from center of scene to a corner
             if (sceneBounds.HasValue)
             {
-                Vector3 size = sceneBounds.Value.Size();
+                Vector3 size = sceneBounds.Value.Extent();
                 sceneSize = Math.Max(size.X, size.Y); //what we really want here is center to side
             }
             

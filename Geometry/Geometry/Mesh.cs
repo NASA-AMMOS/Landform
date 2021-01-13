@@ -501,12 +501,12 @@ namespace OPS.Geometry
         /// Remove any vertices that are identical
         /// Also checks for and removes any identical faces
         /// </summary>
-        public void RemoveDuplicateVertices()
+        public void RemoveDuplicateVertices(IEqualityComparer<Vertex> comparer = null)
         {
             // Make a list of unique vertices and compute a mapping between old and new indices
-            Dictionary<Vertex, int> vertexToIndex = new Dictionary<Vertex, int>();
-            Dictionary<int, int> oldToNewIndex = new Dictionary<int, int>();
-            List<Vertex> uniqueVertices = new List<Vertex>();
+            Dictionary<Vertex, int> vertexToIndex = new Dictionary<Vertex, int>(Vertices.Count, comparer);
+            Dictionary<int, int> oldToNewIndex = new Dictionary<int, int>(Vertices.Count);
+            List<Vertex> uniqueVertices = new List<Vertex>(Vertices.Count);
             for (int i = 0; i < this.Vertices.Count; i++)
             {
                 Vertex v = this.Vertices[i];
@@ -539,7 +539,7 @@ namespace OPS.Geometry
         /// </summary>
         public void AddSkirt(SkirtMode axis, double relHeight = 0.02, double threshold = 0.15, bool invert = false)
         {
-            Vector3 size = Bounds().Size();
+            Vector3 size = Bounds().Extent();
             double height = relHeight * Math.Max(Math.Max(size.X, size.Y), size.Z);
             threshold *= height;
 
@@ -822,9 +822,10 @@ namespace OPS.Geometry
         /// <summary>
         /// Return true if all attributes that are true of this mesh are also true of other
         /// </summary>
-        public bool AttributesSubsetOf(Mesh other)
+        public bool AttributesSubsetOf(Mesh other, bool checkColors = true)
         {
-            if ((HasNormals && !other.HasNormals) || (HasUVs && !other.HasUVs) || (HasColors && !other.HasColors))
+            if ((HasNormals && !other.HasNormals) || (HasUVs && !other.HasUVs) ||
+                (checkColors && HasColors && !other.HasColors))
             {
                 return false;
             }
@@ -890,12 +891,20 @@ namespace OPS.Geometry
         /// Vertex objects are cloned to avoid side effects in case the meshes are modifed in the future.
         /// </summary>
         public void MergeWith(Mesh[] otherMeshes, bool clean = true, bool normalize = true,
-                              bool removeDuplicateVerts = true, Action<string> warn = null)
+                              bool removeDuplicateVerts = true, bool uniqueColors = false, Action<string> warn = null)
         {
             int numNewVerts = otherMeshes.Aggregate(0, (sum, mesh) => mesh == null ? sum : sum + mesh.Vertices.Count);
             int numNewFaces = otherMeshes.Aggregate(0, (sum, mesh) => mesh == null ? sum : sum + mesh.Faces.Count);
             Vertices.Capacity = Math.Max(Vertices.Capacity, Vertices.Count + numNewVerts);
             Faces.Capacity = Math.Max(Faces.Capacity, Faces.Count + numNewFaces);
+            Vector4[] colors = null;
+            if (uniqueColors)
+            {
+                colors = Colorspace.RandomHues(otherMeshes.Length)
+                    .Select(c => new Vector4(c[0], c[1], c[2], 1))
+                    .ToArray();
+                HasColors = true;
+            }
             for (int i = 0; i < otherMeshes.Length; i++)
             {
                 Mesh m = otherMeshes[i];
@@ -903,16 +912,19 @@ namespace OPS.Geometry
                 {
                     continue;
                 }
-
-                if (!AttributesSubsetOf(m))
+                if (!AttributesSubsetOf(m, checkColors: !uniqueColors))
                 {
                     throw new MeshException("mesh to merge missing one or more attributes required by aggregate mesh");
                 }
-
                 int vertexBaseCount = this.Vertices.Count;
                 for (int j = 0; j < m.Vertices.Count; j++)
                 {
-                    this.Vertices.Add((Vertex)m.Vertices[j].Clone());
+                    Vertex v = (Vertex)(m.Vertices[j].Clone());
+                    if (uniqueColors)
+                    {
+                        v.Color = colors[i];
+                    }
+                    this.Vertices.Add(v);
                 }
                 for (int j = 0; j < m.Faces.Count; j++)
                 {
@@ -923,7 +935,6 @@ namespace OPS.Geometry
                     this.Faces.Add(f);
                 }
             }
-
             if (clean)
             {
                 Clean(normalize, removeDuplicateVerts, warn: warn);
@@ -937,7 +948,8 @@ namespace OPS.Geometry
 
         public void MergeWith(Action<string> warn, params Mesh[] otherMeshes)
         {
-            MergeWith(otherMeshes, true, true, true, warn); //specify params or will be a self-call (infinite recursion)
+            //specify params or will be a self-call (infinite recursion)
+            MergeWith(otherMeshes, true, true, true, false, warn);
         }
 
         /// <summary>
@@ -946,21 +958,22 @@ namespace OPS.Geometry
         /// Vertex objects are cloned to avoid side effects in case the meshes are modifed in the future
         /// </summary>
         public static Mesh Merge(Mesh[] meshesToCombine, bool clean = true, bool normalize = true,
-                                 bool removeDuplicateVerts = true, Action<string> warn = null)
+                                 bool removeDuplicateVerts = true, bool uniqueColors = false,
+                                 Action<string> warn = null)
         {
             Mesh first = meshesToCombine[0];
             return Merge(first.HasNormals, first.HasUVs, first.HasColors, meshesToCombine,
-                         clean, normalize, removeDuplicateVerts, warn);
+                         clean, normalize, removeDuplicateVerts, uniqueColors, warn);
         }
 
         public static Mesh Merge(Action<string> warn, params Mesh[] meshesToCombine)
         {
-            return Merge(meshesToCombine, true, true, true, warn);
+            return Merge(meshesToCombine, true, true, true, false, warn);
         }
 
         public static Mesh Merge(params Mesh[] meshesToCombine)
         {
-            return Merge(meshesToCombine, true, true, true, null);
+            return Merge(meshesToCombine, true, true, true, false, null);
         }
 
         /// <summary>
@@ -969,22 +982,24 @@ namespace OPS.Geometry
         /// only if all the input meshes have that attribute
         /// </summary>
         public static Mesh MergeWithCommonAttributes(Mesh[] meshesToCombine, bool clean = true, bool normalize = true,
-                                                     bool removeDuplicateVerts = true, Action<string> warn = null)
+                                                     bool removeDuplicateVerts = true, bool uniqueColors = false,
+                                                     Action<string> warn = null)
         {
             bool normals = meshesToCombine.All(m => m.HasNormals);
             bool uvs = meshesToCombine.All(m => m.HasUVs);
-            bool colors = meshesToCombine.All(m => m.HasColors);
-            return Merge(normals, uvs, colors, meshesToCombine, clean, normalize, removeDuplicateVerts, warn);
+            bool colors = meshesToCombine.All(m => m.HasColors) || uniqueColors;
+            return Merge(normals, uvs, colors, meshesToCombine, clean, normalize, removeDuplicateVerts, uniqueColors,
+                         warn);
         }
 
         public static Mesh MergeWithCommonAttributes(Action<string> warn, params Mesh[] meshesToCombine)
         {
-            return MergeWithCommonAttributes(meshesToCombine, true, true, true, warn);
+            return MergeWithCommonAttributes(meshesToCombine, true, true, true, false, warn);
         }
 
         public static Mesh MergeWithCommonAttributes(params Mesh[] meshesToCombine)
         {
-            return MergeWithCommonAttributes(meshesToCombine, true, true, true, null);
+            return MergeWithCommonAttributes(meshesToCombine, true, true, true, false, null);
         }
 
         /// <summary>
@@ -992,22 +1007,22 @@ namespace OPS.Geometry
         /// </summary>
         public static Mesh Merge(bool hasNormals, bool hasUVs, bool hasColors, Mesh[] meshesToCombine,
                                  bool clean = true, bool normalize = true, bool removeDuplicateVerts = true,
-                                 Action<string> warn = null)
+                                 bool uniqueColors = false, Action<string> warn = null)
         {
             Mesh result = new Mesh(hasNormals, hasUVs, hasColors);
-            result.MergeWith(meshesToCombine, clean, normalize, removeDuplicateVerts, warn);
+            result.MergeWith(meshesToCombine, clean, normalize, removeDuplicateVerts, uniqueColors, warn);
             return result;
         }
 
         public static Mesh Merge(bool hasNormals, bool hasUvs, bool hasColors, params Mesh[] meshesToCombine)
         {
-            return Merge(hasNormals, hasUvs, hasColors, meshesToCombine, true, true, true, null);
+            return Merge(hasNormals, hasUvs, hasColors, meshesToCombine, true, true, true, false, null);
         }
             
         public static Mesh Merge(bool hasNormals, bool hasUvs, bool hasColors, Action<string> warn,
                                  params Mesh[] meshesToCombine)
         {
-            return Merge(hasNormals, hasUvs, hasColors, meshesToCombine, true, true, true, warn);
+            return Merge(hasNormals, hasUvs, hasColors, meshesToCombine, true, true, true, false, warn);
         }
 
         /// <summary>
@@ -1484,7 +1499,7 @@ namespace OPS.Geometry
             }
             var bounds = Bounds();
             var min = project(bounds.Min);
-            var scale = project(bounds.Size());
+            var scale = project(bounds.Extent());
             double eps = MathE.EPSILON;
             scale.X = scale.X > eps ? (1 / scale.X) : 1;
             scale.Y = scale.Y > eps ? (1 / scale.Y) : 1;
@@ -2150,6 +2165,28 @@ namespace OPS.Geometry
             }
         }
 
+        public void SetColor(float[] color)
+        {
+            foreach (var v in Vertices)
+            {
+                v.Color.X = color[0];
+                v.Color.Y = color[1];
+                v.Color.Z = color[2];
+                v.Color.W = color.Length > 3 ? color[3] : 1;
+            }
+            HasColors = true;
+        }
+
+        public void SetColor(Vector3 color)
+        {
+            SetColor(color.ToFloatArray());
+        }
+
+        public void SetColor(Vector4 color)
+        {
+            SetColor(color.ToFloatArray());
+        }
+
         public void XYToUV()
         {
             foreach (Vertex v in Vertices)
@@ -2275,34 +2312,48 @@ namespace OPS.Geometry
             return stats;
         }
 
-        public void RemoveFloaters(int minIslandVertexCount = 300)
+        //remove disconnected islands whose bounding box diameter
+        //is less than minIslandRatio times the largest island bounding box diameter
+        //returns number of removed islands
+        public int RemoveIslands(double minIslandRatio = 0.1)
         {
-            DisjointSet disjointSet = new DisjointSet(Vertices.Count);
+            var disjointSet = new DisjointSet(Vertices.Count);
             foreach (Face f in Faces)
             {
                 disjointSet.Union(f.P0, f.P1);
                 disjointSet.Union(f.P1, f.P2);
             }
 
-            Dictionary<int, int> islandSizes = new Dictionary<int, int>();
+            var islands = new Dictionary<int, BoundingBox>();
             for (int i = 0; i < Vertices.Count; i++)
             {
-                int p = disjointSet.FindPath(i);
-                if (islandSizes.ContainsKey(p))
+                int p = disjointSet.Find(i);
+                if (islands.ContainsKey(p))
                 {
-                    islandSizes[p]++;
+                    var tmp = islands[p];
+                    islands[p] = BoundingBoxExtensions.Extend(ref tmp, Vertices[i].Position);
                 }
                 else
                 {
-                    islandSizes[p] = 1;
+                    islands[p] = BoundingBoxExtensions.CreateFromPoint(Vertices[i].Position);
                 }
             }
 
-            Faces = Faces.Where(f =>
-                islandSizes[disjointSet.FindPath(f.P0)] >= minIslandVertexCount
-            ).ToList();
+            var islandSizes = new Dictionary<int, double>();
+            foreach (var entry in islands)
+            {
+                islandSizes[entry.Key] = entry.Value.Diameter();
+            }
+
+            double maxIslandSize = islandSizes.Count > 0 ? islandSizes.Values.Max() : 0;
+
+            double threshold = minIslandRatio * maxIslandSize;
+
+            Faces = Faces.Where(f => islandSizes[disjointSet.Find(f.P0)] >= threshold).ToList();
 
             RemoveUnreferencedVertices();
+
+            return islandSizes.Values.Count(d => d < threshold);
         }
     }
 }

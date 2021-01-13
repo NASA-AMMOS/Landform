@@ -19,6 +19,8 @@ namespace OPS.Pipeline.Texturing
 
     public abstract class ObsSelectionStrategy
     {
+        public ILogger Logger;
+
         public abstract ObsSelectionStrategyName Name { get; }
 
         public double Quality = 1; //in range [0,1]
@@ -52,6 +54,8 @@ namespace OPS.Pipeline.Texturing
         public string DebugOutputPath; //null disables debug output
 
         public double OrbitalMetersPerPixel; //0 disables orbital
+
+        public double SurfaceExtent; //size in meters of central square of mesh with surface geometry, 0 if only orbital
 
         public static ObsSelectionStrategy Create(ObsSelectionStrategyName name)
         {

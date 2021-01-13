@@ -49,24 +49,24 @@ using OPS.Landform;
 ///
 /// Examples:
 ///
-/// * add/update tactical tileset for path/to/rdrs/image.IMG without URLs to path/to/tileset/scene.json (does not
-///   access network)
+/// * add/update tactical tileset for path/to/rdrs/IMAGE_ID.IMG without URLs to path/to/tileset/scene.json (does not
+///   access network, assumes TILESET_ID = IMAGE_ID)
 ///
 ///   Landform.exe update-scene-manifest --mission M2020 --manifestfile path/to/tileset/scene.json --nocontextual \
-///       --nourls --tacticalpdsfile path/to/rdrs/image.IMG
+///       --nourls --tacticalpdsimage path/to/rdrs/IMAGE_ID.IMG
+///
+/// * add/update tactical tileset TILESET_ID for wedge IMAGE_ID without URLs to
+///   s3://bucket/path/sol/00700/ids/rdr/tileset/TILESET_ID/TILSET_ID_scene.json:
+///
+///   Landform.exe update-scene-manifest TILESET_ID --mission M2020 \
+///       --manifestfile s3://bucket/path/sol/00700/ids/rdr/tileset/TILESET_ID/TILESET_ID_scene.json \
+///       --tacticalpdsimage s3://bucket/path/sol/00700/ids/rdr/ncam/IMAGE_ID.IMG --nocontextual --nourls
 ///
 /// * add/update contextual tileset for project 0700_0010023 without URLs to path/to/tileset/scene.json (does not
 ///   access network)
 ///
 ///   Landform.exe update-scene-manifest 0700_0010023 --manifestfile path/to/tileset/scene.json --notactical --nourls \
 ///       --sol=700 --sitedrive=0010023
-///
-/// * add/update tactical tileset for wedge ID without URLs to
-///   s3://bucket/path/sol/00700/ids/rdr/tileset/ID/ID_scene.json:
-///
-///   Landform.exe update-scene-manifest --mission M2020 \
-///       --manifestfile s3://bucket/path/sol/00700/ids/rdr/tileset/ID/ID_scene.json \
-///       --tacticalpdsfile s3://bucket/path/sol/00700/ids/rdr/ncam/ID.IMG --nocontextual --nourls
 ///
 /// * add/update contextual tileset for project 0700_0010005 without URLs to
 ///   s3://bucket/path/sol/00700/ids/rdr/tileset/0700_0010005/0700_0010005_scene.json:
@@ -108,7 +108,7 @@ namespace OPS.Landform
         [Option(HelpText = "Path/URL to directory containing existing tilesets, can be inferred from --manifestfile", Default = null)]
         public string TilesetDir { get; set; }
 
-        [Option(HelpText = "Path/URL to existing RDRs with sol replaced with #####, required without --nourls or --tacticalpdsfile", Default = null)]
+        [Option(HelpText = "Path/URL to existing RDRs with sol replaced with #####, required without --nourls or --tacticalpdsimage", Default = null)]
         public string RDRDir { get; set; }
 
         [Option(HelpText = "Sol of manifest to update", Default = -1)]
@@ -129,8 +129,8 @@ namespace OPS.Landform
         [Option(HelpText = "Don't add URLs to manifest", Default = false)]
         public bool NoURLs { get; set; }
 
-        [Option(HelpText = "PDS file to use for tactical mesh, otherwise search for existing tilesets", Default = null)]
-        public string TacticalPDSFile { get; set; }
+        [Option(HelpText = "PDS image to use for tactical mesh, otherwise search for existing tilesets", Default = null)]
+        public string TacticalPDSImage { get; set; }
 
         [Option(Default = null, HelpText = "AWS profile or omit to use default credentials (can be \"none\")")]
         public string AWSProfile { get; set; }
@@ -365,7 +365,7 @@ namespace OPS.Landform
             }
 
             if ((string.IsNullOrEmpty(options.ManifestFile) || (!options.NoContextual && !options.NoURLs) ||
-                (!options.NoTactical && (string.IsNullOrEmpty(options.TacticalPDSFile) || !options.NoURLs))) &&
+                (!options.NoTactical && (string.IsNullOrEmpty(options.TacticalPDSImage) || !options.NoURLs))) &&
                 string.IsNullOrEmpty(options.TilesetDir))
             {
                 throw new Exception("--tilesetdir required");
@@ -377,7 +377,7 @@ namespace OPS.Landform
                 pipeline.LogInfo("tileset dir: {0}", options.TilesetDir);
             }
 
-            searchForRDRs = !options.NoURLs || (!options.NoTactical && string.IsNullOrEmpty(options.TacticalPDSFile));
+            searchForRDRs = !options.NoURLs || (!options.NoTactical && string.IsNullOrEmpty(options.TacticalPDSImage));
             if (searchForRDRs && string.IsNullOrEmpty(options.RDRDir))
             {
                 throw new Exception("--rdrdir required");
@@ -401,7 +401,7 @@ namespace OPS.Landform
             }
 
             if ((string.IsNullOrEmpty(options.ManifestFile) || !options.NoContextual ||
-                (!options.NoTactical && string.IsNullOrEmpty(options.TacticalPDSFile))) &&
+                (!options.NoTactical && string.IsNullOrEmpty(options.TacticalPDSImage))) &&
                 string.IsNullOrEmpty(options.SiteDrive))
             {
                 throw new Exception("--sitedrive required");
@@ -440,6 +440,11 @@ namespace OPS.Landform
                 {
                     options.ManifestFile = string.Format("{0}{1}{2}.json",
                                                          options.TilesetDir, project.Name, SCENE_SUFFIX);
+                }
+                else if (!string.IsNullOrEmpty(options.ProjectName))
+                {
+                    options.ManifestFile = string.Format("{0}{1}{2}.json",
+                                                         options.TilesetDir, options.ProjectName, SCENE_SUFFIX);
                 }
                 else if (!string.IsNullOrEmpty(options.TilesetDir) && options.Sol >= 0 &&
                          SiteDrive.IsSiteDriveString(options.SiteDrive))
@@ -505,6 +510,15 @@ namespace OPS.Landform
         {
             return !string.IsNullOrEmpty(options.Mission) ? MissionSpecific.GetInstance(options.Mission) :
                 base.GetMission();
+        }
+
+        protected override Project GetProject()
+        {
+            if (string.IsNullOrEmpty(options.ProjectName) || options.NoContextual)
+            {
+                return null;
+            }
+            return base.GetProject();
         }
 
         protected override void SetOutDir(string outDir)
@@ -665,18 +679,18 @@ namespace OPS.Landform
                                                   sceneManifest.S3Proxy);
         }
 
-        private string GetExistingTileset(string tilesetId)
+        private string FindJSONUrl(string tilesetId, string suffix = SceneManifestHelper.TILESET_SUFFIX,
+                                   bool convert = true)
         {
             //rather than just prepend options.TilesetDir, which might be a relative path, call the search API
             //because that will canonicalize the absolute URL to the tileset
-            string pat = string.Format("*{0}/{0}{1}.json", tilesetId, SceneManifestHelper.TILESET_SUFFIX);
+            string pat = string.Format("*{0}/{0}{1}.json", tilesetId, suffix);
             string url = SearchFiles(options.TilesetDir, pat, recursive: true, ignoreCase: true).FirstOrDefault();
             if (url == null)
             {
-                bool removed = sceneManifest.RemoveTileset(tilesetId);
-                pipeline.LogWarn("tileset {0} not found{1}", tilesetId, removed ? " (removed from manifest)" : "");
+                pipeline.LogWarn("{0} not found", pat);
             }
-            return url != null ? ConvertURI(url) : null;
+            return url != null ? (convert ? ConvertURI(url) : url) : null;
         }
 
         private void UpdateContextualMeshManifest()
@@ -692,7 +706,7 @@ namespace OPS.Landform
             string tilesetUrl = null;
             if (!options.NoURLs)
             {
-                tilesetUrl = GetExistingTileset(tilesetId);
+                tilesetUrl = FindJSONUrl(tilesetId);
             }
 
             SceneMesh sceneMesh = null;
@@ -821,7 +835,7 @@ namespace OPS.Landform
                                                        images, backprojectedPixels, pipeline);
 
             string skyTilesetId = tilesetId + "_sky";
-            string skyTilesetUrl = GetExistingTileset(skyTilesetId);
+            string skyTilesetUrl = FindJSONUrl(skyTilesetId);
             if (skyTilesetUrl != null)
             {
                 sceneManifest.AddOrUpdateSkyTileset(skyTilesetId, !options.NoURLs ? skyTilesetUrl : null,
@@ -831,7 +845,7 @@ namespace OPS.Landform
 
         private void UpdateTacticalMeshManifests()
         {
-            if (string.IsNullOrEmpty(options.TacticalPDSFile))
+            if (string.IsNullOrEmpty(options.TacticalPDSImage))
             {
                 string contextualId = null;
                 if (options.Sol >= 0 && !string.IsNullOrEmpty(options.SiteDrive))
@@ -856,20 +870,84 @@ namespace OPS.Landform
                         return false;
                     }
 
-                    //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/951
-                    //see comments in ProcessTactical.cs AddImage()
-                    
+                    //try to find a PDS file that pairs with this tactical mesh
+                    //at this point id is the product ID of the mesh
+                    //unfortunately we are not always guaranteed that e.g. foo.IV has a matching foo.IMG or foo.VIC
+                    //one correct thing to do would be to parse foo.IV (or foo.mtl for obj format)
+                    //and fish out the texture filename, e.g. bar.png
+                    //because bar.png *is* guaranteed to have a matching bar.IMG or bar.VIC
+                    //but right here it would be a bit heavyweight to download the mesh files just to get that info
+                    //note that we don't get here for M20 tactical mesh processing
+                    //because in that case we always have the --tacticalpdsimage option
+                    //for M20 contextual mesh processing we do get here to add available tactical tilesets to a scene
+                    //but ASTTRO no longer uses that data anyway
+                    //and the method here will still *usually* work
+                    //we try the following things in order
+                    //1) if the tactical mesh tileset is already in the scene manifest, then see if its image_id is
+                    //   available in PDS format
+                    //2) if the tactical mesh tileset itself already has a scene manifest, load that and see if its
+                    //    image_id is available in PDS format
+                    //3) try image IDs that match the tileset ID, possibly with the mesh type field cleared, and
+                    //   possibly with any lower version or up to 10 higher
+
                     string pdsFile = null;
-                    foreach (string tryId in id.DescendingVersions(10))
+
+                    bool tryImage(string imageId)
                     {
-                        if (rdrs.ContainsKey(tryId))
+                        if (rdrs.ContainsKey(imageId))
                         {
-                            var rdrSet = rdrs[tryId];
+                            var rdrSet = rdrs[imageId];
                             foreach (var ext in pdsExts)
                             {
                                 if (rdrSet.HasUrlExtension(ext))
                                 {
                                     pdsFile = rdrSet.GetUrlWithExtension(ext);
+                                    return true;
+                                }
+                            }
+                        }
+                        return false;
+                    }
+
+                    bool tryManifest(SceneManifestHelper mf)
+                    {
+                        if (mf.Tilesets.ContainsKey(idStr))
+                        {
+                            var tm = mf.Tilesets[idStr];
+                            foreach (var iid in tm.image_ids)
+                            {
+                                if (tryImage(iid))
+                                {
+                                    return true;
+                                }
+                            }
+                        }
+                        return false;
+                    }
+
+                    //1) if tactical mesh is already in scene manifest, see if its image_id is avaiable as PDS
+                    tryManifest(sceneManifest);
+
+                    //2) if tactical mesh already has its own scene manifest, see if its image_id is avaiable as PDS
+                    if (pdsFile == null)
+                    {
+                        string tsm = FindJSONUrl(idStr, SCENE_SUFFIX, convert: false);
+                        if (tsm != null)
+                        {
+                            tryManifest(SceneManifestHelper.Load(GetFile(tsm), pipeline));
+                        }
+                    }
+                        
+                    //3) try image IDs that match the tileset ID, possibly with the mesh type field cleared, and
+                    //   possibly with any lower version or up to 10 higher
+                    if (pdsFile == null)
+                    {
+                        foreach (string vid in id.DescendingVersions(10))
+                        {
+                            foreach (string iid in new string[] { vid, ClearMeshType(vid) })
+                            {
+                                if (tryImage(iid))
+                                {
                                     break;
                                 }
                             }
@@ -898,7 +976,7 @@ namespace OPS.Landform
                     string id = StringHelper.StripSuffix(StringHelper.GetLastUrlPathSegment(options.ManifestFile), sfx);
                     if (RoverProductId.Parse(id, mission, throwOnFail: false) != null)
                     {
-                        string url = GetExistingTileset(id);
+                        string url = FindJSONUrl(id);
                         if (url != null)
                         {
                             doSearch = !update(id, url);
@@ -971,16 +1049,7 @@ namespace OPS.Landform
             }
             else if (options.NoURLs)
             {
-                UpdateTacticalMeshManifest(options.TacticalPDSFile);
-            }
-            else
-            {
-                string id = StringHelper.GetLastUrlPathSegment(options.TacticalPDSFile, stripExtension: true);
-                string url = GetExistingTileset(id);
-                if (url != null)
-                {
-                    UpdateTacticalMeshManifest(options.TacticalPDSFile, url);
-                }
+                UpdateTacticalMeshManifest(options.TacticalPDSImage, tilesetId: options.ProjectName);
             }
         }
 
@@ -990,10 +1059,20 @@ namespace OPS.Landform
             {
                 throw new Exception(string.Format("cannot load PDS metadata from {0}: file not found", pdsFile));
             }
+
             pipeline.LogInfo("loading PDS metadata from {0}", pdsFile);
             var metadata = new PDSMetadata(GetFile(pdsFile));
             var parser = new PDSParser(metadata);
-            tilesetId = tilesetId ?? parser.ProductIdString;
+
+            if (string.IsNullOrEmpty(tilesetId))
+            {
+                tilesetId = parser.ProductIdString;
+            }
+
+            if (tilesetUrl == null && !options.NoURLs)
+            {
+                tilesetUrl = FindJSONUrl(tilesetId);
+            }
 
             if (!string.IsNullOrEmpty(options.SiteDrive) && options.SiteDrive != parser.SiteDrive)
             {

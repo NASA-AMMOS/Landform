@@ -175,9 +175,8 @@ namespace OPS.Pipeline.TilingServer
         public void Delete(PipelineCore pipeline, bool ignoreErrors = true, ISet<string> keepMeshes = null, bool keepTileset = false)
         {
             var nodes = TilingNode.Find(pipeline, this, pipeline.Logger, ignoreErrors);
-            int nn = nodes.Count();
             int n = 0; 
-            pipeline.LogInfo("deleting {0} nodes", nn);
+            pipeline.LogInfo("deleting {0} nodes", nodes.Count());
             foreach (var node in nodes)
             {
                 node.Delete(pipeline, ignoreErrors, keepMeshes);
@@ -190,8 +189,13 @@ namespace OPS.Pipeline.TilingServer
                     pipeline.LogInfo("deleted {0} nodes", n);
                 }
             }
+            if (n > 500 && n % 500 != 0)
+            {
+                pipeline.LogInfo("deleted {0} nodes", n);
+            }
 
             var inputNames = LoadInputNames(pipeline);
+            n = 0;
             pipeline.LogInfo("deleting {0} inputs", inputNames.Count());
             foreach (var inputName in inputNames)
             {
@@ -200,6 +204,14 @@ namespace OPS.Pipeline.TilingServer
                 {
                     input.Delete(pipeline, ignoreErrors, keepMeshes);
                 }
+                if (++n % 500 == 0)
+                {
+                    pipeline.LogInfo("deleted {0} inputs", n);
+                }
+            }
+            if (n > 500 && n % 500 != 0)
+            {
+                pipeline.LogInfo("deleted {0} inputs", n);
             }
 
             pipeline.DeleteCacheFolder(Name);

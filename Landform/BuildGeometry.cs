@@ -107,6 +107,9 @@ namespace OPS.Landform
         [Option(HelpText = "Disable clever combine point cloud merging", Default = false)]
         public bool NoCleverCombine { get; set; }
 
+        [Option(HelpText = "Apply clever combine to individual observations within sitedrives", Default = false)]
+        public bool IntraSitedriveCleverCombine { get; set; }
+
         [Option(HelpText = "Only include faces that intersect these observations, comma separated", Default = null)]
         public string OnlyFacesForObs { get; set; }
 
@@ -128,11 +131,17 @@ namespace OPS.Landform
         [Option(HelpText = "Island removal based on percentage of total surface area (higher means more aggressive, 0 disables)", Default = 0.001)]
         public double TrimmerIslandPct { get; set; }
 
+        [Option(HelpText = "Remove islands whose bounding box diameter is less than this ratio of the max island bounding box diameter", Default = 0.2)]
+        public double MinIslandRatio { get; set; }
+
         [Option(HelpText = "Orbital sampling rate inside blend radius, non-positive to use DEM resolution", Default = 15)]
         public double OrbitalBlendPointsPerMeter { get; set; }
 
         [Option(HelpText = "Mask resolution for clipping surface/orbital", Default = 5)]
-        public double ShrinkwrapPointsPerMeter {get; set;}
+        public double ShrinkwrapPointsPerMeter { get; set; }
+
+        [Option(HelpText = "Mask offset for clipping surface/orbital", Default = 0.05)]
+        public double MaskOffset { get; set; }
 
         [Option(HelpText = "Blend orbital within this distance from surface in meters, 0 disables blend, negative for default", Default = BuildGeometry.DEF_BLEND_RADIUS)]
         public double OrbitalBlendRadius { get; set; }
@@ -145,6 +154,9 @@ namespace OPS.Landform
 
         [Option(HelpText = "Clever combine cell size (meters)", Default = CleverCombine.DEF_CELL_SIZE)]
         public double CleverCombineCellSize { get; set; }
+
+        [Option(HelpText = "Clever combine cell aspect (height relative to width)", Default = CleverCombine.DEF_CELL_ASPECT)]
+        public double CleverCombineCellAspect { get; set; }
 
         [Option(HelpText = "Poisson cell size (meters), mutually exclusive with PoissonTreeDepth, 0 to disable", Default = 0.0)]
         public double PoissonCellSize { get; set; }
@@ -201,6 +213,8 @@ namespace OPS.Landform
         private double blendExtent;
         private int blendSamplesPerPixel;
         private Matrix meshToOrbital, orbitalToMesh;
+
+        private float[][] sourceColors;
 
         public BuildGeometry(BuildGeometryOptions options) : base(options)
         {
@@ -282,7 +296,7 @@ namespace OPS.Landform
                     RunPhase("save mesh", SaveSceneMesh);
                 }
 
-                var bounds = mesh.Bounds().Size();
+                var bounds = mesh.Bounds().Extent();
                 pipeline.LogInfo("scene bounds (meters): {0:f3}x{1:f3}x{2:f3}", bounds.X, bounds.Y, bounds.Z);
             }
             catch (Exception ex)
@@ -414,7 +428,7 @@ namespace OPS.Landform
                 }
 
                 //already verified 0 < options.SurfaceExtent < options.Extent
-                blendExtent = Math.Min(options.Extent, options.SurfaceExtent + Math.Max(blendRadius, 0));
+                blendExtent = Math.Min(options.Extent, options.SurfaceExtent + 2 * Math.Max(blendRadius, 0));
             }
 
             blendSamplesPerPixel = 1;
@@ -567,50 +581,131 @@ namespace OPS.Landform
 
         private void MergePointClouds()
         {
+            var groups = observationPointClouds.GroupBy(entry =>
+            {
+                var obs = observationCache.GetObservation(entry.Key);
+                if (options.NoCleverCombine || options.IntraSitedriveCleverCombine || !(obs is RoverObservation))
+                {
+                    return entry.Key;
+                }
+                return (obs as RoverObservation).SiteDrive.ToString();
+            }).ToArray();
+
+            int nv = observationPointClouds.Values.Sum(pc => pc.Vertices.Count);
+
+            pointCloud = new Mesh(hasNormals: true);
+
+            var clouds = groups.Select(group =>
+            {
+                var obsClouds = group.Select(pair => pair.Value).ToArray();
+                if (obsClouds.Length == 1)
+                {
+                    return obsClouds[0];
+                }
+                pipeline.LogInfo("merging {0} observation point clouds in sitedrive {1} without clever combine, " +
+                                 "total {2} points", obsClouds.Length, group.Key,
+                                 Fmt.KMG(obsClouds.Sum(c => c.Vertices.Count)));
+                var pc = new Mesh(pointCloud.HasNormals);
+                pc.MergeWith(obsClouds, normalize: false, removeDuplicateVerts: false);
+                return pc;
+            }).ToArray();
+
+            if (options.WriteDebug && clouds.Length > 1)
+            {
+                sourceColors = Colorspace.RandomHues(clouds.Length + 1); //extra color for orbital
+                for (int i = 0; i < clouds.Length; i++)
+                {
+                    clouds[i].SetColor(sourceColors[i]);
+                }
+                pointCloud.HasColors = true;
+            }
+
             if (options.NoCleverCombine)
             {
-                var clouds = observationPointClouds.Values.ToArray();
-                int nv = clouds.Sum(pc => pc.Vertices.Count);
                 pipeline.LogInfo("merging {0} observation point clouds without clever combine, total {1} points",
                                  clouds.Length, Fmt.KMG(nv));
-                pointCloud = new Mesh(hasNormals: true);
                 pointCloud.MergeWith(clouds, normalize: false, removeDuplicateVerts: false);
+                if (options.WriteDebug)
+                {
+                    SaveMesh(pointCloud, dbgMeshPrefix + "-cloud");
+                }
             }
             else
             {
-                var clouds = new List<Mesh>();
-                var origins = new List<Vector3>();
-                foreach (var entry in observationPointClouds)
+                var origins = groups.Select(group =>
                 {
-                    clouds.Add(entry.Value);
-                    var pointsObs = observationCache.GetObservation(entry.Key);
-                    var pointsCam = pointsObs.CameraModel as CAHV;
-                    var obsToMesh = frameCache.GetObservationTransform(pointsObs, meshFrame,
-                                                                       options.UsePriors, options.OnlyAligned);
-                    //obsToMesh cannot be null here because WedgeObservations.BuildPointCloud() returned non-null
-                    if (pointsCam != null)
+                    if (SiteDrive.IsSiteDriveString(group.Key))
                     {
-                        //the reference point used to determine how good a point is for clever combine
-                        //naive version is using distance from camera
-                        origins.Add(Vector3.Transform(pointsCam.C, obsToMesh.Mean));
+                        var xform = frameCache.GetRelativeTransform(group.Key, meshFrame,
+                                                                    options.UsePriors, options.OnlyAligned);
+                        return Vector3.Transform(Vector3.Zero, xform.Mean);
                     }
                     else
                     {
-                        pipeline.LogWarn("no CAHV camera model for observation {0}, " +
-                                         "using observation frame origin for clever combine", entry.Key);
-                        origins.Add(Vector3.Transform(Vector3.Zero, obsToMesh.Mean));
+                        var pointsObs = observationCache.GetObservation(group.Key);
+                        var pointsCam = pointsObs.CameraModel as CAHV;
+                        var obsToMesh = frameCache.GetObservationTransform(pointsObs, meshFrame,
+                                                                           options.UsePriors, options.OnlyAligned);
+                        //obsToMesh cannot be null here because WedgeObservations.BuildPointCloud() returned non-null
+                        if (pointsCam != null && options.IntraSitedriveCleverCombine)
+                        {
+                            //the reference point used to determine how good a point is for clever combine
+                            //naive version is using distance from camera
+                            return Vector3.Transform(pointsCam.C, obsToMesh.Mean);
+                        }
+                        else
+                        {
+                            if (options.IntraSitedriveCleverCombine)
+                            {
+                                pipeline.LogWarn("no CAHV camera model for observation {0}, " +
+                                                 "using observation frame origin for clever combine", group.Key);
+                            }
+                            return Vector3.Transform(Vector3.Zero, obsToMesh.Mean);
+                        }
+                    }
+                }).ToArray();
+
+                if (options.WriteDebug || clouds.Length == 1)
+                {
+                    pointCloud.MergeWith(clouds, normalize: false, removeDuplicateVerts: false);
+                }
+
+                if (options.WriteDebug)
+                {
+                    SaveMesh(pointCloud, dbgMeshPrefix + "-cloud");
+                }
+
+                if (clouds.Length > 1)
+                {
+                    pipeline.LogInfo("clever combining {0} {1} point clouds, cell size {2}, aspect {3}, total {4} pts",
+                                     clouds.Length, options.IntraSitedriveCleverCombine ? "observation" : "sitedrive",
+                                     options.CleverCombineCellSize, options.CleverCombineCellAspect, Fmt.KMG(nv));
+                    
+                    var cc = new CleverCombine(options.CleverCombineCellSize, options.CleverCombineCellAspect);
+                    pointCloud = cc.Combine(clouds, origins, pipeline);
+                    
+                    pipeline.LogInfo("clever combine returned {0} points", Fmt.KMG(pointCloud.Vertices.Count));
+                    
+                    if (options.WriteDebug)
+                    {
+                        SaveMesh(pointCloud , dbgMeshPrefix + "-cloud-combined");
                     }
                 }
-                int nv = clouds.Sum(pc => pc.Vertices.Count);
-                pipeline.LogInfo("clever combining {0} observation point clouds, cell size {1}, total {2} points",
-                                 clouds.Count, options.CleverCombineCellSize, Fmt.KMG(nv));
-                var cc = new CleverCombine(options.CleverCombineCellSize);
-                pointCloud = cc.Combine(origins.ToArray(), clouds.ToArray(), pipeline);
-                pipeline.LogInfo("clever combine returned {0} points", Fmt.KMG(pointCloud.Vertices.Count));
+                else
+                {
+                    if (observationPointClouds.Count < 2)
+                    {
+                        pipeline.LogInfo("skipping clever combine: less than two observations");
+                    }
+                    else
+                    {
+                        pipeline.LogInfo("skipping clever combine: less than two sitedrives " +
+                                         "and --intrasitedriveclevercombine not specified");
+                    }
+                }
             }
 
-            //significant memory usage
-            observationPointClouds.Clear();
+            observationPointClouds.Clear(); //significant memory usage
 
             pointCloudBounds = pointCloud.Bounds();
         }
@@ -633,17 +728,7 @@ namespace OPS.Landform
                 throw new Exception("failed to build mesh");
             }
 
-            mesh.RemoveFloaters();
-
-            //both FSSR and Poisson require normals on their input mesh and write normals to their output mesh
-            //however we have seen issues with these normals
-            //and also they may be confidence scaled still
-            //one option would be to just clear the normals and not include normals with the output scene mesh
-            //but some kinds of later processing (like building parent tile meshes) will want them
-            //so let's just regenerate them from the faces and write them to the scene mesh
-            //because we're dealing with natural terrain it is pretty reasonable to compute vertex normals from faces
-            //i.e. no sharp crease angles expected
-            mesh.Clean(); //removes degenerate faces
+            CleanMesh();
 
             if (options.WriteDebug)
             {
@@ -655,6 +740,25 @@ namespace OPS.Landform
                 colored.ColorByNormalMagnitude(red, green);
                 SaveMesh(colored, dbgMeshPrefix + "-confidence");
             }
+        }
+
+        private void CleanMesh()
+        {
+            if (options.MinIslandRatio > 0)
+            {
+                int nr = mesh.RemoveIslands(options.MinIslandRatio);
+                pipeline.LogInfo("removed {0} islands", nr);
+            }
+
+            //both FSSR and Poisson require normals on their input mesh and write normals to their output mesh
+            //however we have seen issues with these normals
+            //and also they may be confidence scaled still
+            //one option would be to just clear the normals and not include normals with the output scene mesh
+            //but some kinds of later processing (like building parent tile meshes) will want them
+            //so let's just regenerate them from the faces and write them to the scene mesh
+            //because we're dealing with natural terrain it is pretty reasonable to compute vertex normals from faces
+            //i.e. no sharp crease angles expected
+            mesh.Clean(); //removes degenerate faces
 
             mesh.GenerateVertexNormals();
         }
@@ -668,12 +772,18 @@ namespace OPS.Landform
             }
         }
 
+        //currently "shrinkwrap" just really means
+        //(a) bin verts to grid cells in XY plane
+        //(b) organized mesh with a 2.5D assumption
+        //also, the shrinkwrap mesh is curently only used for creating the surface mask
+        //which is used for hole filling and orbital geometry below
+        //(BlendImages might also make and use a shrinkwrap mesh, but that now non-default legacy behavior)
         private void CreateShrinkwrappedSurfaceMesh()
         {
             var bounds = mesh.Bounds();
             Mesh grid = Shrinkwrap.BuildGrid(bounds,
-                                             (int)(bounds.Size().X * options.ShrinkwrapPointsPerMeter),
-                                             (int)(bounds.Size().Y * options.ShrinkwrapPointsPerMeter),
+                                             (int)(bounds.Extent().X * options.ShrinkwrapPointsPerMeter),
+                                             (int)(bounds.Extent().Y * options.ShrinkwrapPointsPerMeter),
                                              VertexProjection.ProjectionAxis.Z);
             shrinkwrapMesh = Shrinkwrap.Wrap(grid, mesh, Shrinkwrap.ShrinkwrapMode.Project,
                                              VertexProjection.ProjectionAxis.Z,
@@ -686,17 +796,74 @@ namespace OPS.Landform
             }
         }
 
+        //populates maskUVMeshOp so that later stages can trim meshes to an XY plane boundary
+        //the boundary is non-convex but does not have holes
+        //we make the mask by
+        //(a) finding the largest boundary edge loop in the shrinkwrap mesh (in principle we might be able to skip the
+        //    shrinkwrap and just perform this step on the whole surface mesh, but the shrinkwrap helps address cases
+        //    where the outermost XY extent of the mesh may differ from its 3D bounding loop due to concave folds
+        //    https://github.jpl.nasa.gov/OnSight/Landform/issues/1145)
+        //(b) project that to the XY plane and offset it there by options.MaskOffset (the offset is naive and doesn't
+        ///   check for self intersection, but that shouldn't matter for the purpose here)
+        //(c) triangulating the resulting XY plane polygon
+        //(d) creating a UV MeshOp where U=X and V=Y so that later queries can know if an XY point is inside the
+        ///   boundary (they are iff the MeshOp returns valid barycentric coordinates for the query XY point).
         private void CreateSurfaceMaskMesh()
         {
             try
             {
+                //EdgeGraph edgeGraph = new EdgeGraph(mesh); //TODO causes too many failures
+                //https://github.jpl.nasa.gov/OnSight/Landform/issues/1145
                 EdgeGraph edgeGraph = new EdgeGraph(shrinkwrapMesh);
-                List<Edge> perimeterEdges = edgeGraph.GetLargestPolygonalBoundary();
-                
-                EdgeGraph.EnsureCCW(perimeterEdges);
+
+                double projectedLengthSquared(Edge e)
+                {
+                    var s = e.Src.Position;
+                    var d = e.Dst.Position;
+                    double dx = d.X - s.X;
+                    double dy = d.Y - s.Y;
+                    return dx * dx + dy * dy;
+                }
+
+                List<Edge> perimeterEdges = edgeGraph
+                    .GetLargestPolygonalBoundary()
+                    .Where(edge => projectedLengthSquared(edge) > 0)
+                    .ToList();
+
+                for (int i = 0; i < perimeterEdges.Count; i++)
+                {
+                    perimeterEdges[i].Dst = perimeterEdges[(i + 1) % perimeterEdges.Count].Src;
+                }
+
+                Vector3 nadir = new Vector3(0, 0, 1);
+                if (mission != null)
+                {
+                    mission.GetLocalLevelBasis(out Vector3 north, out Vector3 east, out nadir);
+                }
+
+                if (nadir.Z > 0)
+                {
+                    EdgeGraph.EnsureCCW(perimeterEdges);
+                }
+
+                Vertex projectAndOffset(Vertex src, Vertex dst)
+                {
+                    Vector3 pt = src.Position;
+                    Vector3 edgeDir = dst.Position - src.Position;
+                    pt.Z = 0;
+                    edgeDir.Z = 0;
+                    if (options.MaskOffset != 0 && edgeDir.LengthSquared() > 0)
+                    {
+                        var perp = Vector3.Normalize(edgeDir.Cross(nadir));
+                        pt += perp * options.MaskOffset;
+                    }
+                    return new Vertex(pt);
+                }
                 
                 var maskMesh = new Mesh();
-                maskMesh.Vertices = perimeterEdges.Select(e => new Vertex(e.Src.Position)).ToList();
+                maskMesh.Vertices = perimeterEdges
+                    .Select(e => projectAndOffset(e.Src, e.Dst))
+                    .ToList();
                 
                 int id = 0;
                 foreach (Edge e in perimeterEdges)
@@ -712,8 +879,11 @@ namespace OPS.Landform
                         maskMesh.Faces.Add(new Face(e.Src.ID, e.Dst.ID, e.Left.ID));
                     }
                 }
-                
-                maskMesh.ReverseWinding();
+
+                if (nadir.Z > 0)
+                {
+                    maskMesh.ReverseWinding();
+                }
                 
                 if (options.WriteDebug)
                 {
@@ -731,6 +901,11 @@ namespace OPS.Landform
             }
         }
 
+        //Replace mesh with a new Poisson reconstruction that
+        //(1) uses less picky trimming
+        //(2) but that is clipped in the XY plane to the mask we already created
+        //    from the outer boundary of the original reconstructed mesh.
+        //This is done to fill holes and/or to prepare for orbital geometry to be added outside the mask.
         private void ReconstructSurfaceToMask()
         {
             //TODO: Have Poisson return both clipped and non-clipped to avoid remeshing
@@ -751,9 +926,7 @@ namespace OPS.Landform
                                                                  mesh.Vertices[face.P2].Position.Y)) != null);
             }).ToList();
 
-            mesh.RemoveFloaters();
-            mesh.Clean(); //removes degenerate faces
-            mesh.GenerateVertexNormals(); //important, see comments in ReconstructMesh()
+            CleanMesh();
 
             if (options.WriteDebug)
             {
@@ -776,29 +949,34 @@ namespace OPS.Landform
                 Func<Vector3, bool> filter = pt => 
                 {
                     pt = Vector3.Transform(pt, orbitalToMesh);
-                    return maskOp.UVToBarycentric(new Vector2(pt.X, pt.Y)) == null; //outside surface mesh
+                    return maskOp == null || maskOp.UVToBarycentric(new Vector2(pt.X, pt.Y)) == null; //not in surf mesh
                 };
-                return orbitalDEM.OrganizedMesh(outerBounds, innerBounds, subsample, filter, withNormals: true,
-                                                quadsOnly: true);
+                var ret = orbitalDEM.OrganizedMesh(outerBounds, innerBounds, subsample, filter, withNormals: true,
+                                                   quadsOnly: true);
+                if (sourceColors != null && sourceColors.Length > 0)
+                {
+                    ret.SetColor(sourceColors[sourceColors.Length - 1]);
+                }
+                return ret;
             }
 
-            int orbitalExtentPixels = (int)Math.Ceiling(0.5 * options.Extent / orbitalDEMMetersPerPixel);
-            int blendExtentPixels = (int)Math.Ceiling(0.5 * blendExtent / orbitalDEMMetersPerPixel);
+            int orbitalRadiusPixels = (int)Math.Ceiling(0.5 * options.Extent / orbitalDEMMetersPerPixel);
+            int blendRadiusPixels = (int)Math.Ceiling(0.5 * blendExtent / orbitalDEMMetersPerPixel);
 
             Vector3 meshOriginInOrbital = Vector3.Transform(Vector3.Zero, meshToOrbital);
 
             Image.Subrect blendBounds = null;
-            if (blendSamplesPerPixel != orbitalSamplesPerPixel && blendExtentPixels > 0)
+            if (blendSamplesPerPixel != orbitalSamplesPerPixel && blendRadiusPixels > 0)
             {
-                blendBounds = orbitalDEM.GetSubrectPixels(blendExtentPixels, meshOriginInOrbital);
+                blendBounds = orbitalDEM.GetSubrectPixels(blendRadiusPixels, meshOriginInOrbital);
             }
 
-            if (orbitalExtentPixels > blendExtentPixels || blendBounds == null)
+            if (orbitalRadiusPixels > blendRadiusPixels || blendBounds == null)
             {
-                var orbitalBounds = orbitalDEM.GetSubrectPixels(orbitalExtentPixels, meshOriginInOrbital);
+                var orbitalBounds = orbitalDEM.GetSubrectPixels(orbitalRadiusPixels, meshOriginInOrbital);
 
                 pipeline.LogInfo("making {0:f3}x{0:f3}m orbital mesh at {1:f3} samples/meter",
-                                 2 * orbitalExtentPixels * orbitalDEMMetersPerPixel,
+                                 2 * orbitalRadiusPixels * orbitalDEMMetersPerPixel,
                                  orbitalSamplesPerPixel / orbitalDEMMetersPerPixel);
                 
                 orbitalMesh = makeMesh(orbitalSamplesPerPixel, orbitalBounds, blendBounds);
@@ -814,7 +992,7 @@ namespace OPS.Landform
                 }
 
                 pipeline.LogInfo("making {0:f3}x{0:f3} orbital blend mesh at {1:f3} samples/meter",
-                                 2 * blendExtentPixels * orbitalDEMMetersPerPixel,
+                                 2 * blendRadiusPixels * orbitalDEMMetersPerPixel,
                                  blendSamplesPerPixel / orbitalDEMMetersPerPixel);
 
                 var blendMesh = makeMesh(blendSamplesPerPixel, blendBounds);
@@ -866,7 +1044,7 @@ namespace OPS.Landform
             double blendMin = options.OrbitalBlendMin;
             double smoothRadius = 0.1 * radius;
 
-            double boundsRadius = options.SurfaceExtent > 0 ? options.SurfaceExtent + radius : 0;
+            double boundsRadius = options.SurfaceExtent > 0 ? (0.5 * options.SurfaceExtent + radius) : 0;
             double blendRadiusSq = radius * radius;
             double sewRadiusSq = sewRadius * sewRadius;
 
@@ -894,7 +1072,7 @@ namespace OPS.Landform
                     }
                     if (closest >= 0)
                     {
-                        vertPairs[i]= closest;
+                        vertPairs[i] = closest;
                     }
                 }
             });
@@ -991,9 +1169,7 @@ namespace OPS.Landform
                 throw new Exception("clipped mesh is empty");
             }
 
-            mesh.RemoveFloaters();
-            mesh.Clean(); //removes degenerate faces
-            mesh.GenerateVertexNormals();
+            CleanMesh();
 
             if (mesh.Faces.Count == 0)
             {

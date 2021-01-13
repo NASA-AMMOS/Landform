@@ -490,7 +490,7 @@ namespace OPS.Landform
             }
         }
 
-        protected void Cleanup(string venueDir)
+        protected void Cleanup(string venueDir, bool deleteDownloadCache = true)
         {
             if (lsopts.NoCleanup || lsopts.DryRun)
             {
@@ -508,8 +508,12 @@ namespace OPS.Landform
                 {
                     File.Delete(subcommandConfigFile);
                 }
-                
-                pipeline.DeleteDownloadCache();
+
+                if (deleteDownloadCache)
+                {
+                    pipeline.DeleteDownloadCache();
+                }
+
                 PathHelper.EnsureExists(Path.GetFullPath(pipeline.DownloadCache));
             }
             catch (Exception ex)
@@ -616,7 +620,8 @@ namespace OPS.Landform
             {
                 if (!Directory.Exists(tilesetDir))
                 {
-                    throw new Exception(string.Format("local tileset directory {0} not found", tilesetDir));
+                    pipeline.LogWarn("local tileset directory {0} not found", tilesetDir);
+                    return;
                 }
                 
                 string tilesetFile = string.Format("{0}/{1}", tilesetDir, TILESET_JSON);

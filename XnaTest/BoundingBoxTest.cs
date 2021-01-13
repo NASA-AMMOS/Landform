@@ -7,13 +7,6 @@ namespace XnaTest.Geometry
     [TestClass]
     public class BoundingBoxTest    
     {
-        [TestMethod]
-        public void ExtentTest()
-        {
-            BoundingBox bb = new BoundingBox(new Vector3(-3, 4, 1), new Vector3(10, 40, 4));
-            Assert.AreEqual(new Vector3(13, 36, 3), Extensions.Extent(bb));
-        }
-
         /// <summary>
         /// Test basic ray/box intersection.
         /// </summary>
