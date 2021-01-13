@@ -64,6 +64,11 @@ using OPS.Pipeline.AlignmentServer;
 /// Run on all M2020 wedge mesh RDRs in the local tree ../rdrs, writing results to the current working directory:
 ///
 /// Landform.exe process-tactical --mission=M2020 --inputpath=../rdrs --recursivesearch --outputfolder=.
+///
+/// Manually process all tactical wedges under s3://m20-ids-g-data-g66bt/ods/dev/sol/, uploading results:
+///
+/// Landform.exe process-tactical --mission=M2020 --inputpath=s3://m20-ids-g-data-g66bt/ods/dev/sol/ --recursivesearch
+///
 /// </summary>
 namespace OPS.Landform
 {
@@ -400,7 +405,11 @@ namespace OPS.Landform
                 if (match.Success)
                 {
                     string idStr = match.Groups[1].Value;
-                    if (!AcceptID(url, idStr, out string reason))
+                    if (url.ToLower().StartsWith("s3://") && !AcceptBucketPath(url))
+                    {
+                        pipeline.LogInfo("rejected bucket path: {0}", url);
+                    }
+                    else if (!AcceptID(url, idStr, out string reason))
                     {
                         pipeline.LogInfo("ignoring product: {0}", reason);
                     }
@@ -593,6 +602,12 @@ namespace OPS.Landform
             //* if it's an OBJ then we'll try to extract a mtllib statement from it to know the associated .MTL
             //* in all cases we'll try to parse out a texture filename from it
             string tmpMesh = GetFile(mip.mesh);
+
+            if (tmpMesh == null)
+            {
+                return options.DryRun ? warn($"dry run, cannot download {mip.mesh} to determine texture", mip.mesh)
+                    : error($"failed to download {mip.mesh}", mip.mesh);
+            }
 
             string meshFilename = StringHelper.GetLastUrlPathSegment(mip.mesh);
             string meshExt = StringHelper.GetUrlExtension(mip.mesh);
