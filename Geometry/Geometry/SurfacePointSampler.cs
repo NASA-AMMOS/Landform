@@ -195,7 +195,7 @@ namespace OPS.Geometry
             int expectedPointsPerCell = presampleFactor;
             int expectedCells = oversampledPoints.Length / expectedPointsPerCell;
             var cells = new ConcurrentDictionary<Vector3Int, UnorderedList<Vector3WithTri>>
-                (concurrencyLevel: CoreLimitedParallel.GetMaxDegreeOfParallelism(), capacity: expectedCells);
+                (concurrencyLevel: CoreLimitedParallel.GetMaxCores(), capacity: expectedCells);
 
             CoreLimitedParallel.ForEach(oversampledPoints, point => {
                     
@@ -227,7 +227,8 @@ namespace OPS.Geometry
         {
             double radiusSquared = radius * radius;
             List<Vector3WithTri> remainingPoints = new List<Vector3WithTri>(cells.Count);
-            CoreLimitedParallel.ForEach(shuffledCells, () => new Random(random.Next()), (occupiedCell, rng) => {
+            //CoreLimitedParallel NONTRIVIAL
+            Serial.ForEach(shuffledCells, () => new Random(random.Next()), (occupiedCell, rng) => {
 
                     UnorderedList<Vector3WithTri> pointsInCell = cells[occupiedCell];
 
