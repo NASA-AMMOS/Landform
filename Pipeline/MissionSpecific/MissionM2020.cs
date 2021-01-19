@@ -835,21 +835,12 @@ namespace OPS.Pipeline
             return Mission.ROASTT20;
         }
 
-        //ROASTT20: RSM counter not incremented in dataset
-        public override string GetObservationFrameName(PDSParser parser)
-        {
-            double[] angles = parser.metadata.ReadAsDoubleArray("RSM_ARTICULATION_STATE", "ARTICULATION_DEVICE_ANGLE");
-            var name = string.Format("{0}_{1}", GetCamera(parser), RoverMotionCounter(parser));
-
-            //first two angles are mast
-            foreach (var angle in angles.Take(2))
-            {
-                name += "_" + angle.ToString();
-            }
-            return name;
+        public override string RoverMotionCounter(PDSParser parser)
+        {          
+            return RoverMotionCounterFromTimeString(parser);
         }
 
-        //MASTCAMZ images have 'unk' in image_type metadata
+        //MASTCAM-Z images have 'unk' in image_type metadata
         public override RoverProductSize GetRoverProductSize(PDSParser parser)
         {
             RoverProductSize prodSize = parser.ImageSizeType;
