@@ -226,5 +226,35 @@ namespace OPS.Geometry
             AxisAngleVector axisAngle = new AxisAngleVector(rotation);
             return CreateVector.Dense<double>(new double[] { translation.X, translation.Y, translation.Z, axisAngle.X, axisAngle.Y, axisAngle.Z });
         }
+
+        public override string ToString()
+        {
+            return Distribution.ToString();
+        }
+
+        public override int GetHashCode()
+        {
+            return Distribution.GetHashCode();
+        }
+        
+        public override bool Equals(object obj)
+        {
+            if (obj == null || !(obj is UncertainRigidTransform))
+            {
+                return false;
+            }
+            var other = (UncertainRigidTransform)obj;
+            return Distribution.Equals(other.Distribution);
+        }
+        
+        public static bool operator ==(UncertainRigidTransform lhs, UncertainRigidTransform rhs)
+        {
+            return lhs == null ? rhs == null : lhs.Equals(rhs);
+        }
+
+        public static bool operator !=(UncertainRigidTransform lhs, UncertainRigidTransform rhs)
+        {
+            return !(lhs == rhs);
+        }
     }
 }

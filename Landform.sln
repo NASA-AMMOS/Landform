@@ -14,6 +14,9 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "XnaTest", "XnaTest\XnaTest.csproj", "{36B0F3D0-4409-4397-BC21-486DFDDF04F2}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MathExtensions", "MathExtensions\MathExtensions.csproj", "{8C7C8A71-0A4B-4D75-9CB2-32803BD8F86F}"
+	ProjectSection(ProjectDependencies) = postProject
+		{8145AA65-BA61-4E27-81FF-B64217B49929} = {8145AA65-BA61-4E27-81FF-B64217B49929}
+	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PipelineTest", "PipelineTest\PipelineTest.csproj", "{66405D17-B1EC-41BE-8C03-5CE6B5E0B8F6}"
 	ProjectSection(ProjectDependencies) = postProject

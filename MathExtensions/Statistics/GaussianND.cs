@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using MathNet.Numerics.LinearAlgebra;
 using MathNet.Numerics.LinearAlgebra.Double;
+using OPS.Util;
 
 using Xna = Microsoft.Xna.Framework;
 
@@ -177,6 +178,36 @@ namespace OPS.MathExtensions
         public double MahalanobisDistance(Vector<double> point)
         {
             return Math.Sqrt(MahalanobisDistanceSquared(point));
+        }
+
+        public override string ToString()
+        {
+            return $"mean: {XnaMean.ToString()}, covariance {XnaCovariance.ToString()}";
+        }
+        
+        public override int GetHashCode()
+        {
+            return HashCombiner.Combine(N, HashCombiner.Combine(Mean.GetHashCode(), Covariance.GetHashCode()));
+        }
+        
+        public override bool Equals(object obj)
+        {
+            if (obj == null || !(obj is GaussianND))
+            {
+                return false;
+            }
+            var other = (GaussianND)obj;
+            return N == other.N && Mean.Equals(other.Mean) && Covariance.Equals(other.Covariance);
+        }
+
+        public static bool operator ==(GaussianND lhs, GaussianND rhs)
+        {
+            return lhs == null ? rhs == null : lhs.Equals(rhs);
+        }
+
+        public static bool operator !=(GaussianND lhs, GaussianND rhs)
+        {
+            return !(lhs == rhs);
         }
     }
 }
