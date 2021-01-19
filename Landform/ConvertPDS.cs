@@ -66,7 +66,9 @@ namespace OPS.Landform
                 
                 if (Directory.Exists(options.Inputpath))
                 {
-                    files = Directory.GetFiles(options.Inputpath, "*.IMG");
+                    var pdsFiles = Directory.GetFiles(options.Inputpath, "*.IMG").ToList();
+                    pdsFiles.AddRange(Directory.GetFiles(options.Inputpath, "*.VIC"));
+                    files = pdsFiles.ToArray();
                     destDir = options.Inputpath;
                 }
                 else
