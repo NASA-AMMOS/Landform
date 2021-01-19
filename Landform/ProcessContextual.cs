@@ -331,7 +331,7 @@ namespace OPS.Landform
                                      string.Join(",", parameters.SiteDrives));
                 if (cmm != null)
                 {
-                    ret += string.Format(", {3} wedges, timestamp {4} UTC",
+                    ret += string.Format(", {0} wedges, timestamp {1} UTC",
                                          cmm.numWedges >= 0 ? cmm.numWedges.ToString() : "??",
                                          cmm.timestamp > 0 ? UTCTime.MSSinceEpochToDate(cmm.timestamp).ToString()
                                          : "??");
@@ -375,9 +375,11 @@ namespace OPS.Landform
                     }
                     return Dump(parameters, verbose, cmm);
                 }
-                catch //this entire method is never supposed to throw
+                catch (Exception ex) //this entire method is never supposed to throw
                 {
-                    return "(error parsing contextual mesh message)";
+                    string m = "error parsing contextual mesh message";
+                    pipeline.LogException(ex, m);
+                    return $"({m}: {ex.Message})";
                 }
             }
             else
@@ -1178,7 +1180,9 @@ namespace OPS.Landform
         /// <summary>
         /// Applys heruistics to possibly make a ContextualMesh for the sitedrive of primarySDList.
         /// Returns null if it decided not to make one, or if there was a problem.
-        /// If placesDB is null only the primary sitedrive is included (unless options.MaxSiteDriveDistance <= 0).
+        /// If placesDB is null only the primary sitedrive is included unless options.MaxSiteDriveDistance <= 0.
+        /// Similarly, if options.MaxSiteDriveDistance > 0 and PlacesDB fails to return an offset for any sitedrive
+        /// other than the primary then that sitedrive will not be included.
         /// Otherwise considers additional sitedrives from sdLists, which should all have same RDRDir as primarySDList.
         /// </summary>
         private ContextualMeshMessage SiteDriveChanged(SiteDriveList primarySDList, List<SiteDriveList> sdLists,
