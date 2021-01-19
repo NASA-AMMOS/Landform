@@ -590,6 +590,13 @@ namespace OPS.Pipeline
             //return "auto_obj_lod_fn"; //see ProcessTactical.ParseMeshRegex()
             return "auto_iv";
         }
+
+        // Workaround for datasets where RMC does not properly increment, a common test-ism.
+        // May break multiple images with different filters if they have the same timestamp (but does that happen?).
+        protected string RoverMotionCounterFromTimeString(PDSParser parser)
+        {
+            return ((M2020OPGSProductId)ParseProductId(parser.ProductIdString)).GetConcatenatedTimeString();
+        }
     }
 
     public class MissionROASTT19 : MissionM2020 
@@ -601,11 +608,9 @@ namespace OPS.Pipeline
             return Mission.ROASTT19;
         }
 
-        // ROASTT19: bug prevents RMC from being used for frame names. This workaround
-        // will break multiple images with different filters resolving to same frame.
         public override string RoverMotionCounter(PDSParser parser)
         {          
-            return ((M2020OPGSProductId)ParseProductId(parser.ProductIdString)).GetConcatenatedTimeString();
+            return RoverMotionCounterFromTimeString(parser);
         }
 
         // ROASTT19: for some images the INSTRUMENT_ID says LEFT when it should say RIGHT, so use PRODUCT_ID instead
@@ -914,6 +919,21 @@ namespace OPS.Pipeline
         public override string GetTacticalMeshTriggerRegex()
         {
             return "auto_iv"; //see ProcessTactical.ParseMeshRegex()
+        }
+    }
+
+    public class MissionTT16 : MissionM2020
+    {
+        public MissionTT16(string venue = null) : base(venue ?? "dev") { }
+
+        public override Mission GetMission()
+        {
+            return Mission.TT16;
+        }
+    
+        public override string RoverMotionCounter(PDSParser parser)
+        {          
+            return RoverMotionCounterFromTimeString(parser);
         }
     }
 
