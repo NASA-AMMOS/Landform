@@ -756,7 +756,8 @@ namespace OPS.Landform
 
             var orbitalCfg = OrbitalConfig.Instance;
             var orbitalDir = fetchDir + "/orbital/" + missionStr + "/";
-            Func<string, string, string> oopt = (opt, cfg) => !string.IsNullOrEmpty(opt) ? opt : cfg;
+            Func<string, string, string> oopt =
+                (opt, cfg) => StringHelper.NormalizeSlashes(!string.IsNullOrEmpty(opt) ? opt : cfg);
             string orbitalDEMUrl = oopt(options.OrbitalDEMURL, orbitalCfg.DEMURL);
             string orbitalImageUrl = oopt(options.OrbitalImageURL, orbitalCfg.ImageURL);
             string orbitalDEMFile = oopt(options.OrbitalDEM, orbitalCfg.GetDEMFile(orbitalDir, orbitalDEMUrl));

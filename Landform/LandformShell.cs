@@ -364,7 +364,7 @@ namespace OPS.Landform
                 }
             }
 
-            return path;
+            return StringHelper.NormalizeSlashes(path);
         }
 
         public static void SaveFile(PipelineCore pipeline, Func<StorageHelper> storageHelper, string file, string url,
@@ -424,10 +424,10 @@ namespace OPS.Landform
             }
             var stdArgs = new Dictionary<string, string>()
                 {
-                    { "--logfile", subcommandLogFile }, //already handles --logdir
-                    { "--tempdir", lsopts.TempDir },
-                    { "--configdir", Config.GetConfigDir() },
-                    { "--configfolder", subcommandConfigFolder }
+                    { "--logfile", StringHelper.NormalizeSlashes(subcommandLogFile) }, //already handles --logdir
+                    { "--tempdir", StringHelper.NormalizeSlashes(lsopts.TempDir) },
+                    { "--configdir", StringHelper.NormalizeSlashes(Config.GetConfigDir()) },
+                    { "--configfolder", StringHelper.NormalizeSlashes(subcommandConfigFolder) }
                 };
             foreach (var entry in stdArgs)
             {

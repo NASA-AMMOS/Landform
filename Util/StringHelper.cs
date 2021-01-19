@@ -43,6 +43,10 @@ namespace OPS.Util
 
         public static string NormalizeSlashes(string str, bool preserveTrailingSlash = false)
         {
+            if (string.IsNullOrEmpty(str))
+            {
+                return str;
+            }
             str = str.Replace('\\', '/');
             return preserveTrailingSlash ? str : str.TrimEnd(new char[] { '/' });
         }
