@@ -249,7 +249,7 @@ namespace OPS.Geometry
         
         public static bool operator ==(UncertainRigidTransform lhs, UncertainRigidTransform rhs)
         {
-            return lhs == null ? rhs == null : lhs.Equals(rhs);
+            return ReferenceEquals(lhs, rhs) || (!ReferenceEquals(lhs, null) && lhs.Equals(rhs));
         }
 
         public static bool operator !=(UncertainRigidTransform lhs, UncertainRigidTransform rhs)

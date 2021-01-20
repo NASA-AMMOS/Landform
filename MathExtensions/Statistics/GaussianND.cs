@@ -202,7 +202,7 @@ namespace OPS.MathExtensions
 
         public static bool operator ==(GaussianND lhs, GaussianND rhs)
         {
-            return lhs == null ? rhs == null : lhs.Equals(rhs);
+            return ReferenceEquals(lhs, rhs) || (!ReferenceEquals(lhs, null) && lhs.Equals(rhs));
         }
 
         public static bool operator !=(GaussianND lhs, GaussianND rhs)
