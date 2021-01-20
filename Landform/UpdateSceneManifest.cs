@@ -1073,6 +1073,31 @@ namespace OPS.Landform
 
         private void UpdateTacticalMeshManifest(string pdsFile, string tilesetUrl = null, string tilesetId = null)
         {
+            bool removeMaybe(SiteDrive sd)
+            {
+                if (!string.IsNullOrEmpty(options.SiteDrive) &&
+                    SiteDrive.TryParse(options.SiteDrive, out SiteDrive osd) && osd != sd)
+                {
+                    bool removed = sceneManifest.RemoveTileset(tilesetId);
+                    pipeline.LogWarn("tactical mesh tileset {0} sitedrive {1} != {2}{3}", tilesetId, sd,
+                                     options.SiteDrive, removed ? " (removed from manifest)" : "");
+                    return true;
+                }
+                return false;
+            }
+
+            if (tilesetId != null)
+            {
+                var id = RoverProductId.Parse(tilesetId, mission, throwOnFail: false);
+                if (id is OPGSProductId)
+                {
+                    if (removeMaybe(((OPGSProductId)id).SiteDrive))
+                    {
+                        return;
+                    }
+                }
+            }
+            
             if (!FileExists(pdsFile))
             {
                 throw new Exception(string.Format("cannot load PDS metadata from {0}: file not found", pdsFile));
@@ -1082,25 +1107,20 @@ namespace OPS.Landform
             var metadata = new PDSMetadata(GetRDR(pdsFile));
             var parser = new PDSParser(metadata);
 
-            if (string.IsNullOrEmpty(tilesetId))
+            if (SiteDrive.TryParse(parser.SiteDrive, out SiteDrive psd) && !removeMaybe(psd))
             {
-                tilesetId = parser.ProductIdString;
+                if (string.IsNullOrEmpty(tilesetId))
+                {
+                    tilesetId = parser.ProductIdString;
+                }
+                
+                if (tilesetUrl == null && !options.NoURLs)
+                {
+                    tilesetUrl = FindJSONUrl(tilesetId);
+                }
+                
+                sceneManifest.AddOrUpdateTacticalTileset(tilesetUrl, parser, mission, tilesetId, pipeline);
             }
-
-            if (tilesetUrl == null && !options.NoURLs)
-            {
-                tilesetUrl = FindJSONUrl(tilesetId);
-            }
-
-            if (!string.IsNullOrEmpty(options.SiteDrive) && options.SiteDrive != parser.SiteDrive)
-            {
-                bool removed = sceneManifest.RemoveTileset(tilesetId);
-                pipeline.LogWarn("tactical mesh tileset {0} sitedrive {1} != {2}{3}", tilesetId, parser.SiteDrive,
-                                 options.SiteDrive, removed ? " (removed from manifest)" : "");
-                return;
-            }
-
-            sceneManifest.AddOrUpdateTacticalTileset(tilesetUrl, parser, mission, tilesetId, pipeline);
         }
 
         private void UpdateURLs()
