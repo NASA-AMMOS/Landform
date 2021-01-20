@@ -188,7 +188,7 @@ namespace OPS.Pipeline
         
         public override bool Equals(object obj)
         {
-            if (obj == null || !(obj is SiteDrive))
+            if (!(obj is SiteDrive))
             {
                 return false;
             }

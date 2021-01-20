@@ -239,7 +239,7 @@ namespace OPS.Geometry
         
         public override bool Equals(object obj)
         {
-            if (obj == null || !(obj is UncertainRigidTransform))
+            if (!(obj is UncertainRigidTransform))
             {
                 return false;
             }

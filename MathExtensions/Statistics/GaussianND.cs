@@ -192,7 +192,7 @@ namespace OPS.MathExtensions
         
         public override bool Equals(object obj)
         {
-            if (obj == null || !(obj is GaussianND))
+            if (!(obj is GaussianND))
             {
                 return false;
             }
