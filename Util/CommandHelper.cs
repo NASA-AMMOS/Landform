@@ -107,18 +107,20 @@ namespace OPS.Util
                     : appType != null ? LogManager.GetLogger(appType)
                     : pipelineType != null ? LogManager.GetLogger(pipelineType)
                     : LogManager.GetLogger("Landform");
+                string appVersion = Config.AppVersion ?? "(unknown)";
+                string pipelineVersion = Config.PipelineVersion ?? "(unknown)";
                 logger.InfoFormat("command: {0} {1}", PathHelper.GetExe(), string.Join(" ", args));
-                logger.InfoFormat("{0} {1}, Pipeline {2}", Config.BaseCommand ?? "Landform",
-                                  Config.AppVersion ?? "(unknown)", Config.PipelineVersion ?? "(unknown)");
-                logger.InfoFormat("temp dir: {0}", TemporaryFile.TemporaryDirectory);
-                logger.InfoFormat("log file: {0}", Logging.GetLogFile());
+                logger.InfoFormat("{0} {1}{2}", Config.BaseCommand ?? "Landform", appVersion,
+                                  appVersion != pipelineVersion ? (", " + pipelineVersion) : "");
+                logger.InfoFormat("temp dir: {0}", StringHelper.NormalizeSlashes(TemporaryFile.TemporaryDirectory));
+                logger.InfoFormat("log file: {0}", StringHelper.NormalizeSlashes(Logging.GetLogFile()));
 
                 //get the app config instance to ask its file path now
                 //after Config.ConfigDir and Config.ConfigFolder are initialized
                 string cfgFile = appConfigFile != null ? appConfigFile() : null;
                 if (cfgFile != null)
                 {
-                    logger.InfoFormat("config file: {0}", cfgFile);
+                    logger.InfoFormat("config file: {0}", StringHelper.NormalizeSlashes(cfgFile));
                 }
             }
 

@@ -120,11 +120,14 @@ namespace OPS.Landform
         [Option(HelpText = "Path/URL of manifest to update, can be inferred from --tilesetdir, --sol, --sitedrive", Default = null)]
         public string ManifestFile { get; set; }
 
-        [Option(HelpText = "Disable contextual mesh manifest update", Default = false)]
+        [Option(HelpText = "Disable contextual tileset manifest update", Default = false)]
         public bool NoContextual { get; set; }
 
-        [Option(HelpText = "Disable tactical mesh manifest update", Default = false)]
+        [Option(HelpText = "Disable tactical tileset manifest update", Default = false)]
         public bool NoTactical { get; set; }
+
+        [Option(HelpText = "Disable sky tileset manifest update", Default = false)]
+        public bool NoSky { get; set; }
 
         [Option(HelpText = "Don't add URLs to manifest", Default = false)]
         public bool NoURLs { get; set; }
@@ -549,6 +552,24 @@ namespace OPS.Landform
             LandformShell.SaveFile(pipeline, () => storageHelper, file, url, dryRun: options.NoSave);
         }
 
+        protected string GetRDR(string url)
+        {
+            string fetchDir = Path.Combine(LandformShell.GetStorageDir(pipeline), ProcessContextual.FETCH_DIR, "rdrs");
+
+            if (!string.IsNullOrEmpty(url) && url.StartsWith("s3://", StringComparison.OrdinalIgnoreCase) &&
+                Directory.Exists(fetchDir))
+            {
+                string fetchPath = Path.Combine(fetchDir, url.Substring(5));
+                if (File.Exists(fetchPath))
+                {
+                    pipeline.LogInfo("using cached file {0}", fetchPath);
+                    return fetchPath;
+                }
+            }
+
+            return GetFile(url);
+        }
+
         private void LoadOrCreateManifest()
         {
             if (FileExists(options.ManifestFile))
@@ -834,12 +855,15 @@ namespace OPS.Landform
                                                        frameCache, options.UsePriors, options.OnlyAligned,
                                                        images, backprojectedPixels, pipeline);
 
-            string skyTilesetId = tilesetId + "_sky";
-            string skyTilesetUrl = FindJSONUrl(skyTilesetId);
-            if (skyTilesetUrl != null)
+            if (!options.NoSky)
             {
-                sceneManifest.AddOrUpdateSkyTileset(skyTilesetId, !options.NoURLs ? skyTilesetUrl : null,
-                                                    options.SiteDrive, pipeline);
+                string skyTilesetId = tilesetId + "_sky";
+                string skyTilesetUrl = FindJSONUrl(skyTilesetId);
+                if (skyTilesetUrl != null)
+                {
+                    sceneManifest.AddOrUpdateSkyTileset(skyTilesetId, !options.NoURLs ? skyTilesetUrl : null,
+                                                        options.SiteDrive, pipeline);
+                }
             }
         }
 
@@ -1055,34 +1079,54 @@ namespace OPS.Landform
 
         private void UpdateTacticalMeshManifest(string pdsFile, string tilesetUrl = null, string tilesetId = null)
         {
+            bool removeMaybe(SiteDrive sd)
+            {
+                if (!string.IsNullOrEmpty(options.SiteDrive) &&
+                    SiteDrive.TryParse(options.SiteDrive, out SiteDrive osd) && osd != sd)
+                {
+                    bool removed = sceneManifest.RemoveTileset(tilesetId);
+                    pipeline.LogWarn("tactical mesh tileset {0} sitedrive {1} != {2}{3}", tilesetId, sd,
+                                     options.SiteDrive, removed ? " (removed from manifest)" : "");
+                    return true;
+                }
+                return false;
+            }
+
+            if (tilesetId != null)
+            {
+                var id = RoverProductId.Parse(tilesetId, mission, throwOnFail: false);
+                if (id is OPGSProductId)
+                {
+                    if (removeMaybe(((OPGSProductId)id).SiteDrive))
+                    {
+                        return;
+                    }
+                }
+            }
+            
             if (!FileExists(pdsFile))
             {
                 throw new Exception(string.Format("cannot load PDS metadata from {0}: file not found", pdsFile));
             }
 
             pipeline.LogInfo("loading PDS metadata from {0}", pdsFile);
-            var metadata = new PDSMetadata(GetFile(pdsFile));
+            var metadata = new PDSMetadata(GetRDR(pdsFile));
             var parser = new PDSParser(metadata);
 
-            if (string.IsNullOrEmpty(tilesetId))
+            if (SiteDrive.TryParse(parser.SiteDrive, out SiteDrive psd) && !removeMaybe(psd))
             {
-                tilesetId = parser.ProductIdString;
+                if (string.IsNullOrEmpty(tilesetId))
+                {
+                    tilesetId = parser.ProductIdString;
+                }
+                
+                if (tilesetUrl == null && !options.NoURLs)
+                {
+                    tilesetUrl = FindJSONUrl(tilesetId);
+                }
+                
+                sceneManifest.AddOrUpdateTacticalTileset(tilesetUrl, parser, mission, tilesetId, pipeline);
             }
-
-            if (tilesetUrl == null && !options.NoURLs)
-            {
-                tilesetUrl = FindJSONUrl(tilesetId);
-            }
-
-            if (!string.IsNullOrEmpty(options.SiteDrive) && options.SiteDrive != parser.SiteDrive)
-            {
-                bool removed = sceneManifest.RemoveTileset(tilesetId);
-                pipeline.LogWarn("tactical mesh tileset {0} sitedrive {1} != {2}{3}", tilesetId, parser.SiteDrive,
-                                 options.SiteDrive, removed ? " (removed from manifest)" : "");
-                return;
-            }
-
-            sceneManifest.AddOrUpdateTacticalTileset(tilesetUrl, parser, mission, tilesetId, pipeline);
         }
 
         private void UpdateURLs()

@@ -120,7 +120,7 @@ namespace OPS.Pipeline
                 }
                 catch
                 {
-                    pipeline.LogDebug("rejected {0} by problem parsing metadata", url);
+                    pipeline.LogVerbose("rejected {0} by problem parsing metadata", url);
                     return new Result(url, null, Status.Skipped);
                 }
 
@@ -132,7 +132,7 @@ namespace OPS.Pipeline
                 }
                 else if (url.ToUpper().EndsWith(".LBL"))
                 {
-                    pipeline.LogDebug("rejected {0} as LBL file that does not refer to separate image data", url);
+                    pipeline.LogVerbose("rejected {0} as LBL file that does not refer to separate image data", url);
                     return new Result(url, null, Status.Skipped);
                 }
 
@@ -161,13 +161,13 @@ namespace OPS.Pipeline
                 }
                 catch
                 {
-                    pipeline.LogDebug("rejected {0} for invalid camera model", observationName);
+                    pipeline.LogVerbose("rejected {0} for invalid camera model", observationName);
                     return new Result(url, dataUrl, Status.Skipped);
                 }
 
                 if (filter != null && !filter(url, metadata, parser))
                 {
-                    pipeline.LogDebug("rejected {0} due to filter", observationName);
+                    pipeline.LogVerbose("rejected {0} due to filter", observationName);
                     return new Result(url, dataUrl, Status.Skipped);
                 }
                 
@@ -260,12 +260,13 @@ namespace OPS.Pipeline
                 {
                     if (recreateExistingObservations)
                     {
-                        pipeline.LogDebug("recreating existing observation {0}", observationName);
+                        pipeline.LogVerbose("recreating existing observation {0}", observationName);
                         pipeline.DeleteDatabaseItem(observation);
                     }
                     else
                     {
-                        pipeline.LogDebug("not recreating existing observation {0}", observationName);
+                        pipeline.LogVerbose("not recreating existing observation {0} in frame {1}",
+                                            observationName, observationFrameName);
                         if (observation.Index != index)
                         {
                             pipeline.LogDebug("updating index {0} -> {1} on existing observation {2}",
@@ -295,7 +296,8 @@ namespace OPS.Pipeline
                     //but we do ingest multiple images in parallel, so there is some chance that more than one
                     //could resolve to the same observationName (which may itself be a bug)
                     //and in that case we could race here
-                    pipeline.LogDebug("observation {0} already created", observationName);
+                    pipeline.LogWarn("observation {0} in frame {1} already created",
+                                     observationName, observationFrameName);
                     return new Result(url, dataUrl, Status.Failed, null, observationFrame);
                 }
 
@@ -303,7 +305,7 @@ namespace OPS.Pipeline
                 //we ingest multiple images in parallel, possibly for the same frame
                 //so that would be a read-modify-write hazard
                 //instead this is done later in IngestAlignmentInputs
-                pipeline.LogDebug("created observation {0}", observationName);
+                pipeline.LogVerbose("created observation {0} in frame {1}", observationName, observationFrameName);
                 return new Result(url, dataUrl, Status.Added, observation, observationFrame);
             }
             catch (Exception ex)
@@ -407,28 +409,75 @@ namespace OPS.Pipeline
                                                OBSERVATION_COVARIANCE);
         }
 
-        private ConcurrentDictionary<string, bool> alreadyResetTransforms = new ConcurrentDictionary<string, bool>();
+        private HashSet<string> alreadyResetTransforms = new HashSet<string>();
+        private Object frameTableLock = new Object();
 
         private Frame GetFrame(string name, Frame parent, TransformSource source, UncertainRigidTransform transform)
         {
-            var frame = Frame.FindOrCreate(pipeline, project.Name, name, parent);
-            var frameTransform = FrameTransform.Find(pipeline, frame, source);
-            if (frameTransform == null)
+            string parentName = parent != null ? parent.Name : null;
+            Frame frame = null;
+            FrameTransform frameTransform = null;
+            bool createdFrame = false, createdTransform = false;
+
+            lock (frameTableLock)
             {
-                pipeline.LogDebug("creating {0} transform for frame {1}", source, name);
-                frameTransform = FrameTransform.Create(pipeline, frame, source, transform);
-                //don't add to frame.Transforms here
-                //we ingest multiple images in parallel, possibly for the same frame
-                //so that would be a read-modify-write hazard
-                //instead this is done later in IngestAlignmentInputs
+                frame = Frame.Find(pipeline, project.Name, name);
+                if (frame == null)
+                {
+                    frame = Frame.Create(pipeline, project.Name, name, parent); //saves
+                    createdFrame = true;
+                }
+                
+                frameTransform = FrameTransform.Find(pipeline, frame, source);
+                if (frameTransform == null)
+                {
+                    frameTransform = FrameTransform.Create(pipeline, frame, source, transform); //saves
+                    createdTransform = true;
+                    //don't add to frame.Transforms here, this is done later in IngestAlignmentInputs
+                }
             }
-            else if (resetTransforms && !alreadyResetTransforms.ContainsKey(name))
+
+            if (createdFrame)
             {
-                pipeline.LogDebug("resetting {0} transform for frame {1}", source, name);
-                frameTransform.Transform = transform;
-                frameTransform.Save(pipeline);
-                alreadyResetTransforms.TryAdd(name, true);
+                pipeline.LogVerbose("created frame {0}, parent {1}", name, parentName);
             }
+            else if (frame.ParentName != parentName)
+            {
+                throw new Exception($"frame {name} exists but has parent {frame.ParentName} != {parentName}");
+            }
+
+            if (createdTransform)
+            {
+                pipeline.LogVerbose("created {0} transform for frame {1}", source, name);
+            }
+            else
+            {
+                bool resetTransform = false;
+                if (resetTransforms)
+                {
+                    lock (frameTableLock)
+                    {
+                        if (!alreadyResetTransforms.Contains(frameTransform.Name))
+                        {
+                            frameTransform.Transform = transform;
+                            frameTransform.Save(pipeline);
+                            alreadyResetTransforms.Add(frameTransform.Name);
+                            resetTransform = true;
+                        }
+                    }
+                }
+                    
+                if (resetTransform)
+                {
+                    pipeline.LogVerbose("reset {0} transform for frame {1}, parent {2}", source, name, parentName);
+                }
+                else if (!frameTransform.Transform.Equals(transform))
+                {
+                    throw new Exception($"transform {source} for frame {name} exists but has transform " +
+                                        $"{frameTransform.Transform} != {transform}");
+                }
+            }
+
             return frame;
         }
     }

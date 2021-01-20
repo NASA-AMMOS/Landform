@@ -442,7 +442,7 @@ namespace OPS.Pipeline
                                   Action<string> log = null, Func<string, bool> logFilter = null,
                                   Func<RoverProductId, string> idToFile = null)
         {
-            //given a set of ids that only differ in product type and version
+            //given a set of ids that only differ in product type, variants, and version
             //check if there is an XYZ (pointcloud) product
             //if so, remove any RNG (range map) products
             IEnumerable<RoverProductId> filterRNG(IEnumerable<RoverProductId> ids)
@@ -451,7 +451,7 @@ namespace OPS.Pipeline
                 return hasPts ? ids.Where(id => id.ProductType != RoverProductType.Range) : ids;
             }
 
-            //given a set of ids that only differ in color filter and version
+            //given a set of ids that only differ in color filter, variants, and version
             //if both color and grayscale are available, keep the preferred one
             //also if multiple grayscale bands are available, keep the preferred one
             IEnumerable<RoverProductId> filterColor(IEnumerable<RoverProductId> ids, bool preferColorToGrayscale)
@@ -506,7 +506,7 @@ namespace OPS.Pipeline
                 return lin ? isLin(id) : isRaw(id);
             }
 
-            //given a set of ids that only differ in stereo eye and version
+            //given a set of ids that only differ in stereo eye, variants, and version
             //if the product type is strictly geometry
             //and both stereo eyes are present
             //and the preferred stereo eye is left or right
@@ -525,7 +525,7 @@ namespace OPS.Pipeline
                 return ids;
             }
 
-            //given a set of ids that only differ in product type, linearness, and version
+            //given a set of ids that only differ in product type, linearness, variants, and version
             //if both linearnesses present
             //then remove products of the non-preferred linearness
             IEnumerable<RoverProductId> filterLinear(IEnumerable<RoverProductId> ids)
@@ -637,7 +637,8 @@ namespace OPS.Pipeline
 
                     //skip RNG if XYZ is available
                     filtered = orig
-                        .GroupBy(id => id.GetPartialId(mission, includeProductType: false, includeVersion: false))
+                        .GroupBy(id => id.GetPartialId(mission, includeProductType: false,
+                                                       includeVariants: false, includeVersion: false))
                         .SelectMany(ids => filterRNG(ids))
                         .ToList();
                     spew("RNG->XYZ", orig, filtered);
@@ -648,7 +649,8 @@ namespace OPS.Pipeline
                         //if both color and grayscale are available, keep the preferred one
                         //also if multiple grayscale bands are available, keep the preferred one
                         filtered = orig
-                            .GroupBy(id => id.GetPartialId(mission, includeColorFilter: false, includeVersion: false))
+                            .GroupBy(id => id.GetPartialId(mission, includeColorFilter: false,
+                                                           includeVariants: false, includeVersion: false))
                             .SelectMany(ids => filterColor(ids, mission.PreferColorToGrayscale()))
                             .ToList();
                         spew("color", orig, filtered);
@@ -659,7 +661,8 @@ namespace OPS.Pipeline
                         if (preferEyeForGeometry != RoverStereoEye.Any)
                         {
                             filtered = orig
-                                .GroupBy(id => id.GetPartialId(mission, includeStereoEye: false, includeVersion: false))
+                                .GroupBy(id => id.GetPartialId(mission, includeStereoEye: false,
+                                                               includeVariants: false, includeVersion: false))
                                 .SelectMany(ids => filterEye(ids, preferEyeForGeometry))
                                 .ToList();
                             spew("eye", orig, filtered);
@@ -671,7 +674,8 @@ namespace OPS.Pipeline
                         {
                             filtered = orig
                                 .GroupBy(id => id.GetPartialId(mission, includeProductType: false,
-                                                               includeGeometry: false, includeVersion: false))
+                                                               includeGeometry: false,
+                                                               includeVariants: false, includeVersion: false))
                                 .SelectMany(ids => filterLinear(ids))
                                 .ToList();
                             spew("linearity", orig, filtered);

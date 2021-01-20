@@ -87,7 +87,7 @@ namespace OPS.Pipeline
             var source = TransformSource.Prior; 
             var identity = new UncertainRigidTransform();
             var rootFrame = Frame.FindOrCreate(pipeline, projectName, rootName); //saves
-            var rootTransform = FrameTransform.FindOrCreate(pipeline, rootFrame, source, identity); //saves
+            FrameTransform.FindOrCreate(pipeline, rootFrame, source, identity); //saves
 
             return project;
         }

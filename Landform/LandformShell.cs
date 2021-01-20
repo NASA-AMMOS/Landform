@@ -161,10 +161,7 @@ namespace OPS.Landform
             pipeline.LogInfo("recursive search: {0}", lsopts.RecursiveSearch);
             pipeline.LogInfo("case sensitive search: {0}", lsopts.CaseSensitiveSearch);
 
-            storageDir = StringHelper.NormalizeSlashes(!string.IsNullOrEmpty(lsopts.StorageDir) ? lsopts.StorageDir :
-                                                       pipeline is LocalPipeline ?
-                                                       StringHelper.StripProtocol(pipeline.StorageUrl, "file://") :
-                                                       LocalPipelineConfig.Instance.StorageDir);
+            storageDir = GetStorageDir(pipeline, lsopts.StorageDir);
             pipeline.LogInfo("storage dir: {0}", storageDir);
 
             if (!string.IsNullOrEmpty(lsopts.OutputFolder))
@@ -207,11 +204,14 @@ namespace OPS.Landform
                                                  Path.GetFileNameWithoutExtension(logFile) + "-subcommands" +
                                                  Path.GetExtension(logFile));
             }
+            subcommandLogFile = StringHelper.NormalizeSlashes(subcommandLogFile);
             pipeline.LogInfo("subcommand log file: {0}", subcommandLogFile);
 
             subcommandConfigFolder = GetSubcommandConfigFolder();
             subcommandConfigFile = Path.Combine(Config.GetConfigDir(), subcommandConfigFolder,
                                                 pipeline.Config.ConfigFileName() + ".json");
+            subcommandConfigFolder = StringHelper.NormalizeSlashes(subcommandConfigFolder);
+            subcommandConfigFile = StringHelper.NormalizeSlashes(subcommandConfigFile);
             pipeline.LogInfo("subcommand config file: {0}", subcommandConfigFile);
 
             return true;
@@ -278,6 +278,14 @@ namespace OPS.Landform
             SaveFile(pipeline, () => storageHelper, file, url, lsopts.DryRun || lsopts.NoSave);
         }
 
+        public static string GetStorageDir(PipelineCore pipeline, string overrideDir = null)
+        {
+            return StringHelper.NormalizeSlashes(!string.IsNullOrEmpty(overrideDir) ? overrideDir :
+                                                 pipeline is LocalPipeline ?
+                                                 StringHelper.StripProtocol(pipeline.StorageUrl, "file://") :
+                                                 LocalPipelineConfig.Instance.StorageDir);
+        }
+
         public static bool FileExists(PipelineCore pipeline, Func<StorageHelper> storageHelper, string url)
         {
             if (url.StartsWith("s3://") && !(pipeline is CloudPipeline))
@@ -329,9 +337,9 @@ namespace OPS.Landform
             if (url.StartsWith("s3://") && !(pipeline is CloudPipeline) && !dryRun)
             {
                 path = pipeline.DownloadCachePath(cacheDir, filename);
-                pipeline.LogInfo("downloading {0} -> {1}", url, path);
                 if (!File.Exists(path))
                 {
+                    pipeline.LogInfo("downloading {0} -> {1}", url, StringHelper.NormalizeSlashes(path));
                     for (int tries = maxRetries; tries > 0; tries--)
                     {
                         if (tries < maxRetries)
@@ -364,7 +372,7 @@ namespace OPS.Landform
                 }
             }
 
-            return path;
+            return StringHelper.NormalizeSlashes(path);
         }
 
         public static void SaveFile(PipelineCore pipeline, Func<StorageHelper> storageHelper, string file, string url,
@@ -425,8 +433,8 @@ namespace OPS.Landform
             var stdArgs = new Dictionary<string, string>()
                 {
                     { "--logfile", subcommandLogFile }, //already handles --logdir
-                    { "--tempdir", lsopts.TempDir },
-                    { "--configdir", Config.GetConfigDir() },
+                    { "--tempdir", StringHelper.NormalizeSlashes(lsopts.TempDir) },
+                    { "--configdir", StringHelper.NormalizeSlashes(Config.GetConfigDir()) },
                     { "--configfolder", subcommandConfigFolder }
                 };
             foreach (var entry in stdArgs)

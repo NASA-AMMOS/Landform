@@ -12,7 +12,7 @@ using OPS.Pipeline.AlignmentServer;
 
 namespace OPS.Pipeline
 {
-    public enum Mission { None, MSL, M2020, ROASTT19, TT4, ScarecrowEECAM, ROASTT20, ORT11, M20SOPS }
+    public enum Mission { None, MSL, M2020, ROASTT19, TT4, ScarecrowEECAM, ROASTT20, ORT11, TT16, M20SOPS }
 
     public class MissionConfig : SingletonConfig<MissionConfig>
     {
@@ -155,6 +155,7 @@ namespace OPS.Pipeline
                 case Mission.ScarecrowEECAM: return new MissionScarecrowEECAM(venue);
                 case Mission.ROASTT20: return new MissionROASTT20(venue);
                 case Mission.ORT11: return new MissionORT11(venue);
+                case Mission.TT16: return new MissionTT16(venue);
                 case Mission.M20SOPS: return new MissionM20SOPS(venue);
                 default: throw new NotImplementedException("unknown mission");
             }

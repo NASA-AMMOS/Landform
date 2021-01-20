@@ -524,7 +524,7 @@ namespace OPS.Pipeline
                 // rootFrame <- nonidentity uncertain transform - otherSiteDriveB
                 // ...
                 pipeline.LogInfo("effective root frame for project {0}: {1}", project.Name, rootSiteDrive.Value);
-                EnsureRootFrame(frameCache, rootSiteDrive.Value);
+                EnsureRootSDFrame(frameCache, rootSiteDrive.Value);
             }
 
             if (!noOrbital)
@@ -541,23 +541,39 @@ namespace OPS.Pipeline
             }
         }
 
-        private Frame EnsureRootFrame(FrameCache frameCache, SiteDrive rootSiteDrive)
+        private Frame EnsureRootSDFrame(FrameCache frameCache, SiteDrive rootSiteDrive)
         {
             if (frameCache.ContainsFrame(rootSiteDrive.ToString()))
             {
                 return frameCache.GetFrame(rootSiteDrive.ToString());
             }
 
-            pipeline.LogInfo("adding frame for root sitedrive {0}", rootSiteDrive);
             var source = TransformSource.Prior; 
             var identity = new UncertainRigidTransform();
-            var rootFrame = Frame.Create(pipeline, project.Name, rootSiteDrive.ToString()); //saves
-            var ft = FrameTransform.Create(pipeline, rootFrame, source, identity); //saves
 
-            frameCache.Add(rootFrame);
+            string rootName = mission.RootFrameName();
+            Frame rootFrame = null;
+            if (frameCache.ContainsFrame(rootName))
+            {
+                rootFrame = frameCache.GetFrame(rootName);
+            }
+            else //this should have been done in InitializeAlignmentProject...
+            {
+                pipeline.LogWarn("adding {0} frame", rootName);
+                rootFrame = Frame.FindOrCreate(pipeline, project.Name, rootName); //saves
+                var rootTransform = FrameTransform.FindOrCreate(pipeline, rootFrame, source, identity); //saves
+                frameCache.Add(rootFrame);
+                frameCache.Add(rootTransform);
+            }
+
+            pipeline.LogInfo("adding frame for root sitedrive {0}", rootSiteDrive);
+            var rootSDFrame = Frame.Create(pipeline, project.Name, rootSiteDrive.ToString(), rootFrame); //saves
+            var ft = FrameTransform.Create(pipeline, rootSDFrame, source, identity); //saves
+
+            frameCache.Add(rootSDFrame);
             frameCache.Add(ft);
 
-            return rootFrame;
+            return rootSDFrame;
         }
 
         private Frame EnsureOrbitalFrame(PlacesDB places, FrameCache frameCache, SiteDrive? rootSiteDrive = null)
@@ -601,21 +617,21 @@ namespace OPS.Pipeline
             {
                 pipeline.LogInfo("orbital frame {0} not found", orbitalFrameName);
 
-                var rootFrame = EnsureRootFrame(frameCache, rootSiteDrive ?? new SiteDrive(orbitalFrameName));
+                var rootSDFrame = EnsureRootSDFrame(frameCache, rootSiteDrive ?? new SiteDrive(orbitalFrameName));
 
-                if (orbitalFrameName == rootFrame.Name)
+                if (orbitalFrameName == rootSDFrame.Name)
                 {
-                    pipeline.LogInfo("using project root frame {0} as orbital frame", rootFrame.Name);
-                    orbitalFrame = rootFrame;
+                    pipeline.LogInfo("using project root frame {0} as orbital frame", rootSDFrame.Name);
+                    orbitalFrame = rootSDFrame;
                 }
                 else if (places != null)
                 {
                     try
                     {
                         pipeline.LogInfo("adding transform from orbital frame {0} to project root {1} from PlacesDB",
-                                         orbitalFrameName, rootFrame.Name);
+                                         orbitalFrameName, rootSDFrame.Name);
                         Vector3 orbitalToRoot = places.GetOffset(new SiteDrive(orbitalFrameName),
-                                                                 new SiteDrive(rootFrame.Name));
+                                                                 new SiteDrive(rootSDFrame.Name));
                         var xform = new UncertainRigidTransform(Matrix.CreateTranslation(orbitalToRoot),
                                                                 IngestPDSImage.PLACES_COVARIANCE);
                         var source = TransformSource.PlacesDB;
@@ -627,13 +643,13 @@ namespace OPS.Pipeline
                     catch (Exception ex)
                     {
                         pipeline.LogWarn("failed to add transform from orbital frame {0} to project root {1}: {2}",
-                                         orbitalFrameName, rootFrame.Name, ex.Message);
+                                         orbitalFrameName, rootSDFrame.Name, ex.Message);
                     }
                 }
                 else
                 {
                     pipeline.LogWarn("cannot add transform from orbital frame {0} to project root {1} without PlacesDB",
-                                     orbitalFrameName, rootFrame.Name);
+                                     orbitalFrameName, rootSDFrame.Name);
                 }
             }
 
