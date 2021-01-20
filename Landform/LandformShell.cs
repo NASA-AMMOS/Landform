@@ -207,11 +207,14 @@ namespace OPS.Landform
                                                  Path.GetFileNameWithoutExtension(logFile) + "-subcommands" +
                                                  Path.GetExtension(logFile));
             }
+            subcommandLogFile = StringHelper.NormalizeSlashes(subcommandLogFile);
             pipeline.LogInfo("subcommand log file: {0}", subcommandLogFile);
 
             subcommandConfigFolder = GetSubcommandConfigFolder();
             subcommandConfigFile = Path.Combine(Config.GetConfigDir(), subcommandConfigFolder,
                                                 pipeline.Config.ConfigFileName() + ".json");
+            subcommandConfigFolder = StringHelper.NormalizeSlashes(subcommandConfigFolder);
+            subcommandConfigFile = StringHelper.NormalizeSlashes(subcommandConfigFile);
             pipeline.LogInfo("subcommand config file: {0}", subcommandConfigFile);
 
             return true;
@@ -424,10 +427,10 @@ namespace OPS.Landform
             }
             var stdArgs = new Dictionary<string, string>()
                 {
-                    { "--logfile", StringHelper.NormalizeSlashes(subcommandLogFile) }, //already handles --logdir
+                    { "--logfile", subcommandLogFile }, //already handles --logdir
                     { "--tempdir", StringHelper.NormalizeSlashes(lsopts.TempDir) },
                     { "--configdir", StringHelper.NormalizeSlashes(Config.GetConfigDir()) },
-                    { "--configfolder", StringHelper.NormalizeSlashes(subcommandConfigFolder) }
+                    { "--configfolder", subcommandConfigFolder }
                 };
             foreach (var entry in stdArgs)
             {
