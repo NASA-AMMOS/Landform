@@ -721,7 +721,7 @@ namespace OPS.Pipeline.AlignmentServer
             var sdsWithChainedPriors = new HashSet<string>();
             var sdsWithMixedPriors = new HashSet<string>(); //PlacesDB site offset but PDS local_level offset
             var sdsWithFullPriors = new HashSet<string>();
-            int firstSite = -1;
+            SiteDrive? firstSD = null;
             foreach (var frame in GetAllFrames())
             {
                 var parent = frame.ParentName != null ? GetFrame(frame.ParentName) : null;
@@ -734,10 +734,10 @@ namespace OPS.Pipeline.AlignmentServer
                         prior.Source == TransformSource.PlacesDBSitePDSLocal ? sdsWithMixedPriors :
                         sdsWithFullPriors;
                     group.Add(frame.Name);
-                    int site = (new SiteDrive(frame.Name)).Site; //ArgumentException if frame.Name not a SiteDrive
-                    if (firstSite < 0 || site < firstSite)
+                    var sd = new SiteDrive(frame.Name); //ArgumentException if frame.Name not a SiteDrive
+                    if (!firstSD.HasValue || sd.Site < firstSD.Value.Site)
                     {
-                        firstSite = site;
+                        firstSD = sd;
                     }
                 }
             }
@@ -761,40 +761,40 @@ namespace OPS.Pipeline.AlignmentServer
             }
             else if (sdsWithPDSPriors.Count > 0 || sdsWithChainedPriors.Count > 0)
             {
-                var baseSites = new HashSet<int>();
+                var baseSDs = new HashSet<SiteDrive>();
                 foreach (var sd in sdsWithPDSPriors)
                 {
-                    baseSites.Add((new SiteDrive(sd)).Site);
+                    baseSDs.Add(new SiteDrive(sd));
                 }
                 
-                if (sdsWithChainedPriors.Count > 0)
+                if (sdsWithChainedPriors.Count > 0 && firstSD.HasValue)
                 {
-                    baseSites.Add(firstSite);
+                    baseSDs.Add(firstSD.Value);
                 }
                 
                 int relativeToLanding = sdsWithFullPriors.Count + sdsWithMixedPriors.Count;
 
-                if (baseSites.Count > 1)
+                if (baseSDs.Count > 1)
                 {
                     pipeline.LogError("incomplete priors: sitedrives relative to {0} different site frames",
-                                      baseSites.Count);
+                                      baseSDs.Count);
                     rootSiteDrive = null;
                 }
-                else if (relativeToLanding > 0 && landingSiteDrive.Site != baseSites.First())
+                else if (relativeToLanding > 0 && landingSiteDrive != baseSDs.First())
                 {
                     int relativeToFirst = sdsWithPDSPriors.Count + sdsWithChainedPriors.Count;
-                    pipeline.LogWarn("incomplete priors: {0} sitedrives relative to site {1}, " +
+                    pipeline.LogWarn("incomplete priors: {0} sitedrives relative to sitedrive {1}, " +
                                      "but {2} relative to landing sitedrive {3}",
-                                     relativeToFirst, baseSites.First(), relativeToLanding, landingSiteDrive);
+                                     relativeToFirst, baseSDs.First(), relativeToLanding, landingSiteDrive);
                     rootSiteDrive = null;
                 }
                 else
                 {
-                    rootSiteDrive = new SiteDrive(baseSites.First(), 0);
+                    rootSiteDrive = baseSDs.First();
                     if (rootSiteDrive != landingSiteDrive)
                     {
-                        pipeline.LogWarn("incomplete priors: all sitedrives relative to site {0}, " +
-                                         "not landing sitedrive {1}", baseSites.First(), landingSiteDrive);
+                        pipeline.LogWarn("incomplete priors: all sitedrives relative to sitedrive {0}, " +
+                                         "not landing sitedrive {1}", rootSiteDrive, landingSiteDrive);
                     }
                 }
             }
