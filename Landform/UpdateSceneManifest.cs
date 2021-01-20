@@ -549,6 +549,24 @@ namespace OPS.Landform
             LandformShell.SaveFile(pipeline, () => storageHelper, file, url, dryRun: options.NoSave);
         }
 
+        protected string GetRDR(string url)
+        {
+            string fetchDir = Path.Combine(LandformShell.GetStorageDir(pipeline), ProcessContextual.FETCH_DIR, "rdrs");
+
+            if (!string.IsNullOrEmpty(url) && url.StartsWith("s3://", StringComparison.OrdinalIgnoreCase) &&
+                Directory.Exists(fetchDir))
+            {
+                string fetchPath = Path.Combine(fetchDir, url.Substring(5));
+                if (File.Exists(fetchPath))
+                {
+                    pipeline.LogInfo("using cached file {0}", fetchPath);
+                    return fetchPath;
+                }
+            }
+
+            return GetFile(url);
+        }
+
         private void LoadOrCreateManifest()
         {
             if (FileExists(options.ManifestFile))
@@ -1061,7 +1079,7 @@ namespace OPS.Landform
             }
 
             pipeline.LogInfo("loading PDS metadata from {0}", pdsFile);
-            var metadata = new PDSMetadata(GetFile(pdsFile));
+            var metadata = new PDSMetadata(GetRDR(pdsFile));
             var parser = new PDSParser(metadata);
 
             if (string.IsNullOrEmpty(tilesetId))
