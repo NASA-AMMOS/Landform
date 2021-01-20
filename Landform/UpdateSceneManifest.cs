@@ -120,11 +120,14 @@ namespace OPS.Landform
         [Option(HelpText = "Path/URL of manifest to update, can be inferred from --tilesetdir, --sol, --sitedrive", Default = null)]
         public string ManifestFile { get; set; }
 
-        [Option(HelpText = "Disable contextual mesh manifest update", Default = false)]
+        [Option(HelpText = "Disable contextual tileset manifest update", Default = false)]
         public bool NoContextual { get; set; }
 
-        [Option(HelpText = "Disable tactical mesh manifest update", Default = false)]
+        [Option(HelpText = "Disable tactical tileset manifest update", Default = false)]
         public bool NoTactical { get; set; }
+
+        [Option(HelpText = "Disable sky tileset manifest update", Default = false)]
+        public bool NoSky { get; set; }
 
         [Option(HelpText = "Don't add URLs to manifest", Default = false)]
         public bool NoURLs { get; set; }
@@ -852,12 +855,15 @@ namespace OPS.Landform
                                                        frameCache, options.UsePriors, options.OnlyAligned,
                                                        images, backprojectedPixels, pipeline);
 
-            string skyTilesetId = tilesetId + "_sky";
-            string skyTilesetUrl = FindJSONUrl(skyTilesetId);
-            if (skyTilesetUrl != null)
+            if (!options.NoSky)
             {
-                sceneManifest.AddOrUpdateSkyTileset(skyTilesetId, !options.NoURLs ? skyTilesetUrl : null,
-                                                    options.SiteDrive, pipeline);
+                string skyTilesetId = tilesetId + "_sky";
+                string skyTilesetUrl = FindJSONUrl(skyTilesetId);
+                if (skyTilesetUrl != null)
+                {
+                    sceneManifest.AddOrUpdateSkyTileset(skyTilesetId, !options.NoURLs ? skyTilesetUrl : null,
+                                                        options.SiteDrive, pipeline);
+                }
             }
         }
 

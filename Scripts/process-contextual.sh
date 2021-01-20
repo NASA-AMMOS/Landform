@@ -469,7 +469,7 @@ if [ "$generate" ]; then
             if [ ! "$only_sky" ]; then
                 # this scene manifest contains only the contextual mesh tileset and doesn't have URLs
                 ${dry}$landform update-scene-manifest $proj $stdopts --manifestfile $outproj/${proj}_scene.json \
-                      --notactical --nourls --sol=$sol --sitedrive=$sd $manifestargs | tee -a $log
+                      --notactical --nourls --nosky --sol=$sol --sitedrive=$sd $manifestargs | tee -a $log
             fi
 
             if [ "$combined_manifest" ]; then

@@ -841,7 +841,7 @@ namespace OPS.Landform
                     
                     BuildTileset(project, "--meshframe", sdStr);
                     
-                    RunCommand("update-scene-manifest", project, "--notactical", "--nourls",
+                    RunCommand("update-scene-manifest", project, "--notactical", "--nourls", "--nosky",
                                "--sol", solStr, "--sitedrive", sdStr, "--manifestfile", tilesetDir + "/" + SCENE_JSON);
 
                     SaveTileset(tilesetDir, project, destDir);
