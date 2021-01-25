@@ -508,21 +508,22 @@ namespace OPS.Pipeline
 
             //given a set of ids that only differ in stereo eye, variants, and version
             //if the product type is strictly geometry
-            //and both stereo eyes are present
+            //NOT and both stereo eyes are present https://github.jpl.nasa.gov/OnSight/Landform/issues/1160
             //and the preferred stereo eye is left or right
             //then remove products of the non-preferred eye
             IEnumerable<RoverProductId> filterEye(IEnumerable<RoverProductId> ids, RoverStereoEye preferEyeForGeometry)
             {
                 var gids = ids.Where(id => isGeom(id)).ToList();
-                bool hasLeft = gids.Any(id => RoverStereoPair.IsStereoEye(id.Camera, RoverStereoEye.Left));
-                bool hasRight = gids.Any(id => RoverStereoPair.IsStereoEye(id.Camera, RoverStereoEye.Right));
-                if (hasLeft && hasRight)
-                {
+                //https://github.jpl.nasa.gov/OnSight/Landform/issues/1160
+                //bool hasLeft = gids.Any(id => RoverStereoPair.IsStereoEye(id.Camera, RoverStereoEye.Left));
+                //bool hasRight = gids.Any(id => RoverStereoPair.IsStereoEye(id.Camera, RoverStereoEye.Right));
+                //if (hasLeft && hasRight)
+                //{
                     return gids
                         .Where(id => RoverStereoPair.IsStereoEye(id.Camera, preferEyeForGeometry))
                         .Concat(ids.Where(id => !isGeom(id)));
-                }
-                return ids;
+                //}
+                //return ids;
             }
 
             //given a set of ids that only differ in product type, linearness, variants, and version
