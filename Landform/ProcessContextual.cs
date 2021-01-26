@@ -98,32 +98,39 @@ using OPS.Pipeline.AlignmentServer;
 /// adjacent sitedrives, the maximum distance for adjacent sitedrives, and the maximum number of wedges to include in a
 /// contextual mesh.  If PlacesDB is not available then contextual meshes will only be built for single sitedrives.
 ///
-/// Run as service:
+/// * Run as service:
 ///
 /// Landform.exe process-contextual --service --mission=M2020 \
 ///    --queuename=landform-contextual --failqueuename=landform-contextual-fail
 ///
-/// Run as master service:
+/// * Run as master service:
 ///
 /// Landform.exe process-contextual --master --mission=M2020 \
 ///    --queuename=landform-contextual-master --failqueuename=landform-contextual-master-fail \
 ///    --workerqueuename=landform-contextual
 ///
-/// Windjana in batch mode using already downloaded RDRs:
+/// * Windjana in batch mode using already downloaded RDRs:
 ///
 /// Landform.exe process-contextual --mission=M2020 --rdrdir=out/windjana/rdrs --sols=0609-0630
 ///   --sitedrives=0311472,0311256,0311444,0311330 --nocombinedmanifest
 ///
-/// MSL orbital only (assuming out/windjana/orbital-only does not contain RDRs; add --nosurface --notileset
+/// * MSL orbital only (assuming out/windjana/orbital-only does not contain RDRs; add --nosurface --notileset
 /// --nocombinedmanifest to just ingest and spew oribtal metadata):
 ///
 /// Landform.exe process-contextual --mission=MSL --rdrdir=out/windjana/orbital-only --sols=0609 --sitedrives=0311472
 ///
-/// M2020 orbital only without PlacesDB:
+/// * M2020 orbital only without PlacesDB:
 ///
 /// export LANDFORM_ORBITAL_ALLOW_EXPECTED_LANDING_LON_LAT=true
 /// Landform.exe process-contextual --mission=M2020 --rdrdir=out/M2020-landing-orbital --sols=0001 --sitedrives=0010000
 ///
+/// * process contextual mesh from S3 to local folder:
+///
+/// Landform.exe process-contextual --mission=M2020 --rdrdir=s3://m20-ids-g-data-g66bt/ods/dev/sol/#####/ids/rdr
+/// --sols=0281 --sitedrives=0160354 --outputfolder=out/g66bt-281
+///
+/// add --dryrun for dry run
+/// add --notileset --nocombinedmanifest --nocleanup to just ingest and leave database
 /// </summary>
 namespace OPS.Landform
 {
@@ -264,7 +271,7 @@ namespace OPS.Landform
 
         public const int MASTER_LOOP_PERIOD_SEC = 10;
 
-        public const int DEF_DEBOUNCE_SEC = 60;
+        public const int DEF_DEBOUNCE_SEC = 60 * 5;
 
         public const int DEF_MAX_SOL_RANGE = 200;
 

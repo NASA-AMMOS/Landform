@@ -939,7 +939,7 @@ namespace OPS.Pipeline
 
         public override string GetOrbitalS3Folder()
         {
-            return "s3://m20-sops-ods/ods/surface/strategic/ids/orbital/";
+            return $"s3://m20-{venue}-ods/ods/surface/strategic/ids/orbital/";
         }
     }
 }

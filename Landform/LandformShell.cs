@@ -654,7 +654,7 @@ namespace OPS.Landform
 
         protected void Fetch(string maxDownload, string input, string output, params string[] extraArgs)
         {
-            var args = new List<string>() { input, output };
+            var args = new List<string>() { input, StringHelper.NormalizeSlashes(output) };
 
             args.AddRange(extraArgs);
 

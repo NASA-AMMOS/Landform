@@ -666,8 +666,12 @@ namespace OPS.Pipeline
             {
                 var cfg = OrbitalConfig.Instance;
                 var body = PlanetaryBody.GetByName(cfg.BodyName);
-                var demFile = GetOrbitalAssetFile(Observation.ORBITAL_DEM_INDEX);
-                var gisCam = cfg.DEMIsGeoTIFF && demFile != null ? new GISCameraModel(demFile, cfg.BodyName) : null;
+
+                string demFile = GetOrbitalAssetFile(Observation.ORBITAL_DEM_INDEX);
+                GISCameraModel gisCam = null;
+                if (cfg.DEMIsGeoTIFF && !string.IsNullOrEmpty(demFile) && File.Exists(demFile)) {
+                    gisCam = new GISCameraModel(demFile, cfg.BodyName);
+                }
 
                 pipeline.LogInfo("adding GIS metadata for sitedrives from PlacesDB orbital({0}) for planet {1}{2}",
                                  placesDEMIndex, body.Name, gisCam != null ? $" using GeoTIFF {demFile}" : "");
