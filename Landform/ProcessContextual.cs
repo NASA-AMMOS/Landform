@@ -126,7 +126,8 @@ using OPS.Pipeline.AlignmentServer;
 ///
 /// * process contextual mesh from S3 to local folder:
 ///
-/// Landform.exe process-contextual --mission=M2020 --rdrdir=s3://m20-ids-g-data-g66bt/ods/dev/sol/#####/ids/rdr --sols=0281 --sitedrives=0160354 --outputfolder=out/g66bt-281
+/// Landform.exe process-contextual --mission=M2020 --rdrdir=s3://m20-ids-g-data-g66bt/ods/dev/sol/#####/ids/rdr
+/// --sols=0281 --sitedrives=0160354 --outputfolder=out/g66bt-281
 ///
 /// add --dryrun for dry run
 /// add --notileset --nocombinedmanifest --nocleanup to just ingest and leave database
