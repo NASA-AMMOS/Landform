@@ -98,11 +98,11 @@ if not "%LANDFORM_CONTEXTUAL_NO_INDICES%"=="" set noindices=--nopublishindeximag
 set embedindices=
 if not "%LANDFORM_CONTEXTUAL_EMBED_INDICES%"=="" set embedindices=--embedindeximages
 
-set extent=32
-if not "%LANDFORM_CONTEXTUAL_EXTENT%"=="" set extent=%LANDFORM_CONTEXTUAL_EXTENT%
+set extent=
+if not "%LANDFORM_CONTEXTUAL_EXTENT%"=="" set extent=--extent=%LANDFORM_CONTEXTUAL_EXTENT%
 
-set surfaceextent=64
-if not "%LANDFORM_CONTEXTUAL_SURFACE_EXTENT%"=="" set surfaceextent=%LANDFORM_CONTEXTUAL_SURFACE_EXTENT%
+set surfaceextent=
+if not "%LANDFORM_CONTEXTUAL_SURFACE_EXTENT%"=="" set surfaceextent=--surfaceextent=%LANDFORM_CONTEXTUAL_SURFACE_EXTENT%
 
 set msgopts=
 if not "%LANDFORM_CONTEXTUAL_MAX_HANDLER_SEC%"=="" (
@@ -128,7 +128,7 @@ set svcopts=%svcopts% %msgopts%
 
 set contextualopts=--maxfetch=%maxfetch% --maxorbital=%maxorbital% %nocombinedmanifest% %noorbital% %nosky% %skymode%
 set contextualopts=%contextualopts% %tilesetimageformat% %tilesetindexformat%
-set contextualopts=%contextualopts% %noindices% %embedindices% --extent=%extent% --surfaceextent=%surfaceextent%
+set contextualopts=%contextualopts% %noindices% %embedindices% %extent% %surfaceextent%
 
 set appsdir=%bindir%\ExternalApps
 if exist %appsdir%\opengl32-for-ivcat.dll (
