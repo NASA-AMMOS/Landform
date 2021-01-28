@@ -271,7 +271,7 @@ namespace OPS.Landform
 
         public const int MASTER_LOOP_PERIOD_SEC = 10;
 
-        public const int DEF_DEBOUNCE_SEC = 60 * 5;
+        public const int DEF_DEBOUNCE_SEC = 10 * 60; //10 minutes, currently up to ~5min gaps in XYZ IMG within one pass
 
         public const int DEF_MAX_SOL_RANGE = 200;
 
@@ -279,6 +279,7 @@ namespace OPS.Landform
 
         private Regex listRegex, wedgeRegex;
 
+        private int debounceMS;
         private int solRange, maxWedges, maxSDs;
 
         private MessageQueue workerQueue;
@@ -338,7 +339,7 @@ namespace OPS.Landform
                                      string.Join(",", parameters.SiteDrives));
                 if (cmm != null)
                 {
-                    ret += string.Format(", {0} wedges, timestamp {1} UTC",
+                    ret += string.Format("; {0} wedges; timestamp {1} UTC",
                                          cmm.numWedges >= 0 ? cmm.numWedges.ToString() : "??",
                                          cmm.timestamp > 0 ? UTCTime.MSSinceEpochToDate(cmm.timestamp).ToString()
                                          : "??");
@@ -582,10 +583,17 @@ namespace OPS.Landform
                 }
             }
 
+            debounceMS = 1000 * (options.MasterDebounceSec >= 0 ? options.MasterDebounceSec : DEF_DEBOUNCE_SEC);
+            pipeline.LogInfo("debounce time {0}s", debounceMS / 1000);
+
             solRange = options.MaxSolRange >= 0 ? options.MaxSolRange : DEF_MAX_SOL_RANGE;
             maxWedges = options.MaxContextualMeshWedges > 0 ? options.MaxContextualMeshWedges : int.MaxValue;
             maxSDs = options.MaxSiteDrives > 0 ? options.MaxSiteDrives : int.MaxValue;
+            pipeline.LogInfo("contextual mesh extent {0}, surface extent {1}", options.Extent, options.SurfaceExtent);
             pipeline.LogInfo("max sol range {0}, max wedges {1}, max sitedrives {2}", solRange, maxWedges, maxSDs);
+            pipeline.LogInfo("min wedges {0}, {1} for primary sitedrive",
+                             options.MinSiteDriveWedges, options.MinPrimarySiteDriveWedges);
+
 
             return true;
         }
@@ -776,6 +784,14 @@ namespace OPS.Landform
             }
             string noSurface = options.NoSurface ? "--nosurface" : "";
 
+            string orbitalDEMFileOpt = !string.IsNullOrEmpty(orbitalDEMFile) ? $"--orbitaldem={orbitalDEMFile}" : null;
+
+            string orbitalImageFileOpt =
+                !string.IsNullOrEmpty(orbitalImageFile) ? $"--orbitalimage={orbitalImageFile}" : null;
+
+            string camerasOpt =
+                !string.IsNullOrEmpty(options.OnlyForCameras) ? $"--onlyforcameras={options.OnlyForCameras}" : null;
+
             pipeline.LogInfo("building contextual tileset {0} from {1} sitedrives in {2} sols",
                              project, siteDrives.Count, sols.Count);
             try
@@ -828,9 +844,7 @@ namespace OPS.Landform
                     }
                     RunCommand("ingest", project, "--mission", fullMissionStr, "--onlyforsitedrives", sdsStr,
                                "--inputpath", ingestDir + "/" + (options.RecursiveSearch ? "**" : "*"), noSurface,
-                               noOrbital, "--orbitalframe", sdStr,
-                               !string.IsNullOrEmpty(orbitalDEMFile) ? $"--orbitaldem={orbitalDEMFile}" : null,
-                               !string.IsNullOrEmpty(orbitalImageFile) ? $"--orbitalimage={orbitalImageFile}" : null);
+                               noOrbital, "--orbitalframe", sdStr, orbitalDEMFileOpt, orbitalImageFileOpt, camerasOpt);
                 }
 
                 if (!options.NoTileset)
@@ -1410,7 +1424,6 @@ namespace OPS.Landform
         {
             double lastStartSec = -1;
             int targetPeriodSec = MASTER_LOOP_PERIOD_SEC;
-            int debounceMS = 1000 * (options.MasterDebounceSec >= 0 ? options.MasterDebounceSec : DEF_DEBOUNCE_SEC);
 
             pipeline.LogInfo("worker queue: {0}", workerQueue.Name);
             pipeline.LogInfo("running master loop, period {0}s, debounce {1}s", targetPeriodSec, debounceMS / 1000);

@@ -140,6 +140,8 @@ namespace OPS.Landform
         private Regex meshRegex;
         private RoverProductGeometry meshGeometry;
 
+        private RoverProductCamera[] acceptedCameras;
+
         private class MeshImagePair
         {
             public string url;
@@ -253,6 +255,12 @@ namespace OPS.Landform
                 reason = "multi sitedrive product: " + url;
                 return false;
             }
+            if (acceptedCameras.Length > 0 &&
+                !acceptedCameras.Any(ac => RoverCamera.IsCamera(ac, id.Camera)))
+            {
+                reason = "excluded camera " + id.Camera + ": " + url;
+                return false;
+            }
             if (!RoverStereoPair.IsStereoEye(id.Camera, options.MeshStereoEye))
             {
                 reason = "not " + options.MeshStereoEye + " eye: " + url;
@@ -350,6 +358,8 @@ namespace OPS.Landform
                 throw new Exception("unrecognized mesh geometry " + options.MeshGeometry);
             }
             pipeline.LogInfo("mesh geometry: {0}", meshGeometry);
+
+            acceptedCameras = RoverCamera.ParseList(options.OnlyForCameras);
 
             return true;
         }

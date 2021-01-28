@@ -385,56 +385,72 @@ namespace OPS.Landform
             int no = wedgeObservations.Count;
             pipeline.LogInfo("creating wedge meshes for {0} observations...", no);
 
-            int np = 0, nc = 0;
+            int np = 0, nc = 0, nf = 0;
             CoreLimitedParallel.ForEach(wedgeObservations, obs => { 
 
                     Interlocked.Increment(ref np);
 
-                    pipeline.LogVerbose("computing products for {0} observations in parallel, completed {1}/{2}",
-                                        np, nc, no);
-
-                    var mbsObs = (obs.HasMesh && useMeshRDRs) ? obs.MeshObservation : obs.Points ?? obs.Range;
-                    int mbs = WedgeObservations.AutoDecimate(mbsObs, //null ok
-                                                             bcopts.DecimateWedgeMeshes,
-                                                             bcopts.TargetWedgeMeshResolution);
-                    if (mbs > 1 && mbs != bcopts.DecimateWedgeMeshes)
-                    {
-                        pipeline.LogVerbose("auto decimating wedge mesh {0} with blocksize {1}", obs.Name, mbs);
-                    }
-                    var mo = wedgeMeshOpts.Clone();
-                    mo.Decimate = mbs;
-                    if (mbsObs != null && mbsObs == obs.MeshObservation)
-                    {
-                        mo.LoadedFrame = mission.GetTacticalMeshFrame(mbsObs.Name);
-                    }
-                    Mesh mesh = obs.BuildMesh(pipeline, frameCache, masker, mo);
-
-                    Image img = null;
-                    if (bcopts.BEVColoring == BirdsEyeView.ColorMode.Texture && obs.Texture != null)
-                    {
-                        img = pipeline.LoadImage(obs.Texture.Url);
-                        int ibs = WedgeObservations.AutoDecimate(obs.Texture, bcopts.DecimateWedgeImages,
-                                                                 bcopts.TargetWedgeImageResolution);
-                        if (ibs > 1)
+                    try {
+                        pipeline.LogVerbose("computing products for {0} observations in parallel, completed {1}/{2}",
+                                            np, nc, no);
+                        
+                        var mbsObs = (obs.HasMesh && useMeshRDRs) ? obs.MeshObservation : obs.Points ?? obs.Range;
+                        int mbs = WedgeObservations.AutoDecimate(mbsObs, //null ok
+                                                                 bcopts.DecimateWedgeMeshes,
+                                                                 bcopts.TargetWedgeMeshResolution);
+                        if (mbs > 1 && mbs != bcopts.DecimateWedgeMeshes)
                         {
-                            if (ibs != bcopts.DecimateWedgeImages)
-                            {
-                                pipeline.LogVerbose("auto decimating wedge image {0}, blocksize {1}", obs.Name, ibs);
-                            }
-                            img = img.Decimated(ibs);
+                            pipeline.LogVerbose("auto decimating wedge mesh {0} with blocksize {1}", obs.Name, mbs);
                         }
+                        var mo = wedgeMeshOpts.Clone();
+                        mo.Decimate = mbs;
+                        if (mbsObs != null && mbsObs == obs.MeshObservation)
+                        {
+                            mo.LoadedFrame = mission.GetTacticalMeshFrame(mbsObs.Name);
+                        }
+                        Mesh mesh = obs.BuildMesh(pipeline, frameCache, masker, mo);
+
+                        if (mesh == null || !mesh.HasFaces) {
+                            throw new Exception("failed to build mesh");
+                        }
+                        
+                        Image img = null;
+                        if (bcopts.BEVColoring == BirdsEyeView.ColorMode.Texture && obs.Texture != null)
+                        {
+                            img = pipeline.LoadImage(obs.Texture.Url);
+                            int ibs = WedgeObservations.AutoDecimate(obs.Texture, bcopts.DecimateWedgeImages,
+                                                                     bcopts.TargetWedgeImageResolution);
+                            if (ibs > 1)
+                            {
+                                if (ibs != bcopts.DecimateWedgeImages)
+                                {
+                                    pipeline.LogVerbose("auto decimating wedge image {0}, blocksize {1}",
+                                                        obs.Name, ibs);
+                                }
+                                img = img.Decimated(ibs);
+                            }
+                        }
+                        
+                        var input = new Tuple<string, Mesh, Image>(obs.Name, mesh, img);
+                        wedgeMeshes.AddOrUpdate(obs.SiteDrive,
+                                                _ => new ConcurrentBag<Tuple<string, Mesh, Image>>(new [] { input }),
+                                                (_, bag) => { bag.Add(input); return bag; });
+                        
+                        Interlocked.Increment(ref nc);
                     }
-
-                    var input = new Tuple<string, Mesh, Image>(obs.Name, mesh, img);
-                    wedgeMeshes.AddOrUpdate(obs.SiteDrive,
-                                            _ => new ConcurrentBag<Tuple<string, Mesh, Image>>(new [] { input }),
-                                            (_, bag) => { bag.Add(input); return bag; });
-
-                    Interlocked.Decrement(ref np);
-                    Interlocked.Increment(ref nc);
+                    catch (Exception ex)
+                    {
+                        pipeline.LogException(ex, "error creating mesh for wedge " + obs.Name);
+                        Interlocked.Increment(ref nf);
+                    }
+                    finally
+                    {
+                        Interlocked.Decrement(ref np);
+                    }
                 });
 
-            pipeline.LogInfo("created wedge meshes for {0} observations ({1:F3}s)", nc, UTCTime.Now() - startSec);
+            pipeline.LogInfo("created wedge meshes for {0} observations, {1} failures ({2:F3}s)", nc, nf,
+                             UTCTime.Now() - startSec);
         }
 
         protected virtual void LoadOrRenderBEVs()
@@ -553,6 +569,7 @@ namespace OPS.Landform
 
                     //ensure inputs are in a canonical order particularly for BEVBlending = Over
                     var inputs = wedgeMeshes[siteDrive]
+                    .Where(inp => inp.Item2 != null && inp.Item2.HasFaces) //wedge mesh is required
                     .OrderBy(inp => inp.Item1) //order by observation name
                     .Distinct() //ConcurrentBag is not necessarily a set
                     .ToList();
