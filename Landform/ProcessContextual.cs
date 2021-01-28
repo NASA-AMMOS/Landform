@@ -339,7 +339,7 @@ namespace OPS.Landform
                                      string.Join(",", parameters.SiteDrives));
                 if (cmm != null)
                 {
-                    ret += string.Format(", {0} wedges, timestamp {1} UTC",
+                    ret += string.Format("; {0} wedges; timestamp {1} UTC",
                                          cmm.numWedges >= 0 ? cmm.numWedges.ToString() : "??",
                                          cmm.timestamp > 0 ? UTCTime.MSSinceEpochToDate(cmm.timestamp).ToString()
                                          : "??");
