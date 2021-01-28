@@ -31,7 +31,7 @@ else
     exts="IMG|VIC|IV|OBJ|MTL|PNG|TAR"
 fi
 
-ignore="/(ids-pipeline|mesh|browse)/|/ICM-"
+ignore="/(ids-pipeline|mesh|browse)/|/ICM-|_index"
 
 s3ls="aws --profile=credss-default s3 ls"
 
