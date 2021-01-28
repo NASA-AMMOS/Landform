@@ -279,6 +279,7 @@ namespace OPS.Landform
 
         private Regex listRegex, wedgeRegex;
 
+        private int debounceMS;
         private int solRange, maxWedges, maxSDs;
 
         private MessageQueue workerQueue;
@@ -582,10 +583,17 @@ namespace OPS.Landform
                 }
             }
 
+            debounceMS = 1000 * (options.MasterDebounceSec >= 0 ? options.MasterDebounceSec : DEF_DEBOUNCE_SEC);
+            pipeline.LogInfo("debounce time {0}s", debounceMS / 1000);
+
             solRange = options.MaxSolRange >= 0 ? options.MaxSolRange : DEF_MAX_SOL_RANGE;
             maxWedges = options.MaxContextualMeshWedges > 0 ? options.MaxContextualMeshWedges : int.MaxValue;
             maxSDs = options.MaxSiteDrives > 0 ? options.MaxSiteDrives : int.MaxValue;
+            pipeline.LogInfo("contextual mesh extent {0}, surface extent {1}", options.Extent, options.SurfaceExtent);
             pipeline.LogInfo("max sol range {0}, max wedges {1}, max sitedrives {2}", solRange, maxWedges, maxSDs);
+            pipeline.LogInfo("min wedges {0}, {1} for primary sitedrive",
+                             options.MinSiteDriveWedges, options.MinPrimarySiteDriveWedges);
+
 
             return true;
         }
@@ -1410,7 +1418,6 @@ namespace OPS.Landform
         {
             double lastStartSec = -1;
             int targetPeriodSec = MASTER_LOOP_PERIOD_SEC;
-            int debounceMS = 1000 * (options.MasterDebounceSec >= 0 ? options.MasterDebounceSec : DEF_DEBOUNCE_SEC);
 
             pipeline.LogInfo("worker queue: {0}", workerQueue.Name);
             pipeline.LogInfo("running master loop, period {0}s, debounce {1}s", targetPeriodSec, debounceMS / 1000);
