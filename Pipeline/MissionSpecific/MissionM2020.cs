@@ -553,8 +553,9 @@ namespace OPS.Pipeline
 
         public override string GetPlacesConfigDefaults()
         {
+            string sfx = venue == "dev" ? "-dev" : "";
             return "{\n" +
-                $"\"Url\": \"https://places.{venue}.m20.jpl.nasa.gov\",\n" +
+                $"\"Url\": \"https://places{sfx}.{venue}.m20.jpl.nasa.gov\",\n" +
                 "\"View\": \"best_tactical\",\n" +
                 "\"AuthCookieName\": \"ssosession\",\n" +
                 $"\"AuthCookieFile\": \"~/.cssotoken/{venue}/ssosession\"\n" +
