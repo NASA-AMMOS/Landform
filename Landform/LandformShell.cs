@@ -79,6 +79,9 @@ namespace OPS.Landform
         [Option(HelpText = "Embed index images images in tileset .b3dm tiles", Default = false)]
         public bool EmbedIndexImages { get; set; }
 
+        [Option(HelpText = "Only use specific cameras, comma separated (e.g. Hazcam, Mastcam, Navcam, FrontHazcam, FrontHazcamLeft, etc)", Default = null)]
+        public string OnlyForCameras { get; set; }
+
         [Option(HelpText = "Extra fetch arguments", Default = null)]
         public string FetchArgs { get; set; }
     }
@@ -656,8 +659,6 @@ namespace OPS.Landform
         {
             var args = new List<string>() { input, StringHelper.NormalizeSlashes(output) };
 
-            args.AddRange(extraArgs);
-
             if (mission != null)
             {
                 args.AddRange(new string[] { "--mission", mission.GetMissionWithVenue() });
@@ -678,10 +679,17 @@ namespace OPS.Landform
                 args.AddRange(new string[] { "--maxdownload", maxDownload, "--accountexisting", "--deletelru" });
             }
 
+            if (!string.IsNullOrEmpty(lsopts.OnlyForCameras))
+            {
+                args.AddRange(new string[] { "--onlyforcameras", lsopts.OnlyForCameras });
+            }
+
             if (!string.IsNullOrEmpty(lsopts.FetchArgs))
             {
                 args.AddRange(lsopts.FetchArgs.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries));
             }
+
+            args.AddRange(extraArgs);
 
             var allowedFlags = new HashSet<string>() { "--quiet", "--verbose", "--debug", "--nosave" };
 

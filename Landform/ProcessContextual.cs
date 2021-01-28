@@ -271,7 +271,7 @@ namespace OPS.Landform
 
         public const int MASTER_LOOP_PERIOD_SEC = 10;
 
-        public const int DEF_DEBOUNCE_SEC = 60 * 5;
+        public const int DEF_DEBOUNCE_SEC = 10 * 60; //10 minutes, currently up to ~5min gaps in XYZ IMG within one pass
 
         public const int DEF_MAX_SOL_RANGE = 200;
 
@@ -784,6 +784,14 @@ namespace OPS.Landform
             }
             string noSurface = options.NoSurface ? "--nosurface" : "";
 
+            string orbitalDEMFileOpt = !string.IsNullOrEmpty(orbitalDEMFile) ? $"--orbitaldem={orbitalDEMFile}" : null;
+
+            string orbitalImageFileOpt =
+                !string.IsNullOrEmpty(orbitalImageFile) ? $"--orbitalimage={orbitalImageFile}" : null;
+
+            string camerasOpt =
+                !string.IsNullOrEmpty(options.OnlyForCameras) ? $"--onlyforcameras={options.OnlyForCameras}" : null;
+
             pipeline.LogInfo("building contextual tileset {0} from {1} sitedrives in {2} sols",
                              project, siteDrives.Count, sols.Count);
             try
@@ -836,9 +844,7 @@ namespace OPS.Landform
                     }
                     RunCommand("ingest", project, "--mission", fullMissionStr, "--onlyforsitedrives", sdsStr,
                                "--inputpath", ingestDir + "/" + (options.RecursiveSearch ? "**" : "*"), noSurface,
-                               noOrbital, "--orbitalframe", sdStr,
-                               !string.IsNullOrEmpty(orbitalDEMFile) ? $"--orbitaldem={orbitalDEMFile}" : null,
-                               !string.IsNullOrEmpty(orbitalImageFile) ? $"--orbitalimage={orbitalImageFile}" : null);
+                               noOrbital, "--orbitalframe", sdStr, orbitalDEMFileOpt, orbitalImageFileOpt, camerasOpt);
                 }
 
                 if (!options.NoTileset)
