@@ -499,9 +499,10 @@ namespace OPS.Pipeline
                 }
             }
 
-            if (id.Producer == RoverProductProducer.MSSS)
+            if (id.Producer != RoverProductProducer.OPGS)
             {
                 //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/754
+                //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/1166
                 return false;
             }
 
