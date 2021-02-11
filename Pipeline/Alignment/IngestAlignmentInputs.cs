@@ -1035,62 +1035,69 @@ namespace OPS.Pipeline
                 throw new Exception($"must use GeoTIFF or have configured meters per pixel and PlacesDB index");
             }
 
-            try
-            {
-                if (placesIndex < 0)
-                {
-                    throw new Exception("invalid PlacesDB index " + placesIndex);
-                }
-
-                pipeline.LogInfo("orbital {0}: using PlacesDB metadata at index {1}", what, placesIndex);
-                
-                Vector2? ulcEastingNorthing = gisCam != null ? gisCam.ULCEastingNorthing : (Vector2?)null;
-                string fileName = Path.GetFileName(filePath);
-                
-                var variances =
-                    isDEM ? places.CheckOrbitalDEMMetadata(placesIndex, nominalMPP, ulcEastingNorthing, fileName)
-                    : places.CheckOrbitalImageMetadata(placesIndex, nominalMPP, ulcEastingNorthing, fileName);
-                
-                if (variances != null && variances.Length > 0)
-                {
-                    throw new Exception
-                        ($"PlacesDB orbital(placesIndex) variances: " + string.Join("; ", variances));
-                }
-                
-                if (gisCam == null)
-                {
-                    sdPixel = places.GetOrbitalPixel(sd, placesIndex, nominalMPP);
-                }
-                else
-                {
-                    var px = places.GetOrbitalPixel(sd, placesIndex, nominalMPP, gisCam.ULCEastingNorthing);
-                    if (Vector2.Distance(px, sdPixel) > 1)
-                    {
-                        throw new Exception
-                            ($"site drive {sd} pixel (x, y) = ({px.X:f3}, {px.Y:f3}) from PlacesDB " +
-                             $"orbital({placesIndex}) != ({sdPixel.X:f3}, {sdPixel.Y:f3}) from GeoTIFF");
-                    }
-                    
-                    var gisULC = gisCam.ULCEastingNorthing;
-                    var placesULC = places.GetULCEastingNorthing(placesIndex);
-                    if (placesULC.HasValue && Vector2.Distance(gisULC, placesULC.Value) > 1)
-                    {
-                        throw new Exception
-                            ($"ULC (easting, northing) = ({placesULC.Value.X:f3}, {placesULC.Value.Y:f3})m from " +
-                             $"PlacesDB orbital({placesIndex}) != ({gisULC.X:f3}, {gisULC.Y:f3})m from GeoTIFF");
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
+            void variance(Exception ex) {
                 if (isDEM ? cfg.EnforceDEMPlacesDBMetadata : cfg.EnforceImagePlacesDBMetadata)
                 {
-                    throw;
+                    throw ex;
                 }
                 else
                 {
                     pipeline.LogWarn($"orbital {what}: " + ex.Message);
                 }
+            }
+
+            try
+            {
+                if (placesIndex < 0)
+                {
+                    variance("invalid PlacesDB index " + placesIndex);
+                }
+                else
+                {
+                    pipeline.LogInfo("orbital {0}: using PlacesDB metadata at index {1}", what, placesIndex);
+                    
+                    Vector2? ulcEastingNorthing = gisCam != null ? gisCam.ULCEastingNorthing : (Vector2?)null;
+                    string fileName = Path.GetFileName(filePath);
+                    
+                    var variances =
+                        isDEM ? places.CheckOrbitalDEMMetadata(placesIndex, nominalMPP, ulcEastingNorthing, fileName)
+                        : places.CheckOrbitalImageMetadata(placesIndex, nominalMPP, ulcEastingNorthing, fileName);
+                    
+                    if (variances != null && variances.Length > 0)
+                    {
+                        variance(new Exception
+                                 ($"PlacesDB orbital(placesIndex) variances: " + string.Join("; ", variances)));
+                    }
+                    
+                    if (gisCam == null)
+                    {
+                        sdPixel = places.GetOrbitalPixel(sd, placesIndex, nominalMPP);
+                    }
+                    else
+                    {
+                        var px = places.GetOrbitalPixel(sd, placesIndex, nominalMPP, gisCam.ULCEastingNorthing);
+                        if (Vector2.Distance(px, sdPixel) > 1)
+                        {
+                            variance(new Exception
+                                     ($"site drive {sd} pixel (x, y) = ({px.X:f3}, {px.Y:f3}) from PlacesDB " +
+                                      $"orbital({placesIndex}) != ({sdPixel.X:f3}, {sdPixel.Y:f3}) from GeoTIFF"));
+                        }
+                        
+                        var gisULC = gisCam.ULCEastingNorthing;
+                        var placesULC = places.GetULCEastingNorthing(placesIndex);
+                        if (placesULC.HasValue && Vector2.Distance(gisULC, placesULC.Value) > 1)
+                        {
+                            variance(new Exception
+                                     ($"ULC (easting, northing) = ({placesULC.Value.X:f3}, {placesULC.Value.Y:f3})m " +
+                                      $"from PlacesDB orbital({placesIndex}) != ({gisULC.X:f3}, {gisULC.Y:f3})m " +
+                                      "from GeoTIFF"));
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                variance(ex);
             }
 
             if (!sdPixel.IsFinite())
