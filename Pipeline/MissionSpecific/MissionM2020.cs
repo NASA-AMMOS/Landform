@@ -538,6 +538,26 @@ namespace OPS.Pipeline
 
         public override string GetOrbitalConfigDefaults()
         {
+            //PlacesDB orbital index 0
+            // - "global" frame, not associated with any specific geotiff
+            // - easting/northing reported relative to lon/lat 0/0 which is what GDAL expects
+            // - upper_left_{easting,northing}_m are not included in https://PLACES_URL/rmc/ORBITAL(0)/metadata
+            
+            //PlacesDB orbital index 1
+            // - associated with the 25cm basemap CLR (color) and ORR (greyscale) orthophoto geotiffs
+            // - easting/northing reported relative to ULC
+            // - upper_left_{easting,northing}_m are included in https://PLACES_URL/rmc/ORBITAL(1)/metadata
+
+            //PlacesDB orbital index 2
+            // - associated with the 1m DEM geotiff
+            // - easting/northing reported relative to ULC
+            // - upper_left_{easting,northing}_m are included in https://PLACES_URL/rmc/ORBITAL(2)/metadata
+
+            //since we use GDAL the recommendation (from Bob Deen) is that we actually use index 0
+            //the other two are used by other subsystems which don't use GDAL to read the geotiffs
+            //the only small tradeoff is that in this setup we can't cross-check the orbital metadata
+            //(PlacesDB.CheckOrbital{DEM,Image}Metadata() called from IngestAlignmentInputs.IngestOrbitalAsset())
+
             //greyscale image: M20_PrimeMission_HiRISE_ORR_25cm.tif
             //color image: M20_PrimeMission_HiRISE_CLR_25cm.tif
             string s3Folder = GetOrbitalS3Folder();
