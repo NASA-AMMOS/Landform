@@ -1050,7 +1050,7 @@ namespace OPS.Pipeline
             {
                 if (placesIndex < 0)
                 {
-                    variance("invalid PlacesDB index " + placesIndex);
+                    variance(new Exception("invalid PlacesDB index " + placesIndex));
                 }
                 else
                 {
