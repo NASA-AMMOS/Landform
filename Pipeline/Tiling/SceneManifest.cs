@@ -42,6 +42,36 @@ namespace OPS.Pipeline
         }
     }
 
+    public class SceneManifestVector2Converter : JsonConverter
+    {
+        private class Vector2Proxy
+        {
+            public double x, y;
+        }
+
+        public override bool CanRead { get { return true; } }
+
+        public override bool CanWrite { get { return true; } }
+
+        public override bool CanConvert(Type type)
+        {
+            return type == typeof(Vector2);
+        }
+
+        public override object ReadJson(JsonReader reader, Type  type, object existing, JsonSerializer serializer)
+        {
+            var proxy = serializer.Deserialize<Vector2Proxy>(reader);
+            return new Vector2(x: proxy.x, y: proxy.y);
+        }
+
+        public override void WriteJson(JsonWriter writer, object value, JsonSerializer serializer)
+        {
+            var v2 = (Vector2)value;
+            var proxy = new Vector2Proxy { x = v2.X, y = v2.Y };
+            serializer.Serialize(writer, proxy);
+        }
+    }
+
     public class SceneManifestQuaternionConverter : JsonConverter
     {
         private class QuaternionProxy
@@ -79,6 +109,7 @@ namespace OPS.Pipeline
         public List<TilesetManifest> tilesets = new List<TilesetManifest>();
         public List<ImageManifest> images = new List<ImageManifest>();
         public List<FrameManifest> frames = new List<FrameManifest>();
+        public List<SiteDriveManifest> site_drives = new List<SiteDriveManifest>();
     }
 
     public class TilesetManifest
@@ -121,6 +152,23 @@ namespace OPS.Pipeline
 
         [JsonConverter(typeof(SceneManifestVector3Converter))]
         public Vector3 scale = Vector3.One;
+    }
+
+    public class SiteDriveManifest
+    {
+        public string id;
+        public string frame_id;
+
+        public int? site;
+        public int? drive;
+
+        [JsonConverter(typeof(SceneManifestVector2Converter))]
+        public Vector2? northing_easting_meters = null;
+
+        public double? elevation_meters = null;
+
+        [JsonConverter(typeof(SceneManifestVector2Converter))]
+        public Vector2? lat_lon_degrees = null;
     }
 
     public class CameraModelManifest
@@ -178,6 +226,7 @@ namespace OPS.Pipeline
         public Dictionary<string, TilesetManifest> Tilesets = new Dictionary<string, TilesetManifest>();
         public Dictionary<string, ImageManifest> Images = new Dictionary<string, ImageManifest>();
         public Dictionary<string, FrameManifest> Frames = new Dictionary<string, FrameManifest>();
+        public Dictionary<string, SiteDriveManifest> SiteDrives = new Dictionary<string, SiteDriveManifest>();
 
         public static SceneManifestHelper Create()
         {
@@ -207,6 +256,10 @@ namespace OPS.Pipeline
             foreach (var frame in helper.SceneManifest.frames)
             {
                 helper.Frames[frame.id] = frame;
+            }
+            foreach (var sd in helper.SceneManifest.site_drives)
+            {
+                helper.SiteDrives[sd.id] = sd;
             }
 
             return helper;
@@ -277,6 +330,31 @@ namespace OPS.Pipeline
             frame.translation = Vector3.Zero;
             frame.rotation = Quaternion.Identity;
             return frame;
+        }
+
+        public SiteDriveManifest GetOrAddSiteDrive(string siteDrive, Frame frame) {
+            if (SiteDrives.ContainsKey(siteDrive))
+            {
+                return SiteDrives[siteDrive];
+            }
+            var sdm = new SiteDriveManifest() { id = siteDrive };
+            sdm.frame_id = "sitedrive_" + siteDrive;
+            if (SiteDrive.TryParse(siteDrive, out SiteDrive sd)) {
+                sdm.site = sd.Site;
+                sdm.drive = sd.Drive;
+            }
+            if (frame.HasEastingNorthing) {
+                sdm.northing_easting_meters = new Vector2(frame.NorthingMeters, frame.EastingMeters);
+            }
+            if (frame.HasElevation) {
+                sdm.elevation_meters = frame.ElevationMeters;
+            }
+            if (frame.HasLonLat) {
+                sdm.lat_lon_degrees = new Vector2(frame.LatitudeDegrees, frame.LongitudeDegrees);
+            }
+            SiteDrives[siteDrive] = sdm;
+            SceneManifest.site_drives.Add(sdm);
+            return sdm;
         }
 
         public void CullOrphanImagesAndFrames(ILogger logger = null)
@@ -507,6 +585,10 @@ namespace OPS.Pipeline
             }
 
             var sdFrame = GetOrAddSiteDriveFrame(siteDrive);
+
+            if (frameCache.ContainsFrame(siteDrive)) {
+                GetOrAddSiteDrive(siteDrive, frameCache.GetFrame(siteDrive));
+            }
 
             var tileset = GetOrAddTileset(tilesetId);
             tileset.uri = tilesetUrl;
