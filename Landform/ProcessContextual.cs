@@ -271,7 +271,10 @@ namespace OPS.Landform
 
         public const int MASTER_LOOP_PERIOD_SEC = 10;
 
-        public const int DEF_DEBOUNCE_SEC = 10 * 60; //10 minutes, currently up to ~5min gaps in XYZ IMG within one pass
+        //currently up to ~5min gaps in XYZ IMG within one pass
+        //but PlacesDB orbital solutions may not stabilize for up to 25 min after generation
+        //of navcam orthomosaics
+        public const int DEF_DEBOUNCE_SEC = 30 * 60; //30 minutes
 
         public const int DEF_MAX_SOL_RANGE = 200;
 
