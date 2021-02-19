@@ -135,12 +135,19 @@ namespace OPS.Pipeline
         {
             if (!string.IsNullOrEmpty(maskUrl))
             {
-                return Load(pipeline, maskUrl);
+                var mask = Load(pipeline, maskUrl);
+                if (mask.Width == metadata.Width && mask.Height == metadata.Height)
+                {
+                    return mask;
+                }
+                else
+                {
+                    pipeline.LogWarn("rover mask {0} is {1}x{2} but observation image is {3}x{4}, " +
+                                     "attempting to build synthetic mask", maskUrl, mask.Width, mask.Height,
+                                     metadata.Width, metadata.Height);
+                }
             }
-            else
-            {
-                return Build(metadata);
-            }
+            return Build(metadata);
         }
 
         virtual public int GetBorderPixels(PDSParser parser)

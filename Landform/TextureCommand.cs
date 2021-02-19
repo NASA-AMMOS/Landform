@@ -398,6 +398,7 @@ namespace OPS.Landform
                     .KeepBestRoverObservations(off, RoverObservationComparator.LinearVariants.Both,
                                                RoverProductType.RoverMask)
                     .Where(o => o.IsLinear == obs.IsLinear)
+                    .Where(o => o.Width == obs.Width && o.Height == obs.Height)
                     .FirstOrDefault();
                     
                     Image maskImage = ImageMasker.MakeMask(pipeline, masker, maskObs != null ? maskObs.Url : null, img);

@@ -292,9 +292,11 @@ namespace OPS.Pipeline
                 }
 
                 //downsample 0-3, prefer lower
+                //except keep all mask resolutions
+                //because it can happen that the XYZ and RAS products have different downsamples
                 char dsA = a.Name[DOWNSAMPLE_FIELD];
                 char dsB = b.Name[DOWNSAMPLE_FIELD];
-                if (dsA != dsB)
+                if (dsA != dsB && a.ObservationType != RoverProductType.RoverMask)
                 {
                     return dsA - dsB;
                 }
@@ -302,7 +304,7 @@ namespace OPS.Pipeline
                 //compresion, prefer higher
                 int compA = CompressionPreference(a.Name.Substring(COMPRESSION_FIELD, COMPRESSION_FIELD_LENGTH));
                 int compB = CompressionPreference(b.Name.Substring(COMPRESSION_FIELD, COMPRESSION_FIELD_LENGTH));
-                if (compA != compB)
+                if (compA != compB && dsA == dsB)
                 {
                     return compB - compA;
                 }
@@ -323,8 +325,8 @@ namespace OPS.Pipeline
 
             //if we have multiple resolutions (downsample levels) within a single observation
             //then keep only the highest res (lowest downsample)
-            //this is important so that we don't end up with mixed resolutions within one observation
-            //e.g. a mask with a different resolution than the corresponding image
+            //except keep all mask resolutions
+            //because it can happen that the XYZ and RAS products have different downsamples
             var groups = products.GroupBy(id => id.GetPartialId(this, includeProductType: false,
                                                                 includeVariants: false, includeVersion: false));
             var highestRes = new List<RoverProductId>();
@@ -332,12 +334,19 @@ namespace OPS.Pipeline
             {
                 var orig = group.ToList();
 
-                //downsample 0-3, prefer lower
-                char minDS = orig.Select(id => id.FullId[DOWNSAMPLE_FIELD]).DefaultIfEmpty('0').Min();
-                var filtered = orig.Where(id => id.FullId[DOWNSAMPLE_FIELD] == minDS).ToList();
-                spew("downsample", orig, filtered);
-
-                highestRes.AddRange(filtered);
+                if (orig.Count > 0 && orig[0].ProductType == RoverProductType.RoverMask)
+                {
+                    highestRes.AddRange(orig);
+                }
+                else
+                {
+                    //downsample 0-3, prefer lower
+                    char minDS = orig.Select(id => id.FullId[DOWNSAMPLE_FIELD]).DefaultIfEmpty('0').Min();
+                    var filtered = orig.Where(id => id.FullId[DOWNSAMPLE_FIELD] == minDS).ToList();
+                    spew("downsample", orig, filtered);
+                    
+                    highestRes.AddRange(filtered);
+                }
             }
 
             Func<RoverProductId, bool> isEECAM = id => IsHazcam(id.Camera) || IsNavcam(id.Camera);
