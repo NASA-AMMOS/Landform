@@ -913,6 +913,10 @@ namespace OPS.Landform
             //}
             if (mission != null)
             {
+                if (!mission.CheckProductId(id, out string reason))
+                {
+                    return reason;
+                }
                 if (!mission.UseForMeshing(id))
                 {
                     return "product type not used for meshing";
