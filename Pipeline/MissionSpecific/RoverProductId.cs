@@ -15,7 +15,7 @@ namespace OPS.Pipeline
         public readonly RoverProductColor Color;
         public readonly int Version;
 
-        protected RoverProductId(string fullId, RoverProductProducer producer, string productType, string camera,
+        protected RoverProductId(string fullId, string producer, string productType, string camera,
                                  string geometry, string color, string version)
             //this doesn't work because can't call instance method ParseProductType() here
             //: this(fullId, producer, ParseProductType(productType), camera, geometry, color, version)
@@ -25,7 +25,7 @@ namespace OPS.Pipeline
 
             //sigh
             this.FullId = fullId;
-            this.Producer = producer;
+            this.Producer = ParseProducer(producer, camera);
             this.ProductType = ParseProductType(productType);
             this.Camera = ParseCamera(camera);
             this.Geometry = ParseGeometry(geometry);
@@ -33,11 +33,11 @@ namespace OPS.Pipeline
             this.Version = ParseVersion(version);
         }
 
-        protected RoverProductId(string fullId, RoverProductProducer producer, RoverProductType productType,
+        protected RoverProductId(string fullId, string producer, RoverProductType productType,
                                  string camera, string geometry, string color, string version)
         {
             this.FullId = fullId;
-            this.Producer = producer;
+            this.Producer = ParseProducer(producer, camera);
             this.ProductType = productType;
             this.Camera = ParseCamera(camera);
             this.Geometry = ParseGeometry(geometry);
@@ -138,6 +138,8 @@ namespace OPS.Pipeline
         {
             return true;
         }
+
+        protected abstract RoverProductProducer ParseProducer(string producer, string camera);
 
         protected abstract RoverProductType ParseProductType(string productType);
 
@@ -354,9 +356,8 @@ namespace OPS.Pipeline
         public readonly SiteDrive SiteDrive;
         public readonly String Spec;
 
-        protected OPGSProductId(string fullId, RoverProductProducer producer, string productType, string camera,
-                                string geometry, string color, string version, string size, int site, int drive,
-                                string spec)
+        protected OPGSProductId(string fullId, string producer, string productType, string camera, string geometry,
+                                string color, string version, string size, int site, int drive, string spec)
             : base(fullId, producer, productType, camera, geometry, color, version)
         {
             this.Size = ParseSize(size);
@@ -364,9 +365,9 @@ namespace OPS.Pipeline
             this.Spec = spec;
         }
 
-        protected OPGSProductId(string fullId, RoverProductProducer producer, RoverProductType productType,
-                                string camera, string geometry, string color, string version, string size,
-                                int site, int drive, string spec)
+        protected OPGSProductId(string fullId, string producer, RoverProductType productType, string camera,
+                                string geometry, string color, string version, string size, int site, int drive,
+                                string spec)
             : base(fullId, producer, productType, camera, geometry, color, version)
         {
             this.Size = ParseSize(size);
@@ -388,7 +389,7 @@ namespace OPS.Pipeline
             return "T";
         }
 
-        protected static RoverProductProducer ParseMSLProducer(string producer)
+        protected RoverProductProducer ParseMSLProducer(string producer)
         {
             switch (producer.ToUpper())
             {
@@ -397,11 +398,23 @@ namespace OPS.Pipeline
             }
         }
 
-        protected static RoverProductProducer ParseM2020Producer(string producer)
+        protected RoverProductProducer ParseM2020Producer(string producer, string camera)
         {
             switch (producer.ToUpper())
             {
                 case "J": return RoverProductProducer.OPGS;
+                case "A": return RoverProductProducer.ASU;
+                case "P":
+                {
+                    switch (ParseCamera(camera))
+                    {
+                        case RoverProductCamera.MastcamZLeft: case RoverProductCamera.MastcamZRight:
+                            return RoverProductProducer.ASU;
+                        case RoverProductCamera.SupercamRMI: return RoverProductProducer.IRAP;
+                        case RoverProductCamera.MEDASkycam: return RoverProductProducer.SMES;
+                        default: return RoverProductProducer.OPGS;
+                    }
+                }
                 default: return RoverProductProducer.Unknown;
             }
         }
@@ -587,8 +600,7 @@ namespace OPS.Pipeline
         protected MSLOPGSProductId(string fullId, string producer, string productType, string camera, string geometry,
                                    string config, string version, string size, int site, int drive,
                                    string spec, int sclk, string seqnum)
-            : base(fullId, ParseMSLProducer(producer), productType, camera, geometry, config, version, size,
-                   site, drive, spec)
+            : base(fullId, producer, productType, camera, geometry, config, version, size, site, drive, spec)
         {
             this.Config = config;
             this.Sclk = sclk;
@@ -631,6 +643,11 @@ namespace OPS.Pipeline
             return new MSLOPGSProductId(fullId: productId, producer: venue, productType: prodType, camera: inst,
                                         geometry: geom, config: config, version: ver, size: samp,
                                         site: site, drive: drive, spec: spec, sclk: sclk, seqnum: seqnum);
+        }
+
+        protected override RoverProductProducer ParseProducer(string producer, string camera)
+        {
+            return ParseMSLProducer(producer);
         }
 
         protected override RoverProductColor ParseColor(string color, string camera)
@@ -714,7 +731,7 @@ namespace OPS.Pipeline
         public readonly bool MultiSol, MultiSite, MultiDrive;
         public readonly string MeshId;
 
-        protected UnifiedMeshProductIdBase(string fullId, RoverProductProducer producer,
+        protected UnifiedMeshProductIdBase(string fullId, string producer,
                                            string meshProductType, string textureProductType,
                                            string cameras, string geometry, string version,
                                            int site, int drive, string spec, string eye, int sol,
@@ -862,7 +879,7 @@ namespace OPS.Pipeline
                                           string cameras, string geometry, string version, string samp,
                                           int site, int drive, string spec, string eye, int sol,
                                           bool multiSol, bool multiSite, bool multiDrive, string meshId)
-            : base(fullId, ParseMSLProducer(producer), meshProductType, textureProductType, cameras, geometry,
+            : base(fullId, producer, meshProductType, textureProductType, cameras, geometry,
                    version, site, drive, spec, eye, sol, multiSol, multiSite, multiDrive, meshId)
         {
             this.Samp = samp;
@@ -982,6 +999,11 @@ namespace OPS.Pipeline
             return GetSpan(11, 1, out start, out length);
         }
 
+        protected override RoverProductProducer ParseProducer(string producer, string camera)
+        {
+            return ParseMSLProducer(producer);
+        }
+
         protected override RoverProductCamera ParseCamera(char camera, char eyeChar)
         {
             var eye = ParseEye(eyeChar);
@@ -1014,7 +1036,7 @@ namespace OPS.Pipeline
         protected MSLMSSSProductId(string fullId, string camera, string geometry, string color, string version,
                                    int sol, string fullSeqId, string seqLine,
                                    string cdpidCounter, string cdpidComplete, string gopCounter, string processingCode)
-            : base(fullId, RoverProductProducer.MSSS, RoverProductType.Image, camera, geometry, color, version)
+            : base(fullId, null, RoverProductType.Image, camera, geometry, color, version)
         {
             this.Sol = sol;
             this.FullSeqId = fullSeqId;
@@ -1058,6 +1080,11 @@ namespace OPS.Pipeline
                                         version: version, sol: sol, fullSeqId: fullSeqId, seqLine: seqLine,
                                         cdpidCounter: cdpidCounter, cdpidComplete: cdpidComplete,
                                         gopCounter: gopCounter, processingCode: processingCode);
+        }
+
+        protected override RoverProductProducer ParseProducer(string producer, string camera)
+        {
+            return RoverProductProducer.MSSS;
         }
 
         protected override RoverProductType ParseProductType(string productType)
@@ -1141,8 +1168,7 @@ namespace OPS.Pipeline
                                      string spec, int ts0, string venue, int ts1, int ts2,
                                      string sequence, string camspec, string downsample, string compression,
                                      string meshType)
-            : base(fullId, ParseM2020Producer(producer), productType, camera, geometry, color, version, size,
-                   site, drive, spec)
+            : base(fullId, producer, productType, camera, geometry, color, version, size, site, drive, spec)
         {
             this.ColorFilter = color;
             this.Ts0 = ts0;
@@ -1249,6 +1275,11 @@ namespace OPS.Pipeline
         public string GetConcatenatedTimeString()
         {
             return Ts0 + "_" + Ts1 + "_" + Ts2;
+        }
+
+        protected override RoverProductProducer ParseProducer(string producer, string camera)
+        {
+            return ParseM2020Producer(producer, camera);
         }
 
         protected override RoverProductSize ParseSize(string size)
@@ -1362,8 +1393,8 @@ namespace OPS.Pipeline
                                             int site, int drive, string spec, string eye, int sol,
                                             bool multiSol, bool multiSite, bool multiDrive, string meshId,
                                             string meshType, string frame, string resolution, int pyramid)
-            : base(fullId, ParseM2020Producer(producer), meshProductType, textureProductType, cameras, geometry,
-                   version, site, drive, spec, eye, sol, multiSol, multiSite, multiDrive, meshId)
+            : base(fullId, producer, meshProductType, textureProductType, cameras, geometry, version, site, drive,
+                   spec, eye, sol, multiSol, multiSite, multiDrive, meshId)
         {
             this.MeshType = meshType;
             this.Frame = frame;
@@ -1453,6 +1484,11 @@ namespace OPS.Pipeline
         public override bool GetSizeSpan(out int start, out int length)
         {
             return GetSpan(15, 1, out start, out length);
+        }
+
+        protected override RoverProductProducer ParseProducer(string producer, string camera)
+        {
+            return ParseM2020Producer(producer, camera);
         }
 
         protected override RoverProductCamera ParseCamera(char camera, char eyeChar)

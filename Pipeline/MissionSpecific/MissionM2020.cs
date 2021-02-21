@@ -510,8 +510,7 @@ namespace OPS.Pipeline
 
             if (id.Producer != RoverProductProducer.OPGS)
             {
-                //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/754
-                //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/1166
+                //https://github.jpl.nasa.gov/OnSight/Landform/issues/1172
                 return false;
             }
 
@@ -753,7 +752,7 @@ namespace OPS.Pipeline
             public const int LENGTH = 10;
 
             protected ScarecrowEECAMUnifiedMesh(string fullId, int site, int drive)
-                : base(fullId, RoverProductProducer.OPGS, RoverProductType.Points, camera: "NL", geometry: "L",
+                : base(fullId, "J", RoverProductType.Points, camera: "NL", geometry: "L",
                        color: "", version: "0", size: "", site: site, drive: drive, spec: "_") 
             { }
 
@@ -789,6 +788,11 @@ namespace OPS.Pipeline
             public override bool IsSingleSiteDrive()
             {
                 return true;
+            }
+
+            protected override RoverProductProducer ParseProducer(string producer, string camera)
+            {
+                return ParseM2020Producer(producer, camera);
             }
 
             protected override RoverProductColor ParseColor(string color, string camera)
