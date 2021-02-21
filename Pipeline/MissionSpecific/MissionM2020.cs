@@ -481,7 +481,7 @@ namespace OPS.Pipeline
             {
                 M2020OPGSProductId opgsId = (M2020OPGSProductId)id;
                 string spec = opgsId.Spec.ToUpper();
-                if (spec != "_")
+                if (spec != "_" && spec != "C")
                 {
                     //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/895
                     reason = "special processing " + spec;
