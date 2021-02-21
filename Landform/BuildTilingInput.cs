@@ -923,7 +923,16 @@ namespace OPS.Landform
 
                 var mip = tile.GetComponent<MeshImagePair>();
 
-                if (textureMode == TextureMode.Bake)
+                if (!mip.Mesh.HasVertices)
+                {
+                    pipeline.LogWarn("creating blank texture for empty tile " + tile.Name);
+                    mip.Image = new Image(3, tileResolution, tileResolution);
+                    if (!options.NoIndexImages)
+                    {
+                        mip.Index = new Image(3, tileResolution, tileResolution);
+                    }
+                }
+                else if (textureMode == TextureMode.Bake)
                 {
                     var tmp = bakeClipper.BakeTexture(mip.Mesh, tileResolution, msg => pipeline.LogVerbose(msg));
                     mip.Mesh = tmp.Mesh; //may have been atlassed
@@ -1040,7 +1049,7 @@ namespace OPS.Landform
             if (tileMesh.Vertices.Count == 0)
             {
                 pipeline.LogWarn("tile {0} empty", tile.Name);
-                return null;
+                return tileMesh;
             }
 
             if (textureMode == TextureMode.Bake || textureMode == TextureMode.Backproject)

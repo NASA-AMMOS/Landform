@@ -582,8 +582,9 @@ namespace OPS.Pipeline
                 {
                     var minBounds = bounds.First();
                     var maxBounds = bounds.Last();
-                    msg = string.Format("  {0} bounds {1}-{2}",
-                                        bounds.Count, minBounds.FmtExtent(), maxBounds.FmtExtent());
+                    msg = string.Format("  {0} bounds {1}{2}",
+                                        bounds.Count, minBounds.FmtExtent(),
+                                        bounds.Count > 1 ? ("-" + maxBounds.FmtExtent()) : "");
                     writeLine(msg);
                 }
 

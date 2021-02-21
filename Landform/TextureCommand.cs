@@ -542,12 +542,16 @@ namespace OPS.Landform
 
             if (meshLOD.Count == 0)
             {
-                throw new Exception("failed to load input mesh");
+                pipeline.LogWarn("input mesh contains 0 non-empty levels of detail");
+                meshLOD = new List<Mesh>() { new Mesh(hasNormals: requireNormals, hasUVs: requireUVs) };
+            }
+            else
+            {
+                pipeline.LogInfo("input mesh contains {0} non-empty level(s) of detail", meshLOD.Count);
             }
 
             mesh = meshLOD.First();
 
-            pipeline.LogInfo("input mesh contains {0} non-empty level(s) of detail", meshLOD.Count);
             for (int lod = 0; lod < meshLOD.Count; lod++)
             {
                 pipeline.LogInfo("LOD {0}: {1} vertices, {2} faces",
@@ -681,7 +685,7 @@ namespace OPS.Landform
 
             if (tileList.LeafNames == null || tileList.LeafNames.Count == 0)
             {
-                throw new Exception("leaf list empty");
+                pipeline.LogWarn("leaf list empty");
             }
         }
 
@@ -714,8 +718,8 @@ namespace OPS.Landform
             var meshOps = new MeshOperator[meshLOD.Count];
             CoreLimitedParallel.For(0, meshLOD.Count, lod =>
             {
-                meshOps[lod] = new MeshOperator(meshLOD[lod],
-                                                buildFaceTree: true, buildVertexTree: false, buildUVFaceTree: false);
+                meshOps[lod] = new MeshOperator(meshLOD[lod], buildFaceTree: true,
+                                                buildVertexTree: !meshLOD[lod].HasFaces, buildUVFaceTree: false);
             });
             meshOpForLOD = meshOps.ToList();
             meshOp = meshOpForLOD.First();

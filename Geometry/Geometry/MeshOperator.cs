@@ -147,7 +147,7 @@ namespace OPS.Geometry
                 result = new Mesh(HasNormals, HasUVs, HasColors);
                 result.Vertices.AddRange(vertexTree.Intersects(box.ToRectangle()).Select(x => vertices[x]).ToList());
             }
-            if (!box.FuzzyContains(result.Bounds(), 1E-5) && !ragged)
+            if (result.HasVertices && !box.FuzzyContains(result.Bounds(), 1E-5) && !ragged)
             {
                 throw new Exception("Clipped mesh exceeds bounding box");
             }

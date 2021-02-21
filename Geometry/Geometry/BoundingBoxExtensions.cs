@@ -933,6 +933,9 @@ namespace OPS.Geometry
 
         public static string FmtExtent(this BoundingBox box, int decimalPlaces = 3)
         {
+            if (box.IsEmpty()) {
+                return "(empty)";
+            }
             Vector3 sz = box.Extent();
             string fmt = string.Format("{{0:f{0}}}x{{1:f{0}}}x{{2:f{0}}}", decimalPlaces);
             return string.Format(fmt, sz.X, sz.Y, sz.Z);
