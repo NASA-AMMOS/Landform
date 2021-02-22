@@ -91,6 +91,9 @@ namespace OPS.Landform
         [Option(HelpText = "Only use observations from specific site drives SSSDDDD, comma separated, wildcard xxxxx", Default = null)]
         public string OnlyForSiteDrives { get; set; }
 
+        [Option(HelpText = "Only use observations from specific sols, e.g. '27-32', '607,609', '27-32,607,609-611'", Default = null)]
+        public string OnlyForSols { get; set; }
+
         [Option(HelpText = "Whether to make LocationsDB priors (requires locations.xml and basemap DEM)", Default = false)]
         public bool AddLocationsDBPriors { get; set; }
 
@@ -224,7 +227,7 @@ namespace OPS.Landform
             ingester = new IngestAlignmentInputs(pipeline, project, mission,
                                                  options.RedoObservations, options.RedoPriors,
                                                  options.OnlyForObservations, options.OnlyForFrames,
-                                                 options.OnlyForCameras, options.OnlyForSiteDrives,
+                                                 options.OnlyForCameras, options.OnlyForSiteDrives, options.OnlyForSols,
                                                  orbitalDEM, orbitalImage, options.OrbitalFrame,
                                                  options.NoSurface, options.NoOrbital, options.NoProgress);
             baseUrls = ingester.BaseUrls.Select(b => b.Url).ToList();
