@@ -153,8 +153,8 @@ namespace OPS.Landform
         [Option(HelpText = "Don't convert tileset file:// URIs to relative paths", Default = false)]
         public bool NoRelativeFileURIs { get; set; }
 
-        [Option(HelpText = "Convert tileset s3:// URIs to relative paths instead of absolute https:// URIs", Default = false)]
-        public bool RelativeS3URIs { get; set; }
+        [Option(HelpText = "Don't convert tileset s3:// URIs to relative paths instead of absolute https:// URIs", Default = false)]
+        public bool NoRelativeS3URIs { get; set; }
 
         [Option(Default = "mission", HelpText = "S3Proxy (or \"mission\")")]
         public string S3Proxy { get; set; }
@@ -584,7 +584,7 @@ namespace OPS.Landform
                 sceneManifest = SceneManifestHelper.Create();
             }
             sceneManifest.S3Proxy = s3Proxy;
-            sceneManifest.RelativeS3 = options.RelativeS3URIs;
+            sceneManifest.RelativeS3 = !options.NoRelativeS3URIs;
             sceneManifest.RelativeFile = !options.NoRelativeFileURIs;
         }
 
@@ -696,7 +696,7 @@ namespace OPS.Landform
 
         private string ConvertURI(string uri)
         {
-            return SceneManifestHelper.ConvertURI(uri, options.RelativeS3URIs, !options.NoRelativeFileURIs,
+            return SceneManifestHelper.ConvertURI(uri, !options.NoRelativeS3URIs, !options.NoRelativeFileURIs,
                                                   sceneManifest.S3Proxy);
         }
 
