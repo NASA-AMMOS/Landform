@@ -374,6 +374,7 @@ namespace OPS.Landform
             {
                 acceptedProductIds.UnionWith(File.ReadAllLines(options.Include)
                                              .Where(s => !string.IsNullOrEmpty(s.Trim()))
+                                             .Where(s => !s.StartsWith("#"))
                                              .Select(s => StringHelper.GetLastUrlPathSegment(s, stripExtension: true)));
             }
 
@@ -382,6 +383,7 @@ namespace OPS.Landform
             {
                 rejectedProductIds.UnionWith(File.ReadAllLines(options.Exclude)
                                              .Where(s => !string.IsNullOrEmpty(s.Trim()))
+                                             .Where(s => !s.StartsWith("#"))
                                              .Select(s => StringHelper.GetLastUrlPathSegment(s, stripExtension: true)));
             }
 
@@ -1256,7 +1258,9 @@ namespace OPS.Landform
                                 }
                                 if (File.Exists(listFile))
                                 {
-                                    urls.AddRange(File.ReadAllLines(listFile));
+                                    urls.AddRange(File.ReadAllLines(listFile)
+                                                  .Where(s => !string.IsNullOrEmpty(s.Trim()))
+                                                  .Where(s => !s.StartsWith("#")));
                                 }
                                 else
                                 {
