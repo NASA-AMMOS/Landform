@@ -58,6 +58,7 @@ namespace OPS.Pipeline
                                      bool recreateObservations = false, bool resetTransforms = false,
                                      string onlyForObservations = null, string onlyForFrames = null,
                                      string onlyForCameras = null, string onlyForSiteDrives = null, 
+                                     string onlyForSols = null,
                                      string orbitalDEM = null, string orbitalImage = null,
                                      string orbitalFrameName = null, bool noSurface = false, bool noOrbital = false,
                                      bool noProgress = false)
@@ -102,15 +103,18 @@ namespace OPS.Pipeline
             var frames = StringHelper.ParseList(onlyForFrames);
             var cameras = RoverCamera.ParseList(onlyForCameras);
             var siteDrives = SiteDrive.ParseList(onlyForSiteDrives);
+            var sols = ExpandSolSpecifier(onlyForSols);
             IngestPDSImage.Filter filter = (imageUrl, pdsMetadata, pdsParser) =>
                 {
                     var imgId = pdsParser.ProductIdString;
                     var imgSiteDrive = new SiteDrive(pdsParser.Site, pdsParser.Drive);
                     var imgFrame = mission.GetObservationFrameName(pdsParser);
                     var imgCam = mission.GetCamera(pdsParser);
+                    var imgSol = mission.DayNumber(pdsParser);
                     return
                     (observations.Length == 0 || observations.Any(obs => obs == imgId)) &&
                     (siteDrives.Length == 0 || siteDrives.Any(sd => sd == imgSiteDrive)) &&
+                    (sols.Length == 0 || sols.Any(sol => sol == imgSol)) &&
                     (frames.Length == 0 || frames.Any(frame => frame == imgFrame)) &&
                     (cameras.Length == 0 || cameras.Any(cam => RoverCamera.IsCamera(cam, imgCam)));
                 };
@@ -135,6 +139,33 @@ namespace OPS.Pipeline
 
             ingester = new IngestPDSImage(pipeline, project, recreateObservations, resetTransforms, filter,
                                           indices, pdsSiteOffsets);
+        }
+
+        public static int[] ExpandSolSpecifier(string solString)
+        {
+            string[] parts = (solString ?? "").Split(',');
+            List<int> sols = new List<int>();
+            foreach (var part in parts)
+            {
+                if (part.Contains('-'))
+                {
+                    var subparts = part.Split('-');
+                    int startSol = int.Parse(subparts[0]);
+                    int endSol = int.Parse(subparts[1]);
+                    for(int i = startSol; i <= endSol; i++)
+                    {
+                        sols.Add(i);
+                    }
+                }
+                else
+                {
+                    sols.Add(int.Parse(part));
+                }                       
+            }
+            return sols
+                .Distinct()
+                .OrderBy(sol => sol)
+                .ToArray();
         }
 
         public int Ingest(PlacesDB places, MSLLocations locations, MSLLegacyManifest manifest,

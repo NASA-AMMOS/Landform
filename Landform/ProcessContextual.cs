@@ -695,7 +695,7 @@ namespace OPS.Landform
             
             if (!string.IsNullOrEmpty(msg.sols))
             {
-                ret.Sols.UnionWith(FetchData.ExpandSolSpecifier(msg.sols));
+                ret.Sols.UnionWith(IngestAlignmentInputs.ExpandSolSpecifier(msg.sols));
             }
             
             ret.PrimarySiteDrive = new SiteDrive(msg.primarySiteDrive);
@@ -716,7 +716,7 @@ namespace OPS.Landform
             int sep = sols.IndexOfAny(new char[] { ',', '-' });
             sep = sep < 0 ? sols.Length : sep;
             ret.PrimarySol = int.Parse(sols.Substring(0, sep));
-            ret.Sols.UnionWith(FetchData.ExpandSolSpecifier(sols));
+            ret.Sols.UnionWith(IngestAlignmentInputs.ExpandSolSpecifier(sols));
             var sds = SiteDrive.ParseList(siteDrives);
             ret.PrimarySiteDrive = sds[0];
             ret.SiteDrives.UnionWith(sds);
@@ -763,6 +763,7 @@ namespace OPS.Landform
             string sdStr = primarySiteDrive.ToString();
             string solStr = SolToString(primarySol, forceNumeric: true);
             string sdsStr = string.Join(",", siteDrives.ToArray());
+            string solRanges = MakeSolRanges(sols, primarySol);
             string project = string.Format("{0}_{1}", SolToString(primarySol), sdStr);
             string venue = string.Format("contextual_{0}_{1}", missionStr, project);
             string venueDir = storageDir + "/" + venue;
@@ -806,7 +807,7 @@ namespace OPS.Landform
                 if (!options.NoFetch && rdrDir.StartsWith("s3://") && !(pipeline is CloudPipeline))
                 {
                     ingestDir = fetchDir + "/rdrs";
-                    Fetch(options.MaxFetch, MakeSolRanges(sols, primarySol), ingestDir, rdrDir,
+                    Fetch(options.MaxFetch, solRanges, ingestDir, rdrDir,
                           "--onlyforsitedrives", sdsStr, "--nomeshes", "--summary");
                 }
 
@@ -846,6 +847,7 @@ namespace OPS.Landform
                         throw new NotImplementedException("ingestion from multi-sol s3 wildcard not implemented");
                     }
                     RunCommand("ingest", project, "--mission", fullMissionStr, "--onlyforsitedrives", sdsStr,
+                               "--onlyforsols", solRanges,
                                "--inputpath", ingestDir + "/" + (options.RecursiveSearch ? "**" : "*"), noSurface,
                                noOrbital, "--orbitalframe", sdStr, orbitalDEMFileOpt, orbitalImageFileOpt, camerasOpt);
                 }

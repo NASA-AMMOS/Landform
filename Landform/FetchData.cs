@@ -329,33 +329,6 @@ namespace OPS.Landform
             }
         }
 
-        public static int[] ExpandSolSpecifier(string solString)
-        {
-            string[] parts = solString.Split(',');
-            List<int> sols = new List<int>();
-            foreach (var part in parts)
-            {
-                if (part.Contains('-'))
-                {
-                    var subparts = part.Split('-');
-                    int startSol = int.Parse(subparts[0]);
-                    int endSol = int.Parse(subparts[1]);
-                    for(int i = startSol; i <= endSol; i++)
-                    {
-                        sols.Add(i);
-                    }
-                }
-                else
-                {
-                    sols.Add(int.Parse(part));
-                }                       
-            }
-            return sols
-                .Distinct()
-                .OrderBy(sol => sol)
-                .ToArray();
-        }
-
         private string GetProductIDString(string product)
         {
             return mission != null ?
@@ -1282,7 +1255,7 @@ namespace OPS.Landform
                         return 1;
                     }
                     var locations = StringHelper.ParseList(options.SearchLocations);
-                    var sols = ExpandSolSpecifier(options.Input);
+                    var sols = IngestAlignmentInputs.ExpandSolSpecifier(options.Input);
                     logger.InfoFormat("seaching sols {0} in {1}", string.Join(", ", sols),
                                       string.Join(", ", locations));
                     
