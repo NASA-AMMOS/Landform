@@ -533,7 +533,7 @@ namespace OPS.Pipeline
                 try
                 {
                     NormalsImage = (new PDSImage(pipeline.LoadImage(Normals.Url)))
-                        .ConvertNormals(confidence, opts.NormalFilter);
+                        .ConvertNormals(confidence, PointsImage, opts.NormalFilter);
                 }
                 catch (Exception ex)
                 {

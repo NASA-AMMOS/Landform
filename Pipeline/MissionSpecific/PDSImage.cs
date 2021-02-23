@@ -452,10 +452,14 @@ namespace OPS.Pipeline
         ///
         /// also sets mask of return image to be union of input mask, if any
         /// plus invalid values according to image header metadata
-        ///   
+        ///
+        /// if the points image is supplied then it is used to compute cross product normals using local 4-neighbors
+        /// and those are used to further filter the normals
+        /// if a source normal points opposite to a cross product normal then the latter is used instead
+        ///
         /// returns null if there were no valid normals
         /// </summary>
-        public Image ConvertNormals(Image confidence = null, int minValid8Neighbors = 8)
+        public Image ConvertNormals(Image confidence = null, Image points = null, int minValid8Neighbors = 8)
         {
             CheckType(RoverProductType.Normals, "ConvertNormals");
             CheckCameraFrame("ConvertNormals");
@@ -472,6 +476,61 @@ namespace OPS.Pipeline
                 return src.IsValid(r, c) &&
                     (!hasMissingConstant || !src.BandValuesEqual(r, c, missing)) &&
                     (confidence == null || confidence.IsValid(r, c));
+            }
+            var cns = new List<Vector3>(4);
+            Vector3? crossNormal(int r, int c)
+            {
+                if (points == null || !points.IsValid(r, c))
+                {
+                    return null;
+                }
+                Vector3 p = new Vector3(points[0, r, c], points[1, r, c], points[2, r, c]);
+                int up = Math.Max(0, r - 1);
+                Vector3? tu = null;
+                if (points.IsValid(up, c))
+                {
+                    tu = new Vector3(points[0, up, c], points[1, up, c], points[2, up, c]) - p;
+                }
+                int down = Math.Min(r + 1, points.Height - 1);
+                Vector3? td = null;
+                if (points.IsValid(down, c))
+                {
+                    td = new Vector3(points[0, down, c], points[1, down, c], points[2, down, c]) - p;
+                }
+                int left = Math.Max(0, c - 1);
+                Vector3? tl = null;
+                if (points.IsValid(r, left))
+                {
+                    tl = new Vector3(points[0, r, left], points[1, r, left], points[2, r, left]) - p;
+                }
+                int right = Math.Min(c + 1, points.Width - 1);
+                Vector3? tr = null;
+                if (points.IsValid(r, right))
+                {
+                    tr = new Vector3(points[0, r, right], points[1, r, right], points[2, r, right]) - p;
+                }
+                cns.Clear();
+                if (tu.HasValue && tr.HasValue)
+                {
+                    cns.Add(Vector3.Cross(tr.Value, tu.Value));
+                }
+                if (tr.HasValue && td.HasValue)
+                {
+                    cns.Add(Vector3.Cross(td.Value, tr.Value));
+                }
+                if (td.HasValue && tl.HasValue)
+                {
+                    cns.Add(Vector3.Cross(tl.Value, td.Value));
+                }
+                if (tl.HasValue && tu.HasValue)
+                {
+                    cns.Add(Vector3.Cross(tu.Value, tl.Value));
+                }
+                if (cns.Count < 2)
+                {
+                    return null;
+                }
+                return Vector3.Normalize(cns.Aggregate(new Vector3(0, 0, 0), (sum, n) => (sum + n)));
             }
             for (int row = 0; row < src.Height; row++)
             {
@@ -503,12 +562,18 @@ namespace OPS.Pipeline
                         else
                         {
                             var n = new Vector3(src[0, row, col], src[1, row, col], src[2, row, col]);
+                            n.Normalize();
+                            var cn = crossNormal(row, col);
+                            if (cn.HasValue && Vector3.Dot(cn.Value, n) < 0)
+                            {
+                                n = cn.Value;
+                            }
                             if (nonIdentityXform)
                             {
                                 n = Vector3.TransformNormal(n, xform);
-                                ret.SetBandValues(row, col, n.ToFloatArray());
                             }
-                            if (Vector3.Dot(n, src.CameraModel.Unproject(new Vector2(col, row)).Direction) > 0)
+                            ret.SetBandValues(row, col, n.ToFloatArray());
+                            if (Vector3.Dot(n, src.CameraModel.Unproject(new Vector2(col, row)).Direction) >= 0)
                             {
                                 ret.SetMaskValue(row, col, true);
                             }

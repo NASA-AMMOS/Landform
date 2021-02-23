@@ -629,11 +629,12 @@ namespace OPS.Landform
                     mask = masker.LoadOrBuild(pipeline, maskUrl, normals.Metadata as PDSMetadata);
                 }
                 Image confidence = null;
+                PDSImage points = new PDSImage(pipeline.LoadImage(obs.Points.Url));
                 if (options.ScaleNormalsByConfidence)
                 {
-                    confidence = new PDSImage(pipeline.LoadImage(obs.Points.Url)).GenerateConfidence();
+                    confidence = points.GenerateConfidence();
                 }
-                normals = (new PDSImage(normals)).ConvertNormals(confidence);
+                normals = (new PDSImage(normals)).ConvertNormals(confidence, points.ConvertPoints());
                 if (normals != null)
                 {
                     normals = OrganizedPointCloud.MaskAndDecimateNormals(normals, mbs, mask);
