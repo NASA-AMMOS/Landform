@@ -155,12 +155,12 @@ namespace OPS.Landform
             return false;
         }
 
-        protected List<RoverObservation> getRoverObservations(params RoverProductType[] types)
+        protected List<RoverObservation> getRoverObservations(Func<RoverObservation, bool> filter = null)
         {
             return observationCache.GetAllObservations()
                 .Where(obs => (obs is RoverObservation))
                 .Cast<RoverObservation>()
-                .Where(obs => (types == null || types.Any(type => type == obs.ObservationType)))
+                .Where(obs => (filter == null || filter(obs)))
                 .ToList();
         }
 
@@ -207,14 +207,14 @@ namespace OPS.Landform
 
             if (!wcopts.AllowUnmaskedRoverObservations && (mission == null || !mission.CanMakeSyntheticRoverMasks()))
             {
-                var roverObs = getRoverObservations(RoverProductType.Image, RoverProductType.Points,
-                                                    RoverProductType.Range);
+                var roverObs = getRoverObservations(obs => obs.ObservationType != RoverProductType.RoverMask);
                 int nr = 0;
                 foreach (var obs in roverObs)
                 {
                     if (getBestMaskObservation(obs) == null)
                     {
                         observationCache.Remove(obs);
+                        pipeline.LogVerbose("removing observation {0}, no matching rover mask product", obs.Name);
                         nr++;
                     }
                 }

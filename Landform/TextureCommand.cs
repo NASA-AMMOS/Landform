@@ -169,7 +169,7 @@ namespace OPS.Landform
             {
                 orbitalImages = observationCache.GetAllObservations().Where(obs => obs.IsOrbitalImage).ToList();
 
-                roverImages = getRoverObservations(RoverProductType.Image);
+                roverImages = getRoverObservations(obs => obs.ObservationType == RoverProductType.Image);
 
                 FilterRoverImages();
 
