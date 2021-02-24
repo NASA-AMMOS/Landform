@@ -297,6 +297,12 @@ namespace OPS.Pipeline
             return RoverStereoEye.Left;
         }
 
+        public bool CanMakeSyntheticRoverMasks()
+        {
+            var masker = GetMasker();
+            return masker != null && masker.CanMakeSyntheticRoverMasks(); //generally masker should not be null
+        }
+
         public abstract RoverMasker GetMasker();
 
         public virtual bool IsNavcam(RoverProductCamera camera)

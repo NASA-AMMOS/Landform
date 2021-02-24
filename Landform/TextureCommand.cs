@@ -169,11 +169,7 @@ namespace OPS.Landform
             {
                 orbitalImages = observationCache.GetAllObservations().Where(obs => obs.IsOrbitalImage).ToList();
 
-                roverImages = observationCache.GetAllObservations()
-                    .Where(obs => (obs is RoverObservation) &&
-                           (((RoverObservation)obs).ObservationType == RoverProductType.Image))
-                    .Cast<RoverObservation>()
-                    .ToList();
+                roverImages = getRoverObservations(RoverProductType.Image);
 
                 FilterRoverImages();
 
@@ -369,8 +365,6 @@ namespace OPS.Landform
 
         protected void BuildObservationImageMasks()
         {
-            var comparator =
-                mission != null ? mission.GetRoverObservationComparator() : new RoverObservationComparator();
             int no = roverImages.Count;
             int np = 0, nc = 0;
             CoreLimitedParallel.ForEach(roverImages, obs =>
@@ -389,17 +383,8 @@ namespace OPS.Landform
                 try
                 {
                     Image img = pipeline.LoadImage(obs.Url);
-                    
-                    var off = observationCache.GetAllObservationsForFrame(frameCache.GetFrame(obs.FrameName))
-                    .Where(o => o is RoverObservation)
-                    .ToList();
-                    
-                    var maskObs = comparator
-                    .KeepBestRoverObservations(off, RoverObservationComparator.LinearVariants.Both,
-                                               RoverProductType.RoverMask)
-                    .Where(o => o.IsLinear == obs.IsLinear)
-                    .Where(o => o.Width == obs.Width && o.Height == obs.Height)
-                    .FirstOrDefault();
+
+                    var maskObs = getBestMaskObservation(obs);
                     
                     Image maskImage = ImageMasker.MakeMask(pipeline, masker, maskObs != null ? maskObs.Url : null, img);
                     

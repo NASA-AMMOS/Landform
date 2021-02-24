@@ -42,6 +42,9 @@ namespace OPS.Landform
         [Option(HelpText = "Only use observations from specific site drives SSSSSDDDDD, comma separated, wildcard xxxxx", Default = null)]
         public virtual string OnlyForSiteDrives { get; set; }
 
+        [Option(HelpText = "Allow rover observations for which no suitable rover mask is available or could be generated", Default = false)]
+        public virtual bool AllowUnmaskedRoverObservations { get; set; }
+
         [Option(HelpText = "Allowed sources for adjusted transforms, comma separated, all if empty (Adjusted, Manual, Landform, LandformBEV, LandformBEVRoot, LandformBEVCalf, Agisoft)", Default = null)]
         public virtual string AdjustedTransformSources { get; set; }
 
@@ -152,6 +155,39 @@ namespace OPS.Landform
             return false;
         }
 
+        protected List<RoverObservation> getRoverObservations(params RoverProductType[] types)
+        {
+            return observationCache.GetAllObservations()
+                .Where(obs => (obs is RoverObservation))
+                .Cast<RoverObservation>()
+                .Where(obs => (types == null || types.Any(type => type == obs.ObservationType)))
+                .ToList();
+        }
+
+        protected RoverObservation getBestMaskObservation(RoverObservation obs)
+        {
+            var maskObs = observationCache.GetAllObservationsForFrame(frameCache.GetFrame(obs.FrameName))
+                .Where(o => o is RoverObservation)
+                .Cast<RoverObservation>()
+                .Where(o => o.ObservationType == RoverProductType.RoverMask)
+                .Where(o => o.IsLinear == obs.IsLinear)
+                .Where(o => o.Width == obs.Width && o.Height == obs.Height)
+                .ToList();
+
+            if (maskObs.Count == 0)
+            {
+                return null;
+            }
+            
+            var comparator =
+                mission != null ? mission.GetRoverObservationComparator() : new RoverObservationComparator();
+            
+            return comparator
+                .KeepBestRoverObservations(maskObs, RoverObservationComparator.LinearVariants.Both,
+                                           RoverProductType.RoverMask)
+                .FirstOrDefault();
+        }
+
         protected virtual void LoadObservationCache()
         {
             var observations = StringHelper.ParseList(wcopts.OnlyForObservations);
@@ -168,6 +204,26 @@ namespace OPS.Landform
                          (observations.Length == 0 || observations.Any(name => name == obs.Name)) &&
                          (frames.Length == 0 || frames.Any(name => name == obs.FrameName)) &&
                          (cams.Length == 0 || cams.Any(c => RoverCamera.IsCamera(c, ((RoverObservation)obs).Camera)))));
+
+            if (!wcopts.AllowUnmaskedRoverObservations && (mission == null || !mission.CanMakeSyntheticRoverMasks()))
+            {
+                var roverObs = getRoverObservations(RoverProductType.Image, RoverProductType.Points,
+                                                    RoverProductType.Range);
+                int nr = 0;
+                foreach (var obs in roverObs)
+                {
+                    if (getBestMaskObservation(obs) == null)
+                    {
+                        observationCache.Remove(obs);
+                        nr++;
+                    }
+                }
+                num = observationCache.NumObservations();
+                if (nr > 0)
+                {
+                    pipeline.LogInfo("removed {0} rover observations with no matching mask observation", nr);
+                }
+            }
 
             if (num == 0 && !AllowNoObservations())
             {

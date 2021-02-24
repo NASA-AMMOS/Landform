@@ -52,6 +52,11 @@ namespace OPS.Pipeline.AlignmentServer
             return overlaps.Count;
         }
 
+        public int NumOverlaps()
+        {
+            return overlaps.Count;
+        }
+
         public IEnumerable<Overlap> GetAllOverlaps()
         {
             return overlaps.Values;

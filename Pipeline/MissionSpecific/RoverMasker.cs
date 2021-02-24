@@ -150,9 +150,14 @@ namespace OPS.Pipeline
             return Build(metadata);
         }
 
-        virtual public int GetBorderPixels(PDSParser parser)
+        public virtual int GetBorderPixels(PDSParser parser)
         {
             return ImageMasker.DEF_MASK_BORDER;
+        }
+
+        public virtual bool CanMakeSyntheticRoverMasks()
+        {
+            return true;
         }
     }
 
@@ -169,7 +174,9 @@ namespace OPS.Pipeline
             var cam = mission.GetCamera(parser);
             if (mission.IsHazcam(cam))
             {
-                return 150; //enough to fix some errors in our homemade rover masks (rear: RTG, front: arm parts) ISSUE 1082 for example
+                //enough to fix some errors in our homemade rover masks (rear: RTG, front: arm parts)
+                //ISSUE 1082 for example
+                return 150;
             }
             else
             {
@@ -193,6 +200,11 @@ namespace OPS.Pipeline
         public override PDSRoverArticulationParser GetParser(PDSMetadata metadata)
         {
             return new M2020RoverArticulationParser(metadata);
+        }
+
+        public override bool CanMakeSyntheticRoverMasks()
+        {
+            return false;
         }
     }
 }

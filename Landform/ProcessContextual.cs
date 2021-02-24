@@ -257,6 +257,9 @@ namespace OPS.Landform
 
         [Option(Default = ProcessContextual.DEF_MAX_SOL_RANGE, HelpText = "Max difference between sol and primary sol to include in contextual mesh, negative to use default")]
         public int MaxSolRange { get; set; }
+
+        [Option(HelpText = "Allow rover observations for which no suitable rover mask is available or could be generated", Default = false)]
+        public virtual bool AllowUnmaskedRoverObservations { get; set; }
     }
 
     public class ProcessContextual : LandformService
@@ -796,6 +799,8 @@ namespace OPS.Landform
             string camerasOpt =
                 !string.IsNullOrEmpty(options.OnlyForCameras) ? $"--onlyforcameras={options.OnlyForCameras}" : null;
 
+            string allowUnmasked = options.AllowUnmaskedRoverObservations ? "--allowunmaskedroverobservations" : null;
+
             pipeline.LogInfo("building contextual tileset {0} from {1} sitedrives in {2} sols",
                              project, siteDrives.Count, sols.Count);
             try
@@ -854,20 +859,22 @@ namespace OPS.Landform
 
                 if (!options.NoTileset)
                 {
-                    RunCommand("bev-align", options.AbortOnAlignmentError, project, "--fixsitedrives", sdStr);
+                    RunCommand("bev-align", options.AbortOnAlignmentError, project, "--fixsitedrives", sdStr,
+                               allowUnmasked);
 
-                    RunCommand("heightmap-align", options.AbortOnAlignmentError, project, "--basesitedrive", sdStr);
+                    RunCommand("heightmap-align", options.AbortOnAlignmentError, project, "--basesitedrive", sdStr,
+                               allowUnmasked);
                     
                     RunCommand("build-geometry", project, "--meshframe", sdStr, "--extent", options.Extent.ToString(),
-                               "--surfaceextent", options.SurfaceExtent.ToString());
+                               "--surfaceextent", options.SurfaceExtent.ToString(), allowUnmasked);
 
-                    RunCommand("build-tiling-input", project, "--meshframe", sdStr);
+                    RunCommand("build-tiling-input", project, "--meshframe", sdStr, allowUnmasked);
                     
-                    RunCommand("blend-images", project, "--meshframe", sdStr);
+                    RunCommand("blend-images", project, "--meshframe", sdStr, allowUnmasked);
                     
-                    BuildTileset(project, "--meshframe", sdStr);
+                    BuildTileset(project, "--meshframe", sdStr, allowUnmasked);
                     
-                    RunCommand("update-scene-manifest", project, "--notactical", "--nourls", "--nosky",
+                    RunCommand("update-scene-manifest", project, "--notactical", "--nourls", "--nosky", allowUnmasked,
                                "--sol", solStr, "--sitedrive", sdStr, "--manifestfile", tilesetDir + "/" + SCENE_JSON);
 
                     SaveTileset(tilesetDir, project, destDir);
@@ -875,7 +882,7 @@ namespace OPS.Landform
                     if (!options.NoSky)
                     {
                         RunCommand("build-sky-sphere", project, "--meshframe", sdStr,
-                                   "--skymode", options.SkyMode.ToString());
+                                   "--skymode", options.SkyMode.ToString(), allowUnmasked);
                         string skyTilesetDir = GetTilesetDir(venue, sdStr, project, BuildSkySphere.SKY_TILESET_DIR);
                         SaveTileset(skyTilesetDir, project, destDir, "_sky");
                     }
@@ -883,7 +890,7 @@ namespace OPS.Landform
 
                 if (!options.NoCombinedManifest)
                 {
-                    RunCommand("update-scene-manifest", project, "--tilesetdir", destDir,
+                    RunCommand("update-scene-manifest", project, allowUnmasked, "--tilesetdir", destDir,
                                "--rdrdir", rdrDir, "--sol", solStr, "--sitedrive", sdStr,
                                "--awsprofile", awsProfile, "--awsregion", awsRegion);
                 }

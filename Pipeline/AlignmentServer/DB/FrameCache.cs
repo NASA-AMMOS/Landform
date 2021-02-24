@@ -138,6 +138,16 @@ namespace OPS.Pipeline.AlignmentServer
             return frames.Count;
         }
 
+        public int NumFrames()
+        {
+            return frames.Count;
+        }
+
+        public int NumTransforms()
+        {
+            return transforms.Count;
+        }
+
         public IEnumerable<Frame> GetAllFrames()
         {
             return frames.Values;
