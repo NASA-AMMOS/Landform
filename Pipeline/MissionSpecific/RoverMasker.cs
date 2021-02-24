@@ -197,6 +197,21 @@ namespace OPS.Pipeline
         //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/554
         public override RoverModel GetRoverModel() { return null; }
 
+        public override int GetBorderPixels(PDSParser parser)
+        {
+            //M20 camera SIS says zcam
+            //"can acquire images of up to 1648 x 1200 pixels (generally only 1600 x 1200 are used)"
+            //and during early mission at least we are seeing black borders on the left and right sides of zcam
+            //images, but those images are also 1648 wide
+            int def = base.GetBorderPixels(parser);
+            var cam = mission.GetCamera(parser);
+            if (mission.IsMastcam(cam) && parser.metadata.Width > 1600)
+            {
+                return def + (parser.metadata.Width - 1600) / 2;
+            }
+            return def;
+        }
+
         public override PDSRoverArticulationParser GetParser(PDSMetadata metadata)
         {
             return new M2020RoverArticulationParser(metadata);
