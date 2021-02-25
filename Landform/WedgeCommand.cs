@@ -218,6 +218,22 @@ namespace OPS.Landform
                         nr++;
                     }
                 }
+                var maskObs = getRoverObservations(obs => obs.ObservationType == RoverProductType.RoverMask);
+                {
+                    foreach (var obs in maskObs)
+                    {
+                        var off = observationCache.GetAllObservationsForFrame(frameCache.GetFrame(obs.FrameName))
+                            .Where(o => o is RoverObservation)
+                            .Cast<RoverObservation>()
+                            .ToList();
+                        if (off.Count == 1 && off[0] == obs)
+                        {
+                            observationCache.Remove(obs);
+                            pipeline.LogVerbose("removing orphan mask observation {0}", obs.Name);
+                            nr++;
+                        }
+                    }
+                }
                 num = observationCache.NumObservations();
                 if (nr > 0)
                 {

@@ -47,7 +47,10 @@ namespace OPS.Pipeline.AlignmentServer
                 return false;
             }
             observations.Remove(obs.Name);
-            forFrame.Remove(obs.Name);
+            if (forFrame.ContainsKey(obs.FrameName))
+            {
+                forFrame[obs.FrameName].Remove(obs);
+            }
             indexedObservations.Remove(obs.Index);
             return true;
         }
