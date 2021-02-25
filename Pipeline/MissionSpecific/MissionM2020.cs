@@ -552,6 +552,12 @@ namespace OPS.Pipeline
                     }
                 }
 
+                if (isEECAM && id.FullId[EECAM_RECONSTRUCTION_FIELD] == '_')
+                {
+                    reason = "EECAM tile";
+                    return false;
+                }
+
                 //downsample and compression handled in RoverObservationComparator
 
                 if (opgsId.Color == RoverProductColor.Unknown)
