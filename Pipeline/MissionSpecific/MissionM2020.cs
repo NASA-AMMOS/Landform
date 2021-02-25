@@ -43,10 +43,18 @@ namespace OPS.Pipeline
         //{venue} will be replaced with mission venue
         [ConfigEnvironmentVariable("LANDFORM_S3_DATA_PROXY")]
         public string S3Proxy { get; set; } = "https://data.{venue}.m20.jpl.nasa.gov";
+
+        //comma separated list of special processing characters to allow
+        //sorted in order of preference (best last)
+        //default processing ('_') is always implictly prepended to the list
+        //https://wiki.jpl.nasa.gov/pages/viewpage.action?spaceKey=MSMFS&title=Special+Character+Flags
+        [ConfigEnvironmentVariable("LANDFORM_SPECIAL_PROCESSING_TYPES")]
+        public string SpecialProcessingTypes { get; set; } = "C,T";
     }
     
     public class MissionM2020 : MissionSpecific
     {
+        public const int SPECIAL_PROCESSING_FIELD = 3;
         public const int EECAM_DOWNSAMPLE_FIELD = 46;
         public const int EECAM_RECONSTRUCTION_FIELD = 47;
         public const int DOWNSAMPLE_FIELD = 48;
@@ -264,6 +272,24 @@ namespace OPS.Pipeline
             return idStr;
         }
 
+        private List<char> specialProcessingTypes = new List<char>();
+        public List<char> GetAllowedProcessingTypes()
+        {
+            lock (specialProcessingTypes)
+            {
+                if (specialProcessingTypes.Count == 0)
+                {
+                    var spt = StringHelper.ParseList(MissionM2020Config.Instance.SpecialProcessingTypes)
+                        .Select(t => t[0])
+                        .Where(t => t != '_')
+                        .ToList();
+                    specialProcessingTypes.Add('_');
+                    specialProcessingTypes.AddRange(spt);
+                }
+                return specialProcessingTypes;
+            }
+        }
+
         public override RoverObservationComparator GetRoverObservationComparator()
         {
             // 0 if a and b are equivalently good
@@ -274,6 +300,14 @@ namespace OPS.Pipeline
                 //https://docs.google.com/document/d/15iZgxqsecD6svOUuiEQm2J10a2ziKYeQQXU_f-VXGZc#heading=h.76imaw5jdp48
                 if (IsHazcam(a.Camera) || IsNavcam(a.Camera))
                 {
+                    char specA = a.Name[SPECIAL_PROCESSING_FIELD];
+                    char specB = b.Name[SPECIAL_PROCESSING_FIELD];
+                    if (specA != specB)
+                    {
+                        var apt = GetAllowedProcessingTypes();
+                        return apt.FindIndex(t => t == specB) - apt.FindIndex(t => t == specA);
+                    }
+
                     //EECAM downsampling A,L,M,N, prefer higher
                     char edsA = a.Name[EECAM_DOWNSAMPLE_FIELD];
                     char edsB = b.Name[EECAM_DOWNSAMPLE_FIELD];
@@ -358,6 +392,19 @@ namespace OPS.Pipeline
 
                 //https://docs.google.com/document/d/15iZgxqsecD6svOUuiEQm2J10a2ziKYeQQXU_f-VXGZc#heading=h.76imaw5jdp48
 
+                var apt = GetAllowedProcessingTypes();
+                char bestSpec = orig
+                    .Where(id => isEECAM(id))
+                    .Select(id => id.FullId[SPECIAL_PROCESSING_FIELD])
+                    .DefaultIfEmpty('_')
+                    .OrderBy(s => apt.FindIndex(t => t == s))
+                    .Last();
+                var filtered = orig
+                    .Where(id => !isEECAM(id) || id.FullId[SPECIAL_PROCESSING_FIELD] == bestSpec)
+                    .ToList();
+                spew("ECAM special processing", orig, filtered);
+                orig = filtered;
+
                 //EECAM downsampling A,L,M,N, prefer higher
                 //note the SIS changed to allow only A or M here, but this code should remain correct (prefer M over A)
                 //https://github.jpl.nasa.gov/OnSight/Landform/issues/852
@@ -367,11 +414,13 @@ namespace OPS.Pipeline
                     .Select(id => id.FullId[EECAM_DOWNSAMPLE_FIELD])
                     .DefaultIfEmpty('0')
                     .Max();
-                var filtered = orig.Where(id => !isEECAM(id) || id.FullId[EECAM_DOWNSAMPLE_FIELD] == maxEDS).ToList();
+                filtered = orig.Where(id => !isEECAM(id) || id.FullId[EECAM_DOWNSAMPLE_FIELD] == maxEDS).ToList();
                 spew("ECAM downsampling", orig, filtered);
                 orig = filtered;
 
                 //EECAM reconstruction counter 0-9A-Z, prefer higher
+                //note recon counter is _ for an EECAM tile
+                //but those should have already been eliminated by CheckProductID()
                 char maxERC = orig
                     .Where(id => isEECAM(id))
                     .Select(id => id.FullId[EECAM_RECONSTRUCTION_FIELD])
@@ -480,8 +529,11 @@ namespace OPS.Pipeline
             if (id is M2020OPGSProductId)
             {
                 M2020OPGSProductId opgsId = (M2020OPGSProductId)id;
-                string spec = opgsId.Spec.ToUpper();
-                if (spec != "_" && spec != "C")
+
+                bool isEECAM = IsHazcam(id.Camera) || IsNavcam(id.Camera);
+
+                char spec = opgsId.Spec[0];
+                if (GetAllowedProcessingTypes().FindIndex(t => t == spec) < 0)
                 {
                     //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/895
                     reason = "special processing " + spec;
@@ -489,13 +541,14 @@ namespace OPS.Pipeline
                 }
 
                 var camspec = opgsId.Camspec.ToUpper();
-                if (IsHazcam(id.Camera) || IsNavcam(id.Camera) || IsMastcam(id.Camera))
+                if (isEECAM || IsMastcam(id.Camera))
                 {
                     var stereoPartner = camspec.Substring(0, 1);
                     if (stereoPartner != "_")
                     {
                         //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/883
                         reason = "stereo partner " + stereoPartner;
+                        return false;
                     }
                 }
 
