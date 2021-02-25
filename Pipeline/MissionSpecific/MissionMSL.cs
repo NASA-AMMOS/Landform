@@ -42,16 +42,6 @@ namespace OPS.Pipeline
             return Mission.MSL;
         }
 
-        public override RoverProductType GetProductType(PDSParser parser)
-        {
-            var pt = parser.DerivedImageType;
-            if (pt == RoverProductType.Unknown && parser.ProducingInstitution == RoverProductProducer.MSSS)
-            {
-                pt = GetProductType(parser.ProductIdString);
-            }
-            return pt;
-        }
-
         public override bool IsGeometricallyLinearlyCorrected(PDSParser parser)
         {
             //some msss msl images are labelled incorrectly: reporting raw in the metadata, 

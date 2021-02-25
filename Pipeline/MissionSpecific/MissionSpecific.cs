@@ -243,7 +243,14 @@ namespace OPS.Pipeline
 
         public virtual RoverProductType GetProductType(PDSParser parser)
         {
-            return parser.DerivedImageType;
+            var pt = parser.DerivedImageType;
+            if (pt == RoverProductType.Unknown)
+            {
+                //MSL MSSS products may be missing DERIVED_IMAGE_PARAMS.DERIVED_IMAGE_TYPE
+                //we have also seen M20 OPGS products (in a special processing case) missing this field
+                pt = GetProductType(parser.ProductIdString);
+            }
+            return pt;
         }
 
         public virtual string GetObservationFrameName(PDSParser parser)
