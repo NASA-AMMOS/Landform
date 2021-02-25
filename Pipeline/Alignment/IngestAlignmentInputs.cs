@@ -420,13 +420,13 @@ namespace OPS.Pipeline
                               .Select(res => res.Observation.Name));
             if (orphans.Count > 0)
             {
-                pipeline.LogInfo("deleting {0} orphan observations", orphans.Count);
+                pipeline.LogInfo("deleting {0} orphan or culled observations", orphans.Count);
                 foreach (var orphanName in orphans)
                 {
                     var obs = RoverObservation.Find(pipeline, project.Name, orphanName);
                     if (obs != null)
                     {
-                        pipeline.LogVerbose("deleting orphan observation {0}", orphanName);
+                        pipeline.LogVerbose("deleting orphan or culled observation {0}", orphanName);
                         obs.Delete(pipeline);
                     }
                     indices.TryRemove(orphanName, out int ignore);
