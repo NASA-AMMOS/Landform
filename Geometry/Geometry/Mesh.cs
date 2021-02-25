@@ -2215,18 +2215,29 @@ namespace OPS.Geometry
             ConcurrentBag<Vertex> verticesToRemove = new ConcurrentBag<Vertex>();
             Action<Vertex> generateUV = v =>
             {
-                double range;
-                Vector2 pixel = cameraModel.Project(Vector3.Transform(v.Position, xform), out range);
-                if (range < 0 || pixel.X < 0 || pixel.X > (imgWidth - 1) || pixel.Y < 0 || pixel.Y > (imgHeight - 1))
+                Vector2? px = null;
+                double range = -1;
+                try
+                {
+                    px = cameraModel.Project(Vector3.Transform(v.Position, xform), out range);
+                }
+                catch (Exception)
+                {
+                    //e.g. CameraModelException: cahvore_3d_to_2d(): too many iterations
+                    //https://github.jpl.nasa.gov/OnSight/Landform/issues/1171
+                }
+                if (range < 0 || !px.HasValue ||
+                    px.Value.X < 0 || px.Value.X > (imgWidth - 1) || px.Value.Y < 0 || px.Value.Y > (imgHeight - 1))
                 {
                     verticesToRemove.Add(v);
                 }
                 else
                 {
                     // TODO: review this half pixel offset
-                    //v.UV =  new Vector2((pixel.X - 0.5) / (image.Width+1), 1 - ((pixel.Y - 0.5) / (image.Height+1)));
+                    //v.UV =  new Vector2((px.Value.X - 0.5) / (image.Width+1),
+                    //                    1 - ((px.Value.Y - 0.5) / (image.Height+1)));
                     //https://github.jpl.nasa.gov/OnSight/Landform/issues/488
-                    v.UV = Image.PixelToUV(pixel, imgWidth, imgHeight);
+                    v.UV = Image.PixelToUV(px.Value, imgWidth, imgHeight);
                     v.UV = Vector2.Clamp(v.UV, Vector2.Zero, Vector2.One);
                 }
             };
