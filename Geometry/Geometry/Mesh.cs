@@ -2203,6 +2203,10 @@ namespace OPS.Geometry
         public void ProjectTexture(Image img, bool removeVertsOutsideView = true, bool processVertsInParallel = false,
                                    Matrix? meshToImage = null)
         {
+            if (img.CameraModel == null)
+            {
+                throw new ArgumentException("image camera model required to project texture");
+            }
             ProjectTexture(img.Width, img.Height, img.CameraModel, removeVertsOutsideView, processVertsInParallel,
                            meshToImage);
         }

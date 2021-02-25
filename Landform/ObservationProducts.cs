@@ -409,6 +409,10 @@ namespace OPS.Landform
                         pipeline.LogWarn("meshing failed on obs {0} ({1} reconstruction, {2} points, {3} normals): {4}",
                                          obs.Name, options.ReconstructionMethod, npts, nn,
                                          ex != null ? ex.Message : "insufficient data or unknown error");
+                        if (pipeline.StackTraces && ex != null)
+                        {
+                            pipeline.LogException(ex);
+                        }
                     }
                 }
 

@@ -611,15 +611,16 @@ namespace OPS.Pipeline
                 {
                     mesh.ProjectTexture(TextureImage, opts.RemoveVertsOutsideView);
                 }
-                else if (PointsImage != null)
+                else if (PointsImage != null && PointsImage.CameraModel != null)
                 {
+                    //PointsImage.CameraModel is null when the PointsImage was decimated
                     pipeline.LogWarn("no texture image for {0}, using points image to project texture coordinates",
                                      refObs.Name);
                     mesh.ProjectTexture(PointsImage, opts.RemoveVertsOutsideView);
                 }
                 else
                 {
-                    pipeline.LogWarn("no points or texture image for {0}, cannot project texture coordinates",
+                    pipeline.LogWarn("no image with camera model for {0}, cannot project texture coordinates",
                                      refObs.Name);
                 }
             }
