@@ -50,7 +50,7 @@ namespace RoverTest
             Assert.IsTrue(obsLin.IsLinear);
             Assert.IsTrue(!obsNonLin.IsLinear);
 
-            RoverObservationComparator comp = new RoverObservationComparator(preferMSSS: false,
+            RoverObservationComparator comp = new RoverObservationComparator(preferOPGS: true,
                                                                              preferLinearGeometryProducts: true,
                                                                              preferLinearRasterProducts: true,
                                                                              preferColor: true,
@@ -104,7 +104,7 @@ namespace RoverTest
             Assert.IsTrue(obsLin.IsLinear);
             Assert.IsTrue(!obsNonLin.IsLinear);
 
-            RoverObservationComparator comp = new RoverObservationComparator(preferMSSS: false,
+            RoverObservationComparator comp = new RoverObservationComparator(preferOPGS: true,
                                                                              preferLinearGeometryProducts: true,
                                                                              preferLinearRasterProducts: true,
                                                                              preferColor: true,
@@ -168,7 +168,7 @@ namespace RoverTest
             Assert.IsTrue(obsLinCol.Color == RoverProductColor.FullColor);
             Assert.IsTrue(obsNonLin.Color == RoverProductColor.Grayscale);
 
-            RoverObservationComparator comp = new RoverObservationComparator(preferMSSS: false,
+            RoverObservationComparator comp = new RoverObservationComparator(preferOPGS: true,
                                                                              preferLinearGeometryProducts: true,
                                                                              preferLinearRasterProducts: true,
                                                                              preferColor: true,
@@ -227,7 +227,7 @@ namespace RoverTest
             Assert.IsTrue(obsLinV2.IsLinear);
             Assert.IsTrue(!obsNonLinV2.IsLinear);
           
-            RoverObservationComparator comp = new RoverObservationComparator(preferMSSS: false,
+            RoverObservationComparator comp = new RoverObservationComparator(preferOPGS: true,
                                                                              preferLinearGeometryProducts: true,
                                                                              preferLinearRasterProducts: true,
                                                                              preferColor: true,
@@ -273,7 +273,7 @@ namespace RoverTest
             var obsLinMSSS = makeObs(filenameLin, new CAHV(), RoverProductProducer.MSSS);
             var obsNonLinOPGS = makeObs(filenameNonLin, new CAHVORE(), RoverProductProducer.OPGS);
             
-            var linComp = new RoverObservationComparator(preferMSSS: false,
+            var linComp = new RoverObservationComparator(preferOPGS: true,
                                                          preferLinearGeometryProducts: true,
                                                          preferLinearRasterProducts: true,
                                                          preferColor: true,

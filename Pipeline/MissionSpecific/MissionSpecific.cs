@@ -58,8 +58,8 @@ namespace OPS.Pipeline
         [ConfigEnvironmentVariable("LANDFORM_ALLOW_MULTI_FRAME")]
         public bool AllowMultiFrame { get; set; } = true;
 
-        [ConfigEnvironmentVariable("LANDFORM_PREFER_MSSS_TO_OPGS")]
-        public bool PreferMSSSToOPGS { get; set; } = false;
+        [ConfigEnvironmentVariable("LANDFORM_PREFER_OPGS")]
+        public bool PreferOPGS { get; set; } = true;
 
         [ConfigEnvironmentVariable("LANDFORM_PREFER_LINEAR_GEOMETRY_PRODUCTS")]
         public bool PreferLinearGeometryProducts { get; set; } = true;
@@ -279,12 +279,12 @@ namespace OPS.Pipeline
         /// <summary>
         /// ordering a sequence with this function should put the "better" observations earlier in the list
         /// thus a "better" observation should be *less than* a "worse" observation, uses
-        /// PreferMSSSToOPGS(), PreferLinearGeometryProducts(), PreferLinearRasterProducts(), PreferColorToGrayscale()
+        /// PreferOPGS(), PreferLinearGeometryProducts(), PreferLinearRasterProducts(), PreferColorToGrayscale()
         /// so if a mission only differs from the default in one of those respects, just override that
         /// </summary>
         public virtual RoverObservationComparator GetRoverObservationComparator()
         {
-            return new RoverObservationComparator(PreferMSSSToOPGS(), PreferLinearGeometryProducts(),
+            return new RoverObservationComparator(PreferOPGS(), PreferLinearGeometryProducts(),
                                                   PreferLinearRasterProducts(), PreferColorToGrayscale(),
                                                   PreferEyeForGeometry(), this);
         }
@@ -465,11 +465,11 @@ namespace OPS.Pipeline
         }
 
         /// <summary>
-        /// whether to prefer MSSS images to OPGS images when both are available
+        /// whether to prefer OPGS produced images when other producers are available
         /// </summary>
-        public virtual bool PreferMSSSToOPGS()
+        public virtual bool PreferOPGS()
         {
-            return MissionConfig.Instance.PreferMSSSToOPGS;
+            return MissionConfig.Instance.PreferOPGS;
         }
 
         /// <summary>
