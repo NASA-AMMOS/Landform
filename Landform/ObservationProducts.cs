@@ -136,6 +136,9 @@ namespace OPS.Landform
         [Option(HelpText = "Only generate statistics", Default = false)]
         public bool StatsOnly { get; set; }
 
+        [Option(HelpText = "Synonym for --statsonly", Default = false)]
+        public bool DryRun { get; set; }
+
         [Option(HelpText = "Write mask images", Default = false)]
         public bool MaskImages { get; set; }
 
@@ -214,6 +217,7 @@ namespace OPS.Landform
                 options.DeltaRangeImages = true;
             }
 
+            options.StatsOnly |= options.DryRun;
             if (options.StatsOnly)
             {
                 options.MergedSiteDriveMeshes = false;
