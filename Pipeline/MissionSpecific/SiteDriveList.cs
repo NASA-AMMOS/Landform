@@ -13,10 +13,8 @@ namespace OPS.Pipeline
     {
         private static readonly Regex YEAR_DOY_REGEX = new Regex(@"/([0-9]{4})/[^/]+/");
 
+        //only for meshing products, texturing products not included
         public readonly Dictionary<RoverProductId, string> IDToURL = new Dictionary<RoverProductId, string>();
-
-        public readonly Dictionary<int, HashSet<RoverProductId>> SolToIDs =
-            new Dictionary<int, HashSet<RoverProductId>>();
 
         //sitedrive shared across all entries
         //initialized by constructor or from the first added URL
@@ -33,10 +31,15 @@ namespace OPS.Pipeline
         public string RDRDir { get; private set; }
 
         public int NumWedges { get { return IDToURL.Count; } }
-        
+
+        //note there can be sols with no wedges
+        //because Add(url) can be called for both RAS and XYZ products
+        //but only XYZ products are accounted as wedges
+        //RAS products just affect Sols, SiteDrive, and RDRDir
         public readonly HashSet<int> Sols = new HashSet<int>();
-        public int MinSol { get; private set; } = -1;
+        public int MinSol { get; private set; } = int.MaxValue;
         public int MaxSol { get; private set; } = -1;
+        public int NumSols { get { return Sols.Count; } }
 
         private MissionSpecific mission; //optional
 
@@ -45,14 +48,17 @@ namespace OPS.Pipeline
         private string[] pdsExts; //iff mission != null
 
         //(url, id) => rejection reason
-        private Func<string, RoverProductId, string> extraCheck; //optional
+        private Func<string, RoverProductId, string> wedgeFilter; //optional
+
+        //sol => XYZ IDs (non-null but empty if sol only contains texturing observations)
+        private Dictionary<int, HashSet<RoverProductId>> SolToIDs = new Dictionary<int, HashSet<RoverProductId>>();
 
         public SiteDriveList(MissionSpecific mission = null, ILogger logger = null,
-                             Func<string, RoverProductId, string> extraCheck = null)
+                             Func<string, RoverProductId, string> wedgeFilter = null)
         {
             this.mission = mission;
             this.logger = logger;
-            this.extraCheck = extraCheck;
+            this.wedgeFilter = wedgeFilter;
             if (mission != null)
             {
                 string exts = mission.GetPDSExts(); //comma separated, in order of highest to lowest priority
@@ -64,8 +70,8 @@ namespace OPS.Pipeline
         }
 
         public SiteDriveList(string rdrDir, SiteDrive siteDrive, MissionSpecific mission = null, ILogger logger = null,
-                             Func<string, RoverProductId, string> extraCheck = null)
-            : this(mission, logger, extraCheck)
+                             Func<string, RoverProductId, string> wedgeFilter = null)
+            : this(mission, logger, wedgeFilter)
         {
             if (string.IsNullOrEmpty(rdrDir))
             {
@@ -110,11 +116,17 @@ namespace OPS.Pipeline
             {
                 return this;
             }
-            var ret = new SiteDriveList(mission, logger, extraCheck);
-            foreach (var sol in SolToIDs.Keys)
+            var ret = new SiteDriveList(mission, logger, wedgeFilter);
+            foreach (int sol in SolToIDs.Keys)
             {
                 if (sol >= min && sol <= max)
                 {
+                    if (SolToIDs[sol].Count == 0) //sol only had texture data
+                    {
+                        ret.Sols.Add(sol);
+                        ret.MinSol = Math.Min(ret.MinSol, sol);
+                        ret.MaxSol = Math.Max(ret.MaxSol, sol);
+                    }
                     foreach (var id in SolToIDs[sol])
                     {
                         ret.Add(IDToURL[id]);
@@ -126,10 +138,19 @@ namespace OPS.Pipeline
 
         public SiteDriveList FilterProductIDs(Func<IEnumerable<RoverProductId>, IEnumerable<RoverProductId>> filter)
         {
-            var ret = new SiteDriveList(mission, logger, extraCheck);
+            var ret = new SiteDriveList(mission, logger, wedgeFilter);
             foreach (var id in filter(IDToURL.Keys))
             {
                 ret.Add(IDToURL[id]);
+            }
+            foreach (int sol in SolToIDs.Keys)
+            {
+                if (SolToIDs[sol].Count == 0) //sol only had texture data
+                {
+                    ret.Sols.Add(sol);
+                    ret.MinSol = Math.Min(ret.MinSol, sol);
+                    ret.MaxSol = Math.Max(ret.MaxSol, sol);
+                }
             }
             return ret;
         }
@@ -176,49 +197,57 @@ namespace OPS.Pipeline
                     return string.Format("unexpected RDR directory {0} != {1}", rdrDir, RDRDir);
                 }
             }
-            
-            if (extraCheck != null)
+
+            bool isMesh = mission.UseForMeshing(id);
+            if (isMesh)
             {
-                string reason = extraCheck(url, id);
-                if (!string.IsNullOrEmpty(reason))
+                if (wedgeFilter != null)
                 {
-                    return reason;
-                }
-            }
-            
-            if (IDToURL.ContainsKey(id))
-            {
-                if (url == IDToURL[id])
-                {
-                    return null; //duplicate: same id and URL
-                }
-                bool sameBase =
-                    StringHelper.StripUrlExtension(StringHelper.NormalizeUrl(url)) ==
-                    StringHelper.StripUrlExtension(StringHelper.NormalizeUrl(IDToURL[id]));
-                if (sameBase)
-                {
-                    string curExt = StringHelper.GetUrlExtension(IDToURL[id]).TrimStart('.').ToLower();
-                    string newExt = StringHelper.GetUrlExtension(url).TrimStart('.').ToLower();
-                    int curPDSPriority = Array.FindIndex(pdsExts, ext => curExt == ext);
-                    int newPDSPriority = Array.FindIndex(pdsExts, ext => newExt == ext);
-                    if (curPDSPriority >= 0 && newPDSPriority >= 0 && newPDSPriority > curPDSPriority)
+                    string reason = wedgeFilter(url, id);
+                    if (!string.IsNullOrEmpty(reason))
                     {
-                        return null; //new url only differs in ext, both are PDS, and new is a lower priority type
+                        return reason;
                     }
                 }
-                else if (logger != null) //don't warn if e.g. replacing foo.VIC with foo.IMG
+                
+                if (IDToURL.ContainsKey(id))
                 {
-                    logger.LogWarn("duplicate product ID {0}, replacing URL {1} with {2}", idStr, IDToURL[id], url);
+                    if (url == IDToURL[id])
+                    {
+                        return null; //duplicate: same id and URL
+                    }
+                    bool sameBase =
+                        StringHelper.StripUrlExtension(StringHelper.NormalizeUrl(url)) ==
+                        StringHelper.StripUrlExtension(StringHelper.NormalizeUrl(IDToURL[id]));
+                    if (sameBase)
+                    {
+                        string curExt = StringHelper.GetUrlExtension(IDToURL[id]).TrimStart('.').ToLower();
+                        string newExt = StringHelper.GetUrlExtension(url).TrimStart('.').ToLower();
+                        int curPDSPriority = Array.FindIndex(pdsExts, ext => curExt == ext);
+                        int newPDSPriority = Array.FindIndex(pdsExts, ext => newExt == ext);
+                        if (curPDSPriority >= 0 && newPDSPriority >= 0 && newPDSPriority > curPDSPriority)
+                        {
+                            return null; //new url only differs in ext, both are PDS, and new is a lower priority type
+                        }
+                    }
+                    else if (logger != null) //don't warn if e.g. replacing foo.VIC with foo.IMG
+                    {
+                        logger.LogWarn("duplicate product ID {0}, replacing URL {1} with {2}", idStr, IDToURL[id], url);
+                    }
                 }
+
+                IDToURL[id] = url;
             }
-            
+            else if (!mission.UseForTexturing(id))
+            {
+                return "product not used for meshing or texturing";
+            }
+                
             if (RDRDir == null)
             {
                 SiteDrive = sd;
                 RDRDir = rdrDir;
             }
-            
-            IDToURL[id] = url;
 
             Sols.Add(sol);
 
@@ -226,16 +255,14 @@ namespace OPS.Pipeline
             {
                 SolToIDs[sol] = new HashSet<RoverProductId>();
             }
-            SolToIDs[sol].Add(id);
 
-            if (sol < MinSol || MinSol < 0)
+            if (isMesh)
             {
-                MinSol = sol;
+                SolToIDs[sol].Add(id);
             }
-            if (sol > MaxSol)
-            {
-                MaxSol = sol;
-            }
+
+            MinSol = Math.Min(MinSol, sol);
+            MaxSol = Math.Max(MaxSol, sol);
 
             return null;
         }

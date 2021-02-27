@@ -1081,7 +1081,6 @@ namespace OPS.Landform
             {
                 var sdList = makeList(sd);
                 long latestTimestamp = -1;
-                bool hasTextures = false;
                 foreach (var entry in urls[sd])
                 {
                     string url = entry.Key;
@@ -1104,7 +1103,7 @@ namespace OPS.Landform
                     }
                     else if (textureRegex != null && textureRegex.IsMatch(file))
                     {
-                        hasTextures = true;
+                        sdList.Add(url);
                         textureURLs.Add(url);
                     }
                     else //URL should have been rejected by AcceptMessage(), but whatever
@@ -1113,7 +1112,7 @@ namespace OPS.Landform
                     }
                     latestTimestamp = Math.Max(latestTimestamp, entry.Value);
                 }
-                if (sdList.NumWedges > 0 || hasTextures)
+                if (sdList.NumSols > 0) //not NumWedges to handle case of only texture  updates
                 {
                     ret[sd] = new Stamped<SiteDriveList>(sdList, latestTimestamp);
                 }
