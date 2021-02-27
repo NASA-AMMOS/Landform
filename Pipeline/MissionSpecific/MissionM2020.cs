@@ -54,7 +54,7 @@ namespace OPS.Pipeline
         //must match RoverProductProducer enum values
         //sorted in order of preference (best last)
         [ConfigEnvironmentVariable("LANDFORM_ALLOWED_PRODUCERS")]
-        public string AllowedProducers { get; set; } = "OPGS";  //"ASU,OPGS"
+        public string AllowedProducers { get; set; } = "OPGS";  //"OPGS,ASU"
     }
     
     public class MissionM2020 : MissionSpecific
