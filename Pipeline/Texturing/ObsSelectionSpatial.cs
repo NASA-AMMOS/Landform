@@ -85,7 +85,10 @@ namespace OPS.Pipeline.Texturing
 
             if (SurfaceExtent > 0)
             {
-                surfaceBounds = BoundingBoxExtensions.CreateFromPoint(meshCtr, EXTEND_SURFACE_EXTENT * SurfaceExtent);
+                var sb = BoundingBoxExtensions.CreateFromPoint(meshCtr, EXTEND_SURFACE_EXTENT * SurfaceExtent);
+                sb.Min.Z = meshOp.Bounds.Min.Z;
+                sb.Max.Z = meshOp.Bounds.Max.Z;
+                surfaceBounds = sb;
             }
 
             if (orbitalSamplesPerSquareMeter > 0 && surfaceBounds.HasValue &&
