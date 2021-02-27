@@ -49,6 +49,12 @@ namespace OPS.Pipeline
         //https://wiki.jpl.nasa.gov/pages/viewpage.action?spaceKey=MSMFS&title=Special+Character+Flags
         [ConfigEnvironmentVariable("LANDFORM_ALLOWED_PROCESSING_TYPES")]
         public string AllowedProcessingTypes { get; set; } = "_,C"; 
+
+        //comma separated list of producers to allow
+        //must match RoverProductProducer enum values
+        //sorted in order of preference (best last)
+        [ConfigEnvironmentVariable("LANDFORM_ALLOWED_PRODUCERS")]
+        public string AllowedProducers { get; set; } = "OPGS";  //"ASU,OPGS"
     }
     
     public class MissionM2020 : MissionSpecific
@@ -256,11 +262,6 @@ namespace OPS.Pipeline
         public override bool PreferLinearGeometryProducts()
         {
             return MissionM2020Config.Instance.PreferLinearGeometryProducts;
-        }
-
-        public override List<string> GetAllowedProcessingTypes()
-        {
-            return GetAllowedProcessingTypes(MissionM2020Config.Instance.AllowedProcessingTypes);
         }
 
         public override string GetProductIDString(string product)
@@ -634,6 +635,16 @@ namespace OPS.Pipeline
         protected string RoverMotionCounterFromTimeString(PDSParser parser)
         {
             return ((M2020OPGSProductId)ParseProductId(parser.ProductIdString)).GetConcatenatedTimeString();
+        }
+
+        public override List<string> GetAllowedProcessingTypes()
+        {
+            return GetAllowedProcessingTypes(MissionM2020Config.Instance.AllowedProcessingTypes);
+        }
+
+        public override List<RoverProductProducer> GetAllowedProducers()
+        {
+            return GetAllowedProducers(MissionM2020Config.Instance.AllowedProducers);
         }
     }
 

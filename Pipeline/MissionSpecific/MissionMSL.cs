@@ -27,6 +27,12 @@ namespace OPS.Pipeline
         
         [ConfigEnvironmentVariable("LANDFORM_ALLOW_LEGACY_MANIFEST_DB")]
         public bool AllowLegacyManifestDB { get; set; } = true;
+
+        //comma separated list of producers to allow
+        //must match RoverProductProducer enum values
+        //sorted in order of preference (best last)
+        [ConfigEnvironmentVariable("LANDFORM_ALLOWED_PRODUCERS")]
+        public string AllowedProducers { get; set; } = "OPGS";  //"MSSS,OPGS"
     }
 
     public class MissionMSL : MissionSpecific
@@ -332,6 +338,11 @@ namespace OPS.Pipeline
         public override RoverProductGeometry GetTacticalMeshGeometry()
         {
             return RoverProductGeometry.Linearized;
+        }
+
+        public override List<RoverProductProducer> GetAllowedProducers()
+        {
+            return GetAllowedProducers(MissionMSLConfig.Instance.AllowedProducers);
         }
     }
 }

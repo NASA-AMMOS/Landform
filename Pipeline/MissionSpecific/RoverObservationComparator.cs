@@ -84,14 +84,11 @@ namespace OPS.Pipeline
             {
                 if (mission != null)
                 {
-                    bool preferOPGS = mission.PreferOPGS();
-                    if (preferOPGS&& a.Producer == RoverProductProducer.OPGS)
+                    var apt = mission.GetAllowedProducers();
+                    var diff = apt.FindIndex(p => p == b.Producer) - apt.FindIndex(p => p == a.Producer);
+                    if (diff != 0)
                     {
-                        return done(-1, "producer");
-                    }
-                    else if (preferOPGS && b.Producer == RoverProductProducer.OPGS)
-                    {
-                        return done(1, "producer");
+                        return done(diff, "producer");
                     }
                 }
                 return done(0, "producer");
