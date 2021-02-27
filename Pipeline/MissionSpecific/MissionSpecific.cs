@@ -121,6 +121,11 @@ namespace OPS.Pipeline
 
         [ConfigEnvironmentVariable("LANDFORM_UNIFIED_MESH_PRODUCT_TYPE")]
         public string UnifiedMeshProductType { get; set; } = "RAS";
+
+        //comma separated list of processing types to allow
+        //sorted in order of preference (best last)
+        [ConfigEnvironmentVariable("LANDFORM_ALLOWED_PROCESSING_TYPES")]
+        public string AllowedProcessingTypes { get; set; } = "_"; 
     }
 
     public abstract class MissionSpecific : ConfigDefaultsProvider
@@ -276,17 +281,10 @@ namespace OPS.Pipeline
             return StringHelper.GetLastUrlPathSegment(product, stripExtension: true);
         }
 
-        /// <summary>
-        /// ordering a sequence with this function should put the "better" observations earlier in the list
-        /// thus a "better" observation should be *less than* a "worse" observation, uses
-        /// PreferOPGS(), PreferLinearGeometryProducts(), PreferLinearRasterProducts(), PreferColorToGrayscale()
-        /// so if a mission only differs from the default in one of those respects, just override that
-        /// </summary>
-        public virtual RoverObservationComparator GetRoverObservationComparator()
+        public virtual RoverObservationComparator.CompareResult
+            CompareRoverObservations(RoverObservation a, RoverObservation b, params string[] exceptCrit)
         {
-            return new RoverObservationComparator(PreferOPGS(), PreferLinearGeometryProducts(),
-                                                  PreferLinearRasterProducts(), PreferColorToGrayscale(),
-                                                  PreferEyeForGeometry(), this);
+            return new RoverObservationComparator.CompareResult(0, "none");
         }
 
         /// <summary>
@@ -748,11 +746,21 @@ namespace OPS.Pipeline
                 return false;
             }
 
-            if (!AllowThumbnails() && id.Producer == RoverProductProducer.OPGS &&
-                ((OPGSProductId)id).Size != RoverProductSize.Regular)
+            if (id is OPGSProductId)
             {
-                reason = "thumbnails not allowed";
-                return false;
+                OPGSProductId opgsId = (OPGSProductId)id;
+
+                if (GetAllowedProcessingTypes().FindIndex(t => t == opgsId.Spec) < 0)
+                {
+                    reason = "special processing " + opgsId.Spec;
+                    return false;
+                }
+
+                if (!AllowThumbnails() && opgsId.Size != RoverProductSize.Regular)
+                {
+                    reason = "thumbnails not allowed";
+                    return false;
+                }
             }
 
             if (id.Geometry == RoverProductGeometry.Unknown)
@@ -1049,6 +1057,24 @@ namespace OPS.Pipeline
         public virtual string DriveToString(int drive)
         {
             return OPGSProductId.DriveToString(drive);
+        }
+
+        private List<string> processingTypes = new List<string>();
+        public List<string> GetAllowedProcessingTypes(String types)
+        {
+            lock (processingTypes)
+            {
+                if (processingTypes.Count == 0)
+                {
+                    processingTypes.AddRange(StringHelper.ParseList(types));
+                }
+                return processingTypes;
+            }
+        }
+
+        public virtual List<string> GetAllowedProcessingTypes()
+        {
+            return GetAllowedProcessingTypes(MissionConfig.Instance.AllowedProcessingTypes);
         }
     }
 }

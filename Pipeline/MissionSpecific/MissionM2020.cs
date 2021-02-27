@@ -44,17 +44,15 @@ namespace OPS.Pipeline
         [ConfigEnvironmentVariable("LANDFORM_S3_DATA_PROXY")]
         public string S3Proxy { get; set; } = "https://data.{venue}.m20.jpl.nasa.gov";
 
-        //comma separated list of special processing characters to allow
+        //comma separated list of processing types to allow
         //sorted in order of preference (best last)
-        //default processing ('_') is always implictly prepended to the list
         //https://wiki.jpl.nasa.gov/pages/viewpage.action?spaceKey=MSMFS&title=Special+Character+Flags
-        [ConfigEnvironmentVariable("LANDFORM_SPECIAL_PROCESSING_TYPES")]
-        public string SpecialProcessingTypes { get; set; } = "C,T";
+        [ConfigEnvironmentVariable("LANDFORM_ALLOWED_PROCESSING_TYPES")]
+        public string AllowedProcessingTypes { get; set; } = "_,C"; 
     }
     
     public class MissionM2020 : MissionSpecific
     {
-        public const int SPECIAL_PROCESSING_FIELD = 3;
         public const int EECAM_DOWNSAMPLE_FIELD = 46;
         public const int EECAM_RECONSTRUCTION_FIELD = 47;
         public const int DOWNSAMPLE_FIELD = 48;
@@ -260,6 +258,11 @@ namespace OPS.Pipeline
             return MissionM2020Config.Instance.PreferLinearGeometryProducts;
         }
 
+        public override List<string> GetAllowedProcessingTypes()
+        {
+            return GetAllowedProcessingTypes(MissionM2020Config.Instance.AllowedProcessingTypes);
+        }
+
         public override string GetProductIDString(string product)
         {
             string idStr = StringHelper.GetLastUrlPathSegment(product, stripExtension: true);
@@ -272,85 +275,53 @@ namespace OPS.Pipeline
             return idStr;
         }
 
-        private List<char> specialProcessingTypes = new List<char>();
-        public List<char> GetAllowedProcessingTypes()
-        {
-            lock (specialProcessingTypes)
-            {
-                if (specialProcessingTypes.Count == 0)
-                {
-                    var spt = StringHelper.ParseList(MissionM2020Config.Instance.SpecialProcessingTypes)
-                        .Select(t => t[0])
-                        .Where(t => t != '_')
-                        .ToList();
-                    specialProcessingTypes.Add('_');
-                    specialProcessingTypes.AddRange(spt);
-                }
-                return specialProcessingTypes;
-            }
-        }
-
-        public override RoverObservationComparator GetRoverObservationComparator()
+        public override RoverObservationComparator.CompareResult
+            CompareRoverObservations(RoverObservation a, RoverObservation b, params string[] exceptCrit)
         {
             // 0 if a and b are equivalently good
             // negative if a is "better" than b
             // positive if a is "worse than" b
-            int ext(RoverObservation a, RoverObservation b)
+            //https://docs.google.com/document/d/15iZgxqsecD6svOUuiEQm2J10a2ziKYeQQXU_f-VXGZc#heading=h.76imaw5jdp48
+            if (IsHazcam(a.Camera) || IsNavcam(a.Camera))
             {
-                //https://docs.google.com/document/d/15iZgxqsecD6svOUuiEQm2J10a2ziKYeQQXU_f-VXGZc#heading=h.76imaw5jdp48
-                if (IsHazcam(a.Camera) || IsNavcam(a.Camera))
+                //EECAM downsampling A,L,M,N, prefer higher
+                char edsA = a.Name[EECAM_DOWNSAMPLE_FIELD];
+                char edsB = b.Name[EECAM_DOWNSAMPLE_FIELD];
+                if (edsA != edsB && !exceptCrit.Contains("eecam_downsample"))
                 {
-                    char specA = a.Name[SPECIAL_PROCESSING_FIELD];
-                    char specB = b.Name[SPECIAL_PROCESSING_FIELD];
-                    if (specA != specB)
-                    {
-                        var apt = GetAllowedProcessingTypes();
-                        return apt.FindIndex(t => t == specB) - apt.FindIndex(t => t == specA);
-                    }
-
-                    //EECAM downsampling A,L,M,N, prefer higher
-                    char edsA = a.Name[EECAM_DOWNSAMPLE_FIELD];
-                    char edsB = b.Name[EECAM_DOWNSAMPLE_FIELD];
-                    if (edsA != edsB)
-                    {
-                        return edsB - edsA;
-                    }
-
-                    //EECAM reconstruction counter 0-9A-Z, prefer higher
-                    char rcA = a.Name[EECAM_RECONSTRUCTION_FIELD];
-                    char rcB = b.Name[EECAM_RECONSTRUCTION_FIELD];
-                    if (rcA != rcB)
-                    {
-                        return rcB - rcA;
-                    }
+                    return new RoverObservationComparator.CompareResult(edsB - edsA, "eecam_downsample");
                 }
-
-                //downsample 0-3, prefer lower
-                //except keep all mask resolutions
-                //because it can happen that the XYZ and RAS products have different downsamples
-                char dsA = a.Name[DOWNSAMPLE_FIELD];
-                char dsB = b.Name[DOWNSAMPLE_FIELD];
-                if (dsA != dsB && a.ObservationType != RoverProductType.RoverMask)
+                
+                //EECAM reconstruction counter 0-9A-Z, prefer higher
+                char rcA = a.Name[EECAM_RECONSTRUCTION_FIELD];
+                char rcB = b.Name[EECAM_RECONSTRUCTION_FIELD];
+                if (rcA != rcB && !exceptCrit.Contains("eecam_recon"))
                 {
-                    return dsA - dsB;
+                    return new RoverObservationComparator.CompareResult(rcB - rcA, "eecam_recon");
                 }
-
-                //compresion, prefer higher
-                int compA = CompressionPreference(a.Name.Substring(COMPRESSION_FIELD, COMPRESSION_FIELD_LENGTH));
-                int compB = CompressionPreference(b.Name.Substring(COMPRESSION_FIELD, COMPRESSION_FIELD_LENGTH));
-                if (compA != compB && dsA == dsB)
-                {
-                    return compB - compA;
-                }
-
-                return 0;
             }
-
-            return new RoverObservationComparator(PreferOPGS(), PreferLinearGeometryProducts(),
-                                                  PreferLinearRasterProducts(), PreferColorToGrayscale(),
-                                                  PreferEyeForGeometry(), this, ext);
+            
+            //downsample 0-3, prefer lower
+            //except keep all mask resolutions
+            //because it can happen that the XYZ and RAS products have different downsamples
+            char dsA = a.Name[DOWNSAMPLE_FIELD];
+            char dsB = b.Name[DOWNSAMPLE_FIELD];
+            if (dsA != dsB && a.ObservationType != RoverProductType.RoverMask && !exceptCrit.Contains("downsample"))
+            {
+                return new RoverObservationComparator.CompareResult(dsA - dsB, "downsample");
+            }
+            
+            //compresion, prefer higher
+            int compA = CompressionPreference(a.Name.Substring(COMPRESSION_FIELD, COMPRESSION_FIELD_LENGTH));
+            int compB = CompressionPreference(b.Name.Substring(COMPRESSION_FIELD, COMPRESSION_FIELD_LENGTH));
+            if (compA != compB && dsA == dsB && !exceptCrit.Contains("compression"))
+            {
+                return new RoverObservationComparator.CompareResult(compB - compA, "compression");
+            }
+            
+            return new RoverObservationComparator.CompareResult(0, "none");
         }
-
+        
         public override IEnumerable<RoverProductId>
             FilterProductIdGroups(IEnumerable<RoverProductId> products,
                                   Action<string, List<RoverProductId>, List<RoverProductId>> spew = null)
@@ -378,7 +349,6 @@ namespace OPS.Pipeline
                     char minDS = orig.Select(id => id.FullId[DOWNSAMPLE_FIELD]).DefaultIfEmpty('0').Min();
                     var filtered = orig.Where(id => id.FullId[DOWNSAMPLE_FIELD] == minDS).ToList();
                     spew("downsample", orig, filtered);
-                    
                     highestRes.AddRange(filtered);
                 }
             }
@@ -392,19 +362,6 @@ namespace OPS.Pipeline
 
                 //https://docs.google.com/document/d/15iZgxqsecD6svOUuiEQm2J10a2ziKYeQQXU_f-VXGZc#heading=h.76imaw5jdp48
 
-                var apt = GetAllowedProcessingTypes();
-                char bestSpec = orig
-                    .Where(id => isEECAM(id))
-                    .Select(id => id.FullId[SPECIAL_PROCESSING_FIELD])
-                    .DefaultIfEmpty('_')
-                    .OrderBy(s => apt.FindIndex(t => t == s))
-                    .Last();
-                var filtered = orig
-                    .Where(id => !isEECAM(id) || id.FullId[SPECIAL_PROCESSING_FIELD] == bestSpec)
-                    .ToList();
-                spew("ECAM special processing", orig, filtered);
-                orig = filtered;
-
                 //EECAM downsampling A,L,M,N, prefer higher
                 //note the SIS changed to allow only A or M here, but this code should remain correct (prefer M over A)
                 //https://github.jpl.nasa.gov/OnSight/Landform/issues/852
@@ -414,7 +371,7 @@ namespace OPS.Pipeline
                     .Select(id => id.FullId[EECAM_DOWNSAMPLE_FIELD])
                     .DefaultIfEmpty('0')
                     .Max();
-                filtered = orig.Where(id => !isEECAM(id) || id.FullId[EECAM_DOWNSAMPLE_FIELD] == maxEDS).ToList();
+                var filtered = orig.Where(id => !isEECAM(id) || id.FullId[EECAM_DOWNSAMPLE_FIELD] == maxEDS).ToList();
                 spew("ECAM downsampling", orig, filtered);
                 orig = filtered;
 
@@ -531,14 +488,6 @@ namespace OPS.Pipeline
                 M2020OPGSProductId opgsId = (M2020OPGSProductId)id;
 
                 bool isEECAM = IsHazcam(id.Camera) || IsNavcam(id.Camera);
-
-                char spec = opgsId.Spec[0];
-                if (GetAllowedProcessingTypes().FindIndex(t => t == spec) < 0)
-                {
-                    //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/895
-                    reason = "special processing " + spec;
-                    return false;
-                }
 
                 var camspec = opgsId.Camspec.ToUpper();
                 if (isEECAM || IsMastcam(id.Camera))

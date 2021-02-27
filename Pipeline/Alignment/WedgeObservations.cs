@@ -206,7 +206,7 @@ namespace OPS.Pipeline
 
                 if (mission != null)
                 {
-                    Comparator =  mission.GetRoverObservationComparator();
+                    Comparator = new RoverObservationComparator(mission);
                     LinearPreference = GetLinearPreference(mission);
                     MeshExts = StringHelper.ParseList(mission.GetTacticalMeshExts().ToLower());
                 }

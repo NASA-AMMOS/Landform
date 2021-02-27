@@ -802,7 +802,7 @@ namespace OPS.Pipeline
         {
             warn = warn ?? (msg => {});
             var contexts = new List<Context>();
-            var comparator = mission.GetRoverObservationComparator();
+            var comparator = new RoverObservationComparator(mission);
             foreach (var obs in observations)
             {
                 var obsToMesh = frameCache.GetObservationTransform(obs, meshFrame, usePriors, onlyAligned);

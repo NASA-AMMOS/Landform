@@ -220,9 +220,7 @@ namespace OPS.Landform
 
         protected virtual void FilterRoverImages()
         {
-            var comparator = new RoverObservationComparator(mission.GetRoverObservationComparator());
-            comparator.logger = pipeline.Verbose ? pipeline : null;
-            comparator.SetPreferLinearRasterProducts(mission.PreferLinearRasterProducts());
+            var comparator = new RoverObservationComparator(mission, pipeline);
             roverImages = comparator
                 .KeepBestRoverObservations(roverImages, RoverObservationComparator.LinearVariants.Best,
                                            RoverProductType.Image)

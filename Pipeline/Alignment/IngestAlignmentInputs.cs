@@ -389,8 +389,7 @@ namespace OPS.Pipeline
             // 2) two images: one of each linarity if the image contents are equivalent up to the linearity test.
             //    this condition defers the decision to a sort by systems that have a strong preference for linear
             //    or nonlinear rather than an explicit early culling here.
-            var comparator = mission.GetRoverObservationComparator();
-            comparator.logger = pipeline.Verbose ? pipeline : null;
+            var comparator = new RoverObservationComparator(mission, pipeline);
             filteredObs = comparator
                 .KeepBestRoverObservations(filteredObs, RoverObservationComparator.LinearVariants.Both)
                 .ToList();

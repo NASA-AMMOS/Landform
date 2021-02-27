@@ -10,73 +10,26 @@ namespace OPS.Pipeline
 {
     public class RoverObservationComparator : IComparer<RoverObservation>
     {
-        public enum CompareCriteria
-        {
-            StereoFrameName,
-            XYZ_RNG,
-            Producer,
-            SameObsType,
-            StereoEye,
-            ColorFilter,
-            SameEye,
-            Size,
-            Linearity,
-            ExtendedCompare,
-            Version,
-            Name,
-            None
-        };
-
         public enum LinearVariants { Best, Both };
 
-        public ILogger logger;
-
-        private bool preferOPGS, preferLinearGeometryProducts, preferLinearRasterProducts, preferColorToGrayscale;
-        private RoverStereoEye preferEyeForGeometry;
-        private Func<RoverObservation, RoverObservation, int> ext;
         private MissionSpecific mission;
+        private ILogger logger;
 
-        public RoverObservationComparator(bool preferOPGS, bool preferLinearGeometryProducts,
-                                          bool preferLinearRasterProducts, bool preferColor,
-                                          RoverStereoEye preferEyeForGeometry, MissionSpecific mission,
-                                          Func<RoverObservation, RoverObservation, int> ext = null)
+        public RoverObservationComparator(MissionSpecific mission = null, ILogger logger = null)
         {
-            this.preferOPGS = preferOPGS;
-            this.preferLinearGeometryProducts = preferLinearGeometryProducts;
-            this.preferLinearRasterProducts = preferLinearRasterProducts;
-            this.preferColorToGrayscale = preferColor;
-            this.preferEyeForGeometry = preferEyeForGeometry;
             this.mission = mission;
-            this.ext = ext;
-        }
-
-        public RoverObservationComparator()
-            : this(preferOPGS: true, preferLinearGeometryProducts: true, preferLinearRasterProducts: false,
-                   preferColor: true, preferEyeForGeometry: RoverStereoEye.Left, mission: null)
-        { }
-
-        public RoverObservationComparator(RoverObservationComparator other)
-            : this(preferOPGS: other.preferOPGS, preferLinearGeometryProducts: other.preferLinearGeometryProducts,
-                   preferLinearRasterProducts: other.preferLinearRasterProducts,
-                   preferColor: other.preferColorToGrayscale, preferEyeForGeometry: other.preferEyeForGeometry,
-                   mission: other.mission, ext: other.ext)
-        { }
-
-
-        public void SetPreferLinearGeometryProducts(bool preferLinear)
-        {
-            preferLinearGeometryProducts = preferLinear;
-        }
-
-        public void SetPreferLinearRasterProducts(bool preferLinear)
-        {
-            preferLinearRasterProducts = preferLinear;
+            this.logger = logger;
         }
 
         public struct CompareResult
         {
-            public int Code;
-            public CompareCriteria Reason;
+            public readonly int Code;
+            public readonly string Reason;
+            public CompareResult(int code, string reason)
+            {
+                this.Code = code;
+                this.Reason = reason;
+            }
         }
 
         /// <summary>
@@ -84,163 +37,182 @@ namespace OPS.Pipeline
         /// negative if a is "better" than b
         /// positive if a is "worse than" b
         /// </summary>
-        public CompareResult Compare(RoverObservation a, RoverObservation b, params CompareCriteria[] exceptCrit)
+        public CompareResult Compare(RoverObservation a, RoverObservation b, params string[] exceptCrit)
         {
-            CompareResult done(int code, CompareCriteria reason)
+            CompareResult done(int code, string reason)
             {
                 if (logger != null)
                 {
                     logger.LogDebug("{0} {1} {2}: {3}", a.Name, code == 0 ? "=" : code < 0 ? ">" : "<", b.Name, reason);
                 }
-                return new CompareResult() { Code = code, Reason = reason };
+                return new CompareResult(code, reason);
             }
-                
+
+            //NOTE: the order of comparisons here should approximately match the order in FilterProductIdGroups()
+
             //this function can only make judgements about observations in the same frame
             //StereoFrameName abstracts Left/Right distinctions
             //allowing comparison between the two eyes for the same frame
-            if (!exceptCrit.Contains(CompareCriteria.StereoFrameName) && a.StereoFrameName != b.StereoFrameName)
+            if (!exceptCrit.Contains("stereo_camera_frame") && a.StereoFrameName != b.StereoFrameName)
             {
-                return done(0, CompareCriteria.StereoFrameName);
+                return done(0, "stereo_camera_frame");
             }
 
             //always prefer XYZ to RNG if both are available
             //https://github.jpl.nasa.gov/OnSight/Landform/issues/471
-            if (!exceptCrit.Contains(CompareCriteria.XYZ_RNG))
+            if (!exceptCrit.Contains("xyz_rng"))
             {
                 if (a.ObservationType == RoverProductType.Points && b.ObservationType == RoverProductType.Range)
                 {
-                    return done(-1, CompareCriteria.XYZ_RNG);
+                    return done(-1, "xyz_rng");
                 }
                 if (a.ObservationType == RoverProductType.Range && b.ObservationType == RoverProductType.Points)
                 {
-                    return done(1, CompareCriteria.XYZ_RNG);
-                }
-            }
-
-            //sort by producer, and only proceed with further criteria if producers match
-            if (!exceptCrit.Contains(CompareCriteria.Producer))
-            {
-                if (a.Producer != b.Producer)
-                {
-                    if (preferOPGS && a.Producer == RoverProductProducer.OPGS)
-                    {
-                        return done(-1, CompareCriteria.Producer);
-                    }
-                    else if (preferOPGS && b.Producer == RoverProductProducer.OPGS)
-                    {
-                        return done(1, CompareCriteria.Producer);
-                    }
-                    return done(0, CompareCriteria.Producer);
+                    return done(1, "xyz_rng");
                 }
             }
 
             //only compare observations of same type from here down
             //but allow comparing between eyes, sizes, and color filters
-            if (!exceptCrit.Contains(CompareCriteria.SameObsType) && (a.ObservationType != b.ObservationType))
+            if (!exceptCrit.Contains("obs_type") && (a.ObservationType != b.ObservationType))
             {
-                return done(0, CompareCriteria.SameObsType);
+                return done(0, "obs_type");
             }
 
-            //sort by stereo eye for geometry products
-            RoverStereoEye aEye = a.StereoEye, bEye = b.StereoEye;
-            if (!exceptCrit.Contains(CompareCriteria.StereoEye) &&
-                preferEyeForGeometry != RoverStereoEye.Any && aEye != bEye &&
-                (aEye == preferEyeForGeometry || bEye == preferEyeForGeometry) &&
-                RoverProduct.IsGeometry(a.ObservationType) && !RoverProduct.IsRaster(a.ObservationType) &&
-                RoverProduct.IsGeometry(b.ObservationType) && !RoverProduct.IsRaster(b.ObservationType))
+            //sort by producer, and only proceed with further criteria if producers match
+            if (!exceptCrit.Contains("producer") && a.Producer != b.Producer)
             {
-                return done(aEye == preferEyeForGeometry ? -1 : 1, CompareCriteria.StereoEye);
-            }
-
-            //only compare same stereo eye observations from here down
-            if (!exceptCrit.Contains(CompareCriteria.SameEye) && (a.Camera != b.Camera))
-            {
-                return done(0, CompareCriteria.SameEye);
-            }
-
-            //sort by color filter, and only compare same color filter observations from here down
-            if (!exceptCrit.Contains(CompareCriteria.ColorFilter))
-            {
-                if (a.ObservationType == RoverProductType.Image)
+                if (mission != null)
                 {
-                    if (a.Bands > b.Bands)
+                    bool preferOPGS = mission.PreferOPGS();
+                    if (preferOPGS&& a.Producer == RoverProductProducer.OPGS)
                     {
-                        return done(preferColorToGrayscale ? -1 : 1, CompareCriteria.ColorFilter);
+                        return done(-1, "producer");
                     }
-                    else if (b.Bands > a.Bands)
+                    else if (preferOPGS && b.Producer == RoverProductProducer.OPGS)
                     {
-                        return done(preferColorToGrayscale ? 1 : -1, CompareCriteria.ColorFilter);
+                        return done(1, "producer");
                     }
-                    else if (a.Color != b.Color)
+                }
+                return done(0, "producer");
+            }
+
+            //sort by special processing
+            if (!exceptCrit.Contains("special") && mission != null)
+            {
+                var apt = mission.GetAllowedProcessingTypes();
+                var idA = RoverProductId.Parse(a.Name, mission, throwOnFail: false) as OPGSProductId;
+                var idB = RoverProductId.Parse(b.Name, mission, throwOnFail: false) as OPGSProductId;
+                if (idA != null && idB != null)
+                {
+                    var diff = apt.FindIndex(p => p == idB.Spec) - apt.FindIndex(p => p == idA.Spec);
+                    if (diff != 0)
                     {
-                        return done(RoverProduct.BandPreference(a.Color) - RoverProduct.BandPreference(b.Color),
-                                    CompareCriteria.ColorFilter);
+                        return done(diff, "special");
                     }
                 }
             }
 
+            //sort by color filter, and only compare same color filter image observations from here down
+            if (!exceptCrit.Contains("color") &&
+                a.ObservationType == RoverProductType.Image && b.ObservationType == RoverProductType.Image)
+            {
+                if (mission != null)
+                {
+                    bool preferColor = mission.PreferColorToGrayscale();
+                    if (a.Bands > b.Bands)
+                    {
+                        return done(preferColor ? -1 : 1, "color");
+                    }
+                    else if (b.Bands > a.Bands)
+                    {
+                        return done(preferColor ? 1 : -1, "color");
+                    }
+                }
+                if (a.Color != b.Color)
+                {
+                    return done(RoverProduct.BandPreference(a.Color) - RoverProduct.BandPreference(b.Color), "color");
+                }
+            }
+
+            //sort by stereo eye for geometry products
+            var preferEye = mission != null ? mission.PreferEyeForGeometry() : RoverStereoEye.Any;
+            if (!exceptCrit.Contains("eye") && preferEye != RoverStereoEye.Any && a.StereoEye != b.StereoEye &&
+                (a.StereoEye == preferEye || b.StereoEye == preferEye) &&
+                RoverProduct.IsGeometry(a.ObservationType) && !RoverProduct.IsRaster(a.ObservationType) &&
+                RoverProduct.IsGeometry(b.ObservationType) && !RoverProduct.IsRaster(b.ObservationType))
+            {
+                return done(a.StereoEye == preferEye ? -1 : 1, "eye");
+            }
+
+            //only compare same stereo eye observations from here down
+            if (!exceptCrit.Contains("eye") && (a.Camera != b.Camera))
+            {
+                return done(0, "eye");
+            }
+
+            //sort by linear-ness
+            //note mask products are considered both geometry and raster
+            if (!exceptCrit.Contains("linearity") && a.ObservationType == b.ObservationType && mission != null &&
+                (RoverProduct.IsGeometry(a.ObservationType) || RoverProduct.IsRaster(a.ObservationType)) &&
+                (mission.PreferLinearGeometryProducts() == mission.PreferLinearRasterProducts() ||
+                 !(RoverProduct.IsGeometry(a.ObservationType) && RoverProduct.IsRaster(a.ObservationType))))
+            {
+                bool linearA = a.IsLinear, linearB = b.IsLinear;
+                bool preferLinear = RoverProduct.IsGeometry(a.ObservationType)
+                    ? mission.PreferLinearGeometryProducts() : mission.PreferLinearRasterProducts();
+                if (linearA && !linearB)
+                {
+                    return done(preferLinear ? -1 : 1, "linearity");
+                }
+                if (!linearA && linearB)
+                {
+                    return done(preferLinear ? 1 : -1, "linearity");
+                }
+            }
+
             //sort by size, and only compare same size observations from here down
-            if (!exceptCrit.Contains(CompareCriteria.Size))
+            if (!exceptCrit.Contains("size"))
             {
                 long aSize = a.Width * a.Height;
                 long bSize = b.Width * b.Height;
                 if (aSize != bSize)
                 {
-                    return done(Math.Sign(bSize - aSize), CompareCriteria.Size);
-                }
-            }
-
-            //sort by linear-ness
-            //note mask products are considered both geometry and raster
-            if (!exceptCrit.Contains(CompareCriteria.Linearity) && a.ObservationType == b.ObservationType &&
-                (RoverProduct.IsGeometry(a.ObservationType) || RoverProduct.IsRaster(a.ObservationType)) &&
-                (preferLinearGeometryProducts == preferLinearRasterProducts ||
-                 !(RoverProduct.IsGeometry(a.ObservationType) && RoverProduct.IsRaster(a.ObservationType))))
-            {
-                bool linearA = a.IsLinear, linearB = b.IsLinear;
-                bool preferLinear = RoverProduct.IsGeometry(a.ObservationType)
-                    ? preferLinearGeometryProducts : preferLinearRasterProducts;
-                if (linearA && !linearB)
-                {
-                    return done(preferLinear ? -1 : 1, CompareCriteria.Linearity);
-                }
-                if (!linearA && linearB)
-                {
-                    return done(preferLinear ? 1 : -1, CompareCriteria.Linearity);
+                    return done(Math.Sign(bSize - aSize), "size");
                 }
             }
 
             //apply extended (e.g. mission specific) criteria
-            if (!exceptCrit.Contains(CompareCriteria.ExtendedCompare) && ext != null)
+            if (!exceptCrit.Contains("mission") && mission != null)
             {
-                var ev = ext(a, b);
-                if (ev != 0)
+                var cr = mission.CompareRoverObservations(a, b, exceptCrit);
+                if (cr.Code != 0)
                 {
-                    return done(ev, CompareCriteria.ExtendedCompare);
+                    return cr;
                 }
             }
 
             //prefer higher versions
-            if (!exceptCrit.Contains(CompareCriteria.Version) && a.Version != b.Version)
+            if (!exceptCrit.Contains("version") && a.Version != b.Version)
             {
-                return done(b.Version - a.Version, CompareCriteria.Version);
+                return done(b.Version - a.Version, "version");
             }
 
             //at this point the observations are otherwise equivalent
             //revert to just a string comparison on their names
             //just so that results are stable and repeatable
             //prefer last in dictionary order, e.g. to take later SCLK
-            if (!exceptCrit.Contains(CompareCriteria.Name))
+            if (!exceptCrit.Contains("name"))
             {
-                return done(b.Name.CompareTo(a.Name), CompareCriteria.Name);
+                return done(b.Name.CompareTo(a.Name), "name");
             }
 
-            return done(0, CompareCriteria.None);
+            return done(0, "none");
         }
 
         public int Compare(RoverObservation a, RoverObservation b)
         {
-            return Compare(a, b, CompareCriteria.None).Code;
+            return Compare(a, b, "none").Code;
         }
 
         /// Discards any observations that aren't RoverObservations or that don't pass the filter (which is optional).
@@ -325,7 +297,7 @@ namespace OPS.Pipeline
                                 {
                                     keepers.Add(obs);
                                 }
-                                else if (Compare(obs, keepers[i], CompareCriteria.Size, CompareCriteria.Name).Code < 0)
+                                else if (Compare(obs, keepers[i], "size", "name").Code < 0)
                                 {
                                     keepers[i] = obs;
                                 }
@@ -341,7 +313,7 @@ namespace OPS.Pipeline
                             sb.Append(ordered[i].Name);
                             if (i < ordered.Count - 1)
                             {
-                                var res = Compare(ordered[i], ordered[i + 1], CompareCriteria.None);
+                                var res = Compare(ordered[i], ordered[i + 1], "none");
                                 sb.Append(" ");
                                 sb.Append(res.Code == 0 ? "=" : res.Code < 0 ? ">" : "<");
                                 sb.Append(res.Reason.ToString());
@@ -619,6 +591,20 @@ namespace OPS.Pipeline
                 return gids.Concat(rids).Concat(mids);
             }
 
+            //given a set of ids that only differ in special processing, variants, and version
+            //for the subset that are OPGS product IDs (which should be all or none)
+            //keep only the best special processing
+            IEnumerable<RoverProductId> filterSpecialProcessing(IEnumerable<RoverProductId> ids,
+                                                                List<string> allowedProcessingTypes)
+            {
+                var opgsIds = ids.Where(id => id is OPGSProductId).Cast<OPGSProductId>();
+                var bestSpec = opgsIds.Select(id => id.Spec)
+                    .DefaultIfEmpty("_")
+                    .OrderBy(s => allowedProcessingTypes.FindIndex(t => t == s))
+                    .Last();
+                return opgsIds.Where(id => id.Spec == bestSpec).Concat(ids.Where(id => !(id is OPGSProductId)));
+            }
+
             void spew(string what, List<RoverProductId> orig, List<RoverProductId> filtered)
             {
                 Func<RoverProductId, string> fmt = idToFile != null ? idToFile : (id => id.FullId);
@@ -690,6 +676,14 @@ namespace OPS.Pipeline
                     
                     if (mission != null)
                     {
+                        filtered = orig
+                            .GroupBy(id => id.GetPartialId(mission, includeVariants: false, includeVersion: false,
+                                                           includeSpecialProcessing: false))
+                            .SelectMany(ids => filterSpecialProcessing(ids, mission.GetAllowedProcessingTypes()))
+                            .ToList();
+                        spew("special processing", orig, filtered);
+                        orig = filtered;
+
                         //if both color and grayscale are available, keep the preferred one
                         //also if multiple grayscale bands are available, keep the preferred one
                         filtered = orig

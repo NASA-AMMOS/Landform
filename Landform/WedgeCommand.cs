@@ -179,8 +179,7 @@ namespace OPS.Landform
                 return null;
             }
             
-            var comparator =
-                mission != null ? mission.GetRoverObservationComparator() : new RoverObservationComparator();
+            var comparator = new RoverObservationComparator(mission);
             
             return comparator
                 .KeepBestRoverObservations(maskObs, RoverObservationComparator.LinearVariants.Both,
