@@ -91,12 +91,12 @@ if not "%LANDFORM_CONTEXTUAL_WEDGE_PATTERN%"=="" (
    set masteropts=%masteropts% --wedgepattern=%LANDFORM_CONTEXTUAL_WEDGE_PATTERN%
 )
 
-if not "%LANDFORM_CONTEXTUAL_SEARCH_FOR_ADDITIONAL_LISTS%"=="" (
-   set masteropts=%masteropts% --searchforadditionallists=%LANDFORM_CONTEXTUAL_SEARCH_FOR_ADDITIONAL_LISTS%
+if not "%LANDFORM_CONTEXTUAL_NO_SEARCH_FOR_ADDITIONAL_LISTS%"=="" (
+   set masteropts=%masteropts% --nosearchforadditionallists
 )
 
-if not "%LANDFORM_CONTEXTUAL_SEARCH_FOR_ADDITIONAL_WEDGES%"=="" (
-   set masteropts=%masteropts% --searchforadditionalwedges=%LANDFORM_CONTEXTUAL_SEARCH_FOR_ADDITIONAL_WEDGES%
+if not "%LANDFORM_CONTEXTUAL_NO_SEARCH_FOR_ADDITIONAL_WEDGES%"=="" (
+   set masteropts=%masteropts% --nosearchforadditionalwedges
 )
 
 if not "%LANDFORM_CONTEXTUAL_MASTER_DEBOUNCE_SEC%"=="" (

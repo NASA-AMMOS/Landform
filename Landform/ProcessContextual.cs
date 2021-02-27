@@ -224,11 +224,14 @@ namespace OPS.Landform
         [Option(Default = "*XYZ*.IMG", HelpText = "Master service wedge filename pattern, case insensitive, null, empty,or \"none\" to reject wedge files")]
         public string WedgePattern { get; set; }
 
-        [Option(Default = true, HelpText = "If using list files (--listpattern is specified) then search for sibling list files to detect available sitedrives")]
-        public bool SearchForAdditionalLists { get; set; }
+        [Option(Default = "*RAS*.IMG", HelpText = "Master service texture filename pattern, case insensitive, null, empty,or \"none\" to reject texture files")]
+        public string TexturePattern { get; set; }
 
-        [Option(Default = true, HelpText = "If using wedge files (--wedgepattern is specified) then search for other wedges in the same RDR directory to detect available sitedrives")]
-        public bool SearchForAdditionalWedges { get; set; }
+        [Option(Default = false, HelpText = "If using list files (--listpattern is specified) then don't search for sibling list files to detect available sitedrives")]
+        public bool NoSearchForAdditionalLists { get; set; }
+
+        [Option(Default = false, HelpText = "If using wedge files (--wedgepattern is specified) then don't search for other wedges in the same RDR directory to detect available sitedrives")]
+        public bool NoSearchForAdditionalWedges { get; set; }
 
         [Option(Default = null, HelpText = "Worker message queue name, required with --master")]
         public string WorkerQueueName { get; set; }
@@ -283,7 +286,7 @@ namespace OPS.Landform
 
         protected ProcessContextualOptions options;
 
-        private Regex listRegex, wedgeRegex;
+        private Regex listRegex, wedgeRegex, textureRegex;
 
         private int debounceMS;
         private int solRange, maxWedges, maxSDs;
@@ -431,7 +434,8 @@ namespace OPS.Landform
                     string file = StringHelper.GetLastUrlPathSegment(url);
                     bool isList = listRegex != null && listRegex.IsMatch(file);
                     bool isWedge = wedgeRegex != null && wedgeRegex.IsMatch(file);
-                    if (!isList && !isWedge)
+                    bool isTexture = textureRegex != null && textureRegex.IsMatch(file);
+                    if (!isList && !isWedge && !isTexture)
                     {
                         reason = "unhandled file type: " + url;
                         return false;
@@ -446,6 +450,17 @@ namespace OPS.Landform
                         var idStr = StringHelper.GetLastUrlPathSegment(url, stripExtension: true);
                         var id = RoverProductId.Parse(idStr, mission, throwOnFail: false);
                         reason = FilterWedge(id);
+                        if (reason != null)
+                        {
+                            reason += ": " + url;
+                            return false;
+                        }
+                    }
+                    if (isTexture)
+                    {
+                        var idStr = StringHelper.GetLastUrlPathSegment(url, stripExtension: true);
+                        var id = RoverProductId.Parse(idStr, mission, throwOnFail: false);
+                        reason = FilterTexture(id);
                         if (reason != null)
                         {
                             reason += ": " + url;
@@ -577,6 +592,13 @@ namespace OPS.Landform
                 {
                     wedgeRegex =
                         StringHelper.WildcardToRegularExpression(options.WedgePattern, RegexOptions.IgnoreCase);
+                }
+
+                if (!string.IsNullOrEmpty(options.TexturePattern) &&
+                    !string.Equals(options.TexturePattern, "none", StringComparison.OrdinalIgnoreCase))
+                {
+                    textureRegex =
+                        StringHelper.WildcardToRegularExpression(options.TexturePattern, RegexOptions.IgnoreCase);
                 }
 
                 if (!serviceUtilMode || options.DeleteQueues)
@@ -945,6 +967,36 @@ namespace OPS.Landform
             return null;
         }
 
+        private string FilterTexture(RoverProductId id)
+        {
+            if (!(id is OPGSProductId))
+            {
+                return "unrecognized product ID";
+            }
+            if ((id as OPGSProductId).Size == RoverProductSize.Thumbnail)
+            {
+                return "thumbnail product";
+            }
+            if (mission != null)
+            {
+                if (!mission.CheckProductId(id, out string reason))
+                {
+                    return reason;
+                }
+                if (!mission.UseForTexturing(id))
+                {
+                    return "product type not used for texturing";
+                }
+                var preferredGeometry = mission.PreferLinearRasterProducts() ?
+                    RoverProductGeometry.Linearized : RoverProductGeometry.Raw;
+                if (id.Geometry != preferredGeometry)
+                {
+                    return string.Format("linearity {0} != {1}", id.Geometry, preferredGeometry);
+                }
+            }
+            return null;
+        }
+
         //RRR_[TTTT]SSSDDDD[I][_VV].lis
         //where RRR is e.g. xyz, xym, iv, etc; TTTT is sol; SSS site; DDDD drive; I instrument; VV version
         private static readonly Regex LIST_FILENAME_REGEX =
@@ -985,6 +1037,7 @@ namespace OPS.Landform
             var listDirs = new HashSet<string>();
             var listURLs = new HashSet<string>();
             var wedgeURLs = new HashSet<string>();
+            var textureURLs = new HashSet<string>();
 
             SiteDriveList makeList(SiteDrive sd)
             {
@@ -995,17 +1048,24 @@ namespace OPS.Landform
             //remove non-preferred stereo eye
             //remove non-preferred lin/nonlin
             //etc
-            bool filterLists()
+            void filterLists(bool passthroughEmpty)
             {
                 pipeline.LogInfo("filtering {0} sitedrive wedge lists", ret.Count);
                 var filtered = new Dictionary<SiteDrive, Stamped<SiteDriveList>>();
                 foreach (var sd in ret.Keys)
                 {
-                    var sdList = ret[sd].Value
-                        .FilterProductIDs(ids => RoverObservationComparator.FilterProductIdGroups(ids, mission));
-                    if (sdList.NumWedges > 0)
+                    if (ret[sd].Value.NumWedges > 0)
                     {
-                        filtered[sd] = new Stamped<SiteDriveList>(sdList, ret[sd].Timestamp);
+                        var sdList = ret[sd].Value
+                            .FilterProductIDs(ids => RoverObservationComparator.FilterProductIdGroups(ids, mission));
+                        if (sdList.NumWedges > 0)
+                        {
+                            filtered[sd] = new Stamped<SiteDriveList>(sdList, ret[sd].Timestamp);
+                        }
+                    }
+                    else if (passthroughEmpty)
+                    {
+                        filtered[sd] = ret[sd];
                     }
                 }
                 int culled = ret.Count - filtered.Count;
@@ -1015,13 +1075,13 @@ namespace OPS.Landform
                     pipeline.LogInfo("culled {0} sitedrive wedge lists that were empty after filtering, {1} remain",
                                      culled, ret.Count);
                 }
-                return ret.Count > 0;
             }
 
             foreach (var sd in urls.Keys)
             {
                 var sdList = makeList(sd);
                 long latestTimestamp = -1;
+                bool hasTextures = false;
                 foreach (var entry in urls[sd])
                 {
                     string url = entry.Key;
@@ -1042,32 +1102,38 @@ namespace OPS.Landform
                         sdList.Add(url);
                         wedgeURLs.Add(url);
                     }
+                    else if (textureRegex != null && textureRegex.IsMatch(file))
+                    {
+                        hasTextures = true;
+                        textureURLs.Add(url);
+                    }
                     else //URL should have been rejected by AcceptMessage(), but whatever
                     {
                         pipeline.LogWarn("unhandled file type: {0}", url);
                     }
                     latestTimestamp = Math.Max(latestTimestamp, entry.Value);
                 }
-                if (sdList.NumWedges > 0)
+                if (sdList.NumWedges > 0 || hasTextures)
                 {
                     ret[sd] = new Stamped<SiteDriveList>(sdList, latestTimestamp);
                 }
             }
 
             pipeline.LogInfo("registered {0} changed lists in {1} dirs", listURLs.Count, listDirs.Count);
-            pipeline.LogInfo("registered {0} changed wedges", wedgeURLs.Count);
+            pipeline.LogInfo("registered {0} changed wedges, {1} changed textures", wedgeURLs.Count, textureURLs.Count);
 
-            if (!filterLists())
-            {
-                return ret;
-            }
+            //at this point lists that were created only due to texture changes will exist but have no wedges
+            //but wedges may be added to them if we search for and find additional lists or wedges below
+            //this is important because it catches situations where XYZs are acquired for a sitedrive in sols up to N
+            //but then in later sols M > N only additional textures are acquired for that sitedrive
+            filterLists(passthroughEmpty: true);
 
             if (pipeline.Verbose)
             {
                 foreach (var sd in ret.Keys.OrderBy(sd => sd))
                 {
-                    pipeline.LogVerbose("changed sitedrive {0}: {1} wedges after filtering, before additions:\n  {2}",
-                                        sd, ret[sd].Value.NumWedges,
+                    pipeline.LogVerbose("changed sitedrive {0}: {1} wedges after filtering, before additions{2}{3}",
+                                        sd, ret[sd].Value.NumWedges, ret[sd].Value.NumWedges > 0 ? ":\n  " : "",
                                         string.Join("\n  ", ret[sd].Value.IDToURL.Values.OrderBy(url => url)));
                 }
             }
@@ -1081,7 +1147,7 @@ namespace OPS.Landform
 
             bool reFilter = false;
 
-            if (options.SearchForAdditionalLists && listRegex != null) //handle options.ListPattern=none
+            if (!options.NoSearchForAdditionalLists && listRegex != null) //handle options.ListPattern=none
             {
                 int additionalLists = 0, additionalListSitedrives = 0;
 
@@ -1097,21 +1163,19 @@ namespace OPS.Landform
                             var sd = GetSiteDrive(url);
                             if (sd.HasValue)
                             {
+                                pipeline.LogVerbose("found additional list {0} in sitedrive {1}", url, sd);
                                 additionalLists++;
                                 var sdList = ret.ContainsKey(sd.Value) ? ret[sd.Value].Value : makeList(sd.Value);
                                 LoadList(sdList, url);
                                 sdList = sdList.FilterToSolRange(minSol, maxSol);
-                                if (sdList.NumWedges > 0)
+                                if (ret.ContainsKey(sd.Value))
                                 {
-                                    if (ret.ContainsKey(sd.Value))
-                                    {
-                                        ret[sd.Value] = new Stamped<SiteDriveList>(sdList, ret[sd.Value].Timestamp);
-                                    }
-                                    else
-                                    {
-                                        ret[sd.Value] = new Stamped<SiteDriveList>(sdList);
-                                        additionalListSitedrives++;
-                                    }
+                                    ret[sd.Value] = new Stamped<SiteDriveList>(sdList, ret[sd.Value].Timestamp);
+                                }
+                                else if (sdList.NumWedges > 0)
+                                {
+                                    ret[sd.Value] = new Stamped<SiteDriveList>(sdList);
+                                    additionalListSitedrives++;
                                 }
                             }
                             else
@@ -1128,7 +1192,7 @@ namespace OPS.Landform
                                  additionalLists, additionalListSitedrives);
             }
 
-            if (options.SearchForAdditionalWedges && wedgeRegex != null) //handle options.WedgePattern=none
+            if (!options.NoSearchForAdditionalWedges && wedgeRegex != null) //handle options.WedgePattern=none
             {
                 int additionalWedges = 0, additionalWedgeSitedrives = 0;
 
@@ -1172,12 +1236,12 @@ namespace OPS.Landform
                                 {
                                     //this new URL might still get filtered out below
                                     //e.g. if it's an older version of something that's already in the list
-                                    pipeline.LogVerbose("found additional wedge product {0} in sitedrive {1}", url, sd);
-                                    Interlocked.Increment(ref additionalWedges);
+                                    pipeline.LogVerbose("found additional wedge {0} in sitedrive {1}", url, sd);
+                                    additionalWedges++;
                                     if (!ret.ContainsKey(sd))
                                     {
                                         ret[sd] = new Stamped<SiteDriveList>(sdl);
-                                        Interlocked.Increment(ref additionalWedgeSitedrives);
+                                        additionalWedgeSitedrives++;
                                     }
                                 }
                             }
@@ -1193,7 +1257,7 @@ namespace OPS.Landform
 
             if (reFilter)
             {
-                filterLists();
+                filterLists(passthroughEmpty: false);
             }
 
             pipeline.LogInfo("{0} filtered sitedrive lists for RDR dir {1}", ret.Count, rdrDir);
