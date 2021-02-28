@@ -245,9 +245,6 @@ namespace OPS.Landform
         [Option(Default = 4, HelpText = "Minimum number of wedges for primary site drive in a contextual mesh, non-positive for no limit")]
         public int MinPrimarySiteDriveWedges { get; set; }
 
-        [Option(Default = 1, HelpText = "Minimum number of wedges for a site drive to be included in a contextual mesh, non-positive for no limit")]
-        public int MinSiteDriveWedges { get; set; }
-
         [Option(Default = 500, HelpText = "Maximum number of wedges for which to build a contextual mesh (does not apply to primary sitedrive; culls additional sitedrives in order of increasing distance, then size), non-positive for no limit")]
         public int MaxContextualMeshWedges { get; set; }
 
@@ -619,9 +616,7 @@ namespace OPS.Landform
             maxSDs = options.MaxSiteDrives > 0 ? options.MaxSiteDrives : int.MaxValue;
             pipeline.LogInfo("contextual mesh extent {0}, surface extent {1}", options.Extent, options.SurfaceExtent);
             pipeline.LogInfo("max sol range {0}, max wedges {1}, max sitedrives {2}", solRange, maxWedges, maxSDs);
-            pipeline.LogInfo("min wedges {0}, {1} for primary sitedrive",
-                             options.MinSiteDriveWedges, options.MinPrimarySiteDriveWedges);
-
+            pipeline.LogInfo("min wedges for primary sitedrive {0}", options.MinPrimarySiteDriveWedges);
 
             return true;
         }
@@ -1131,8 +1126,9 @@ namespace OPS.Landform
             {
                 foreach (var sd in ret.Keys.OrderBy(sd => sd))
                 {
-                    pipeline.LogVerbose("changed sitedrive {0}: {1} wedges after filtering, before additions{2}{3}",
-                                        sd, ret[sd].Value.NumWedges, ret[sd].Value.NumWedges > 0 ? ":\n  " : "",
+                    pipeline.LogVerbose("changed sitedrive {0}: {1} sols, {2} wedges before additions{3}{4}",
+                                        sd, ret[sd].Value.NumSols, ret[sd].Value.NumWedges,
+                                        ret[sd].Value.NumWedges > 0 ? ":\n  " : "",
                                         string.Join("\n  ", ret[sd].Value.IDToURL.Values.OrderBy(url => url)));
                 }
             }
@@ -1267,8 +1263,9 @@ namespace OPS.Landform
             {
                 foreach (var sd in ret.Keys.OrderBy(sd => sd))
                 {
-                    pipeline.LogVerbose("{0}changed sitedrive {1}: {2} wedges after filtering and additions:\n  {3}",
-                                        changedSDs.Contains(sd) ? "" : "un", sd, ret[sd].Value.NumWedges,
+                    pipeline.LogVerbose("{0}changed sitedrive {1}: {2} sols, {3} wedges after additions{4}{5}",
+                                        changedSDs.Contains(sd) ? "" : "un", sd, ret[sd].Value.NumSols,
+                                        ret[sd].Value.NumWedges, ret[sd].Value.NumWedges > 0 ? ":\n  " : "",
                                         string.Join("\n  ", ret[sd].Value.IDToURL.Values.OrderBy(url => url)));
                 }
             }
@@ -1302,67 +1299,58 @@ namespace OPS.Landform
             primarySDList = primarySDList.FilterToSolRange(minSol, maxSol);
 
             //primary site drive must have at least this many wedges
-            int minWedges = Math.Max(options.MinSiteDriveWedges, options.MinPrimarySiteDriveWedges);
-            if (primarySDList.NumWedges < minWedges)
+            if (options.MinPrimarySiteDriveWedges > 0 && primarySDList.NumWedges < options.MinPrimarySiteDriveWedges)
             {
                 pipeline.LogInfo("not producing contextual mesh {0} in {1}, {2} < {3} wedges",
-                                 name, rdrDir, primarySDList.NumWedges, minWedges);
+                                 name, rdrDir, primarySDList.NumWedges, options.MinPrimarySiteDriveWedges);
                 return null;
             }
-
-            //remaining sitedrives must have at least this many wedges
-            minWedges = options.MinSiteDriveWedges;
-
-            //let's only apply maxWedges to sitedrives other than the primary one
-            //if (primarySDList.NumWedges > maxWedges)
-            //{
-            //    pipeline.LogInfo("not producing contextual mesh {0} in {1}, {2} > {3} wedges",
-            //                     name, rdrDir, primarySDList.NumWedges, maxWedges);
-            //    return null;
-            //}
 
             var keepers = new Dictionary<SiteDrive, SiteDriveList>();
             keepers[primarySD] = primarySDList;
 
             var distance = new Dictionary<SiteDrive, double>();
 
-            if (placesDB != null || maxDistance <= 0)
+            foreach (var list in sdLists)
             {
-                foreach (var list in sdLists)
+                if (list.RDRDir != rdrDir)
                 {
-                    if (list.RDRDir != rdrDir)
+                    pipeline.LogWarn("not including sitedrive {0} in contextual mesh for {1}, RDR dir {2} != {3}",
+                                     list.SiteDrive, primarySD, list.RDRDir, rdrDir);
+                    continue;
+                }
+                if (!keepers.ContainsKey(list.SiteDrive))
+                {
+                    var filtered = list.FilterToSolRange(minSol, maxSol);
+                    if (filtered.NumSols > 0)
                     {
-                        pipeline.LogWarn("not including sitedrive {0} in contextual mesh for {1}, RDR dir {2} != {3}",
-                                         list.SiteDrive, primarySD, list.RDRDir, rdrDir);
-                        continue;
-                    }
-                    if (!keepers.ContainsKey(list.SiteDrive))
-                    {
-                        var filtered = list.FilterToSolRange(minSol, maxSol);
-                        if (filtered.NumWedges >= minWedges)
+                        if (maxDistance <= 0)
                         {
-                            if (maxDistance <= 0)
+                            keepers[list.SiteDrive] = filtered;
+                        }
+                        else if (placesDB != null)
+                        {
+                            try
                             {
-                                keepers[list.SiteDrive] = filtered;
-                            }
-                            else
-                            {
-                                try
+                                double dist = placesDB.GetOffset(primarySD, list.SiteDrive).Length();
+                                if (dist <= maxDistance)
                                 {
-                                    double dist = placesDB.GetOffset(primarySD, list.SiteDrive).Length();
-                                    if (dist <= maxDistance)
-                                    {
-                                        keepers[list.SiteDrive] = filtered;
-                                        distance[list.SiteDrive] = dist;
-                                    }
-                                }
-                                catch (Exception ex)
-                                {
-                                    pipeline.LogException(ex, string.Format("error getting distance from sitedrive " +
-                                                                            "{0} to {1} from PlacesDB",
-                                                                            primarySD, list.SiteDrive));
+                                    keepers[list.SiteDrive] = filtered;
+                                    distance[list.SiteDrive] = dist;
                                 }
                             }
+                            catch (Exception ex)
+                            {
+                                pipeline.LogException
+                                    (ex, $"not including sitedrive {list.SiteDrive} in contextual mesh " +
+                                     "for {primarySD}: error checking distance <= {maxDistance} with PlacesDB");
+                            }
+                        }
+                        else
+                        {
+                            pipeline.LogWarn("not including sitedrive {0} in contextual mesh for {1}, " +
+                                             "PlacesDB not available to check distance <= {2}",
+                                             list.SiteDrive, primarySD, maxDistance);
                         }
                     }
                 }
@@ -1375,6 +1363,7 @@ namespace OPS.Landform
                 //default to deleting smaller sitedrives first
                 var prioritized = keepers.Values
                     .Where(l => l.SiteDrive != primarySD) //never cull the primary sitedrive
+                    .Where(l => l.NumWedges > 0)
                     .OrderBy(l => l.NumWedges)
                     .Select(l => l.SiteDrive)
                     .ToList();
