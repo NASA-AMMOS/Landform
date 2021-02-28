@@ -45,6 +45,9 @@ using OPS.Pipeline.TilingServer;
 /// disadvantage that it doesn't actually show the sky, only the hills along the horizon.  This mode corresponds to the
 /// legacy implementation in OnSight TerrainTools.
 /// 
+/// In --skymode=Auto, Box mode will be used if the scene XY bounds diagonal is less than or equal to
+/// AUTO_TOPO_SPHERE_RADIUS or if --sceneoccludessky=Always.  Otherwise TopoSphere mode will be used.
+///
 /// Sky sphere typically runs anytime after build-geometry so that a surface scene exists.  Can be run anytime after
 /// ingest in TopoSphere mode, or in one of the other modes without --sceneoccludessky=Always.
 ///
@@ -66,14 +69,14 @@ using OPS.Pipeline.TilingServer;
 /// </summary>
 namespace OPS.Landform
 {
-    public enum SkyMode { Box, Sphere, TopoSphere };
+    public enum SkyMode { Box, Sphere, TopoSphere, Auto };
 
     public enum SkyOcclusionMode { Never, Always, Auto };
 
     [Verb("build-sky-sphere", HelpText = "build a skysphere tileset from observations")]
     public class BuildSkySphereOptions : TilingCommandOptions
     {
-        [Option(HelpText = "Sky mode (Box, Sphere, TopoSphere)", Default = SkyMode.Box)]
+        [Option(HelpText = "Sky mode (Box, Sphere, TopoSphere, Auto)", Default = SkyMode.Auto)]
         public SkyMode SkyMode { get; set; }
 
         [Option(HelpText = "Sky sphere radius (meters), or auto", Default = "auto")]
@@ -152,6 +155,7 @@ namespace OPS.Landform
         public const double DEF_SCENE_RADIUS = 45;
         public const double DEF_FAR_RADIUS = 2000;
         public const double MIN_AUTO_RADIUS = 16;
+        public const double AUTO_TOPO_SPHERE_RADIUS = 200;
 
         public const int MAX_BLEND_SIZE = 8192;
 
@@ -273,6 +277,26 @@ namespace OPS.Landform
                 options.OnlyForCameras = "Mastcam,Navcam";
             }
 
+            sceneBounds = sceneMesh != null ? sceneMesh.GetBounds() : null;
+
+            sceneRadius = DEF_SCENE_RADIUS;
+            if (sceneBounds.HasValue)
+            {
+                sceneRadius = Math.Min(sceneBounds.Value.Min.XY().Length(), sceneBounds.Value.Max.XY().Length());
+            }
+
+            if (options.SkyMode == SkyMode.Auto)
+            {
+                if (options.SceneOccludesSky == SkyOcclusionMode.Always)
+                {
+                    options.SkyMode = SkyMode.Box;
+                }
+                else
+                {
+                    options.SkyMode = sceneRadius > AUTO_TOPO_SPHERE_RADIUS ? SkyMode.TopoSphere : SkyMode.Box;
+                }
+            }
+
             if (options.SceneOccludesSky == SkyOcclusionMode.Always && options.SkyMode == SkyMode.TopoSphere)
             {
                 throw new Exception("--sceneoccludessky and --skymode=TopoSphere are mutually exclusive");
@@ -296,21 +320,13 @@ namespace OPS.Landform
                 LoadOrbitalDEM(required: true);
             }
 
-            sceneBounds = sceneMesh != null ? sceneMesh.GetBounds() : null;
-
-            sceneRadius = DEF_SCENE_RADIUS;
-            if (sceneBounds.HasValue)
-            {
-                sceneRadius = Math.Min(sceneBounds.Value.Min.XY().Length(), sceneBounds.Value.Max.XY().Length());
-            }
-
             if (options.SphereRadiusMeters.ToLower() == "auto")
             {
                 switch (options.SkyMode)
                 {
                     case SkyMode.Box: sphereRadius = sceneRadius; break;
                     case SkyMode.Sphere: sphereRadius = sceneRadius * Math.Sqrt(0.5); break;
-                    case SkyMode.TopoSphere: sphereRadius = DEF_FAR_RADIUS; break;
+                    case SkyMode.TopoSphere: sphereRadius = Math.Max(sceneRadius, DEF_FAR_RADIUS); break;
                     default: throw new Exception("unknown sky mode: " + options.SkyMode);
                 }
                 sphereRadius = Math.Max(MIN_AUTO_RADIUS, sphereRadius);
