@@ -47,7 +47,7 @@ namespace OPS.Pipeline.Texturing
 
         private double sampleSpacing, orbitalSampleSpacing;
 
-        private BoundingBox? surfaceBounds = null;
+        private BoundingBox? surfaceBounds;
 
         private List<Vector3> samples;
 
