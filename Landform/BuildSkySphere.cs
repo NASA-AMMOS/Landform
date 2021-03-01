@@ -277,35 +277,11 @@ namespace OPS.Landform
                 options.OnlyForCameras = "Mastcam,Navcam";
             }
 
-            sceneBounds = sceneMesh != null ? sceneMesh.GetBounds() : null;
+            //TextureCommand.ParseArgumentsAndLoadCaches() calls LoadOrbitalTexture() unless NoOrbital is set
+            //if it is needlessly attempted to load but not available there will be a warning
+            options.NoOrbital = options.SkyMode != SkyMode.TopoSphere && options.SkyMode != SkyMode.Auto;
 
-            sceneRadius = DEF_SCENE_RADIUS;
-            if (sceneBounds.HasValue)
-            {
-                sceneRadius = Math.Min(sceneBounds.Value.Min.XY().Length(), sceneBounds.Value.Max.XY().Length());
-            }
-
-            if (options.SkyMode == SkyMode.Auto)
-            {
-                if (options.SceneOccludesSky == SkyOcclusionMode.Always)
-                {
-                    options.SkyMode = SkyMode.Box;
-                }
-                else
-                {
-                    options.SkyMode = sceneRadius > AUTO_TOPO_SPHERE_RADIUS ? SkyMode.TopoSphere : SkyMode.Box;
-                }
-            }
-
-            if (options.SceneOccludesSky == SkyOcclusionMode.Always && options.SkyMode == SkyMode.TopoSphere)
-            {
-                throw new Exception("--sceneoccludessky and --skymode=TopoSphere are mutually exclusive");
-            }
-
-            //set before calling base.ParseArgumentsAndLoadCaches() to avoid warnings if orbital not available
-            options.NoOrbital = options.SkyMode != SkyMode.TopoSphere;
-
-            if (!base.ParseArgumentsAndLoadCaches(SKY_TILING_DIR))
+            if (!base.ParseArgumentsAndLoadCaches(SKY_TILING_DIR)) //sets withTextures, sceneMesh, observationCache
             {
                 return false; //help
             }
@@ -313,6 +289,47 @@ namespace OPS.Landform
             if (!withTextures)
             {
                 throw new Exception("--notextures not implemented for this command");
+            }
+
+            sceneBounds = sceneMesh != null ? sceneMesh.GetBounds() : null;
+
+            sceneRadius = DEF_SCENE_RADIUS;
+            if (sceneBounds.HasValue)
+            {
+                sceneRadius = Math.Min(sceneBounds.Value.Min.XY().Length(), sceneBounds.Value.Max.XY().Length());
+                pipeline.LogInfo("using radius {0:F3}m from scene bounds", sceneRadius);
+            }
+            else
+            {
+                pipeline.LogWarn("using default scene radius {0:F3}m", sceneRadius);
+            }
+
+            if (options.SkyMode == SkyMode.Auto)
+            {
+                if (sceneRadius > AUTO_TOPO_SPHERE_RADIUS &&
+                    observationCache.ContainsObservation(Observation.ORBITAL_DEM_INDEX) &&
+                    options.SceneOccludesSky != SkyOcclusionMode.Always)
+                {
+                    options.SkyMode = SkyMode.TopoSphere;
+                    pipeline.LogInfo("auto set sky mode {0}: scene radius {1:F3}m > {2:F3}m, " +
+                                     "orbital DEM available, and --sceneoccludessky={3} != {4}",
+                                     options.SkyMode, sceneRadius, AUTO_TOPO_SPHERE_RADIUS, options.SceneOccludesSky,
+                                     SkyOcclusionMode.Always);
+                }
+                else
+                {
+                    options.SkyMode = SkyMode.Box;
+                    pipeline.LogInfo("auto set sky mode {0}: scene radius {1:F3}m (threshold {2:F3}m), " +
+                                     "orbital DEM {3}available, --sceneoccludessky={4} (required != {5} for {6})",
+                                     options.SkyMode, sceneRadius, AUTO_TOPO_SPHERE_RADIUS,
+                                     observationCache.ContainsObservation(Observation.ORBITAL_DEM_INDEX) ? "" : "not ",
+                                     options.SceneOccludesSky, SkyOcclusionMode.Always, SkyMode.TopoSphere);
+                }
+            }
+
+            if (options.SceneOccludesSky == SkyOcclusionMode.Always && options.SkyMode == SkyMode.TopoSphere)
+            {
+                throw new Exception("--sceneoccludessky and --skymode=TopoSphere are mutually exclusive");
             }
 
             if (options.SkyMode == SkyMode.TopoSphere)
@@ -330,17 +347,23 @@ namespace OPS.Landform
                     default: throw new Exception("unknown sky mode: " + options.SkyMode);
                 }
                 sphereRadius = Math.Max(MIN_AUTO_RADIUS, sphereRadius);
+                pipeline.LogInfo("auto set sphere radius {0:F3}m for sky mode {1}", sphereRadius, options.SkyMode);
             }
             else
             {
                 sphereRadius = double.Parse(options.SphereRadiusMeters);
             }
+
             backprojectRadius = sphereRadius;
             if (!options.NoBackprojectNearAsFar && options.SkyMode != SkyMode.TopoSphere &&
                 backprojectRadius < DEF_FAR_RADIUS)
             {
+                pipeline.LogInfo("clamping backproject radius {0:F3}m to {1:F3}m: " +
+                                 "missing --nobackprojectnearasfar and sky mode {2} != {3}",
+                                 backprojectRadius, DEF_FAR_RADIUS, options.SkyMode, SkyMode.TopoSphere);
                 backprojectRadius = DEF_FAR_RADIUS;
             }
+
             pipeline.LogInfo("sky sphere mode {0}, radius {1:f3}m, scene radius {2:f3}m, backproject radius {3:f3}m",
                              options.SkyMode, sphereRadius, sceneRadius, backprojectRadius);
 
