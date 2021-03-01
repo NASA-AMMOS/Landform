@@ -220,11 +220,12 @@ namespace OPS.Pipeline
             //if we have a defined upAxis then expand the clipping bounds in that direction
             //to avoid clipping highs and lows that might have gotten perturbed
             var minAxis = clippingBounds.MinAxis(out double minDim);
-            if (minDim < 0.5 * Math.Sqrt(clippingBounds.GetFaceAreaPerpendicularToAxis(minAxis)))
+            var otherDim = Math.Sqrt(clippingBounds.GetFaceAreaPerpendicularToAxis(minAxis));
+            if (minDim < 0.5 * otherDim)
             {
                 var minDir = BoundingBoxExtensions.GetBoxAxisDirection(minAxis);
-                clippingBounds.Max += minDir * CLIP_BOUNDS_EXPAND_HEIGHT;
-                clippingBounds.Min -= minDir * CLIP_BOUNDS_EXPAND_HEIGHT;
+                clippingBounds.Max += minDir * CLIP_BOUNDS_EXPAND_HEIGHT * otherDim;
+                clippingBounds.Min -= minDir * CLIP_BOUNDS_EXPAND_HEIGHT * otherDim;
             }
 
             //create a copy of the combined child meshes clipped to the actual node bounds
