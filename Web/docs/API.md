@@ -12,7 +12,7 @@ Accepts the following arugments:
 
 * *tilingscheme*: tiling scheme; one of `Bin`, `QuadX`, `QuadY`, `QuadZ`, `QuadAuto`, `Oct`, `UserDefined`, `Flat`; default `QuadAuto`
 * *skirtmode*: skirt mode; one of `X`, `Y`, `Z`, `None`, `Normal`; default `Normal`
-* *reconstructionmethod*: mesh reconstruction method; one of `Poisson`, `FSSR`; default `Poisson`
+* *reconstructionmethod*: mesh reconstruction method; one of `Poisson`, `FSSR`; default `FSSR`
 * *facespertile*: target maximum faces per tile; default 2000
 * *textureresolution*: (max) image resolution per tile, if negative and texturemode=Clip then unlimited; default 256
 * *texturemode*: texture generation method; one of `None`, `Clip`, `Bake`; default `Bake`
