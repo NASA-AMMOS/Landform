@@ -23,7 +23,7 @@ namespace OPS.Geometry
 
     public static class MeshExtensions
     {
-        public const double EDGE_COLLAPSE_PERIMETER_FACTOR = 20;
+        public const double EDGE_COLLAPSE_PERIMETER_FACTOR = 100;
         public const int SAMPLES_PER_FACE = 4;
 
         /// <summary>
