@@ -206,7 +206,6 @@ namespace OPS.Pipeline
 
             if (!combinedMesh.HasNormals)
             {
-                info("generating vertex normals for combined mesh");
                 combinedMesh.GenerateVertexNormals();
             }
 
@@ -260,13 +259,17 @@ namespace OPS.Pipeline
                                                             reconstructionMethod, clippingBounds: clippingBounds,
                                                             upAxis: BoundingBoxExtensions.GetBoxAxisDirection(upAxis),
                                                             samplesPerFace: SAMPLES_PER_FACE);
-
-                node.GetComponent<NodeBounds>().Bounds = BoundingBoxExtensions.Union(parentBounds, parentMesh.Bounds());
             }
             else
             {
-                info("not decimating parent, {Fmt.KMG(parentMesh.Faces.Count)} < {Fmt.KMG(maxFaceCountTarget)} tris");
+                info($"not decimating parent, {Fmt.KMG(parentMesh.Faces.Count)} < {Fmt.KMG(maxFaceCountTarget)} tris");
+                if (!parentMesh.HasNormals)
+                {
+                    parentMesh.GenerateVertexNormals();
+                }
             }
+
+            node.GetComponent<NodeBounds>().Bounds = BoundingBoxExtensions.Union(parentBounds, parentMesh.Bounds());
 
             int textureSize = GetTileResolution(parentMesh, maxTextureRes);
                               //TODO when dev/tiling-updates is merged , maxTexelsPerMeter, powerOfTwoTextures);
