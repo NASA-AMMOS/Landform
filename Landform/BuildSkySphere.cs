@@ -22,7 +22,20 @@ using OPS.Pipeline.TilingServer;
 /// scene XY bounds diagonal. Surface observations are backprojected onto the box, optionally using the scene mesh as an
 /// occluder. Sphere mode is the same as Box but uses sphere instead of box geometry.
 ///
-/// By default backprojections are actually computed from a min radius of 2km in Box and Sphere modes, even if the sky
+/// In --skymode=TopoSphere the sky geometry is a portion of a sphere centered on a point c at rover mast height above
+/// the scene origin.  If --sphereradiusmeters=auto then the radius defaults to half the scene XY box diagonal.  Each
+/// point p on the sky sphere is textured as follows: (1) Build a mesh using only the orbital DEM extended out to the
+/// backproject radius (which may be larger than the sky sphere radius), but with the central area corresponding to the
+/// scene mesh removed (this is of course done only once and cached). (2) Find the intersection s of that mesh with the
+/// line segment from c to p nearest to c. (3) If no intersection then assign the default sky color to that point,
+/// otherwise backproject surface and orbital image observations as usual for point s and use that color.  This mode has
+/// the advantage that it should minimize aliasing of the same hill if there are multiple surface observations of it
+/// from different angles.  It also is the only mode that can use orbital imagery, which can actually have higher
+/// effective resolution than surface images at a far enough distance.  It has the disadvantage that it doesn't actually
+/// show the sky, only the hills along the horizon.  This mode corresponds to the legacy implementation in OnSight
+/// TerrainTools.
+///
+/// By default backprojections are actually computed from a min radius of 2km in all modes, even if the sky tileset
 /// radius is smaller.  This minimizes aliasing of topographic features imaged from different local perspectives and
 /// also makes the skyline appear approximately perspective correct for viewpoints near the center of the scene, even
 /// when the actual radius is not large.  A box radius that matches the scene bounds diagonal (or a sphere radius equal
@@ -30,20 +43,8 @@ using OPS.Pipeline.TilingServer;
 /// scene can be zoomed out and viewed from third-person perspectives, like a diorama.  However, the skyline will not be
 /// perspective correct in such views, and will also deviate from perspective correctness from first-person views near
 /// the terrain but away from the center of the scene.  Applications which don't need third-person zoomed out
-/// viewpoints, but only first-person viewpoints near the terrain, can opt for sky sphere with a much larger radius
+/// viewpoints, but only first-person viewpoints near the terrain, can opt for sky tileset with a much larger radius
 /// (e.g. 2km) which will keep the skyline perspective correct independent of the viewer's position on the terrrain.
-///
-/// In --skymode=TopoSphere the sky geometry is a portion of a sphere centered on a point c at rover mast height above
-/// the scene origin.  If --sphereradiusmeters=auto then the radius defaults to 2km.  Each point p on the sky sphere is
-/// textured as follows: (1) Build a mesh using only the orbital DEM extended out to the sky sphere radius, but with the
-/// central area corresponding to the scene mesh removed (this is of course done only once and cached). (2) Find the
-/// intersection s of that mesh with the line segment from c to p nearest to c. (3) If no intersection then assign the
-/// default sky color to that point, otherwise backproject surface and orbital image observations as usual for point s
-/// and use that color.  This mode has the advantage that it should minimize aliasing of the same hill if there are
-/// multiple surface observations of it from different angles.  It also is the only mode that can use orbital imagery,
-/// which can actually have higher effective resolution than surface images at a far enough distance.  It has the
-/// disadvantage that it doesn't actually show the sky, only the hills along the horizon.  This mode corresponds to the
-/// legacy implementation in OnSight TerrainTools.
 /// 
 /// In --skymode=Auto, Box mode will be used if the scene XY bounds diagonal is less than or equal to
 /// AUTO_TOPO_SPHERE_RADIUS or if --sceneoccludessky=Always.  Otherwise TopoSphere mode will be used.
@@ -80,7 +81,7 @@ namespace OPS.Landform
         public SkyMode SkyMode { get; set; }
 
         [Option(HelpText = "Sky sphere radius (meters), or auto", Default = "auto")]
-        public string SphereRadiusMeters { get; set; }
+        public string SphereRadius { get; set; }
 
         [Option(HelpText = "Sky sphere mesh tile size (degrees), should divide 360 by a power of 2", Default = 11.25)]
         public double SphereResolutionDegrees { get; set; }
@@ -109,8 +110,8 @@ namespace OPS.Landform
         [Option(HelpText = "Mask any point on sky that is obstructed in any observation", Default = false)]
         public bool MaskObstructed { get; set; }
 
-        [Option(HelpText = "Disable backproject from far radius in Box and Sphere modes", Default = false)]
-        public bool NoBackprojectNearAsFar { get; set; }
+        [Option(HelpText = "Minimum backproject radius (meters)", Default = BuildSkySphere.DEF_MIN_BACKPROJECT_RADIUS)]
+        public double MinBackprojectRadius { get; set; } = BuildSkySphere.DEF_MIN_BACKPROJECT_RADIUS;
 
         [Option(HelpText = "Disable image blending", Default = false)]
         public bool NoBlend { get; set; }
@@ -153,7 +154,7 @@ namespace OPS.Landform
     public class BuildSkySphere : TilingCommand
     {
         public const double DEF_SCENE_RADIUS = 45;
-        public const double DEF_FAR_RADIUS = 2000;
+        public const double DEF_MIN_BACKPROJECT_RADIUS = 2000;
         public const double MIN_AUTO_RADIUS = 16;
         public const double AUTO_TOPO_SPHERE_RADIUS = 200;
 
@@ -337,13 +338,13 @@ namespace OPS.Landform
                 LoadOrbitalDEM(required: true);
             }
 
-            if (options.SphereRadiusMeters.ToLower() == "auto")
+            if (options.SphereRadius.ToLower() == "auto")
             {
                 switch (options.SkyMode)
                 {
                     case SkyMode.Box: sphereRadius = sceneRadius; break;
-                    case SkyMode.Sphere: sphereRadius = sceneRadius * Math.Sqrt(0.5); break;
-                    case SkyMode.TopoSphere: sphereRadius = Math.Max(sceneRadius, DEF_FAR_RADIUS); break;
+                    case SkyMode.Sphere: sphereRadius = sceneRadius * Math.Sqrt(0.5); break; //inset sphere
+                    case SkyMode.TopoSphere: sphereRadius = sceneRadius; break; //outset sphere
                     default: throw new Exception("unknown sky mode: " + options.SkyMode);
                 }
                 sphereRadius = Math.Max(MIN_AUTO_RADIUS, sphereRadius);
@@ -351,17 +352,15 @@ namespace OPS.Landform
             }
             else
             {
-                sphereRadius = double.Parse(options.SphereRadiusMeters);
+                sphereRadius = double.Parse(options.SphereRadius);
             }
 
             backprojectRadius = sphereRadius;
-            if (!options.NoBackprojectNearAsFar && options.SkyMode != SkyMode.TopoSphere &&
-                backprojectRadius < DEF_FAR_RADIUS)
+            if (options.MinBackprojectRadius > 0 && backprojectRadius < options.MinBackprojectRadius)
             {
-                pipeline.LogInfo("clamping backproject radius {0:F3}m to {1:F3}m: " +
-                                 "missing --nobackprojectnearasfar and sky mode {2} != {3}",
-                                 backprojectRadius, DEF_FAR_RADIUS, options.SkyMode, SkyMode.TopoSphere);
-                backprojectRadius = DEF_FAR_RADIUS;
+                pipeline.LogInfo("clamping backproject radius {0:F3}m to {1:F3}m",
+                                 backprojectRadius, options.MinBackprojectRadius);
+                backprojectRadius = options.MinBackprojectRadius;
             }
 
             pipeline.LogInfo("sky sphere mode {0}, radius {1:f3}m, scene radius {2:f3}m, backproject radius {3:f3}m",
@@ -519,7 +518,7 @@ namespace OPS.Landform
         {
             //build backproject strategy globally vs per tile to avoid artifacts at adjacent tile boundaries
             var skyMesh = Mesh.Merge(tileTree.Leaves().Select(l => l.GetComponent<MeshImagePair>().Mesh).ToArray());
-            if (options.SkyMode != SkyMode.TopoSphere && backprojectRadius != sphereRadius)
+            if (backprojectRadius != sphereRadius)
             {
                 foreach (var v in skyMesh.Vertices)
                 {
@@ -582,17 +581,17 @@ namespace OPS.Landform
             var meshToOrbital = meshToRoot * Matrix.Invert(orbitalDEMToRoot);
             Vector3 meshOriginInOrbital = Vector3.Transform(Vector3.Zero, meshToOrbital);
             
-            double sceneSize = sceneRadius; //this is actually from center of scene to a corner
+            double backprojectWidth = backprojectRadius * (2.0 / Math.Sqrt(2.0)); //sphere radius to box width
+            int outerExtentPixels = (int)Math.Ceiling(0.5 * backprojectWidth / orbitalDEMMetersPerPixel);
+            var outerBounds = orbitalDEM.GetSubrectPixels(outerExtentPixels, meshOriginInOrbital);
+
+            double sceneWidth = sceneRadius * (2.0 / Math.Sqrt(2.0)); //sphere radius to box width
             if (sceneBounds.HasValue)
             {
                 Vector3 size = sceneBounds.Value.Extent();
-                sceneSize = Math.Max(size.X, size.Y); //what we really want here is center to side
+                sceneWidth = Math.Max(size.X, size.Y); //what we really want here is center to side
             }
-            
-            int outerExtentPixels = (int)Math.Ceiling(sphereRadius / orbitalDEMMetersPerPixel);
-            var outerBounds = orbitalDEM.GetSubrectPixels(outerExtentPixels, meshOriginInOrbital);
-            
-            int innerExtentPixels = (int)Math.Ceiling(0.5 * sceneSize / orbitalDEMMetersPerPixel);
+            int innerExtentPixels = (int)Math.Ceiling(0.5 * sceneWidth / orbitalDEMMetersPerPixel);
             var innerBounds = orbitalDEM.GetSubrectPixels(innerExtentPixels, meshOriginInOrbital);
             
             var orbitalMesh = orbitalDEM.OrganizedMesh(outerBounds, innerBounds, orbitalSamplesPerPixel,

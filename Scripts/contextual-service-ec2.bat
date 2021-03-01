@@ -92,6 +92,16 @@ if not "%LANDFORM_CONTEXTUAL_NO_SKY%"=="" set nosky=--nosky
 set skymode=
 if not "%LANDFORM_CONTEXTUAL_SKY_MODE%"=="" set skymode=--skymode=%LANDFORM_CONTEXTUAL_SKY_MODE%
 
+set skyradius=
+if not "%LANDFORM_CONTEXTUAL_SKY_RADIUS%"=="" (
+    set skyradius=--skysphereradius=%LANDFORM_CONTEXTUAL_SKY_RADIUS%
+)
+
+set skyminbackprojectradius=
+if not "%LANDFORM_CONTEXTUAL_SKY_MIN_BACKPROJECT_RADIUS%"=="" (
+    set skyminbackprojectradius=--skyminbackprojectradius=%LANDFORM_CONTEXTUAL_SKY_MIN_BACKPROJECT_RADIUS%
+)
+
 set noindices=
 if not "%LANDFORM_CONTEXTUAL_NO_INDICES%"=="" set noindices=--nopublishindeximages
 
@@ -129,7 +139,8 @@ set svcopts=%stdopts% --stacktraces --service --mission=%mission% --queuename=%q
 set svcopts=%svcopts% --awsprofile=%awsprofile% --awsregion=%awsregion% %credentialrefresh%
 set svcopts=%svcopts% %msgopts%
 
-set contextualopts=--maxfetch=%maxfetch% --maxorbital=%maxorbital% %nocombinedmanifest% %noorbital% %nosky% %skymode%
+set contextualopts=--maxfetch=%maxfetch% --maxorbital=%maxorbital% %nocombinedmanifest% %noorbital%
+set contextualopts=%contextualopts% %nosky% %skymode% %skyradius% %skyminbackprojectradius%
 set contextualopts=%contextualopts% %tilesetimageformat% %tilesetindexformat%
 set contextualopts=%contextualopts% %noindices% %embedindices% %allowunmasked% %extent% %surfaceextent%
 
