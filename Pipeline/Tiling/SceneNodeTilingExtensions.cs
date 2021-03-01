@@ -19,8 +19,8 @@ namespace OPS.Pipeline
     {
         //TODO: move these to TilingDefaults when dev/tiling-updates is merged
         public const double CHILD_BOUNDS_SEARCH_RATIO = 1.1f;
-        public const double DECIMATE_BOUNDS_RATIO = 1.1f;
-        public const double DECIMATE_CLIP_BOUNDS_RATIO = 1.2f;
+        public const double DECIMATE_BOUNDS_RATIO = 1.5f;
+        public const double DECIMATE_CLIP_BOUNDS_RATIO = 1.5f;
         public const double TEXTURE_ERROR_MULTIPLIER = 4;
         public const double HAUSDORFF_RELATIVE_ACCURACY = 0.005; //0.5% of mesh bounds
         public const int DEF_MAX_TILE_RESOLUTION = 256;
