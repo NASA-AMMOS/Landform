@@ -179,7 +179,9 @@ namespace OPS.Pipeline.TilingServer
 
                     string parentId = sceneNode.Parent == null ? null : sceneNode.Parent.Name;
                     bool isLeaf = sceneNode.IsLeaf;
-                    var tilingNode = TilingNode.Create(pipeline, id, project.Name, parentId, isLeaf, save: false);
+                    int depth = sceneNode.Transform.Depth();
+                    var tilingNode =
+                    TilingNode.Create(pipeline, id, project.Name, parentId, isLeaf, depth, save: false);
                     idToTilingNode[id] = tilingNode;
 
                     //geometric error is zero for user defined leaves
@@ -263,7 +265,8 @@ namespace OPS.Pipeline.TilingServer
                 {
                     string parentId = sceneNode.Parent == null ? null : sceneNode.Parent.Name;
                     bool isLeaf = sceneNode.IsLeaf;
-                    tilingNode = TilingNode.Create(pipeline, id, projectName, parentId, isLeaf, save: false);
+                    int depth = sceneNode.Transform.Depth();
+                    tilingNode = TilingNode.Create(pipeline, id, projectName, parentId, isLeaf, depth, save: false);
                 }
                 else
                 {

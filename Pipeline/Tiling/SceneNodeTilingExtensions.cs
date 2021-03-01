@@ -84,37 +84,46 @@ namespace OPS.Pipeline
         /// because typically we cast a wider spatial search which enables better boundary conditions for the mesh
         ///
         /// this method returns all nodes d that meet the following conjunctive criteria
-        /// a) d descends from root
-        /// b) the bounding box of d intersects the search bounds, computed as the bounding box union of our
+        /// 1) d descends from root
+        /// 2) the bounding box of d intersects the search bounds, computed as the bounding box union of our
         ///    children's bounds scaled (generally up) by the given search ratio
-        /// c) d is a leaf or is at the same depth (topological distance) from root as this node's children
+        /// 3) d is a leaf or is at or greater than the depth (topological distance) from root as this node's children
+        /// 4) the depth (topological distance) from root to d is no greater than maxDepth
         ///
         /// NOTE: as in all the tiling code bounds are all in same coordinate frame (all node Transforms are identity)
         /// </summary>
-        public static List<SceneNode> FindNodesRequiredForParent(this SceneNode node, SceneNode root)
+        public static List<SceneNode>
+            FindNodesRequiredForParent(this SceneNode node, SceneNode root, int maxDepth = int.MaxValue)
         {
             var result = new List<SceneNode>();
+
             if (node.IsLeaf)
             {
                 return result;
             }
-            int childDepth = node.Children.First().Transform.Depth();
+
+            int childDepth = node.GetActualDepth() + 1;
+
             var searchBounds = BoundingBoxExtensions
                 .Union(node.Children
                        .Where(c => node.IsActualChild(c))
                        .Select(c => c.GetComponent<NodeBounds>().Bounds).ToArray())
                 .CreateScaled(CHILD_BOUNDS_SEARCH_RATIO);
+
             var stack = new Stack<SceneNode>();
+
             stack.Push(root);
+
             while (stack.Count > 0)
             {
                 var n = stack.Pop();
                 var b = n.GetComponent<NodeBounds>().Bounds;
-                if (!b.Intersects(searchBounds))
+                var d = n.GetActualDepth();
+                if (d > maxDepth || !b.Intersects(searchBounds))
                 {
                     continue;
                 }
-                if (n.IsLeaf || n.Transform.Depth() >= childDepth)
+                if (n.IsLeaf || d >= childDepth)
                 {
                     result.Add(n);
                     continue;
@@ -130,6 +139,16 @@ namespace OPS.Pipeline
             return result;
         }
 
+        //TilingServer.BuildParent.Process() builds a mini-scene graph with just this parent node as root
+        //and all its dependencies as first level descendants
+        public static int GetActualDepth(this SceneNode node)
+        {
+            return node.HasComponent<SceneNodeTilingNode>() ?
+                node.GetComponent<SceneNodeTilingNode>().TilingNode.Depth : node.Transform.Depth();
+        }
+
+        //TilingServer.BuildParent.Process() builds a mini-scene graph with just this parent node as root
+        //and all its dependencies as first level descendants
         public static bool IsActualChild(this SceneNode node, SceneNode other)
         {
             return !other.HasComponent<SceneNodeTilingNode>() ||
@@ -153,7 +172,7 @@ namespace OPS.Pipeline
             info = info ?? (msg => {});
             error = error ?? (msg => {});
 
-            var dependencies = FindNodesRequiredForParent(node, root);
+            var dependencies = FindNodesRequiredForParent(node, root, node.GetActualDepth() + 1);
 
             //generally the parent node will already have its bounds defined here
             //however, those may have come from ComputeBounds()
@@ -226,6 +245,9 @@ namespace OPS.Pipeline
                 var clippingBounds = parentBounds;
                 if (upAxis.HasValue)
                 {
+                    //the decimated mesh might have a bit of noise that pushes it outside the original parent bounds
+                    //if we have a defined upAxis then expand the clipping bounds in that direction
+                    //to avoid clipping highs and lows that might have gotten perturbed
                     Vector3 clipScale = upAxis.Value * DECIMATE_CLIP_BOUNDS_RATIO;
                     for (int i = 0; i < 3; i++)
                     {

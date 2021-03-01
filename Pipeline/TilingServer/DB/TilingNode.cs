@@ -34,6 +34,8 @@ namespace OPS.Pipeline.TilingServer
 
         public string ParentId;
 
+        public int Depth;
+
         public bool IsLeaf;
 
         public string MeshUrl;
@@ -59,18 +61,19 @@ namespace OPS.Pipeline.TilingServer
         //This constructor must be public for DynamoDB but should not be used
         public TilingNode() { }
 
-        protected TilingNode(string id, string projectName, string parentId, bool isLeaf)
+        protected TilingNode(string id, string projectName, string parentId, bool isLeaf, int depth)
         {
             Id = id;
             IsLeaf = isLeaf;
             ProjectName = projectName;
             ParentId = parentId;
+            Depth = depth;
         }
 
         public static TilingNode Create(PipelineCore pipeline, string id, string projectName, string parentId,
-                                        bool isLeaf, bool save = true)
+                                        bool isLeaf, int depth, bool save = true)
         {
-            var node = new TilingNode(id, projectName, parentId, isLeaf);
+            var node = new TilingNode(id, projectName, parentId, isLeaf, depth);
             if (save)
             {
                 node.Save(pipeline);
