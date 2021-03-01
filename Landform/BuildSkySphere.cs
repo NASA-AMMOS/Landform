@@ -348,7 +348,8 @@ namespace OPS.Landform
                 switch (options.SkyMode)
                 {
                     case SkyMode.Box: sphereRadius = sceneRadius; break;
-                    case SkyMode.Sphere: sphereRadius = sceneRadius * Math.Sqrt(0.5); break; //inset sphere
+                    //case SkyMode.Sphere: sphereRadius = sceneRadius * Math.Sqrt(0.5); break; //inset sphere
+                    case SkyMode.Sphere: sphereRadius = sceneRadius; break; //outset sphere
                     case SkyMode.TopoSphere: sphereRadius = sceneRadius; break; //outset sphere
                     default: throw new Exception("unknown sky mode: " + options.SkyMode);
                 }
