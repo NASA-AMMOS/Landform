@@ -179,8 +179,8 @@ namespace OPS.Landform
         [Option(HelpText = "Sky sphere radius (meters), or auto", Default = "auto")]
         public string SkySphereRadius { get; set; }
 
-        [Option(HelpText = "Minimum sky backproject radius (meters)", Default = BuildSkySphere.DEF_MIN_BACKPROJECT_RADIUS)]
-        public double SkyMinBackprojectRadius { get; set; } = BuildSkySphere.DEF_MIN_BACKPROJECT_RADIUS;
+        [Option(HelpText = "Minimum sky backproject radius (meters), or auto", Default = "auto")]
+        public string SkyMinBackprojectRadius { get; set; }
 
         [Option(Default = false, HelpText = "Don't write/update combined scene manifest on s3")]
         public bool NoCombinedManifest { get; set; }
@@ -907,7 +907,7 @@ namespace OPS.Landform
                         RunCommand("build-sky-sphere", project, "--meshframe", sdStr,
                                    "--skymode", options.SkyMode.ToString(), allowUnmasked,
                                    "--skysphereradius", options.SkySphereRadius,
-                                   "--skyminbackprojectradius", options.SkyMinBackprojectRadius.ToString());
+                                   "--skyminbackprojectradius", options.SkyMinBackprojectRadius);
                         string skyTilesetDir = GetTilesetDir(venue, sdStr, project, BuildSkySphere.SKY_TILESET_DIR);
                         SaveTileset(skyTilesetDir, project, destDir, "_sky");
                     }

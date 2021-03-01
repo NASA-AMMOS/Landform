@@ -110,8 +110,8 @@ namespace OPS.Landform
         [Option(HelpText = "Mask any point on sky that is obstructed in any observation", Default = false)]
         public bool MaskObstructed { get; set; }
 
-        [Option(HelpText = "Minimum backproject radius (meters)", Default = BuildSkySphere.DEF_MIN_BACKPROJECT_RADIUS)]
-        public double MinBackprojectRadius { get; set; } = BuildSkySphere.DEF_MIN_BACKPROJECT_RADIUS;
+        [Option(HelpText = "Minimum backproject radius (meters), or auto", Default = "auto")]
+        public string MinBackprojectRadius { get; set; }
 
         [Option(HelpText = "Disable image blending", Default = false)]
         public bool NoBlend { get; set; }
@@ -154,9 +154,14 @@ namespace OPS.Landform
     public class BuildSkySphere : TilingCommand
     {
         public const double DEF_SCENE_RADIUS = 45;
-        public const double DEF_MIN_BACKPROJECT_RADIUS = 2000;
+
         public const double MIN_AUTO_RADIUS = 16;
         public const double AUTO_TOPO_SPHERE_RADIUS = 200;
+
+        public const double DEF_MIN_BACKPROJECT_RADIUS_TOPOSPHERE = 50000;
+        public const double DEF_MIN_BACKPROJECT_RADIUS = 2000;
+
+        public const int ORBITAL_DEM_MESH_MAX_RESOLUTION = 8192;
 
         public const int MAX_BLEND_SIZE = 8192;
 
@@ -356,11 +361,19 @@ namespace OPS.Landform
             }
 
             backprojectRadius = sphereRadius;
-            if (options.MinBackprojectRadius > 0 && backprojectRadius < options.MinBackprojectRadius)
+            double minBackprojectRadius = DEF_MIN_BACKPROJECT_RADIUS;
+            if (string.IsNullOrEmpty(options.MinBackprojectRadius) || options.MinBackprojectRadius.ToLower() == "auto")
+            {
+                minBackprojectRadius = options.SkyMode == SkyMode.TopoSphere ?
+                    DEF_MIN_BACKPROJECT_RADIUS_TOPOSPHERE : DEF_MIN_BACKPROJECT_RADIUS;
+                pipeline.LogInfo("auto set min backproject radius to {0:F3}m for sky mode {1}",
+                                 minBackprojectRadius, options.SkyMode);
+            }
+            if (backprojectRadius < minBackprojectRadius)
             {
                 pipeline.LogInfo("clamping backproject radius {0:F3}m to {1:F3}m",
-                                 backprojectRadius, options.MinBackprojectRadius);
-                backprojectRadius = options.MinBackprojectRadius;
+                                 backprojectRadius, minBackprojectRadius);
+                backprojectRadius = minBackprojectRadius;
             }
 
             pipeline.LogInfo("sky sphere mode {0}, radius {1:f3}m, scene radius {2:f3}m, backproject radius {3:f3}m",
@@ -577,13 +590,25 @@ namespace OPS.Landform
 
         private void BuildOrbitalScene()
         {
+            var dem = orbitalDEM;
+
             var meshToRoot = frameCache.GetBestTransform(meshFrame).Transform.Mean;
             var meshToOrbital = meshToRoot * Matrix.Invert(orbitalDEMToRoot);
             Vector3 meshOriginInOrbital = Vector3.Transform(Vector3.Zero, meshToOrbital);
             
             double backprojectWidth = backprojectRadius * (2.0 / Math.Sqrt(2.0)); //sphere radius to box width
             int outerExtentPixels = (int)Math.Ceiling(0.5 * backprojectWidth / orbitalDEMMetersPerPixel);
-            var outerBounds = orbitalDEM.GetSubrectPixels(outerExtentPixels, meshOriginInOrbital);
+
+            int decimate = 1;
+            if (outerExtentPixels > ORBITAL_DEM_MESH_MAX_RESOLUTION)
+            {
+                decimate = (int)Math.Ceiling(((double)outerExtentPixels) / ORBITAL_DEM_MESH_MAX_RESOLUTION);
+                dem = dem.Decimated(decimate);
+                int newExtent = (int)Math.Ceiling(((double)outerExtentPixels) / decimate);
+                pipeline.LogInfo("decimating orbital DEM by {0}, outer extent {1} -> {2}px",
+                                 decimate, outerExtentPixels, newExtent);
+                outerExtentPixels = newExtent;
+            }
 
             double sceneWidth = sceneRadius * (2.0 / Math.Sqrt(2.0)); //sphere radius to box width
             if (sceneBounds.HasValue)
@@ -591,11 +616,11 @@ namespace OPS.Landform
                 Vector3 size = sceneBounds.Value.Extent();
                 sceneWidth = Math.Max(size.X, size.Y); //what we really want here is center to side
             }
-            int innerExtentPixels = (int)Math.Ceiling(0.5 * sceneWidth / orbitalDEMMetersPerPixel);
-            var innerBounds = orbitalDEM.GetSubrectPixels(innerExtentPixels, meshOriginInOrbital);
-            
-            var orbitalMesh = orbitalDEM.OrganizedMesh(outerBounds, innerBounds, orbitalSamplesPerPixel,
-                                                       quadsOnly: true);
+            int innerExtentPixels = (int)Math.Ceiling(0.5 * sceneWidth / (orbitalDEMMetersPerPixel * decimate));
+
+            var outerBounds = dem.GetSubrectPixels(outerExtentPixels, meshOriginInOrbital);
+            var innerBounds = dem.GetSubrectPixels(innerExtentPixels, meshOriginInOrbital);
+            var orbitalMesh = dem.OrganizedMesh(outerBounds, innerBounds, orbitalSamplesPerPixel, quadsOnly: true);
             
             orbitalScene = new SceneCaster();
             orbitalScene.AddMesh(orbitalMesh, null, Matrix.Identity);
