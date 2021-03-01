@@ -234,9 +234,9 @@ namespace OPS.Pipeline
                     clippingBounds = BoundingBoxExtensions.CreateScaled(clippingBounds, clipScale);
                 }
 
-                parentMesh =
-                    decimateSrc.ResampleDecimation(maxFaceCountTarget * DECIMATE_BOUNDS_RATIO, reconstructionMethod,
-                                                   clippingBounds: clippingBounds, upAxis: upAxis);
+                parentMesh = decimateSrc.ResampleDecimation((int)(maxFaceCountTarget * DECIMATE_BOUNDS_RATIO),
+                                                            reconstructionMethod, clippingBounds: clippingBounds,
+                                                            upAxis: upAxis);
                 //note: ResampleDecimation() calls Mesh.Clean() and Mesh.GenerateVertexNormals()
 
                 info("updating parent tile bounds for actual decimated mesh");
