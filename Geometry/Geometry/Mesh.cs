@@ -528,6 +528,7 @@ namespace OPS.Geometry
                 f.P2 = oldToNewIndex[f.P2];
                 this.Faces[i] = f;
             }
+            RemoveInvalidFaces();
             RemoveIdenticalFaces();
         }
 
