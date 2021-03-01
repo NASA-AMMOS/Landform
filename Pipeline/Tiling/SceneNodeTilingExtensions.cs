@@ -91,12 +91,11 @@ namespace OPS.Pipeline
         /// 2) the bounding box of d intersects the search bounds, computed as the bounding box union of our
         ///    children's bounds scaled (generally up) by the given search ratio
         /// 3) d is a leaf or is at or greater than the depth (topological distance) from root as this node's children
-        /// 4) the depth (topological distance) from root to d is no greater than maxDepth
         ///
         /// NOTE: as in all the tiling code bounds are all in same coordinate frame (all node Transforms are identity)
         /// </summary>
         public static List<SceneNode>
-            FindNodesRequiredForParent(this SceneNode node, SceneNode root, int maxDepth = int.MaxValue)
+            FindNodesRequiredForParent(this SceneNode node, SceneNode root)
         {
             var result = new List<SceneNode>();
 
@@ -122,7 +121,7 @@ namespace OPS.Pipeline
                 var n = stack.Pop();
                 var b = n.GetComponent<NodeBounds>().Bounds;
                 var d = n.GetActualDepth();
-                if (d > maxDepth || !b.Intersects(searchBounds))
+                if (!b.Intersects(searchBounds))
                 {
                     continue;
                 }
@@ -131,12 +130,9 @@ namespace OPS.Pipeline
                     result.Add(n);
                     continue;
                 }
-                else
+                foreach (var c in n.Children)
                 {
-                    foreach (var c in n.Children)
-                    {
-                        stack.Push(c);
-                    }
+                    stack.Push(c);
                 }
             }
             return result;
@@ -175,7 +171,7 @@ namespace OPS.Pipeline
             info = info ?? (msg => {});
             error = error ?? (msg => {});
 
-            var dependencies = FindNodesRequiredForParent(node, root, node.GetActualDepth() + 1);
+            var dependencies = FindNodesRequiredForParent(node, root);
 
             //generally the parent node will already have its bounds defined here
             //however, those may have come from ComputeBounds()
@@ -200,9 +196,10 @@ namespace OPS.Pipeline
             var depMeshImagePairs = dependencies
                 .Where(n => n.HasComponent<MeshImagePair>())
                 .Select(n => n.GetComponent<MeshImagePair>())
+                .Where(mip => mip.Mesh != null && mip.Mesh.HasFaces)
                 .ToArray();
 
-            var depMeshes = depMeshImagePairs.Where(p => p.Mesh != null).Select(p => p.Mesh).ToArray();
+            var depMeshes = depMeshImagePairs.Select(p => p.Mesh).ToArray();
             
             info($"merging {depMeshes.Length} meshes to build parent");
             var combinedMesh = Mesh.MergeWithCommonAttributes(depMeshes, clean: true, normalize: true);
@@ -214,6 +211,7 @@ namespace OPS.Pipeline
             }
 
             var clippingBounds = parentBounds;
+
             //the dependent meshes might have some noise due to decimation
             //and some tiles, particularly those that have only orbital geometry, can be extremely flat
             //leading to thin bounding boxes with faces largely parallel to and nearly coincident with the mesh
@@ -233,15 +231,15 @@ namespace OPS.Pipeline
             //(1) if it's empty, we early out
             //(2) if it's already got few enough faces, we'll use it directly instead of calling ResampleDecimation()
             //(3) if we do call ResampleDecimation() we'll use it to compute geometric error
-            var combinedClipped = Mesh.Clip(combinedMesh, clippingBounds);
             //note: Mesh.Clip() calls Mesh.Clean() which calls Mesh.NormalizeNormals()
+            var combinedClipped = Mesh.Clip(combinedMesh, clippingBounds);
 
             if (PARENT_MESH_VERTEX_MERGE_EPSILON > 0)
             {
                 combinedClipped.MergeNearbyVertices(PARENT_MESH_VERTEX_MERGE_EPSILON);
             }
 
-            if (combinedClipped.Vertices.Count == 0)
+            if (combinedClipped.Faces.Count == 0)
             {
                 error("parent tile mesh empty");
                 return false;
@@ -257,14 +255,17 @@ namespace OPS.Pipeline
                 var srcBounds = BoundingBoxExtensions.CreateScaled(clippingBounds, DECIMATE_BOUNDS_RATIO);
                 var decimateSrc = Mesh.Clip(combinedMesh, srcBounds);
 
+                //note: ResampleDecimation() calls Mesh.Clean() and Mesh.GenerateVertexNormals()
                 parentMesh = decimateSrc.ResampleDecimation((int)(maxFaceCountTarget * FACE_COUNT_RATIO),
                                                             reconstructionMethod, clippingBounds: clippingBounds,
                                                             upAxis: BoundingBoxExtensions.GetBoxAxisDirection(upAxis),
                                                             samplesPerFace: SAMPLES_PER_FACE);
-                //note: ResampleDecimation() calls Mesh.Clean() and Mesh.GenerateVertexNormals()
 
-                info("updating parent tile bounds for actual decimated mesh");
                 node.GetComponent<NodeBounds>().Bounds = BoundingBoxExtensions.Union(parentBounds, parentMesh.Bounds());
+            }
+            else
+            {
+                info("not decimating parent, {Fmt.KMG(parentMesh.Faces.Count)} < {Fmt.KMG(maxFaceCountTarget)} tris");
             }
 
             int textureSize = GetTileResolution(parentMesh, maxTextureRes);
@@ -348,12 +349,10 @@ namespace OPS.Pipeline
             //prevent UpdateGeometricError() from using child meshes if parentMesh == combinedClipped
             //meaning we chose not to decimate the merged clipped child meshes
             //in that case the geometric error is just the max of the dependencies' errors
+            //empty (not null) if parentMesh == combinedClipped
+            depMeshes = parentMesh != combinedClipped ? new Mesh[] { combinedClipped } : new Mesh[] {};
+
             info("computing parent tile geometric error");
-            depMeshes = new Mesh[] {}; //empty (not null) if parentMesh == combinedClipped
-            if (parentMesh != combinedClipped)
-            {
-                depMeshes = new Mesh[] { combinedClipped };
-            }
             node.UpdateGeometricError(dependencies, depMeshes.ToList(), info);
 
             return true;

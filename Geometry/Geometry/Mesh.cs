@@ -1707,11 +1707,21 @@ namespace OPS.Geometry
         /// </summary>
         public double HausdorffDistance(double maxErrorEpsilon, bool symmetric, params Mesh[] others)
         {
-            var srcs = (others ?? new Mesh[0]).Where(m => m != null && m.Faces.Count > 0).ToList();
+            if (!HasFaces)
+            {
+                throw new ArgumentException("Hausdorff distance requires mesh with faces");
+            }
+
+            var srcs = (others ?? new Mesh[0]).Where(m => m != null && m.HasVertices).ToList();
 
             if (srcs.Count < 1)
             {
-                throw new ArgumentException("Hausdorff distance requires at least one other mesh with faces");
+                throw new ArgumentException("Hausdorff distance requires at least one other non-empty mesh");
+            }
+
+            if (srcs.Count(m => !m.HasFaces) > 0)
+            {
+                throw new ArgumentException("Hausdorff distance requires all meshes to have faces");
             }
 
             Mesh merged = srcs.Count > 1 ? Mesh.MergeWithCommonAttributes(srcs.ToArray()) : srcs[0];
