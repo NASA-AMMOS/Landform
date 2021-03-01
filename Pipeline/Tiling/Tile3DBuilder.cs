@@ -256,6 +256,7 @@ namespace OPS.Pipeline
             {
                 var opts = new GDALTIFFWriteOptions(GDALTIFFWriteOptions.CompressionType.DEFLATE);
                 var serializer = new GDALSerializer(opts);
+                PathHelper.EnsureExists(Path.GetDirectoryName(file));
                 serializer.Write<float>(file, index, ImageConverters.PassThrough);
             }
             else if (ext == ".ppm" || ext == ".ppmz" || ext == ".png")
@@ -291,8 +292,9 @@ namespace OPS.Pipeline
                 }
                 if (numBad > 0)
                 {
-                    warn($"cleared {numBad} invalid or orbital pixels saving index image to 16 bit {ext}");
+                    warn($"cleared {numBad} out of range or orbital pixels saving index image to 16 bit {ext}");
                 }
+                PathHelper.EnsureExists(Path.GetDirectoryName(file));
                 index.Save<ushort>(file, ImageConverters.PassThrough);
             }
             else
