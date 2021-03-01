@@ -23,6 +23,7 @@ namespace OPS.Pipeline
         public const double DECIMATE_CLIP_BOUNDS_RATIO = 1.5f;
         public const double TEXTURE_ERROR_MULTIPLIER = 4;
         public const double HAUSDORFF_RELATIVE_ACCURACY = 0.005; //0.5% of mesh bounds
+        public const double PARENT_MESH_VERTEX_MERGE_EPSILON = 0.002;
         public const int DEF_MAX_TILE_RESOLUTION = 256;
         public const int MIN_TILE_RESOLUTION = 16;
 
@@ -217,6 +218,11 @@ namespace OPS.Pipeline
             //(3) if we do call ResampleDecimation() we'll use it to compute geometric error
             var combinedClipped = Mesh.Clip(combinedMesh, parentBounds);
             //note: Mesh.Clip() calls Mesh.Clean() which calls Mesh.NormalizeNormals()
+
+            if (PARENT_MESH_VERTEX_MERGE_EPSILON > 0)
+            {
+                combinedClipped.MergeNearbyVertices(PARENT_MESH_VERTEX_MERGE_EPSILON);
+            }
 
             if (combinedClipped.Vertices.Count == 0)
             {
