@@ -1705,9 +1705,16 @@ namespace OPS.Geometry
         /// If symmetric = true then computes the bidirectional Hausdorff distance.
         /// Otherwise computes the unidirectional Hausdorff distance from this mesh to the merged others.
         /// </summary>
-        public double HausdorffDistance(double maxErrorEpsilon, bool symmetric, params Mesh[] other)
+        public double HausdorffDistance(double maxErrorEpsilon, bool symmetric, params Mesh[] others)
         {
-            Mesh merged = Mesh.Merge(this.HasNormals, this.HasUVs, this.HasColors, other);
+            var srcs = (others ?? new Mesh[0]).Where(m => m != null && m.Faces.Count > 0).ToList();
+
+            if (srcs.Count < 1)
+            {
+                throw new ArgumentException("Hausdorff distance requires at least one other mesh with faces");
+            }
+
+            Mesh merged = srcs.Count > 1 ? Mesh.MergeWithCommonAttributes(srcs.ToArray()) : srcs[0];
 
             //this isn't right
             //just because the two bounds don't intersect
