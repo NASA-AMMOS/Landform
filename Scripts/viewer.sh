@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # view one or more tilesets or scenes in Unity3DTiles in web browser tab(s)
-# downloads Unity3DTilexWeb.zip and unpacks it in out/ if necessary
+# downloads Unity3DTilesWeb.zip and unpacks it in out/ if necessary
 # creates localhost.pem if necessary
 # opens tabs
 # launches localhost web server
