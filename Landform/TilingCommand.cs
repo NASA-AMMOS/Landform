@@ -264,7 +264,9 @@ namespace OPS.Landform
                 }
                 if (mip.Index != null)
                 {
-                    SaveFloatTIFF(mip.Index, tileName + TileList.INDEX_FILE_SUFFIX);
+                    Tile3DBuilder.SaveTileIndex(mip.Index,
+                                                tileName + TileList.INDEX_FILE_SUFFIX + TileList.INDEX_FILE_EXT,
+                                                msg => pipeline.LogWarn($"{msg} for tile {tileName}"));
                 }
                 SaveMesh(mip.Mesh, tileName, imgName);
             }
@@ -283,11 +285,10 @@ namespace OPS.Landform
 
                 if (mip.Index != null)
                 {
-                    TemporaryFile.GetAndDelete(".tif", tmpFile =>
+                    TemporaryFile.GetAndDelete(TileList.INDEX_FILE_EXT, tmpFile =>
                     {
-                        var opts = new GDALTIFFWriteOptions(GDALTIFFWriteOptions.CompressionType.DEFLATE);
-                        var serializer = new GDALSerializer(opts);
-                        serializer.Write<float>(tmpFile, mip.Index);
+                        Tile3DBuilder.SaveTileIndex(mip.Index, tmpFile,
+                                                    msg => pipeline.LogWarn($"{msg} for tile {tileName}"));
                         string indexName = tileName + TileList.INDEX_FILE_SUFFIX + TileList.INDEX_FILE_EXT;
                         string indexUrl = pipeline.GetStorageUrl(outputFolder, project.Name, indexName);
                         pipeline.SaveFile(tmpFile, indexUrl);

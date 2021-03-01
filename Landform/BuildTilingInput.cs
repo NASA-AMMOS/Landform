@@ -884,14 +884,14 @@ namespace OPS.Landform
             {
                 pipeline.LogInfo("saving tile backproject index images");
 
-                if (textureMode == TextureMode.Bake || textureMode == TextureMode.Clip)
+                if (sceneTexture != null && (textureMode == TextureMode.Bake || textureMode == TextureMode.Clip))
                 {
                     sceneIndex = new Image(3, sceneTexture.Width, sceneTexture.Height);
                     for (int r = 0; r < sceneIndex.Height; r++)
                     {
                         for (int c = 0; c < sceneIndex.Width; c++)
                         {
-                            sceneIndex[0, r, c] = 1; //reserve 0 as invalid
+                            sceneIndex[0, r, c] = Observation.MIN_INDEX;
                             sceneIndex[1, r, c] = r;
                             sceneIndex[2, r, c] = c;
                         }

@@ -51,7 +51,7 @@ namespace OPS.Pipeline.AlignmentServer
         //and we want to do that when creating backproject index images
         //public const int MAX_INDEX = 16777216;
 
-        public const int ORBITAL_IMAGE_INDEX = MAX_INDEX - 1; 
+        public const int ORBITAL_IMAGE_INDEX = MAX_INDEX; 
         public const int ORBITAL_DEM_INDEX = ORBITAL_IMAGE_INDEX - 1;
 
         [DynamoDBRangeKey]

@@ -262,29 +262,25 @@ namespace OPS.Pipeline
             {
                 //these formats support 16 bit color components
                 //we can generally save surface observation image indices
-                //but not orbital which can easily have larger dimensions than 65535
+                //but orbital can easily have larger dimensions than 65535
                 int numBad = 0;
                 index = new Image(index);
                 for (int r = 0; r < index.Height; r++)
                 {
                     for (int c = 0; c < index.Width; c++)
                     {
-                        bool orbital = index[0, r, c] == Observation.ORBITAL_IMAGE_INDEX;
                         bool bad = false;
-                        if (!orbital)
+                        for (int b = 0; b < index.Bands; b++)
                         {
-                            for (int b = 0; b < index.Bands; b++)
+                            if (index[b, r, c] < 0 || index[b, r, c] > 65535)
                             {
-                                if (index[b, r, c] < 0 || index[b, r, c] > 65535)
-                                {
-                                    bad = true;
-                                    ++numBad;
-                                    break;
-                                }
+                                bad = true;
+                                break;
                             }
                         }
-                        if (bad || orbital)
+                        if (bad)
                         {
+                            ++numBad;
                             index[0, r, c] = Observation.NO_OBSERVATION_INDEX;
                             for (int b = 1; b < index.Bands; b++)
                             {
@@ -295,7 +291,7 @@ namespace OPS.Pipeline
                 }
                 if (numBad > 0)
                 {
-                    warn($"cleared {numBad} invalid pixels saving index image to 16 bit {ext}");
+                    warn($"cleared {numBad} invalid or orbital pixels saving index image to 16 bit {ext}");
                 }
                 index.Save<ushort>(file, ImageConverters.PassThrough);
             }

@@ -746,7 +746,7 @@ namespace OPS.Pipeline.TilingServer
                         }
                         if (index == null)
                         {
-                            index = pipeline.LoadImage(IndexUrl);
+                            index = pipeline.LoadImage(IndexUrl, ImageConverters.PassThrough);
                             if (indexCache != null)
                             {
                                 indexCache[IndexUrl] = index;
