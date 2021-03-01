@@ -94,8 +94,15 @@ namespace OPS.Pipeline.TilingServer
                     }
                 }
 
+                BoxAxis upAxis = BoxAxis.Z;
+                switch (project.SkirtMode)
+                {
+                    case SkirtMode.X: upAxis = BoxAxis.X; break;
+                    case SkirtMode.Y: upAxis = BoxAxis.Y; break;
+                }
+
                 if (!parentSceneNode.BuildParentGeometry(parentSceneNode, project.FacesPerTile,
-                                                         project.ReconstructionMethod, project.SkirtMode,
+                                                         project.ReconstructionMethod, upAxis,
                                                          project.TextureMode, maxTextureSize,
                                                          textureProjector, textureImage,
                                                          info: msg => LogLess(msg),

@@ -69,6 +69,29 @@ namespace OPS.Geometry
             return size.X * size.Y * size.Z;
         }
 
+        public static Vector3 GetBoxAxisDirection(BoxAxis axis)
+        {
+            switch (axis)
+            {
+                case BoxAxis.X: return Vector3.UnitX;
+                case BoxAxis.Y: return Vector3.UnitY;
+                case BoxAxis.Z: return Vector3.UnitZ;
+                default: throw new ArgumentException("unknown axis: " + axis);
+            }
+        }
+
+        public static double GetExtentInAxis(this BoundingBox box, BoxAxis axis)
+        {
+            var sz = box.Extent();
+            switch (axis)
+            {
+                case BoxAxis.X: return sz.X;
+                case BoxAxis.Y: return sz.Y;
+                case BoxAxis.Z: return sz.Z;
+                default: throw new ArgumentException("unknown axis: " + axis);
+            }
+        }
+
         public static Vector2 GetFaceSizePerpendicularToAxis(this BoundingBox box, BoxAxis axis)
         {
             var sz = box.Extent();
@@ -79,6 +102,12 @@ namespace OPS.Geometry
                 case BoxAxis.Z: return new Vector2(sz.X, sz.Y);
                 default: throw new ArgumentException("unknown axis: " + axis);
             }
+        }
+
+        public static double GetFaceAreaPerpendicularToAxis(this BoundingBox box, BoxAxis axis)
+        {
+            var sz = box.GetFaceSizePerpendicularToAxis(axis);
+            return sz.X * sz.Y;
         }
 
         public static double MaxDimension(this BoundingBox box)

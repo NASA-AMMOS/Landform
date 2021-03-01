@@ -24,7 +24,7 @@ namespace OPS.Geometry
     public static class MeshExtensions
     {
         public const double EDGE_COLLAPSE_PERIMETER_FACTOR = 100;
-        public const int SAMPLES_PER_FACE = 4;
+        public const double DEF_SAMPLES_PER_FACE = 4;
 
         /// <summary>
         /// preserves (or possibly adds) normals but loses colors and UVs
@@ -76,7 +76,7 @@ namespace OPS.Geometry
                 }
                 case MeshDecimationMethod.MeshLabResample:
                 {
-                    m = MeshLab.ResampleDecimation(m, SAMPLES_PER_FACE * targetFaces, targetFaces);
+                    m = MeshLab.ResampleDecimation(m, (int)(DEF_SAMPLES_PER_FACE * targetFaces), targetFaces);
                     if (clippingBounds.HasValue)
                     {
                         m = Mesh.Clip(m, clippingBounds.Value);
@@ -95,7 +95,8 @@ namespace OPS.Geometry
         /// </summary>
         public static Mesh ResampleDecimation(this Mesh m, int targetFaces,
                                               MeshReconstructionMethod method = MeshReconstructionMethod.FSSR,
-                                              BoundingBox? clippingBounds = null, Vector3? upAxis = null)
+                                              BoundingBox? clippingBounds = null, Vector3? upAxis = null,
+                                              double samplesPerFace = DEF_SAMPLES_PER_FACE)
         {
             double area = m.SurfaceArea();
             if (area < 1e-10)
@@ -113,7 +114,7 @@ namespace OPS.Geometry
                 m.GenerateVertexNormals();
             }
             m.NormalizeNormals();
-            double density = SAMPLES_PER_FACE * targetFaces / area;
+            double density = samplesPerFace * targetFaces / area;
             Mesh pc = new SurfacePointSampler().GenerateSampledMesh(m, density, area: area);
             pc.HasUVs = false;
             switch (method)
@@ -131,14 +132,15 @@ namespace OPS.Geometry
                 default: throw new Exception("unknown mesh reconstruction method " + method);
             }
             m.Clean();
-            List<Vertex> corners = null;
-            if (upAxis.HasValue)
+            if (m.Faces.Count > targetFaces)
             {
-                corners = m.Corners(upAxis.Value);
+                //Console.WriteLine("edge collapse {0} -> {1}", m.Faces.Count, targetFaces);
+                m = EdgeCollapse.QuadricEdgeCollapse(m, targetFaces,
+                                                     perimeterPenaltyFactor: EDGE_COLLAPSE_PERIMETER_FACTOR,
+                                                     notTouched: upAxis.HasValue ? m.Corners(upAxis.Value) : null);
+                m.Clean();
             }
-            m = EdgeCollapse.QuadricEdgeCollapse(m, targetFaces, perimeterPenaltyFactor: EDGE_COLLAPSE_PERIMETER_FACTOR,
-                                                 notTouched: corners);
-            m.Clean();
+            //else Console.WriteLine("skipping edge collapse {0} <= {1}", m.Faces.Count, targetFaces);
             m.GenerateVertexNormals();
             if (clippingBounds.HasValue)
             {

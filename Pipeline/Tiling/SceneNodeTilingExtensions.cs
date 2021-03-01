@@ -18,10 +18,12 @@ namespace OPS.Pipeline
     public static class SceneNodeTilingExtensions
     {
         //TODO: move these to TilingDefaults when dev/tiling-updates is merged
-        public const double CHILD_BOUNDS_SEARCH_RATIO = 1.1f;
-        public const double DECIMATE_BOUNDS_RATIO = 1.5f;
-        public const double DECIMATE_CLIP_BOUNDS_RATIO = 1.5f;
+        public const double CHILD_BOUNDS_SEARCH_RATIO = 1.1;
+        public const double DECIMATE_BOUNDS_RATIO = 1.5;
+        public const double CLIP_BOUNDS_EXPAND_HEIGHT = 0.1;
         public const double TEXTURE_ERROR_MULTIPLIER = 4;
+        public const double FACE_COUNT_RATIO = DECIMATE_BOUNDS_RATIO * 1.1;
+        public const double SAMPLES_PER_FACE = 1.5; //tuned to try to avoid edge collapse in ResampleDecimation()
         public const double HAUSDORFF_RELATIVE_ACCURACY = 0.005; //0.5% of mesh bounds
         public const double PARENT_MESH_VERTEX_MERGE_EPSILON = 0.002;
         public const int DEF_MAX_TILE_RESOLUTION = 256;
@@ -163,7 +165,7 @@ namespace OPS.Pipeline
         /// </summary>
         public static bool BuildParentGeometry
             (this SceneNode node, SceneNode root,
-             int maxFaceCountTarget, MeshReconstructionMethod reconstructionMethod, SkirtMode skirtMode,
+             int maxFaceCountTarget, MeshReconstructionMethod reconstructionMethod, BoxAxis upAxis,
              TextureMode textureMode, int maxTextureRes,
              //TODO when dev/tiling-updates is merged
              //double maxTexelsPerMeter, double maxTextureStretch, bool powerOfTwoTextures,
@@ -211,12 +213,26 @@ namespace OPS.Pipeline
                 combinedMesh.GenerateVertexNormals();
             }
 
+            var clippingBounds = parentBounds;
+            //the dependent meshes might have some noise due to decimation
+            //and some tiles, particularly those that have only orbital geometry, can be extremely flat
+            //leading to thin bounding boxes with faces largely parallel to and nearly coincident with the mesh
+            //if we have a defined upAxis then expand the clipping bounds in that direction
+            //to avoid clipping highs and lows that might have gotten perturbed
+            var minAxis = clippingBounds.MinAxis(out double minDim);
+            if (minDim < 0.5 * Math.Sqrt(clippingBounds.GetFaceAreaPerpendicularToAxis(minAxis)))
+            {
+                var minDir = BoundingBoxExtensions.GetBoxAxisDirection(minAxis);
+                clippingBounds.Max += minDir * CLIP_BOUNDS_EXPAND_HEIGHT;
+                clippingBounds.Min -= minDir * CLIP_BOUNDS_EXPAND_HEIGHT;
+            }
+
             //create a copy of the combined child meshes clipped to the actual node bounds
             //we'll use this for three purposes
             //(1) if it's empty, we early out
             //(2) if it's already got few enough faces, we'll use it directly instead of calling ResampleDecimation()
             //(3) if we do call ResampleDecimation() we'll use it to compute geometric error
-            var combinedClipped = Mesh.Clip(combinedMesh, parentBounds);
+            var combinedClipped = Mesh.Clip(combinedMesh, clippingBounds);
             //note: Mesh.Clip() calls Mesh.Clean() which calls Mesh.NormalizeNormals()
 
             if (PARENT_MESH_VERTEX_MERGE_EPSILON > 0)
@@ -235,36 +251,15 @@ namespace OPS.Pipeline
             var parentMesh = combinedClipped;
             if (parentMesh.Faces.Count > maxFaceCountTarget)
             {
-                Vector3? upAxis = null;
-                switch (skirtMode)
-                {
-                    case SkirtMode.X: upAxis = Vector3.UnitX; break;
-                    case SkirtMode.Y: upAxis = Vector3.UnitY; break;
-                    case SkirtMode.Z: upAxis = Vector3.UnitZ; break;
-                }
-
                 info($"decimating parent from {Fmt.KMG(parentMesh.Faces.Count)} to {Fmt.KMG(maxFaceCountTarget)} tris");
 
-                var srcBounds = BoundingBoxExtensions.CreateScaled(parentBounds, DECIMATE_BOUNDS_RATIO);
+                var srcBounds = BoundingBoxExtensions.CreateScaled(clippingBounds, DECIMATE_BOUNDS_RATIO);
                 var decimateSrc = Mesh.Clip(combinedMesh, srcBounds);
 
-                var clippingBounds = parentBounds;
-                if (upAxis.HasValue)
-                {
-                    //the decimated mesh might have a bit of noise that pushes it outside the original parent bounds
-                    //if we have a defined upAxis then expand the clipping bounds in that direction
-                    //to avoid clipping highs and lows that might have gotten perturbed
-                    Vector3 clipScale = upAxis.Value * DECIMATE_CLIP_BOUNDS_RATIO;
-                    for (int i = 0; i < 3; i++)
-                    {
-                        clipScale[i] = Math.Max(clipScale[i], 1);
-                    }
-                    clippingBounds = BoundingBoxExtensions.CreateScaled(clippingBounds, clipScale);
-                }
-
-                parentMesh = decimateSrc.ResampleDecimation((int)(maxFaceCountTarget * DECIMATE_BOUNDS_RATIO),
+                parentMesh = decimateSrc.ResampleDecimation((int)(maxFaceCountTarget * FACE_COUNT_RATIO),
                                                             reconstructionMethod, clippingBounds: clippingBounds,
-                                                            upAxis: upAxis);
+                                                            upAxis: BoundingBoxExtensions.GetBoxAxisDirection(upAxis),
+                                                            samplesPerFace: SAMPLES_PER_FACE);
                 //note: ResampleDecimation() calls Mesh.Clean() and Mesh.GenerateVertexNormals()
 
                 info("updating parent tile bounds for actual decimated mesh");
