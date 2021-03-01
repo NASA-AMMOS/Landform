@@ -30,9 +30,8 @@ namespace OPS.Geometry
         /// preserves (or possibly adds) normals but loses colors and UVs
         /// </summary>
         public static Mesh Decimate(this Mesh m, int targetFaces,
-                                    MeshDecimationMethod method = MeshDecimationMethod.MeshLab,
-                                    BoundingBox? clippingBounds = null,
-                                    Vector3? cornerDirection = null)
+                                    MeshDecimationMethod method = MeshDecimationMethod.ResampleFSSR,
+                                    BoundingBox? clippingBounds = null, Vector3? upAxis = null)
         {
             switch (method)
             {
@@ -40,9 +39,9 @@ namespace OPS.Geometry
                 {
                     bool hadNormals = m.HasNormals;
                     List<Vertex> corners = null;
-                    if (cornerDirection.HasValue)
+                    if (upAxis.HasValue)
                     {
-                        corners = m.Corners(cornerDirection.Value);
+                        corners = m.Corners(upAxis.Value);
                     }
                     m = EdgeCollapse.QuadricEdgeCollapse(m, targetFaces,
                                                          perimeterPenaltyFactor: EDGE_COLLAPSE_PERIMETER_FACTOR,
@@ -60,13 +59,11 @@ namespace OPS.Geometry
                 }
                 case MeshDecimationMethod.ResampleFSSR:
                 {
-                    return ResampleDecimation(m, targetFaces, MeshReconstructionMethod.FSSR, clippingBounds,
-                                              cornerDirection);
+                    return ResampleDecimation(m, targetFaces, MeshReconstructionMethod.FSSR, clippingBounds, upAxis);
                 }
                 case MeshDecimationMethod.ResamplePoisson:
                 {
-                    return ResampleDecimation(m, targetFaces, MeshReconstructionMethod.Poisson, clippingBounds,
-                                              cornerDirection);
+                    return ResampleDecimation(m, targetFaces, MeshReconstructionMethod.Poisson, clippingBounds, upAxis);
                 }
                 case MeshDecimationMethod.MeshLab:
                 {
@@ -98,8 +95,7 @@ namespace OPS.Geometry
         /// </summary>
         public static Mesh ResampleDecimation(this Mesh m, int targetFaces,
                                               MeshReconstructionMethod method = MeshReconstructionMethod.FSSR,
-                                              BoundingBox? clippingBounds = null,
-                                              Vector3? cornerDirection = null)
+                                              BoundingBox? clippingBounds = null, Vector3? upAxis = null)
         {
             if (method != MeshReconstructionMethod.FSSR && method != MeshReconstructionMethod.Poisson)
             {
@@ -131,9 +127,9 @@ namespace OPS.Geometry
             }
             m.Clean();
             List<Vertex> corners = null;
-            if (cornerDirection.HasValue)
+            if (upAxis.HasValue)
             {
-                corners = m.Corners(cornerDirection.Value);
+                corners = m.Corners(upAxis.Value);
             }
             m = EdgeCollapse.QuadricEdgeCollapse(m, targetFaces, perimeterPenaltyFactor: EDGE_COLLAPSE_PERIMETER_FACTOR,
                                                  notTouched: corners);

@@ -14,6 +14,13 @@ using OPS.Pipeline.AlignmentServer;
 
 namespace OPS.Pipeline.TilingServer
 {
+    public class SceneNodeTilingNode : NodeComponent
+    {
+        public TilingNode TilingNode;
+        public SceneNodeTilingNode() { }
+        public SceneNodeTilingNode(TilingNode node) { this.TilingNode = node; }
+    }
+
     [DynamoDBTable("TilingNode")]
     [DynamoDBReadCapacity(100, 200)]
     [DynamoDBWriteCapacity(15, 50)] //increased write capacity from 5 to 15 to reduce backoffs in node creation/deletion
@@ -763,6 +770,7 @@ namespace OPS.Pipeline.TilingServer
         {
             SceneNode node = new SceneNode(Id);
             node.AddComponent(new NodeBounds(GetBoundsChecked()));
+            node.AddComponent(new SceneNodeTilingNode(this));
             if (GeometricError.HasValue)
             {
                 node.AddComponent(new NodeGeometricError(GeometricError.Value));
