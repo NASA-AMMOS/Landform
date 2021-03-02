@@ -12,22 +12,29 @@ using OPS.Geometry;
 using OPS.Pipeline;
 
 /// <summary>
-/// Utility to convert an orbital DEM to a mesh.
 ///
-/// Example:
+/// Utility to convert an orbital DEM and optionally orthoimage to a mesh.
 ///
-/// Landform.exe dem2mesh out_deltaradii_smg_1m.tif out_clean_25cm.iGrid.ClipToDEM.tif --mission MSL
-///   --outputframe 0311472
+/// Examples:
+///
+/// Landform.exe dem2mesh out_deltaradii_smg_1m.tif out_deltaradii_smg_1m_0311472_200m.obj
+///     --inputimage out_clean_25cm.iGrid.ClipToDEM.tif --mission MSL --outputframe 0311472 --radiusmeters 200
+///
+/// Landform.exe dem2mesh out_deltaradii_smg_1m.tif out_deltaradii_smg_1m_decimate4_full.obj
+///     --inputimage out_clean_25cm.iGrid.ClipToDEM.tif --mission MSL --decimatedem 32 --decimateimage 32
 /// </summary>
 namespace OPS.Landform
 {
     [Verb("dem2mesh", HelpText = "Convert a DEM and optional image to a mesh")]
-    public class DEM2MeshOptions
+    public class DEM2MeshOptions : CommandHelper.BaseOptions
     {
         [Value(0, Required = true, HelpText = "DEM image for mesh geometry")]
         public string InputDEM { get; set; }
 
-        [Value(1, Required = false, HelpText = "Optional image to texture the mesh.  The image must be the same aspect and physical extent as the DEM, but can have a different resolution.")]
+        [Value(1, Required = false, HelpText = "Optional output mesh.  Must have same extension as --meshformat.  If omitted he input DEM filename is used with the mesh format extension.")]
+        public string OutputMesh { get; set; }
+
+        [Option(Required = false, HelpText = "Optional image to texture the mesh.  The image must be the same aspect and physical extent as the DEM, but can have a different resolution.")]
         public string InputImage { get; set; }
 
         [Option(Default = "auto", HelpText = "Size of a pixel in the input DEM in meters, or \"auto\" to use mission default, or 1 if no mission.")]
@@ -63,16 +70,19 @@ namespace OPS.Landform
         [Option(Default = "", HelpText = "Origin at and output to sitedrive frame SSSSSDDDDD or SSSDDDD, requires --mission and PlacesDB support")]
         public string OutputFrame { get; set; }
 
-        [Option(Default = 200, HelpText = "Radius in meters around origin pixel to build mesh, negative for unlimited")]
+        [Option(Default = -1, HelpText = "Radius in meters around origin pixel to build mesh, negative for unlimited")]
         public float RadiusMeters { get; set; }
 
         [Option(Default = null, HelpText = "Origin pixel in format \"(X,Y)[m]\" or \"(LON,LAT)deg\", exclusive with --outputframe, defaults to center of DEM")]
         public string OriginPixel { get; set; }
 
-        [Option(Default = 0, HelpText = "If greater than one then decimate the input DEM and image by this blocksize")]
-        public int DecimateBlocksize { get; set; }
+        [Option(Default = 0, HelpText = "If greater than one then decimate the input DEM by this blocksize")]
+        public int DecimateDEM { get; set; }
 
-        [Option(Default = 4096, HelpText = "Maximum output texture resolution, 0 disables output texture, negative for unlimited")]
+        [Option(Default = 0, HelpText = "If greater than one then decimate the input image by this blocksize")]
+        public int DecimateImage { get; set; }
+
+        [Option(Default = 8192, HelpText = "Maximum output texture resolution, 0 disables output texture, negative for unlimited")]
         public int MaxTextureResolution { get; set; }
 
         [Option(Default = "None", HelpText = "Mission flag enables mission specific behavior, optional :venue override, e.g. None, MSL, M2020, M20SOPS, M20SOPS:dev, M20SOPS:sbeta")]
@@ -88,6 +98,9 @@ namespace OPS.Landform
         public bool OnlyCheckPlanarity { get; set; }
 
         [Option(Default = false, HelpText = "Dry run")]
+        public bool DryRun { get; set; }
+
+        [Option(Default = false, HelpText = "Synonym for --dryrun")]
         public bool NoSave { get; set; }
     }
 
@@ -149,6 +162,8 @@ namespace OPS.Landform
 
         private bool ParseArgumentsAndLoadInputs()
         {
+            options.NoSave |= options.DryRun;
+
             meshExt = MeshSerializers.Instance.CheckFormat(options.MeshFormat, logger);
             if (meshExt == null)
             {
@@ -171,7 +186,16 @@ namespace OPS.Landform
                 throw new Exception("input DEM not found: " + options.InputDEM);
             }
 
-            outputMesh = Path.ChangeExtension(options.InputDEM, meshExt);
+            if (!string.IsNullOrEmpty(options.OutputMesh)) {
+                outputMesh = options.OutputMesh;
+                if (!outputMesh.EndsWith(meshExt, StringComparison.OrdinalIgnoreCase)) {
+                    throw new Exception($"output mesh {options.OutputMesh} does not have extension {meshExt}");
+                }
+            }
+            else
+            {
+                outputMesh = Path.ChangeExtension(options.InputDEM, meshExt);
+            }
 
             //even if we don't directly use the mission instance
             //this has the important side effect of setting defaults for PlacesConfig and OrbitalConfig
@@ -382,18 +406,23 @@ namespace OPS.Landform
                                            Path.GetFileNameWithoutExtension(outputMesh) + "_texture" + imageExt);
             }
 
-            if (options.DecimateBlocksize > 1)
+            logger.LogInfo("output mesh {0}", outputMesh);
+            if (outputImage != null) {
+                logger.LogInfo("output texture {0}", outputImage);
+            }
+
+            if (options.DecimateDEM > 1)
             {
-                logger.LogInfo("decimating DEM, blocksize {0}", options.DecimateBlocksize);
-                dem = dem.Decimated(options.DecimateBlocksize);
-                demMetersPerPixel *= options.DecimateBlocksize;
-                
-                if (image != null)
-                {
-                    logger.LogInfo("decimating image, blocksize {0}", options.DecimateBlocksize);
-                    image = image.Decimated(options.DecimateBlocksize);
-                    imageMetersPerPixel *= options.DecimateBlocksize;
-                }
+                logger.LogInfo("decimating DEM, blocksize {0}", options.DecimateDEM);
+                dem = dem.Decimated(options.DecimateDEM, progress: msg => logger.LogInfo(msg));
+                demMetersPerPixel *= options.DecimateDEM;
+            }
+            
+            if (image != null && options.DecimateImage > 1)
+            {
+                logger.LogInfo("decimating image, blocksize {0}", options.DecimateImage);
+                image = image.Decimated(options.DecimateImage, progress: msg => logger.LogInfo(msg));
+                imageMetersPerPixel *= options.DecimateImage;
             }
 
             return true;
