@@ -843,4 +843,22 @@ namespace OPS.Imaging
             }
         }
     }
+
+    /// <summary>
+    /// Sparse GIS image backed by an image file.
+    /// Applies the standard read/write converters that normalize the band values to [0, 1].
+    /// File format must support partial reads, currently only GDALSerializer does.
+    /// The chunks are loaded lazily from disk.  Call Populate() to load them all.
+    /// </summary>
+    public class SparseGISImage : SparseImage
+    {
+        public const int CHUNK_SIZE = 512;
+        public const int CHUNK_CACHE_SIZE = 400; //important: cache size > 0 limits memory usage
+        public SparseGISImage(string path, CameraModel cameraModel = null)
+            : base(path, chunkSize: CHUNK_SIZE, cacheSize: CHUNK_CACHE_SIZE)
+        {
+            this.CameraModel = cameraModel;
+        }
+    }
+
 }

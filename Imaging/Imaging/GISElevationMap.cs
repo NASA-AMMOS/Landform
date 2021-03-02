@@ -101,4 +101,23 @@ namespace OPS.Imaging
             });
         }
     }
+
+    /// <summary>
+    /// Sparse GIS elevation map backed by an image file.
+    /// Disables the standard read/write converters that normalize the band values to [0, 1].
+    /// </summary>
+    public class SparseGISElevationMap : SparseGISImage
+    {
+        public SparseGISElevationMap(string path, CameraModel cameraModel = null) : base(path, cameraModel) { }
+        
+        protected override IImageConverter GetReadConverter()
+        {
+            return ImageConverters.PassThrough;
+        }
+        
+        protected override IImageConverter GetWriteConverter()
+        {
+            return ImageConverters.PassThrough;
+        }
+    }
 }
