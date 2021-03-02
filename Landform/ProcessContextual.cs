@@ -906,8 +906,8 @@ namespace OPS.Landform
                     {
                         RunCommand("build-sky-sphere", project, "--meshframe", sdStr,
                                    "--skymode", options.SkyMode.ToString(), allowUnmasked,
-                                   "--skysphereradius", options.SkySphereRadius,
-                                   "--skyminbackprojectradius", options.SkyMinBackprojectRadius);
+                                   "--sphereradius", options.SkySphereRadius,
+                                   "--minbackprojectradius", options.SkyMinBackprojectRadius);
                         string skyTilesetDir = GetTilesetDir(venue, sdStr, project, BuildSkySphere.SKY_TILESET_DIR);
                         SaveTileset(skyTilesetDir, project, destDir, "_sky");
                     }
