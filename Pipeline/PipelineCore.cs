@@ -22,9 +22,6 @@ namespace OPS.Pipeline
         [Option(Default = false, HelpText = "Log full stack traces")]
         public bool StackTraces { get; set; }
 
-        [Option(Default = false, HelpText = "Disable parallism, e.g. for debugging")]
-        public bool SingleThreaded { get; set; }
-
         [Option(Default = null, HelpText = "URL to the directory with user generated masks")]
         public string UserMasksDirectory { get; set; }
 
@@ -226,11 +223,9 @@ namespace OPS.Pipeline
         public virtual void DumpConfig()
         {
             //not using LogInfo() to print even if Quiet = true
-            Logger.InfoFormat("Architecture: {0}", (IntPtr.Size == 4 ? "x86" : "x64"));
+            CommandHelper.DumpConfig(Logger);
             Logger.InfoFormat("Venue: {0}", Venue);
             Logger.InfoFormat("Storage URL: {0}", StorageUrl);
-            Logger.InfoFormat("using {0} of {1} CPU cores",
-                              CoreLimitedParallel.GetMaxCores(), CoreLimitedParallel.GetAvailableCores());
             Logger.InfoFormat("LRU image cache capacity {0}, LRU data product cache capacity {1}",
                               imageCache.Capacity, dataProductCache.Capacity);
         }

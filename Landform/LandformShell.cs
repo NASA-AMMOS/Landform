@@ -55,12 +55,6 @@ namespace OPS.Landform
         [Option(HelpText = "Credential refresh period in seconds, -1 for mission default, 0 to disable", Default = -1)]
         public int CredentialRefreshSec { get; set; }
 
-        [Option(Default = -1, HelpText = "RNG seed, -1 to use a time dependent seed")]
-        public int RandomSeed { get; set; }
-
-        [Option(Default = 0, HelpText = "0 to use all available cores, N to use up to N, -M to reserve M")]
-        public int MaxCores { get; set; }
-
         [Option(HelpText = "Tile image format, e.g. jpg, png.  Empty or \"default\" to use default (" + TilingProject.DEF_TILESET_IMAGE_FORMAT + ")", Default = null)]
         public string TilesetImageFormat { get; set; }
 

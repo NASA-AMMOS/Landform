@@ -96,10 +96,12 @@ namespace OPS.Landform
                                                               config.MSLICEAWSRegion, options.Interactive);
                 config.MSLICES3Url = ConsoleHelper.Prompt("MSLICE S3 url", options.MSLICES3Url, config.MSLICES3Url,
                                                           options.Interactive);
+                string mco = options.MaxCores.HasValue ? options.MaxCores.Value.ToString() : null;
                 config.MaxCores = ConsoleHelper.Prompt("max cores, 0 = all available, N = up to N, -M = reserve M",
-                                                       options.MaxCores, config.MaxCores, options.Interactive);
+                                                       mco, config.MaxCores, options.Interactive);
+                string rso = options.RandomSeed.HasValue ? options.RandomSeed.Value.ToString() : null;
                 config.RandomSeed = ConsoleHelper.Prompt("negative to use a time dependent random seed",
-                                                         options.RandomSeed, config.RandomSeed, options.Interactive);
+                                                         rso, config.RandomSeed, options.Interactive);
                 config.LegacyCompat = ConsoleHelper.Prompt("legacy compatability (read only) true/false",
                                                            options.LegacyCompat, config.LegacyCompat,
                                                            options.Interactive);
