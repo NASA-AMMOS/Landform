@@ -173,7 +173,7 @@ namespace OPS.Landform
         [Option(Default = false, HelpText = "Don't generate sky sphere tileset")]
         public bool NoSky { get; set; }
 
-        [Option(HelpText = "Sky mode (Box, Sphere, TopoSphere, Auto)", Default = SkyMode.Auto)]
+        [Option(HelpText = "Sky mode (Box, Sphere, TopoSphere, Auto)", Default = BuildSkySphere.DEF_SKY_MODE)]
         public SkyMode SkyMode { get; set; }
 
         [Option(HelpText = "Sky sphere radius (meters), or auto", Default = "auto")]

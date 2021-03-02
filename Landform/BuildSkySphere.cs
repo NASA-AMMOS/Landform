@@ -77,7 +77,7 @@ namespace OPS.Landform
     [Verb("build-sky-sphere", HelpText = "build a skysphere tileset from observations")]
     public class BuildSkySphereOptions : TilingCommandOptions
     {
-        [Option(HelpText = "Sky mode (Box, Sphere, TopoSphere, Auto)", Default = SkyMode.Auto)]
+        [Option(HelpText = "Sky mode (Box, Sphere, TopoSphere, Auto)", Default = BuildSkySphere.DEF_SKY_MODE)]
         public SkyMode SkyMode { get; set; }
 
         [Option(HelpText = "Sky sphere radius (meters), or auto", Default = "auto")]
@@ -153,9 +153,12 @@ namespace OPS.Landform
 
     public class BuildSkySphere : TilingCommand
     {
+        public const SkyMode DEF_SKY_MODE = SkyMode.Sphere;
+
         public const double DEF_SCENE_RADIUS = 45;
 
         public const double MIN_AUTO_RADIUS = 16;
+        public const double AUTO_REL_RADIUS = 1.1;
         public const double AUTO_TOPO_SPHERE_RADIUS = 200;
 
         public const double DEF_MIN_BACKPROJECT_RADIUS_TOPOSPHERE = 50000;
@@ -349,8 +352,8 @@ namespace OPS.Landform
                 {
                     case SkyMode.Box: sphereRadius = sceneRadius; break;
                     //case SkyMode.Sphere: sphereRadius = sceneRadius * Math.Sqrt(0.5); break; //inset sphere
-                    case SkyMode.Sphere: sphereRadius = sceneRadius; break; //outset sphere
-                    case SkyMode.TopoSphere: sphereRadius = sceneRadius; break; //outset sphere
+                    case SkyMode.Sphere: sphereRadius = sceneRadius * AUTO_REL_RADIUS; break; //outset sphere
+                    case SkyMode.TopoSphere: sphereRadius = sceneRadius * AUTO_REL_RADIUS; break; //outset sphere
                     default: throw new Exception("unknown sky mode: " + options.SkyMode);
                 }
                 sphereRadius = Math.Max(MIN_AUTO_RADIUS, sphereRadius);
