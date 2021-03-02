@@ -2,6 +2,7 @@
 using OPS.Util;
 using System;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -18,6 +19,8 @@ namespace OPS.Imaging
 
         //alternate instead of chunks array for limiting entire memory footprint
         protected LRUCache<Vector2, Image> chunkCache;
+
+        protected ConcurrentDictionary<Pixel, Object> chunkLocks = new ConcurrentDictionary<Pixel, Object>();
 
         //persisted backing, if any
         protected string basePath;
@@ -536,71 +539,77 @@ namespace OPS.Imaging
         {
             Image chunk = null;
 
-            //fast path: see if it's already in memory
-            if (chunks != null)
-            {
-                chunk = chunks[chunkRow, chunkCol];
-            }
-            else
-            {
-                chunk = chunkCache[new Vector2(chunkRow, chunkCol)];
-            }
+            //only allow one thread at a time in here
+            //this avoids multiple threads simultaneously loading the same chunk
+            Object chunkLock = chunkLocks.GetOrAdd(new Pixel(chunkRow, chunkCol), _ => new Object());
+            lock (chunkLock) {
 
-            if (chunk == null)
-            {
-                //slow path: load or allocate the chunk
-
-                int w = Math.Min(Width - chunkCol * chunkSize, chunkSize);
-                int h = Math.Min(Height - chunkRow * chunkSize, chunkSize);
-                    
-                if (largeImage != null)
-                {
-                    //if we are backed by a large monolithic image then crop out the chunk
-                    chunk = largeImage.Crop(chunkRow * chunkSize, chunkCol * chunkSize, w, h);
-                }
-                else if (!string.IsNullOrEmpty(basePath) && !string.IsNullOrEmpty(extension))
-                {
-                    //otherwise if we have persistence backing then try to load the chunk
-                    string chunkFile = ChunkPath(chunkRow, chunkCol, basePath, extension);
-                    string largeImageFile = basePath + extension;
-                    if (IsPersisted(chunkFile))
-                    {
-                        chunk = LoadChunk(chunkFile);
-                    }
-                    else if (IsPersisted(largeImageFile))
-                    {
-                        chunk = PartialRead(largeImageFile, chunkRow, chunkCol);
-                    }
-
-                    if (chunk != null && (chunk.Bands != Bands || chunk.Width != w || chunk.Height != h))
-                    {
-                        throw new Exception("unexpected chunk size");
-                    }
-                }
-
-                //if there was no backing to load the chunk (e.g. chunk file missing) then create a new blank one
-                if (chunk == null)
-                {   
-                    chunk = new Image(Bands, w, h);
-                }
-
-                if (HasMask)
-                {
-                    chunk.CreateMask(initialMaskValue);
-                    if (hasSavedMask)
-                    {
-                        chunk.SaveMask();
-                    }
-                }
-
-                //remember chunk so that we take the fast path next time
+                //fast path: see if it's already in memory
                 if (chunks != null)
                 {
-                    chunks[chunkRow, chunkCol] = chunk;
+                    chunk = chunks[chunkRow, chunkCol];
                 }
                 else
                 {
-                    chunkCache[new Vector2(chunkRow, chunkCol)] = chunk;
+                    chunk = chunkCache[new Vector2(chunkRow, chunkCol)];
+                }
+                
+                if (chunk == null)
+                {
+                    //slow path: load or allocate the chunk
+                    
+                    int w = Math.Min(Width - chunkCol * chunkSize, chunkSize);
+                    int h = Math.Min(Height - chunkRow * chunkSize, chunkSize);
+                    
+                    if (largeImage != null)
+                    {
+                        //if we are backed by a large monolithic image then crop out the chunk
+                        chunk = largeImage.Crop(chunkRow * chunkSize, chunkCol * chunkSize, w, h);
+                    }
+                    else if (!string.IsNullOrEmpty(basePath) && !string.IsNullOrEmpty(extension))
+                    {
+                        //otherwise if we have persistence backing then try to load the chunk
+                        string chunkFile = ChunkPath(chunkRow, chunkCol, basePath, extension);
+                        string largeImageFile = basePath + extension;
+                        if (IsPersisted(chunkFile))
+                        {
+                            chunk = LoadChunk(chunkFile);
+                        }
+                        else if (IsPersisted(largeImageFile))
+                        {
+                            chunk = PartialRead(largeImageFile, chunkRow, chunkCol);
+                        }
+                        
+                        if (chunk != null && (chunk.Bands != Bands || chunk.Width != w || chunk.Height != h))
+                        {
+                            throw new Exception("unexpected chunk size");
+                        }
+                    }
+                    
+                    //if there was no backing to load the chunk (e.g. chunk file missing) then create a new blank one
+                    if (chunk == null)
+                    {   
+                        chunk = new Image(Bands, w, h);
+                    }
+                    
+                    if (HasMask)
+                    {
+                        chunk.CreateMask(initialMaskValue);
+                        if (hasSavedMask)
+                        {
+                            chunk.SaveMask();
+                        }
+                    }
+                    
+                    //remember chunk so that we take the fast path next time
+                    if (chunks != null)
+                    {
+                        chunks[chunkRow, chunkCol] = chunk;
+                    }
+                    else
+                    {
+                        chunkCache[new Vector2(chunkRow, chunkCol)] = chunk;
+                    }
                 }
             }
 
