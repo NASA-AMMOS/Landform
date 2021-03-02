@@ -576,8 +576,8 @@ namespace OPS.Imaging
             }
             else
             {
-                ret.MinX = 0;
-                ret.MaxX = Height - 1;
+                ret.MinY = 0;
+                ret.MaxY = Height - 1;
             }
 
             if (ret.MinX >= Width || ret.MinY >= Height || ret.MaxX < 0 || ret.MaxY < 0)
