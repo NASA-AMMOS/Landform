@@ -530,8 +530,9 @@ namespace OPS.Landform
         protected void Configure(string venue)
         {
             var allowedFlags = new HashSet<string>() { "--quiet", "--debug" };
-            RunCommand("configure-local", allowedFlags, "--venue", venue, "--storagedir", storageDir,
-                       "--maxcores", lsopts.MaxCores.ToString(), "--randomseed", lsopts.RandomSeed.ToString());
+            string mco = lsopts.MaxCores.HasValue ? "--maxcores=" + lsopts.MaxCores.Value : null;
+            string rso = lsopts.RandomSeed.HasValue ? "--randomseed=" + lsopts.RandomSeed.Value : null;
+            RunCommand("configure-local", allowedFlags, "--venue", venue, "--storagedir", storageDir, mco, rso);
         }
 
         protected void SleepSec(double sec)
