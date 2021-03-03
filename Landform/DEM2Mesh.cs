@@ -22,6 +22,9 @@ using OPS.Pipeline;
 ///
 /// Landform.exe dem2mesh out_deltaradii_smg_1m.tif out_deltaradii_smg_1m_decimate4_full.obj
 ///     --inputimage out_clean_25cm.iGrid.ClipToDEM.tif --mission MSL --decimatedem 32 --decimateimage 32
+///
+/// Landform.exe dem2mesh M20_PrimeMission_HiRISE_DEM_1m.tif M20_PrimeMission_HiRISE_DEM_1m.obj
+///    --inputimage M20_PrimeMission_HiRISE_CLR_25cm.tif --mission M2020 --decimatedem 8 --decimateimage 8
 /// </summary>
 namespace OPS.Landform
 {
@@ -481,8 +484,8 @@ namespace OPS.Landform
                 }
             }
 
-            logger.LogInfo("{0}saving {1}x{2} texture {3}",
-                           options.NoSave ? "not " : "", texture.Width, texture.Height, outputImage);
+            logger.LogInfo("{0}saving {1}x{2} {3} band texture {4}",
+                           options.NoSave ? "not " : "", texture.Width, texture.Height, texture.Bands, outputImage);
             if (!options.NoSave)
             {
                 texture.Save<byte>(outputImage);

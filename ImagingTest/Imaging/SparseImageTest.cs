@@ -38,7 +38,7 @@ namespace ImagingTest
             Image img = new Image(1, 2, 3);
             img[0, 0, 0] = 43f / 255;
             SparseImage spImg = new SparseImage(img, 1);
-            spImg.Save<byte>("sparseImage", ".png");
+            spImg.SaveAllChunks<byte>("sparseImage", ".png");
             SparseImage spImg2 = new SparseImage(spImg.Bands, spImg.Width, spImg.Height, "sparseImage", ".png", 1);
             Assert.AreEqual(spImg2.Bands, 1);
             Assert.AreEqual(spImg2.Width, 2);
@@ -57,7 +57,7 @@ namespace ImagingTest
             img[0, 1, 0] = 7f / 255;
             img[0, 1, 1] = 123f / 255;
             SparseImage spImg = new SparseImage(img, 1);
-            spImg.Save<byte>("sparseImage", ".png");
+            spImg.SaveAllChunks<byte>("sparseImage", ".png");
             Image img2 = Image.Load("sparseImage_0_0.png");
             Assert.AreEqual(img2[0, 0, 0], 43f / 255);
             img2 = Image.Load("sparseImage_0_1.png");
@@ -77,7 +77,7 @@ namespace ImagingTest
             img[0, 1, 0] = 7f / 255;
             img[0, 1, 1] = 123f / 255;
             SparseImage spImg = new SparseImage(img, 1);
-            spImg.Save<byte>("sparseImage", ".png");
+            spImg.SaveAllChunks<byte>("sparseImage", ".png");
             SparseImage spImg2 = new SparseImage(spImg.Bands, spImg.Width, spImg.Height, "sparseImage", ".png", 1);
             Assert.AreEqual(spImg2[0, 0, 0], 43f / 255);
             Assert.AreEqual(spImg2[0, 0, 1], 241f / 255);

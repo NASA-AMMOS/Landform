@@ -74,7 +74,7 @@ namespace OPS.Pipeline.TilingServer
                 sparseImage = new SparsePipelineImage(pipeline, input.ImageUrl, CHUNK_RESOLUTION);
                 imageBaseUrl = pipeline.GetStorageUrl("chunk", projectName, Guid.NewGuid().ToString());
                 LogLess("saving chunks for input {0} to {1}", message.InputName, imageBaseUrl);
-                sparseImage.Save<byte>(imageBaseUrl, IMAGE_EXT);
+                sparseImage.SaveAllChunks<byte>(imageBaseUrl, IMAGE_EXT);
                 input.ImageBands = sparseImage.Bands;
                 input.ImageWidth = sparseImage.Width;
                 input.ImageHeight = sparseImage.Height;
