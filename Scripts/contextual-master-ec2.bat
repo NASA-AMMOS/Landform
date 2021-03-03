@@ -123,6 +123,11 @@ if not "%LANDFORM_CONTEXTUAL_MAX_SOL_RANGE%"=="" (
    set masteropts=%masteropts% --maxsolrange=%LANDFORM_CONTEXTUAL_MAX_SOL_RANGE%
 )
 
+set solblacklist=
+if not "%LANDFORM_CONTEXTUAL_SOL_BLACKLIST%"=="" (
+    set masteropts=%masteropts% --solblacklist=%LANDFORM_CONTEXTUAL_SOL_BLACKLIST%
+)
+
 set stdopts=--configdir=%cfgdir% --configfolder=%cfgfolder% --logdir=%logdir% --tempdir=%tmpdir%
 set cfgopts=%stdopts% --venue=%venue% --maxcores=0 --randomseed=-1 --storagedir=%storagedir%
 set svcopts=%stdopts% --stacktraces --master --mission=%mission% --queuename=%queue% --failqueuename=%failqueue%

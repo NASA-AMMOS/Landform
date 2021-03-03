@@ -80,6 +80,9 @@ if not "%LANDFORM_CONTEXTUAL_MAX_FETCH%"=="" set maxfetch=%LANDFORM_CONTEXTUAL_M
 set maxorbital=20G
 if not "%LANDFORM_CONTEXTUAL_MAX_ORBITAL%"=="" set maxorbital=%LANDFORM_CONTEXTUAL_MAX_ORBITAL%
 
+set solblacklist=
+if not "%LANDFORM_CONTEXTUAL_SOL_BLACKLIST%"=="" set solblacklist=--solblacklist=%LANDFORM_CONTEXTUAL_SOL_BLACKLIST%
+
 set nocombinedmanifest=
 if not "%LANDFORM_CONTEXTUAL_NO_COMBINED_MANIFEST%"=="" set nocombinedmanifest=--nocombinedmanifest
 
@@ -139,7 +142,7 @@ set svcopts=%stdopts% --stacktraces --service --mission=%mission% --queuename=%q
 set svcopts=%svcopts% --awsprofile=%awsprofile% --awsregion=%awsregion% %credentialrefresh%
 set svcopts=%svcopts% %msgopts%
 
-set contextualopts=--maxfetch=%maxfetch% --maxorbital=%maxorbital% %nocombinedmanifest% %noorbital%
+set contextualopts=--maxfetch=%maxfetch% --maxorbital=%maxorbital% %nocombinedmanifest% %noorbital% %solblacklist%
 set contextualopts=%contextualopts% %nosky% %skymode% %skyradius% %skyminbackprojectradius%
 set contextualopts=%contextualopts% %tilesetimageformat% %tilesetindexformat%
 set contextualopts=%contextualopts% %noindices% %embedindices% %allowunmasked% %extent% %surfaceextent%
