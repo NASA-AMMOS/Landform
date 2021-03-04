@@ -200,12 +200,19 @@ namespace OPS.Pipeline
                 .ToArray();
 
             var depMeshes = depMeshImagePairs.Select(p => p.Mesh).ToArray();
+            bool hasNormals = depMeshes.All(m => m.HasNormals);
             
-            info($"merging {depMeshes.Length} meshes to build parent");
-            var combinedMesh = MeshMerge.MergeWithCommonAttributes(depMeshes, clean: true, normalize: true);
+            info($"merging {depMeshes.Length} meshes to build parent with" + (hasNormals ? "" : "out") + " normals");
+
+            //we want the combined mesh to have normals but not UVs or colors
+            //because those attributes would not be compatible with FSSR
+            //(and we will need to re-atlas the parent mesh in all cases anyway)
+            //var combinedMesh = MeshMerge.MergeWithCommonAttributes(depMeshes, clean: true, normalize: true);
+            var combinedMesh = MeshMerge.Merge(hasNormals, false, false, depMeshes);
 
             if (!combinedMesh.HasNormals)
             {
+                info("generating normals for combined merged meshes to build parent");
                 combinedMesh.GenerateVertexNormals();
             }
 

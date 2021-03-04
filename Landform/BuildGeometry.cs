@@ -1394,7 +1394,13 @@ namespace OPS.Landform
             if (sceneMesh != null)
             {
                 sceneMesh.SetBounds(mesh.Bounds());
-                var meshProd = new PlyGZDataProduct(mesh);
+                Mesh tmp = mesh;
+                if (tmp.HasColors)
+                {
+                    tmp = new Mesh(mesh);
+                    tmp.HasColors = false;
+                }
+                var meshProd = new PlyGZDataProduct(tmp);
                 pipeline.SaveDataProduct(project, meshProd);
                 sceneMesh.MeshGuid = meshProd.Guid;
                 sceneMesh.SurfaceExtent = surfaceExtent;
