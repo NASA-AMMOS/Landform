@@ -266,7 +266,8 @@ namespace OPS.Landform
                 {
                     string path = Path.Combine(localOutputPath,
                                                tileName + TileList.INDEX_FILE_SUFFIX + TileList.INDEX_FILE_EXT);
-                    Tile3DBuilder.SaveTileIndex(mip.Index, path, msg => pipeline.LogWarn($"{msg} for tile {tileName}"));
+                    Tile3DBuilder.SaveTileIndex(mip.Index, path,
+                                                msg => pipeline.LogVerbose($"{msg} for tile {tileName}"));
                 }
                 SaveMesh(mip.Mesh, tileName, imgName);
             }

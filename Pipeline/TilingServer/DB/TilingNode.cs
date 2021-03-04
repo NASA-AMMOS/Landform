@@ -361,7 +361,7 @@ namespace OPS.Pipeline.TilingServer
                             TemporaryFile.GetAndDelete(indexExt, tmpIndex =>
                             {
                                 Tile3DBuilder.SaveTileIndex(pair.Index, tmpIndex,
-                                                            msg => pipeline.LogWarn($"{msg} for tile {Id}"));
+                                                            msg => pipeline.LogVerbose($"{msg} for tile {Id}"));
                                 upload(tmpIndex, IndexUrl);
                                 if(exIndexUrl != null && exIndexExt == indexExt)
                                 {
@@ -477,7 +477,7 @@ namespace OPS.Pipeline.TilingServer
                     if (pair.Index != null && tmpIndex != null)
                     {
                         Tile3DBuilder.SaveTileIndex(pair.Index, tmpIndex,
-                                                    msg => pipeline.LogWarn($"{msg} for tile {Id}"));
+                                                    msg => pipeline.LogVerbose($"{msg} for tile {Id}"));
                         if (exIndexUrl != null && exIndexExt == tileIndexExt && !uploadedExIndex)
                         {
                             upload(tmpIndex, exIndexUrl);
@@ -552,7 +552,8 @@ namespace OPS.Pipeline.TilingServer
             {
                 TemporaryFile.GetAndDelete(exIndexExt, tmpIndex =>
                 {
-                    Tile3DBuilder.SaveTileIndex(pair.Index, tmpIndex, msg => pipeline.LogWarn($"{msg} for tile {Id}"));
+                    Tile3DBuilder.SaveTileIndex(pair.Index, tmpIndex,
+                                                msg => pipeline.LogVerbose($"{msg} for tile {Id}"));
                     upload(tmpIndex, exImageUrl);
                     uploadedExIndex = true;
                 });
