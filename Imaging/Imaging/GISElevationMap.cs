@@ -110,6 +110,22 @@ namespace OPS.Imaging
     {
         public SparseGISElevationMap(string path, CameraModel cameraModel = null) : base(path, cameraModel) { }
         
+        protected SparseGISElevationMap(int bands, int width, int height) : base(bands, width, height)
+        { }
+
+        public SparseGISElevationMap(SparseGISElevationMap that) : base(that)
+        { }
+
+        public override Image Instantiate(int bands, int width, int height)
+        {
+            return new SparseGISElevationMap(bands, width, height);
+        }
+
+        public override object Clone()
+        {
+            return new SparseGISElevationMap(this);
+        }
+
         protected override IImageConverter GetReadConverter()
         {
             return ImageConverters.PassThrough;

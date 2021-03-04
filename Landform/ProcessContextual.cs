@@ -266,6 +266,9 @@ namespace OPS.Landform
 
         [Option(HelpText = "Allow rover observations for which no suitable rover mask is available or could be generated", Default = false)]
         public virtual bool AllowUnmaskedRoverObservations { get; set; }
+
+        [Option(Default = null, HelpText = "Sol blacklist, 1-5,8,6-10")]
+        public string SolBlacklist { get; set; }
     }
 
     public class ProcessContextual : LandformService
@@ -293,6 +296,8 @@ namespace OPS.Landform
 
         private int debounceMS;
         private int solRange, maxWedges, maxSDs;
+
+        private int[] solBlacklist;
 
         private MessageQueue workerQueue;
 
@@ -624,6 +629,12 @@ namespace OPS.Landform
             pipeline.LogInfo("max sol range {0}, max wedges {1}, max sitedrives {2}", solRange, maxWedges, maxSDs);
             pipeline.LogInfo("min wedges for primary sitedrive {0}", options.MinPrimarySiteDriveWedges);
 
+            solBlacklist = IngestAlignmentInputs.ExpandSolSpecifier(options.SolBlacklist);
+            if (solBlacklist.Length > 0)
+            {
+                pipeline.LogInfo("{0} blacklisted sols: {1}", solBlacklist.Length, MakeSolRanges(solBlacklist));
+            }
+
             return true;
         }
 
@@ -705,6 +716,13 @@ namespace OPS.Landform
             return String.Join(",", ranges.Select(range => range[0] + (range[0] != range[1] ? ("-" + range[1]) : "")));
         }
 
+        private string MakeSolRanges(int[] sols, int primarySol = -1)
+        {
+            var tmp = new HashSet<int>();
+            tmp.UnionWith(sols);
+            return MakeSolRanges(tmp, primarySol);
+        }
+
         private ContextualMeshParameters MakeParameters(ContextualMeshMessage msg)
         {
             if (msg.primarySol < 0 || string.IsNullOrEmpty(msg.primarySiteDrive))
@@ -784,6 +802,19 @@ namespace OPS.Landform
             }
             rdrDir = StringHelper.NormalizeUrl(rdrDir, preserveTrailingSlash: false);
 
+            HashSet<int> blacklisted = null;
+            if (solBlacklist.Length > 0)
+            {
+                blacklisted = new HashSet<int>();
+                blacklisted.UnionWith(sols);
+                blacklisted.IntersectWith(solBlacklist);
+                blacklisted.Remove(primarySol);
+                if (blacklisted.Count > 0)
+                {
+                    sols.ExceptWith(blacklisted);
+                }
+            }
+
             string missionStr = mission != null ? mission.GetMission().ToString() : "None";
             string fullMissionStr = mission != null ? mission.GetMissionWithVenue() : "None";
             string sdStr = primarySiteDrive.ToString();
@@ -826,6 +857,12 @@ namespace OPS.Landform
 
             pipeline.LogInfo("building contextual tileset {0} from {1} sitedrives in {2} sols",
                              project, siteDrives.Count, sols.Count);
+
+            if (blacklisted != null)
+            {
+                pipeline.LogInfo("excluded {0} blacklisted sols: {1}", blacklisted.Count, MakeSolRanges(blacklisted));
+            }
+
             try
             {
                 Cleanup(venueDir);
@@ -939,6 +976,12 @@ namespace OPS.Landform
             {
                 return "thumbnail product";
             }
+            //MSL OPGS single frame product IDs don't actually have sol number in them
+            //though they do have SCLK, but we don't currently derive a sol from that
+            if (id.HasSol() && solBlacklist.Contains(id.GetSol()))
+            {
+                return "blacklisted sol";
+            }
             //disabling this check - some missions might actually put e.g. RAS products in the list files.
             //Consider that MSL unified meshes have RAS IDs in them, I think.
             //if (!RoverProduct.IsGeometry(id.ProductType))
@@ -979,6 +1022,12 @@ namespace OPS.Landform
             if ((id as OPGSProductId).Size == RoverProductSize.Thumbnail)
             {
                 return "thumbnail product";
+            }
+            //MSL OPGS single frame product IDs don't actually have sol number in them
+            //though they do have SCLK, but we don't currently derive a sol from that
+            if (id.HasSol() && solBlacklist.Contains(id.GetSol()))
+            {
+                return "blacklisted sol";
             }
             if (mission != null)
             {

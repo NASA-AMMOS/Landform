@@ -200,7 +200,7 @@ namespace OPS.Imaging
         }
 
         /// <summary>
-        /// Saves image to disk using gdal and convert from normalzied values to value range
+        /// Saves image to disk and convert from normalzied values to value range
         /// </summary>
         /// <param name="filename"></param>
         public Image Save<T>(string filename)
@@ -364,8 +364,8 @@ namespace OPS.Imaging
         /// respects image mask, if any
         /// resulting image will have mask set for any source block that had no valid pixels
         /// does not mutate source image
-        /// This method does not retain metadata or camera model.
-        /// If the image has a CalibratedCameraModel then you could use CalibratedCameraModel.Decimated().
+        /// This method does not retain metadata.
+        /// It only retains camera model for ConformalCameraModel which implements Decimated().
         /// </summary>
         public Image Decimated(int blocksize, bool average = true, Action<string> progress = null)
         {
@@ -378,7 +378,10 @@ namespace OPS.Imaging
             int targetHeight = Height / blocksize; //integer math
 
             Image result = Instantiate(Bands, targetWidth, targetHeight);
-            result.CreateMask();
+            if (HasMask)
+            {
+                result.CreateMask();
+            }
 
             long total = (long)Bands * targetHeight * targetWidth;
             long current = 0;
@@ -403,7 +406,7 @@ namespace OPS.Imaging
                                 {
                                     if (srcCol >= 0 && srcCol < Width)
                                     {
-                                        if (IsValid(srcRow, srcCol))
+                                        if (!HasMask || IsValid(srcRow, srcCol))
                                         {
                                             sum += this[band, srcRow, srcCol];
                                             n++;
@@ -424,7 +427,7 @@ namespace OPS.Imaging
                         {
                             result[band, dstRow, dstCol] = sum / n;
                         }
-                        else
+                        else if (HasMask)
                         {
                             result.SetMaskValue(dstRow, dstCol, true);
                         }
@@ -443,6 +446,12 @@ namespace OPS.Imaging
                     Interlocked.Decrement(ref np);
                 });
             }
+
+            if (CameraModel is ConformalCameraModel)
+            {
+                result.CameraModel = ((ConformalCameraModel)CameraModel).Decimated(blocksize);
+            }
+
             return result;
         }
 

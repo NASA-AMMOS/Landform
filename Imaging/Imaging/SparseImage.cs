@@ -392,6 +392,62 @@ namespace OPS.Imaging
             }
         }
 
+        /// <summary>
+        /// persist all chunks
+        /// </summary>
+        /// <param name="basePath">base path to save chunks (overrides value provided to constructor)</param>
+        /// <param name="extension">extension for saved chunks (overrides value provided to constructor)</param>
+        public void SaveAllChunks<T>(string basePath = null, string extension = null)
+        {
+            basePath = basePath ?? this.basePath;
+            extension = extension ?? this.extension;
+            if (string.IsNullOrEmpty(basePath) || string.IsNullOrEmpty(extension))
+            {
+                throw new ArgumentException("must specify base path and extension to save sparse image");
+            }
+            int vChunks = (int)Math.Ceiling(((float)Height) / chunkSize);
+            int hChunks = (int)Math.Ceiling(((float)Width) / chunkSize);
+            int n = 0;
+            for (int r = 0; r < vChunks; r++) 
+            {
+                for (int c = 0; c < hChunks; c++)
+                {
+                    SaveChunk<T>(GetChunk(r, c), ChunkPath(r, c, basePath, extension));
+                    Progress("saved chunk ({0},{1}), {2}/{3} complete", r, c, ++n, vChunks * hChunks);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Populate all chunks.
+        ///
+        /// If this sparse image is backed by a large in-memory image then the chunks are cropped out of it.
+        /// NOTE: if this is combined with LRU caching of the chunks without disk backing for the LRU cache then if
+        /// the cache is not large enough some chunks will be ejected from the cache immediately.
+        ///
+        /// If this sparse image is backed by a large persisted image and/or individual chunk images, they are
+        /// unpersisted.
+        /// </summary>
+        /// <param name="releaseBacking">whether to release the reference to the backing image, if any</param>
+        public void Populate(bool releaseBacking = true)
+        {
+            int vChunks = (int)Math.Ceiling(((float)Height) / chunkSize);
+            int hChunks = (int)Math.Ceiling(((float)Width) / chunkSize);
+            int n = 0;
+            for (int r = 0; r < vChunks; r++)
+            {
+                for (int c = 0; c < hChunks; c++)
+                {
+                    GetChunk(r, c);
+                    Progress("populated chunk ({0},{1}), {2}/{3} complete", r, c, ++n, vChunks * hChunks);
+                }
+            }
+            if (releaseBacking)
+            {
+                largeImage = null;
+            }
+        }
+
         protected virtual IImageConverter GetReadConverter()
         {
             return null;
@@ -453,62 +509,6 @@ namespace OPS.Imaging
             int w = Math.Min(x + chunkSize, Width) - x;
             int h = Math.Min(y + chunkSize, Height) - y;
             return ((GDALSerializer)s).PartialRead(PartialReadFile(path), x, y, w, h, GetReadConverter());
-        }
-
-        /// <summary>
-        /// persist all chunks
-        /// </summary>
-        /// <param name="basePath">base path to save chunks (overrides value provided to constructor)</param>
-        /// <param name="extension">extension for saved chunks (overrides value provided to constructor)</param>
-        public void Save<T>(string basePath = null, string extension = null)
-        {
-            basePath = basePath ?? this.basePath;
-            extension = extension ?? this.extension;
-            if (string.IsNullOrEmpty(basePath) || string.IsNullOrEmpty(extension))
-            {
-                throw new ArgumentException("must specify base path and extension to save sparse image");
-            }
-            int vChunks = (int)Math.Ceiling(((float)Height) / chunkSize);
-            int hChunks = (int)Math.Ceiling(((float)Width) / chunkSize);
-            int n = 0;
-            for (int r = 0; r < vChunks; r++) 
-            {
-                for (int c = 0; c < hChunks; c++)
-                {
-                    SaveChunk<T>(GetChunk(r, c), ChunkPath(r, c, basePath, extension));
-                    Progress("saved chunk ({0},{1}), {2}/{3} complete", r, c, ++n, vChunks * hChunks);
-                }
-            }
-        }
-
-        /// <summary>
-        /// Populate all chunks.
-        ///
-        /// If this sparse image is backed by a large in-memory image then the chunks are cropped out of it.
-        /// NOTE: if this is combined with LRU caching of the chunks without disk backing for the LRU cache then if
-        /// the cache is not large enough some chunks will be ejected from the cache immediately.
-        ///
-        /// If this sparse image is backed by a large persisted image and/or individual chunk images, they are
-        /// unpersisted.
-        /// </summary>
-        /// <param name="releaseBacking">whether to release the reference to the backing image, if any</param>
-        public void Populate(bool releaseBacking = true)
-        {
-            int vChunks = (int)Math.Ceiling(((float)Height) / chunkSize);
-            int hChunks = (int)Math.Ceiling(((float)Width) / chunkSize);
-            int n = 0;
-            for (int r = 0; r < vChunks; r++)
-            {
-                for (int c = 0; c < hChunks; c++)
-                {
-                    GetChunk(r, c);
-                    Progress("populated chunk ({0},{1}), {2}/{3} complete", r, c, ++n, vChunks * hChunks);
-                }
-            }
-            if (releaseBacking)
-            {
-                largeImage = null;
-            }
         }
 
         /// <summary>
@@ -752,16 +752,13 @@ namespace OPS.Imaging
 
         public override void ApplyInPlace(int band, Func<float, float> f, bool applyToMaskedValues = false)
         {
-            for (int b = 0; b < Bands; b++)
+            for (int r = 0; r < Height; r++)
             {
-                for (int r = 0; r < Height; r++)
+                for (int c = 0; c < Width; c++)
                 {
-                    for (int c = 0; c < Width; c++)
+                    if (applyToMaskedValues || IsValid(r, c))
                     {
-                        if (applyToMaskedValues || IsValid(r, c))
-                        {
-                            this[b, r, c] = f(this[b, r, c]);
-                        }
+                        this[band, r, c] = f(this[band, r, c]);
                     }
                 }
             }
@@ -863,11 +860,28 @@ namespace OPS.Imaging
     {
         public const int CHUNK_SIZE = 512;
         public const int CHUNK_CACHE_SIZE = 400; //important: cache size > 0 limits memory usage
+
         public SparseGISImage(string path, CameraModel cameraModel = null)
             : base(path, chunkSize: CHUNK_SIZE, cacheSize: CHUNK_CACHE_SIZE)
         {
             this.CameraModel = cameraModel;
         }
-    }
 
+        public SparseGISImage(int bands, int width, int height)
+            : base(bands, width, height, CHUNK_SIZE, CHUNK_CACHE_SIZE)
+        { }
+
+        public SparseGISImage(SparseGISImage that) : base(that)
+        { }
+
+        public override Image Instantiate(int bands, int width, int height)
+        {
+            return new SparseGISImage(bands, width, height);
+        }
+
+        public override object Clone()
+        {
+            return new SparseGISImage(this);
+        }
+    }
 }
