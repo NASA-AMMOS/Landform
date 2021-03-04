@@ -240,7 +240,8 @@ namespace OPS.Geometry
                     }
                 }
             }
-            return Mesh.Clip(result, bounds);
+            result.Clip(bounds);
+            return result;
         }
         
         /// <summary>

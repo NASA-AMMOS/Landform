@@ -556,7 +556,7 @@ namespace GeometryTest
             b.Vertices.Add(new Vertex(0.5, 1, 2, 0, 0, 1, 0.25, 1, 0, 2, 1, 1));
             b.Faces.Add(new Face(0, 1, 2));
 
-            Mesh t = Mesh.Merge(a, b);
+            Mesh t = MeshMerge.Merge(a, b);
             Assert.AreEqual(6, t.Vertices.Count);
             Assert.AreEqual(2, t.Faces.Count);
             Assert.AreEqual(a.Vertices[0], t.Vertices[0]);
@@ -576,7 +576,7 @@ namespace GeometryTest
             try
             {
                 a.HasNormals = false;
-                Mesh.Merge(a, b);
+                MeshMerge.Merge(a, b);
                 Assert.Fail();
             }
             catch
@@ -587,7 +587,7 @@ namespace GeometryTest
             try
             {
                 a.HasColors = false;
-                Mesh.Merge(a, b);
+                MeshMerge.Merge(a, b);
                 Assert.Fail();
             }
             catch
@@ -598,7 +598,7 @@ namespace GeometryTest
             try
             {
                 a.HasUVs = false;
-                Mesh.Merge(a, b);
+                MeshMerge.Merge(a, b);
                 Assert.Fail();
             }
             catch
@@ -611,7 +611,7 @@ namespace GeometryTest
             Assert.AreEqual(6, a.Vertices.Count);
             Assert.AreEqual(2, a.Faces.Count);
 
-            Mesh c = Mesh.Merge(false, true, false, new Mesh[] {a, b});
+            Mesh c = MeshMerge.Merge(false, true, false, new Mesh[] {a, b});
             Assert.AreEqual(false, c.HasNormals);
             Assert.AreEqual(true, c.HasUVs);
             Assert.AreEqual(false, c.HasColors);
@@ -632,8 +632,8 @@ namespace GeometryTest
             }
             Mesh m = new Mesh(tris);
             BoundingBox bb = new BoundingBox(new Vector3(-2, -3, -4), new Vector3(-1, -1, -2));
-            Mesh clipped = Mesh.Clip(m, bb);
-            BoundingBox clippedBB = clipped.Bounds();
+            m.Clip(bb);
+            BoundingBox clippedBB = m.Bounds();
             Assert.IsTrue(Vector3.AlmostEqual(clippedBB.Min, bb.Min));
             Assert.IsTrue(Vector3.AlmostEqual(clippedBB.Max, bb.Max));
         }
@@ -663,10 +663,10 @@ namespace GeometryTest
                     (r.NextDouble() - 0.5) * 5));
             }
             BoundingBox bb = new BoundingBox(new Vector3(-2, -3, -4), new Vector3(-1, -1, -2));
-            Mesh clipped = Mesh.Clip(m, bb);
-            BoundingBox clippedBB = clipped.Bounds();
+            m.Clip(bb);
+            BoundingBox clippedBB = m.Bounds();
             Assert.IsTrue(bb.FuzzyContains(clippedBB));
-            Assert.IsTrue(clipped.Vertices.Count > 0);
+            Assert.IsTrue(m.Vertices.Count > 0);
         }
 
 
@@ -685,11 +685,11 @@ namespace GeometryTest
             Mesh m = new Mesh(tris);
             BoundingBox originalBB = m.Bounds();
             BoundingBox bb = new BoundingBox(new Vector3(-20, -3, -4), new Vector3(20, -1, -2));
-            Mesh cut = Mesh.Cut(m, bb);
-            BoundingBox cutBB = cut.Bounds();
+            m.Cut(bb);
+            BoundingBox cutBB = m.Bounds();
             Assert.IsTrue(Vector3.AlmostEqual(cutBB.Min, originalBB.Min));
             Assert.IsTrue(Vector3.AlmostEqual(cutBB.Max, originalBB.Max));
-            foreach (var t in cut.Triangles())
+            foreach (var t in m.Triangles())
             {
                 Assert.AreEqual(0, new List<Triangle>(t.Clip(bb)).Count);
             }
@@ -707,11 +707,11 @@ namespace GeometryTest
             }
             BoundingBox originalBB = m.Bounds();
             BoundingBox bb = new BoundingBox(new Vector3(-20, -1, -2), new Vector3(20, -0.5, -1));
-            Mesh cut = Mesh.Cut(m, bb);
-            BoundingBox cutBB = cut.Bounds();
+            m.Cut(bb);
+            BoundingBox cutBB = m.Bounds();
             Assert.IsTrue(originalBB.FuzzyContains(cutBB));
-            Assert.IsTrue(cut.Vertices.Count > 0);
-            foreach (var v in cut.Vertices)
+            Assert.IsTrue(m.Vertices.Count > 0);
+            foreach (var v in m.Vertices)
             {
                 Assert.IsFalse(bb.Contains(v.Position) == ContainmentType.Contains);
             }

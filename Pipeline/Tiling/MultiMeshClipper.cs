@@ -79,8 +79,8 @@ namespace OPS.Pipeline
         /// <returns></returns>
         public Mesh Clip(BoundingBox box, bool ragged = false)
         {
-            var meshes = inputs.Where(mip => !mip.MeshOp.Empty(box)).Select(mip => mip.MeshOp.Clip(box, ragged));
-            var merged = Mesh.Merge(meshes.ToArray());
+            var meshes = inputs.Where(mip => !mip.MeshOp.Empty(box)).Select(mip => mip.MeshOp.Clipped(box, ragged));
+            var merged = MeshMerge.Merge(meshes.ToArray());
             merged.Clean();
             return merged;
         }
@@ -124,10 +124,9 @@ namespace OPS.Pipeline
 
             if (!mesh.HasUVs)
             {
-                mesh = UVAtlas.Atlas(mesh, textureSize, textureSize);
-                if(mesh == null)
+                if (!UVAtlas.Atlas(mesh, textureSize, textureSize))
                 {
-                    info("failed to atlas mesh for texture bake");
+                    info("failed to atlas mesh with UVAtlas");
                     return null;
                 }
             }

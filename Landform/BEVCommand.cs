@@ -246,7 +246,7 @@ namespace OPS.Landform
         {
             if (dbgMeshTransform.HasValue)
             {
-                mesh = Mesh.Transformed(mesh, dbgMeshTransform.Value);
+                mesh = mesh.Transformed(dbgMeshTransform.Value);
             }
             base.SaveMesh(mesh, name, texture);
         }
@@ -595,13 +595,13 @@ namespace OPS.Landform
                     
                     if (renderBEV && bcopts.BEVColoring == BirdsEyeView.ColorMode.Texture)
                     {
-                        var pair = Mesh.MergeMeshesAndTextures(pairs);
+                        var pair = MeshMerge.MergeMeshesAndTextures(pairs);
                         mesh = pair.Item1;
                         img = pair.Item2;
                     }
                     else
                     {
-                        mesh = Mesh.MergeWithCommonAttributes(pairs.Select(pr => pr.Item1).ToArray());
+                        mesh = MeshMerge.MergeWithCommonAttributes(pairs.Select(pr => pr.Item1).ToArray());
                     }
 
                     if (renderBEV)

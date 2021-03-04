@@ -1038,7 +1038,7 @@ namespace OPS.Landform
             //clip the big mesh to get a tile's mesh
             try
             {
-                tileMesh = meshOp.Clip(tile.GetComponent<NodeBounds>().Bounds);
+                tileMesh = meshOp.Clipped(tile.GetComponent<NodeBounds>().Bounds);
             }
             catch (Exception ex)
             {

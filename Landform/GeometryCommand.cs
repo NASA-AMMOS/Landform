@@ -266,11 +266,10 @@ namespace OPS.Landform
 
             try
             {
-                mesh = UVAtlas.Atlas(mesh, resolution, resolution,
-                                     gcopts.MaxTextureCharts, (float)gcopts.MaxTextureStretch);
-                if (mesh == null)
+                if (!UVAtlas.Atlas(mesh, resolution, resolution,
+                                   gcopts.MaxTextureCharts, (float)gcopts.MaxTextureStretch))
                 {
-                    throw new Exception("unknown");
+                    throw new Exception("failed to atlas mesh with UVAtlas");
                 }
                 return mesh;
             }

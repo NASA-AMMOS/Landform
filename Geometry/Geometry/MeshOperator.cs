@@ -114,7 +114,7 @@ namespace OPS.Geometry
         /// </summary>
         /// <param name="box"></param>
         /// <returns></returns>
-        public Mesh Clip(BoundingBox box, bool ragged = false)
+        public Mesh Clipped(BoundingBox box, bool ragged = false)
         {
             Mesh result = null;
             if (HasFaces)

@@ -22,13 +22,13 @@ namespace OPS.Geometry
         private const int NAIVE_PACKING_BIN_DEPTH = 1;
         private const int NAIVE_PACKING_BIN_WIEGHT = 0;
 
-        public static Mesh Atlas(Mesh mesh)
+        public static void Atlas(Mesh mesh)
         {
             if (!ComputeAtlas(mesh, out float[] u, out float[] v, out int[] indices, out int[] vertexRemap))
             {
                 throw new Exception("naive atlas failed");
             }
-            return Mesh.ApplyAtlas(mesh, u, v, indices, vertexRemap);
+            mesh.ApplyAtlas(u, v, indices, vertexRemap);
         }
 
         /// <summary>

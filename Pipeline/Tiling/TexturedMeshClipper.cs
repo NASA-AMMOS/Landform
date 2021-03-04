@@ -60,7 +60,7 @@ namespace OPS.Pipeline
             var patches = new List<TexturePatch>();
             foreach (var mip in inputs)
             {
-                patches.AddRange(ComputePatches(mip.MeshOp.Clip(box), mip.Image, mip.Index));
+                patches.AddRange(ComputePatches(mip.MeshOp.Clipped(box), mip.Image, mip.Index));
             }
             return ClipAndRemapPatches(patches, maxTextureSize);
         }
@@ -406,7 +406,7 @@ namespace OPS.Pipeline
                             Vector2 origPixel = origImg.UVToPixel(origUV);
                             Vector2 destPixel = origPixel - minPixel;
                             v.UV = img.PixelToUV(destPixel);
-                            if (!Mesh.CheckUV(v.UV))
+                            if (!MeshClean.CheckUV(v.UV))
                             {
                                 throw new Exception($"{logPrefix} bad UV: UV {origUV} => {v.UV}, " +
                                                     $"pixel {origPixel} => {destPixel}");
@@ -499,7 +499,7 @@ namespace OPS.Pipeline
                             }
                             var destPixel = patchULCPixelInDest + patchPixel;
                             v.UV = img.PixelToUV(destPixel);
-                            if (!Mesh.CheckUV(v.UV))
+                            if (!MeshClean.CheckUV(v.UV))
                             {
                                 throw new Exception($"{logPrefix} bad UV in patch {i}: UV {origUV} => {v.UV}, " +
                                                     $"pixel {origPixel} => {patchPixel} => {destPixel}");

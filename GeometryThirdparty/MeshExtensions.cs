@@ -53,7 +53,7 @@ namespace OPS.Geometry
                     }
                     if (clippingBounds.HasValue)
                     {
-                        m = Mesh.Clip(m, clippingBounds.Value);
+                        m.Clip(clippingBounds.Value);
                     }
                     return m;
                 }
@@ -70,7 +70,7 @@ namespace OPS.Geometry
                     m = MeshLab.Decimate(m, targetFaces);
                     if (clippingBounds.HasValue)
                     {
-                        m = Mesh.Clip(m, clippingBounds.Value);
+                        m.Clip(clippingBounds.Value);
                     }
                     return m;
                 }
@@ -79,7 +79,7 @@ namespace OPS.Geometry
                     m = MeshLab.ResampleDecimation(m, (int)(DEF_SAMPLES_PER_FACE * targetFaces), targetFaces);
                     if (clippingBounds.HasValue)
                     {
-                        m = Mesh.Clip(m, clippingBounds.Value);
+                        m.Clip(clippingBounds.Value);
                     }
                     return m;
                 }
@@ -144,7 +144,7 @@ namespace OPS.Geometry
             m.GenerateVertexNormals();
             if (clippingBounds.HasValue)
             {
-                m = Mesh.Clip(m, clippingBounds.Value);
+                m.Clip(clippingBounds.Value);
             }
             return m;
         }

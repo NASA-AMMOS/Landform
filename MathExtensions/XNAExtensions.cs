@@ -10,6 +10,15 @@ namespace OPS.MathExtensions
     public static class XNAExtensions
     {
         /// <summary>
+        /// https://computergraphics.stackexchange.com/a/1719
+        /// </summary>
+        public static double Curvature(Vector3 p1, Vector3 p2, Vector3 n1, Vector3 n2)
+        {
+            var d = p2 - p1;
+            return (n2 - n1).Dot(d) / d.LengthSquared();
+        }
+
+        /// <summary>
         /// convert XNA Matrix to row major 16 element array
         /// </summary>
         public static double[] ToDoubleArray(this Matrix mat)

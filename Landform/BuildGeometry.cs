@@ -538,7 +538,7 @@ namespace OPS.Landform
                         var bounds = pc.Bounds();
                         bounds = BoundsFromXYExtent(Vector3.Zero, options.PreClipPointCloudExtent,
                                                     bounds.Min.Z, bounds.Max.Z);
-                        pc = Mesh.Clip(pc, bounds);
+                        pc.Clip(bounds);
                         string msg = string.Format("pre-clipped point clound for observation {0} to {1}x{1} box " +
                                                    "in frame {2}, removed {3}/{4} points", ptsName,
                                                    options.PreClipPointCloudExtent, options.PreClipPointCloudExtent,
@@ -1146,7 +1146,7 @@ namespace OPS.Landform
             if (clipToPointCloudBounds)
             {
                 pipeline.LogInfo("clipping mesh to source point cloud bounds");
-                mesh = Mesh.Clip(mesh, pointCloudBounds);
+                mesh.Clip(pointCloudBounds);
                 minZ = pointCloudBounds.Min.Z;
                 maxZ = pointCloudBounds.Max.Z;
             }
@@ -1161,7 +1161,7 @@ namespace OPS.Landform
             {
                 pipeline.LogInfo("clipping mesh to {0:f3} meter box around {1} frame origin in XY plane",
                                  extent, meshFrame);
-                mesh = Mesh.Clip(mesh, BoundsFromXYExtent(Vector3.Zero, extent, minZ, maxZ));
+                mesh.Clip(BoundsFromXYExtent(Vector3.Zero, extent, minZ, maxZ));
             }
 
             if (mesh.Faces.Count == 0)
@@ -1288,7 +1288,7 @@ namespace OPS.Landform
 
                 centralBounds = BoundsFromXYExtent(Vector3.Zero, blendExtent, meshBounds.Min.Z, meshBounds.Max.Z);
 
-                var centralMesh = Mesh.Clip(mesh, centralBounds);
+                var centralMesh = mesh.Clipped(centralBounds);
 
                 if (options.WriteDebug)
                 {
@@ -1320,7 +1320,7 @@ namespace OPS.Landform
                     SaveMesh(centralMesh, dbgMeshPrefix + "-centralAtlassedRescaled");
                 }
 
-                var peripheralMesh = Mesh.Cut(mesh, centralBounds);
+                var peripheralMesh = mesh.Cutted(centralBounds);
                 pipeline.LogInfo("heightmap atlassing {0}m orbital periphery ({1} tris)",
                                  0.5 * (options.Extent - blendExtent), Fmt.KMG(peripheralMesh.Faces.Count));
                 HeightmapAtlasMesh(peripheralMesh);
@@ -1330,7 +1330,7 @@ namespace OPS.Landform
                     SaveMesh(peripheralMesh, dbgMeshPrefix + "-peripheralAtlassed");
                 }
 
-                mesh = Mesh.Merge(msg => pipeline.LogWarn(msg), centralMesh, peripheralMesh);
+                mesh = MeshMerge.Merge(msg => pipeline.LogWarn(msg), centralMesh, peripheralMesh);
             }
 
             void saveDbgMeshes(string name)

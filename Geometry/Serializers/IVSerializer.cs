@@ -863,7 +863,7 @@ namespace OPS.Geometry
                 var patchMeshes = lodMeshes[i];
                 if (patchMeshes.Count > 1)
                 {
-                    meshes.Add(Mesh.Merge(patchMeshes.ToArray()));
+                    meshes.Add(MeshMerge.Merge(patchMeshes.ToArray()));
                 }
                 else if (patchMeshes.Count == 1)
                 {

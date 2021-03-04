@@ -72,7 +72,7 @@ namespace OPS.Pipeline
             }
 
             // may have too few faces to ever service texture resolution (output atlas too low res)
-            Mesh clippedMesh = meshOperator.Clip(areaOfInterest);
+            Mesh clippedMesh = meshOperator.Clipped(areaOfInterest);
             if (clippedMesh.Faces.Count < 2)
             {
                 return false;
@@ -134,8 +134,7 @@ namespace OPS.Pipeline
             {
                 try
                 {
-                    clippedMesh = UVAtlas.Atlas(clippedMesh, options.tileResolution, options.tileResolution);
-                    if (clippedMesh == null)
+                    if (!UVAtlas.Atlas(clippedMesh, options.tileResolution, options.tileResolution))
                     {
                         return false;
                     }

@@ -115,7 +115,7 @@ namespace OPS.Pipeline.TilingServer
             foreach (var group in inputGroups)
             {
                 var meshes = group.Chunks.Select(c => Mesh.Load(pipeline.GetFileCached(c.MeshUrl, "meshes"))).ToArray();
-                var mergedMesh = Mesh.Merge(meshes);
+                var mergedMesh = MeshMerge.Merge(meshes);
                 mergedMesh.Clean();
                 SparsePipelineImage image = null;
                 string chunkBaseUrl = group.Chunks[0].ImageUrl;

@@ -534,7 +534,8 @@ namespace OPS.Landform
         protected override void InitBackprojectStrategy()
         {
             //build backproject strategy globally vs per tile to avoid artifacts at adjacent tile boundaries
-            var skyMesh = Mesh.Merge(tileTree.Leaves().Select(l => l.GetComponent<MeshImagePair>().Mesh).ToArray());
+            var skyMesh =
+                MeshMerge.Merge(tileTree.Leaves().Select(l => l.GetComponent<MeshImagePair>().Mesh).ToArray());
             if (backprojectRadius != sphereRadius)
             {
                 foreach (var v in skyMesh.Vertices)

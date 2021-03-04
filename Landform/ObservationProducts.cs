@@ -768,15 +768,16 @@ namespace OPS.Landform
                 {
                     if (withTextures)
                     {
-                        var pair = Mesh.MergeMeshesAndTextures(inputs
-                                                               .Select(t => new Tuple<Mesh, Image>(t.Item2, t.Item3))
-                                                               .ToArray());
+                        var pair =
+                            MeshMerge.MergeMeshesAndTextures(inputs
+                                                             .Select(t => new Tuple<Mesh, Image>(t.Item2, t.Item3))
+                                                             .ToArray());
                         mesh = pair.Item1;
                         img = pair.Item2;
                     }
                     else
                     {
-                        mesh = Mesh.Merge(inputs.Select(pr => pr.Item2).ToArray());
+                        mesh = MeshMerge.Merge(inputs.Select(pr => pr.Item2).ToArray());
                     }
                 }
                 catch (Exception ex)

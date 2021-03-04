@@ -1286,7 +1286,7 @@ namespace OPS.Landform
                             string meshFile = bn + sfx;
                             var rootToSD = Matrix.Invert(PriorTransform(sds[i]));
                             var sdToRoot = xforms[i];
-                            SaveMesh(Mesh.Transformed(mesh, meshToRoot * rootToSD * sdToRoot), meshFile, imgFile);
+                            SaveMesh(mesh.Transformed(meshToRoot * rootToSD * sdToRoot), meshFile, imgFile);
                         }
                     });
                 }

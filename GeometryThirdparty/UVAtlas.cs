@@ -11,14 +11,13 @@ namespace OPS.Geometry
     public static class UVAtlas
     {
         /// <summary>
-        /// Returns a new mesh with UV's.
         /// Resulting UV coordinates will be normalized 0 - 1 and centered on pixels
         /// for an image with resolution `width` x `height`.
         /// UV Atlas will have at most `maxCharts` disconnected components (0 inidicates no limit)
         /// `maxStretch` should be 0-1, 0 being no stretch, 1 being no limit
         /// `gutter` indicates minimum distance between components in pixels
         /// </summary>
-        public static Mesh Atlas(Mesh mesh, int width = 512, int height = 512, int maxCharts = 0,
+        public static bool Atlas(Mesh mesh, int width = 512, int height = 512, int maxCharts = 0,
                                  float maxStretch = 0.1666f, float gutter = 2, bool forceHighestQuality = false,
                                  float adjacencyEpsilon = 0, ILogger logger = null, bool fallbackToNaive = true)
         {
@@ -69,7 +68,7 @@ namespace OPS.Geometry
                         {
                             logger.LogWarn("naive atlasing failed");
                         }
-                        return null;
+                        return false;
                     }
                 }
                 else
@@ -78,11 +77,12 @@ namespace OPS.Geometry
                     {
                         logger.LogWarn("UVAtlas failed, fallback to naive atlasing disabled");
                     }
-                    return null;
+                    return false;
                 }
             }
 
-            return Mesh.ApplyAtlas(mesh, outU, outV, indices, outVertexRemap);
+            mesh.ApplyAtlas(outU, outV, indices, outVertexRemap);
+            return true;
         }
     }
 }

@@ -202,7 +202,7 @@ namespace OPS.Pipeline
             var depMeshes = depMeshImagePairs.Select(p => p.Mesh).ToArray();
             
             info($"merging {depMeshes.Length} meshes to build parent");
-            var combinedMesh = Mesh.MergeWithCommonAttributes(depMeshes, clean: true, normalize: true);
+            var combinedMesh = MeshMerge.MergeWithCommonAttributes(depMeshes, clean: true, normalize: true);
 
             if (!combinedMesh.HasNormals)
             {
@@ -231,7 +231,7 @@ namespace OPS.Pipeline
             //(2) if it's already got few enough faces, we'll use it directly instead of calling ResampleDecimation()
             //(3) if we do call ResampleDecimation() we'll use it to compute geometric error
             //note: Mesh.Clip() calls Mesh.Clean() which calls Mesh.NormalizeNormals()
-            var combinedClipped = Mesh.Clip(combinedMesh, clippingBounds);
+            var combinedClipped = combinedMesh.Clipped(clippingBounds);
 
             if (PARENT_MESH_VERTEX_MERGE_EPSILON > 0)
             {
@@ -252,7 +252,7 @@ namespace OPS.Pipeline
                 info($"decimating parent from {Fmt.KMG(parentMesh.Faces.Count)} to {Fmt.KMG(maxFaceCountTarget)} tris");
 
                 var srcBounds = BoundingBoxExtensions.CreateScaled(clippingBounds, DECIMATE_BOUNDS_RATIO);
-                var decimateSrc = Mesh.Clip(combinedMesh, srcBounds);
+                var decimateSrc = combinedMesh.Clipped(srcBounds);
 
                 //note: ResampleDecimation() calls Mesh.Clean() and Mesh.GenerateVertexNormals()
                 parentMesh = decimateSrc.ResampleDecimation((int)(maxFaceCountTarget * FACE_COUNT_RATIO),
@@ -293,9 +293,8 @@ namespace OPS.Pipeline
                 else
                 {
                     info($"atlasing parent tile with UVAtlas, resolution {textureSize}x{textureSize}");
-                    parentMesh = UVAtlas.Atlas(parentMesh, textureSize, textureSize, logger: logger);
-                              //TODO when dev/tiling-updates is merged , maxStretch: maxTextureStretch);
-                    if (parentMesh == null)
+                    if (!UVAtlas.Atlas(parentMesh, textureSize, textureSize, logger: logger))
+                        //TODO when dev/tiling-updates is merged , maxStretch: maxTextureStretch)
                     {
                         error("failed to atlas parent tile with UVAtlas");
                         return false;

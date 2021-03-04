@@ -106,12 +106,12 @@ namespace OPS.Pipeline.Texturing
                 }
 
                 samples = new SurfacePointSampler()
-                    .Sample(meshOp.Clip(surfaceBounds.Value), samplesPerSquareMeter, positionsOnly: true)
+                    .Sample(meshOp.Clipped(surfaceBounds.Value), samplesPerSquareMeter, positionsOnly: true)
                     .Select(vertex => vertex.Position)
                     .ToList();
 
                 var orbitalSamples = new SurfacePointSampler()
-                    .Sample(Mesh.Cut(mesh, surfaceBounds.Value), orbitalSamplesPerSquareMeter, positionsOnly: true)
+                    .Sample(mesh.Cutted(surfaceBounds.Value), orbitalSamplesPerSquareMeter, positionsOnly: true)
                     .Select(vertex => vertex.Position)
                     .ToList();
 

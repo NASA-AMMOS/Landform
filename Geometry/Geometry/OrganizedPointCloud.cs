@@ -24,7 +24,7 @@ namespace OPS.Geometry
 
         /// <summary>
         /// compute approximate max abs curvature at each valid point
-        /// uses Mesh.Curvature()
+        /// uses XNAExtensions.Curvature()
         /// </summary>
         public static Image Curvatures(Image points, Image normals, bool normalize = true,
                                        Neighborhood neighborhood = DEF_CURVATURE_NEIGHBORHOOD)
@@ -81,8 +81,8 @@ namespace OPS.Geometry
                         float maxAbsCurvature = 0;
                         for (int i = 1; i < n; i++)
                         {
-                            var c = (float)Math.Abs(Mesh.Curvature(hoodPoints[0], hoodPoints[i],
-                                                                   hoodNorms[0], hoodNorms[i]));
+                            var c = (float)Math.Abs(XNAExtensions.Curvature(hoodPoints[0], hoodPoints[i],
+                                                                            hoodNorms[0], hoodNorms[i]));
                             maxAbsCurvature = Math.Max(maxAbsCurvature, c);
                         }
                         ret[0, row, col] = maxAbsCurvature;

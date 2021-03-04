@@ -461,10 +461,10 @@ namespace OPS.Landform
                                  dem.Width, dem.Height, dem.WidthMeters, dem.HeightMeters, sd,
                                  MAX_MESH_RADIUS_METERS);
                 var mesh = dem.OrganizedMesh(MAX_MESH_RADIUS_METERS);
-                SaveMesh(Mesh.Transformed(mesh, BestTransform(sd)), sd.ToString() + "_Heightmap");
+                SaveMesh(mesh.Transformed(BestTransform(sd)), sd.ToString() + "_Heightmap");
                 if (sdAdjustment.ContainsKey(sd))
                 {
-                    SaveMesh(Mesh.Transformed(mesh, BestAdjustedTransform(sd)), sd.ToString() + "_Heightmap_Adj");
+                    SaveMesh(mesh.Transformed(BestAdjustedTransform(sd)), sd.ToString() + "_Heightmap_Adj");
                 }
             }
             if (orbitalDEM != null)
@@ -475,7 +475,7 @@ namespace OPS.Landform
                 var baseSiteDriveToOrbital = BestTransform(baseSiteDrive) * Matrix.Invert(orbitalDEMToRoot);
                 var centerPointInOrbital = Vector3.Transform(Vector3.Zero, baseSiteDriveToOrbital);
                 var mesh = orbitalDEM.OrganizedMesh(MAX_MESH_RADIUS_METERS, centerPointInOrbital);
-                SaveMesh(Mesh.Transformed(mesh, orbitalDEMToRoot), "orbital_Heightmap");
+                SaveMesh(mesh.Transformed(orbitalDEMToRoot), "orbital_Heightmap");
             }
         }
 
