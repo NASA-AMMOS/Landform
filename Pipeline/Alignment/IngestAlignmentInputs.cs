@@ -147,20 +147,23 @@ namespace OPS.Pipeline
             List<int> sols = new List<int>();
             foreach (var part in parts)
             {
-                if (part.Contains('-'))
+                if (!string.IsNullOrEmpty(part))
                 {
-                    var subparts = part.Split('-');
-                    int startSol = int.Parse(subparts[0]);
-                    int endSol = int.Parse(subparts[1]);
-                    for(int i = startSol; i <= endSol; i++)
+                    if (part.Contains('-'))
                     {
-                        sols.Add(i);
+                        var subparts = part.Split('-');
+                        int startSol = int.Parse(subparts[0]);
+                        int endSol = int.Parse(subparts[1]);
+                        for(int i = startSol; i <= endSol; i++)
+                        {
+                            sols.Add(i);
+                        }
                     }
+                    else
+                    {
+                        sols.Add(int.Parse(part));
+                    }                       
                 }
-                else
-                {
-                    sols.Add(int.Parse(part));
-                }                       
             }
             return sols
                 .Distinct()
