@@ -184,8 +184,8 @@ namespace OPS.Landform
     {
         private const string OUT_DIR = "meshing/GeometryProducts";
 
-        public const double DEF_EXTENT = 64;
-        public const double DEF_SURFACE_EXTENT = 32;
+        public const double DEF_EXTENT = 256;
+        public const double DEF_SURFACE_EXTENT = 64;
 
         public const double DEF_BLEND_RADIUS = 3;
         public const double DEF_SEW_RADIUS = 0.2;
