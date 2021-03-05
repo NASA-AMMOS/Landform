@@ -1609,7 +1609,7 @@ namespace OPS.Landform
                         //also, particularly in certain dev scenarios, PlacesDB availability may be iffy
                         //better to try on each pass rather than once ever
                         var placesCfg = PlacesConfig.Instance;
-                        bool usePlaces = !string.IsNullOrEmpty(placesCfg.Url) && !string.IsNullOrEmpty(placesCfg.View);
+                        bool usePlaces = !string.IsNullOrEmpty(placesCfg.Url) && !string.IsNullOrEmpty(placesCfg.Views);
                         lock (usePlaces ? credentialRefreshLock : new Object())
                         {
                             PlacesDB placesDB = null;

@@ -594,7 +594,7 @@ namespace OPS.Pipeline
             string sfx = venue == "dev" ? "-dev" : "";
             return "{\n" +
                 $"\"Url\": \"https://places{sfx}.{venue}.m20.jpl.nasa.gov\",\n" +
-                "\"View\": \"best_tactical\",\n" +
+                "\"Views\": \"telemetry,best_interp,best_tactical\",\n" +
                 "\"AuthCookieName\": \"ssosession\",\n" +
                 $"\"AuthCookieFile\": \"~/.cssotoken/{venue}/ssosession\"\n" +
                 "}";
@@ -688,7 +688,7 @@ namespace OPS.Pipeline
             return
                 "{ " +
                 "\"Url\": \"https://places-external-roastt.m20-training.jpl.nasa.gov/m2020-places\", " +
-                "\"View\": \"best_tactical\", " +
+                "\"Views\": \"telemetry,best_interp,best_tactical\",\n" +
                 "\"AuthCookieName\": \"ssosession\", " +
                 $"\"AuthCookieFile\": \"~/.cssotoken/{venue}/ssosession\"" +
                 "}";
@@ -747,7 +747,7 @@ namespace OPS.Pipeline
         {
             return "{\n" +
                 "\"Url\": \"https://places-sstage.m20.jpl.nasa.gov\",\n" +
-                "\"View\": \"best_tactical\",\n" +
+                "\"Views\": \"telemetry,best_interp,best_tactical\",\n" +
                 "\"AuthCookieName\": \"ssosession\",\n" +
                 $"\"AuthCookieFile\": \"~/.cssotoken/{venue}/ssosession\"\n" +
                 "}";
@@ -935,7 +935,7 @@ namespace OPS.Pipeline
             //https://places-roastt.dev.m20.jpl.nasa.gov
             return "{\n" +
                 $"\"Url\": \"https://places-rocs.{venue}.m20.jpl.nasa.gov\",\n" +
-                "\"View\": \"best_tactical\",\n" +
+                "\"Views\": \"telemetry,best_interp,best_tactical\",\n" +
                 "\"AuthCookieName\": \"ssosession\",\n" +
                 $"\"AuthCookieFile\": \"~/.cssotoken/{venue}/ssosession\"\n" +
                 "}";

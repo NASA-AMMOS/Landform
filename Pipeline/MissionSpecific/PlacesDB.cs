@@ -1,3 +1,4 @@
+//#define CACHE_FAILED_REQUESTS
 using System;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
@@ -30,10 +31,12 @@ namespace OPS.Pipeline
         public string Url { get; set; }
 
         //PLACES solution view
-        //default is null which disables PlacesDB
+        //default is null
+        //null or empty disables PlacesDB
         //default may be overridden by MissionSpecific.GetPlacesConfigDefaults()
-        [ConfigEnvironmentVariable("LANDFORM_PLACES_VIEW")]
-        public string View { get; set; }
+        //can be one or more comma separated views, in order of preference from worst to best (best last)
+        [ConfigEnvironmentVariable("LANDFORM_PLACES_VIEWS")]
+        public string Views { get; set; }
 
         //username for http basic auth
         //default is null whcih means disable basic auth
@@ -92,7 +95,8 @@ namespace OPS.Pipeline
     /// </summary>
     public class PlacesDB
     {
-        public string FALLBACK_VIEW = "telemetry";
+        //public const string POSE_IDENTIFIER = "-1"; //ask for earliest available pose in sitedrive
+        public const string POSE_IDENTIFIER = "^"; //ask for latest available pose in sitedrive
 
         private ILogger logger;
 
@@ -100,7 +104,8 @@ namespace OPS.Pipeline
 
         private PlacesConfig config;
 
-        private string view;
+        private string[] views; //best last
+
         private string cookieValue;
 
         //avoid hitting the upstream service too hard
@@ -109,6 +114,8 @@ namespace OPS.Pipeline
         //that handles the case of launching multiple initial requests for the same query in parallel
         //query => response
         Dictionary<string, string> cache = new Dictionary<string, string>();
+
+        Dictionary<string, string> bestViewCache = new Dictionary<string, string>();
 
         private ConcurrentDictionary<SiteDrive, Vector3> cachedOffsetFromStart =
             new ConcurrentDictionary<SiteDrive, Vector3>();
@@ -120,9 +127,19 @@ namespace OPS.Pipeline
 
             config = PlacesConfig.Instance;
 
-            if (string.IsNullOrEmpty(config.Url) || string.IsNullOrEmpty(config.View))
+            if (string.IsNullOrEmpty(config.Url))
             {
-                throw new Exception("no PLACES database for mission");
+                throw new Exception("no PlacesDB URL");
+            }
+
+            views = StringHelper.ParseList(config.Views);
+            if (views.Length == 0)
+            {
+                throw new Exception("no PlacesDB views");
+            }
+            if (logger != null)
+            {
+                logger.LogInfo("PLACESDB url: {0}; views {1}", config.Url, String.Join(",", views));
             }
 
             if (!string.IsNullOrEmpty(config.AuthCookieValue))
@@ -160,7 +177,6 @@ namespace OPS.Pipeline
 
             try
             {
-                view = config.View;
                 GetOffsetToStart(new SiteDrive(1, 0)); //test query
             }
             catch
@@ -168,34 +184,20 @@ namespace OPS.Pipeline
                 if (logger != null)
                 {
                     logger.LogWarn("PlacesDB test query for sitedrive (1, 0) failed" +
-                                   ", check list at {0}/view/{1}/rmcs", config.Url, view);
-                }
-                view = FALLBACK_VIEW;
-                logger.LogWarn("trying fallback view {0}", view);
-                try
-                {
-                    GetOffsetToStart(new SiteDrive(1, 0));
-                }
-                catch
-                {
-                    if (logger != null)
-                    {
-                        logger.LogError("PlacesDB test query for sitedrive (1, 0) failed" +
-                                        ", check list at {0}/view/{1}/rmcs", config.Url, view);
-                    }
-                    throw;
+                                   ", check list at {0}/view/VIEW/rmcs for VIEW in {1}",
+                                   config.Url, String.Join(",", views));
                 }
             }
         }
 
-        private string Fetch(string query)
+        private string Fetch(string query, bool throwOnError = true)
         {
             lock (cache)
             {
                 if (cache.ContainsKey(query))
                 {
                     var doc = cache[query];
-                    if (doc == null)
+                    if (doc == null && throwOnError)
                     {
                         throw new Exception(string.Format("PlacesDB: query {0} failed, not retrying", query));
                     }
@@ -256,7 +258,7 @@ namespace OPS.Pipeline
                         if (response.StatusCode != HttpStatusCode.BadGateway && //proxies can impose their own timeout
                             response.ResponseStatus != ResponseStatus.TimedOut)
                         {
-                            throw new Exception(err);
+                            break;
                         }
                     }
                     if (maxSec > 0 && ((UTCTime.Now() - startSec) > maxSec))
@@ -264,10 +266,21 @@ namespace OPS.Pipeline
                         err = string.Format("exceeded max time {0} for {1} on try {2}", Fmt.HMS(maxSec * 1000),
                                             config.Url + "/" + query, i);
                         Debug(err);
-                        throw new Exception(err);
+                        break;
                     }
                 }
-                throw new Exception(err);
+                if (err == null)
+                {
+                    err = $"no response after {maxRetries} tries";
+                }
+#if CACHE_FAILED_REQUESTS
+                cache[query] = null;
+#endif
+                if (throwOnError)
+                {
+                    throw new Exception(err);
+                }
+                return null;
             }
         }
 
@@ -600,13 +613,66 @@ namespace OPS.Pipeline
         /// <summary>
         /// Formulate a PlacesDB query reference for the given sitedrive (S,D).
         /// If D=0 then the query will be of the form site(S), because queries like rover(S,0) generally don't work.
-        /// Otherwise the query will be of the form rover(S,D,^), meaning the frame of the latest available pose (^)
+        /// Otherwise the query will be of the form rover(S,D,POSE_IDENTIFIER)
+        /// POSE_IDENTIFIER=^ means the frame of the latest available pose in the sitedrive
+        /// POSE_IDENTIFIER=-1 means the frame of the earliest available pose (I think??)
         /// in that site and drive.  Note that in some venues queries like rover(S,D) work but in others they don't,
         /// but adding the carat should work in all cases (per Kevin Grimes).
         /// </summary>
-        private static string SDRef(SiteDrive sd)
+        private static string GetSDRef(SiteDrive sd)
         {
-            return sd.Drive > 0 ? $"rover({sd.Site},{sd.Drive},^)" : $"site({sd.Site})";
+            return GetSDRef(sd.Site, sd.Drive);
+        }
+
+        private static string GetSDRef(int site, int drive = 0)
+        {
+            return drive > 0 ? $"rover({site},{drive},{POSE_IDENTIFIER})" : $"site({site})";
+        }
+
+        private string GetBestView(params string[] refs)
+        {
+            Array.Sort(refs);
+            string key = String.Join(",", refs);
+
+            Exception makeException()
+            {
+                return new Exception($"no PlacesDB view available for {key}; tried " + String.Join(",", views));
+            }
+
+            lock (bestViewCache)
+            {
+                if (bestViewCache.ContainsKey(key))
+                {
+                    string ret = bestViewCache[key];
+                    if (ret == null)
+                    {
+                        throw makeException();
+                    }
+                    return ret;
+                }
+                var remaining = new bool[views.Length];
+                for (int v = 0; v < views.Length; v++)
+                {
+                    remaining[v] = true;
+                }
+                for (int r = 0; r < refs.Length; r++)
+                {
+                    for (int v = views.Length - 1; v >= 0; v--)
+                    {
+                        remaining[v] &= Fetch($"view/{views[v]}/rmc/{refs[r]}", throwOnError: false) != null;
+                    }
+                }
+                int best = Array.LastIndexOf(remaining, true);
+                if (best >= 0)
+                {
+                    bestViewCache[key] = views[best];
+                    return views[best];
+                }
+#if CACHE_FAILED_REQUESTS
+                bestViewCache[key] = null;
+#endif
+                throw makeException();
+            }
         }
 
         /// <summary>
@@ -624,7 +690,10 @@ namespace OPS.Pipeline
         public Vector3 GetEastingNorthingElevation(SiteDrive sd, int orbitalIndex, bool absolute = true,
                                                    Vector2? defULCEastingNorthing = null)
         {
-            string query = string.Format("query/primary/{0}?from={1}&to=orbital({2})", view, SDRef(sd), orbitalIndex);
+            string sdRef = GetSDRef(sd);
+            string oRef = $"orbital({orbitalIndex})";
+            string view = GetBestView(sdRef, oRef);
+            string query = $"query/primary/{view}?from={sdRef}&to={oRef}";
 
             //offset is in standard mission local level frame: +X north, +Y east, +Z down
             var v = GetOffset(query);
@@ -668,7 +737,10 @@ namespace OPS.Pipeline
         /// </summary>
         public Vector3 GetOffsetToSite(SiteDrive fromSD, int toSite)
         {
-            return GetOffset(string.Format("query/primary/{0}?from={1}&to=site({2})", view, SDRef(fromSD), toSite));
+            string sdRef = GetSDRef(fromSD);
+            string siteRef = GetSDRef(toSite);
+            string view = GetBestView(sdRef, siteRef);
+            return GetOffset($"query/primary/{view}?from={sdRef}&to={siteRef}");
         }
 
         /// <summary>
@@ -684,7 +756,10 @@ namespace OPS.Pipeline
         /// </summary>
         public Vector3 GetOffset(SiteDrive fromSD, SiteDrive toSD)
         {
-            return GetOffset(string.Format("query/primary/{0}?from={1}&to={2}", view, SDRef(fromSD), SDRef(toSD)));
+            string fromRef = GetSDRef(fromSD);
+            string toRef = GetSDRef(toSD);
+            string view = GetBestView(fromRef, toRef);
+            return GetOffset($"query/primary/{view}?from={fromRef}&to={toRef}");
         }
     }
 }
