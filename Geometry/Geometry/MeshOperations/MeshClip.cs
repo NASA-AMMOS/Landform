@@ -17,7 +17,7 @@ namespace OPS.Geometry
         /// <summary>
         /// Clips the mesh to fit within the given bounding box
         /// </summary>
-        public static void Clip(this Mesh mesh, BoundingBox box)
+        public static void Clip(this Mesh mesh, BoundingBox box, bool normalize = true)
         {
             if (mesh.Faces.Count > 0)
             {
@@ -30,7 +30,7 @@ namespace OPS.Geometry
                     Triangle t = new Triangle(v0, v1, v2);
                     resTris.AddRange(t.Clip(box));
                 }
-                mesh.SetTriangles(resTris);
+                mesh.SetTriangles(resTris, normalize);
             }
             else // point cloud
             {
@@ -50,7 +50,7 @@ namespace OPS.Geometry
             }
         }
 
-        public static Mesh Clipped(this Mesh mesh, BoundingBox box)
+        public static Mesh Clipped(this Mesh mesh, BoundingBox box, bool normalize = true)
         {
             Mesh ret = new Mesh(mesh);
             ret.Clip(box);
@@ -60,7 +60,7 @@ namespace OPS.Geometry
         /// <summary>
         /// Clips a mesh to remove everything within the given bounding box
         /// </summary>
-        public static void Cut(this Mesh mesh, BoundingBox box)
+        public static void Cut(this Mesh mesh, BoundingBox box, bool normalize = true)
         {
             if (mesh.Faces.Count > 0)
             {
@@ -73,7 +73,7 @@ namespace OPS.Geometry
                     Triangle t = new Triangle(v0, v1, v2);
                     resTris.AddRange(t.Cut(box));
                 }
-                mesh.SetTriangles(resTris);
+                mesh.SetTriangles(resTris, normalize);
             }
             else //point cloud
             {

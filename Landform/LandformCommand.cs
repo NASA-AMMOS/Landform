@@ -261,7 +261,8 @@ namespace OPS.Landform
             img.Save<byte>(imageFile);
         }
 
-        protected virtual void SaveMesh(Mesh mesh, string name, string texture = null)
+        protected virtual void SaveMesh(Mesh mesh, string name, string texture = null,
+                                        bool writeNormalLengthsAsValue = false)
         {
             string meshFile = Path.Combine(localOutputPath, name + meshExt);
             PathHelper.EnsureExists(Path.GetDirectoryName(meshFile)); //name could have a subpath in it
@@ -269,7 +270,16 @@ namespace OPS.Landform
             {
                 pipeline.LogVerbose("saving mesh {0}", name);
             }
-            mesh.Save(meshFile, texture);
+            if (writeNormalLengthsAsValue)
+            {
+                var plyWriter = new PLYMaximumCompatibilityWriter(writeXYZAsFloat: false,
+                                                                  writeNormalLengthsAsValue: true);
+                PLYSerializer.Write(mesh, meshFile, plyWriter, texture);
+            }
+            else
+            {
+                mesh.Save(meshFile, texture);
+            }
         }
 
         //sol can typically range from 0 to 9999

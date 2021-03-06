@@ -3,8 +3,10 @@ using System.IO;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using log4net;
+using Microsoft.Xna.Framework;
 using OPS.MathExtensions;
 using OPS.Util;
 using OPS.Imaging;
@@ -28,43 +30,109 @@ namespace OPS.Geometry
 
         public PoissonConfig()
         {
-            if (string.IsNullOrEmpty(PoissonExe)) PoissonExe = "PoissonRecon.V12.0.exe"; //default
+            if (string.IsNullOrEmpty(PoissonExe)) PoissonExe = "PoissonRecon.V13.72.exe"; //default
             if (PoissonExeLegacy) PoissonExe = "PoissonRecon.exe";
 
-            if (string.IsNullOrEmpty(TrimmerExe)) TrimmerExe = "SurfaceTrimmer.V12.0.exe"; //default
+            if (string.IsNullOrEmpty(TrimmerExe)) TrimmerExe = "SurfaceTrimmer.V13.72.exe"; //default
             if (PoissonExeLegacy) TrimmerExe = "SurfaceTrimmer.exe";
         }
 
         public void Dump(ILog logger)
         {
             logger.Info("Poisson exe: " + PoissonExe + (PoissonExeLegacy ? " (legacy)" : ""));
-            logger.Info("SurfaceTrimmer exe: " + TrimmerExe + (PoissonExeLegacy ? " (legacy)" : ""));
+            logger.Info("surface trimmer exe: " + TrimmerExe + (PoissonExeLegacy ? " (legacy)" : ""));
         }
     }
 
     public class PoissonReconstruction
     {
+        public enum BoundaryType { Free = 1, Dirichlet = 2, Neumann = 3 };
+
+        public const PoissonReconstruction.BoundaryType DEF_BOUNDARY_TYPE = PoissonReconstruction.BoundaryType.Neumann;
+        public const int DEF_OCTREE_DEPTH = 0;
+        public const double DEF_MIN_OCTREE_CELL_WIDTH_METERS = 0.025;
+        public const int DEF_MIN_OCTREE_SAMPLES_PER_CELL = 15;
+        public const int DEF_BSPLINE_DEGREE = 2;
+        public const double DEF_CONFIDENCE_EXP = 2;
+        public const double DEF_TRIMMER_LEVEL = 18.5;
+        public const double DEF_TRIMMER_LEVEL_LENIENT = 17.5;
+        public const double DEF_TRIMMER_ISLAND_PCT = 0.01;
+        public const bool DEF_PASS_ENVELOPE_TO_POISSON = false;
+        public const bool DEF_CLIP_TO_ENVELOPE = true;
+        public const double DEF_MIN_ISLAND_RATIO = 0.2;
+
         private static readonly ILog logger = LogManager.GetLogger(typeof(PoissonReconstruction));
-        public enum BoundaryTypes { Free = 1, Dirichlet = 2, Neumann = 3 };
+
         private static bool dumpedConfig;
 
         public class Options
         {
-            public BoundaryTypes Boundary;          //exe defaults: Neumann
-            public int OctreeDepth;                 //exe defaults: --depth 8, mutually exclusive with MinOctreeCellWidthMeters
-            public float MinOctreeCellWidthMeters;  //exe defaults: default doesn't use this parameter, OctreeDepth
-            public float MinOctreeSamplesPerCell;   //exe defaults: 1, recommends 1-5 clean data 15-20 noisy data
-            public int BSplineDegree;               //exe defaults: 2
-            public bool UseNormalsForConfidence;    //exe defaults: no, if true magnitude of normal indicates confidence            
-            public double TrimmerLevel;             //exe defaults: 7, if tree level for density is less than amount, remove (higher number == more culling)
-            public double TrimmerIslandPct;         //exe defaults: 0.001, if an island surface area is < this percentage of whole mesh surface area, remove it (higher number == more culling)
+            //exe defaults: Neumann
+            public BoundaryType Boundary = DEF_BOUNDARY_TYPE;
+
+            //exe defaults: --depth 8, mutually exclusive with MinOctreeCellWidthMeters
+            public int OctreeDepth = DEF_OCTREE_DEPTH;
+
+            //exe defaults: default doesn't use this parameter
+            public double MinOctreeCellWidthMeters = DEF_MIN_OCTREE_CELL_WIDTH_METERS;
+
+            //exe defaults: 1, recommends 1-5 clean data 15-20 noisy data
+            public double MinOctreeSamplesPerCell = DEF_MIN_OCTREE_SAMPLES_PER_CELL;
+
+            //exe defaults: 2
+            public int BSplineDegree = DEF_BSPLINE_DEGREE;
+
+            //exe defaults: 0, if > 0 then apply this exponent to the length of normals and use as confidence
+            public double ConfidenceExponent = 0; 
+
+            //exe defaults: 7, if tree level for density is less than amount, remove (higher number == more culling)
+            public double TrimmerLevel = DEF_TRIMMER_LEVEL;
+
+            //exe defaults: 0.001
+            //if an island surface area is < this percentage of whole mesh surface area
+            //remove it (higher number == more culling)
+            public double TrimmerIslandPct = DEF_TRIMMER_ISLAND_PCT;
+
+            //envelope bounding box
+            public BoundingBox? Envelope = null;
+
+            //whether to actually pass envelope to Poisson
+            //requires V13+
+            //also, this seems to end up making a tight bubble of extra flab
+            //that the trimmer has a hard time getting rid of
+            public bool PassEnvelopeToPoisson = DEF_PASS_ENVELOPE_TO_POISSON;
+
+            //clip to envelope, if any, after reconstruction but before surface trimming
+            public bool ClipToEnvelope = DEF_CLIP_TO_ENVELOPE;
+
+            //after reconstruction but before surface trimming
+            //remove islands whose bounding box diameter is less than this ratio
+            //of the max island bounding box diameter
+            public double MinIslandRatio = DEF_MIN_ISLAND_RATIO;
         };
 
         /// <summary>
-        /// Creates a mesh from a point cloud
+        /// build a mesh with Poisson reconstruction from the given organized point cloud
+        /// normals image must be supplied
+        /// if mask image is provided then any pixels which are 0 there are ignored
         /// </summary>
-        /// <returns></returns>
-        public static Mesh Reconstruct(Mesh pointCloud, Options options=null)
+        public static Mesh Reconstruct(Image points, Image normals, Image mask = null,
+                                       bool normalsAreScaledByConfidence = false)
+        {
+            if (normals == null)
+            {
+                throw new ArgumentException("Poission reconstruction requires normals");
+            }
+
+            var opts = new Options();
+            opts.ConfidenceExponent = normalsAreScaledByConfidence ? DEF_CONFIDENCE_EXP : 0;
+
+            return Reconstruct(OrganizedPointCloud.BuildPointCloudMesh(points, normals, mask), opts);
+        }
+
+        public static Mesh Reconstruct(Mesh pointCloud, Options options = null,
+                                       Action<string> reconFile = null,
+                                       Action<Mesh> untrimmedWithValueScaledNormals = null)
         {
             if (!dumpedConfig)
             {
@@ -74,7 +142,6 @@ namespace OPS.Geometry
 
             var cfg = PoissonConfig.Instance;
             string reconstructExe = Path.Combine(PathHelper.GetApplicationPath(), "ExternalApps", cfg.PoissonExe);
-            string trimmerExe = Path.Combine(PathHelper.GetApplicationPath(), "ExternalApps", cfg.TrimmerExe);
 
             if (pointCloud.Vertices.Count == 0)
             {
@@ -88,7 +155,6 @@ namespace OPS.Geometry
 
             if (pointCloud.HasColors && cfg.PoissonExeLegacy)
             {
-                //throw new MeshException("PoissonRecon meshes cannot have colors");
                 logger.Warn("PoissionRecon (legacy) meshes cannot have colors - removing colors");
                 pointCloud = new Mesh(pointCloud);
                 pointCloud.ClearColors();
@@ -104,7 +170,7 @@ namespace OPS.Geometry
                 throw new MeshException("PoissonRecon input mesh had zero length normals");
             }
 
-            if (options == null || !options.UseNormalsForConfidence)
+            if (options == null || options.ConfidenceExponent == 0)
             {
                 int notNormalCount = 0;
                 foreach (var vert in pointCloud.Vertices)
@@ -123,191 +189,222 @@ namespace OPS.Geometry
             }
 
             Mesh result = null;
-            Exception ex = null;
-
-            TemporaryFile.GetAndDelete(".ply", inputFile =>
+            TemporaryFile.GetAndDeleteMultiple(3, ".ply", files =>
             {
-                PLYSerializer.Write(pointCloud, inputFile, new PLYMaximumCompatibilityWriter(false));
-                TemporaryFile.GetAndDelete(".ply", reconOutputFile =>
+                TemporaryFile.GetAndDeleteDirectory(tmpDir =>
                 {
-                    TemporaryFile.GetAndDeleteDirectory(tmpDir =>
+                    string inputFile = files[0];
+                    string envFile = files[1];
+                    string outputFile = files[2];
+
+                    var plyWriter = new PLYMaximumCompatibilityWriter(writeXYZAsFloat: false);
+
+                    PLYSerializer.Write(pointCloud, inputFile, plyWriter);
+                    
+                    string arguments = "--in " + inputFile + " --out " + outputFile;
+                    
+                    if(options.OctreeDepth != 0 && options.MinOctreeCellWidthMeters != 0.0)
                     {
-                        string arguments = "--in " + inputFile + " --out " + reconOutputFile;
-
-                        if(options.OctreeDepth != 0 && options.MinOctreeCellWidthMeters != 0.0)
+                        throw new MeshException("OctreeDepth and MinOctreeCellWidthMeters are mutually exclusive");
+                    }
+                    else if (options.OctreeDepth == 0 && options.MinOctreeCellWidthMeters == 0)
+                    {
+                        throw new MeshException("either OctreeDepth and MinOctreeCellWidthMeters must be specified");
+                    }
+                    
+                    if (!cfg.PoissonExeLegacy)
+                    {
+                        if (pointCloud.HasColors)
                         {
-                            throw new MeshException("OctreeDepth and MinOctreeCellWidthMeters are mutually exclusive, but both had requested values");
+                            arguments += " --colors";
                         }
-                        else if (options.OctreeDepth == 0 && options.MinOctreeCellWidthMeters == 0)
+                        
+                        arguments += " --normals 2"; //emit normals from solver: 1 = sample normals, 2 = gradients
+                        arguments += " --tempDir " + tmpDir;
+                        
+                        if (options != null)
                         {
-                            throw new MeshException("either OctreeDepth and MinOctreeCellWidthMeters must be specified");
-                        }
-
-                        if (!cfg.PoissonExeLegacy)
-                        {
-                            if (pointCloud.HasColors)
+                            if (options.Envelope.HasValue)
                             {
-                                arguments += " --colors";
+                                PLYSerializer.Write(options.Envelope.Value.ToMesh(), envFile, plyWriter);
                             }
-
-                            arguments += " --normals";              //emit normals from solver
-                            arguments += " --tempDir " + tmpDir;
                             
-                            if (options != null)
+                            arguments +=
+                                String.Format(" --bType {0} --samplesPerNode {1} --degree {2}{3}{4}{5}{6}",
+                                              (int)options.Boundary, //0
+                                              options.MinOctreeSamplesPerCell, //1
+                                              options.BSplineDegree, //2
+                                              options.MinOctreeCellWidthMeters > 0 ? //3
+                                              (" --width " + options.MinOctreeCellWidthMeters) : "",
+                                              options.OctreeDepth > 0 ? //4
+                                              (" --depth " + options.OctreeDepth) : "",
+                                              options.ConfidenceExponent != 0 ? //5
+                                              (" --confidence " + options.ConfidenceExponent) : "",
+                                              options.TrimmerLevel > 0 ? " --density" : ""); //6
+
+                            if (options.Envelope.HasValue && options.PassEnvelopeToPoisson) //V13+
                             {
-                                arguments +=
-                                    String.Format(" --bType {0} --samplesPerNode {1} --degree {2}{3}{4}{5}{6}",
-                                                (int)options.Boundary,
-                                                options.MinOctreeSamplesPerCell,
-                                                options.BSplineDegree,
-                                                options.MinOctreeCellWidthMeters > 0 ? " --width " + options.MinOctreeCellWidthMeters : "",
-                                                options.OctreeDepth > 0 ? " --depth " + options.OctreeDepth : "",
-                                                options.UseNormalsForConfidence ? " --confidence 2" : "",
-                                                options.TrimmerLevel > 0 ? " --density" : "");
+                                arguments += " --envelope " + envFile;
                             }
-
-                            //a workaround for running on powerful machines. without it there is an ERROR about not
-                            // being able to open a file (likely a bug in multithread buffered file reading)
-                            //arguments += " --threads 1";
-                            arguments += " --threads " + CoreLimitedParallel.GetMaxDegreeOfParallelism();
                         }
-
-                        logger.Info(String.Format("Running: {0} {1}", reconstructExe, arguments));
-
-                        ProgramRunner pr = new ProgramRunner(reconstructExe, arguments, captureOutput: true);
-                        try
+                    
+                        //a workaround for running on powerful machines. without it there is an ERROR about not
+                        // being able to open a file (likely a bug in multithread buffered file reading)
+                        //arguments += " --threads 1";
+                        arguments += " --threads " + CoreLimitedParallel.GetMaxDegreeOfParallelism();
+                    }
+                    
+                    logger.InfoFormat("running command: {0} {1}", reconstructExe, arguments);
+                    
+                    ProgramRunner pr = new ProgramRunner(reconstructExe, arguments, captureOutput: true);
+                    try
+                    {
+                        int exitCode = pr.Run();
+                        
+                        if (exitCode != 0)
                         {
-                            int exitCode = pr.Run();
-
-                            if (exitCode != 0)
-                            {
-                                throw new MeshException("poisson exited with status " + exitCode);
-                            }
-
-                            //at least some legacy versions of PoissonRecon.exe can error out but still
-                            //have zero exit code and write a valid and nonempty output mesh
-                            //it seems the only way to detect that is like this
-                            if (cfg.PoissonExeLegacy && !string.IsNullOrEmpty(pr.ErrorText) &&
-                                !System.Text.RegularExpressions.Regex.Split(pr.ErrorText, "\r\n|\r|\n") //split lines
-                                .All(l => l.StartsWith("[WARNING]")))
-                            {
-                                throw new MeshException("poisson nonempty error output");
-                            }
-
-                            if (!File.Exists(reconOutputFile))
-                            {
-                                throw new MeshException("poisson no output file");
-                            }
-
-                            // if we are using the trimmer we should skip loading it back in
-                            //  it will have extra payload per vertex to store density and
-                            //  our ply reader may not yet support it
-                            if (options == null || options.TrimmerLevel <= 0)
-                            {
-                                result = Mesh.Load(reconOutputFile);
-
-                                if (result.Vertices.Count == 0 || result.Faces.Count == 0)
-                                {
-                                    throw new MeshException("empty output");
-                                }
-                            }
+                            throw new MeshException("poisson exited with status " + exitCode);
                         }
-                        catch (Exception e)
+                        
+                        //at least some legacy versions of PoissonRecon.exe can error out but still
+                        //have zero exit code and write a valid and nonempty output mesh
+                        //it seems the only way to detect that is like this
+                        if (cfg.PoissonExeLegacy && !string.IsNullOrEmpty(pr.ErrorText) &&
+                            !Regex.Split(pr.ErrorText, "\r\n|\r|\n").All(l => l.StartsWith("[WARNING]")))
                         {
-                            logger.Error(pr.OutputText);
-                            logger.Error(pr.ErrorText);
-                            ex = new MeshException("Failed to run " + (cfg.PoissonExeLegacy ? "(legacy) " : "") +
-                                                   reconstructExe + " " + arguments + ": " + e.Message);
+                            throw new MeshException("poisson nonempty error output");
                         }
-
-                        if (options != null && options.TrimmerLevel > 0)
+                        
+                        if (!File.Exists(outputFile))
                         {
-                            TemporaryFile.GetAndDelete(".ply", trimmerOutputFile =>
-                            {
-                                arguments = string.Format("--in {0} --out {1} --trim {2} {3}",
-                                                          reconOutputFile, trimmerOutputFile,
-                                                          (float)options.TrimmerLevel,
-                                                          options.TrimmerIslandPct > 0 ?
-                                                          "--aRatio " + (float)options.TrimmerIslandPct : "");
-                                logger.Info(String.Format("Running: {0} {1}", trimmerExe, arguments));
-
-                                pr = new ProgramRunner(trimmerExe, arguments, captureOutput: true);
-                                try
-                                {
-                                    int exitCode = pr.Run();
-
-                                    if (exitCode != 0)
-                                    {
-                                        throw new MeshException("trimmer exited with status " + exitCode);
-                                    }
-
-                                    //at least some legacy versions of PoissonRecon.exe can error out but still
-                                    //have zero exit code and write a valid and nonempty output mesh
-                                    //it seems the only way to detect that is like this
-                                    if (cfg.PoissonExeLegacy && !string.IsNullOrEmpty(pr.ErrorText) &&
-                                        !System.Text.RegularExpressions.Regex.Split(pr.ErrorText, "\r\n|\r|\n") //split lines
-                                        .All(l => l.StartsWith("[WARNING]")))
-                                    {
-                                        throw new MeshException("trimmer nonempty error output");
-                                    }
-
-                                    if (!File.Exists(trimmerOutputFile))
-                                    {
-                                        throw new MeshException("trimmer no output file");
-                                    }
-
-                                    result = Mesh.Load(trimmerOutputFile);
-
-                                    if (result.Vertices.Count == 0 || result.Faces.Count == 0)
-                                    {
-                                        throw new MeshException("trimmer empty output");
-                                    }
-                                }
-                                catch (Exception e)
-                                {
-                                    logger.Error(pr.OutputText);
-                                    logger.Error(pr.ErrorText);
-                                    ex = new MeshException("Failed to run " + (cfg.PoissonExeLegacy ? "(legacy) " : "") +
-                                                           trimmerExe + " " + arguments + ": " + e.Message);
-                                }
-                            });
+                            throw new MeshException("poisson no output file");
                         }
-                    });
+
+                        if (reconFile != null)
+                        {
+                            reconFile(outputFile);
+                        }
+
+                        result = PLYSerializer.Read(outputFile, readValuesAsNormalLengths: true);
+                        
+                        if (result.Vertices.Count == 0 || result.Faces.Count == 0)
+                        {
+                            throw new MeshException("empty output");
+                        }
+
+                        logger.InfoFormat("reconstructed mesh has {0} faces", Fmt.KMG(result.Faces.Count));
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.Error(pr.OutputText);
+                        logger.Error(pr.ErrorText);
+                        throw new MeshException("Failed to run " + (cfg.PoissonExeLegacy ? "(legacy) " : "") +
+                                                reconstructExe + " " + arguments + ": " + ex.Message);
+                    }
+
+                    if (options != null && options.Envelope.HasValue && options.ClipToEnvelope)
+                    {
+                        result.Clip(options.Envelope.Value, normalize: false);
+                        if (result.Vertices.Count == 0 || result.Faces.Count == 0)
+                        {
+                            throw new MeshException("empty output after clipping to envelope");
+                        }
+                        logger.InfoFormat("clipped mesh has {0} faces", Fmt.KMG(result.Faces.Count));
+                    }
+
+                    if (options != null && options.MinIslandRatio > 0)
+                    {
+                        result.RemoveIslands(options.MinIslandRatio);
+                        if (result.Vertices.Count == 0 || result.Faces.Count == 0)
+                        {
+                            throw new MeshException("empty output after removing islands");
+                        }
+                        logger.InfoFormat("island removed mesh has {0} faces", Fmt.KMG(result.Faces.Count));
+                    }
+
+                    if (untrimmedWithValueScaledNormals != null)
+                    {
+                        untrimmedWithValueScaledNormals(result);
+                    }
+
+                    if (options != null && options.TrimmerLevel > 0)
+                    {
+                        result = Trim(result, options);
+                    }
                 });
             });
-
-            if (ex != null)
-            {
-                throw ex;
-            }
 
             return result;
         }
 
-        /// <summary>
-        /// build a mesh with Poisson reconstruction from the given organized point cloud
-        /// normals image must be supplied
-        /// if mask image is provided then any pixels which are 0 there are ignored
-        /// </summary>
-        public static Mesh Reconstruct(Image points, Image normals, Image mask = null,
-                                       bool normalsAreScaledByConfidence = false)
+        public static Mesh Trim(Mesh meshWithValueScaledNormals, Options options)
         {
-            if (normals == null)
+            if (options == null || options.TrimmerLevel <= 0)
             {
-                throw new ArgumentException("Poission reconstruction requires normals");
+                throw new ArgumentException("trimmer level must be > 0, got " +
+                                            (options == null ? "null" : options.TrimmerLevel.ToString()));
             }
 
-            var opts = new Options
-            {
-                Boundary = PoissonReconstruction.BoundaryTypes.Neumann,
-                MinOctreeCellWidthMeters = 0.05f,
-                MinOctreeSamplesPerCell = 15,
-                OctreeDepth = 0,
-                BSplineDegree = 1,
-                UseNormalsForConfidence = normalsAreScaledByConfidence
-            };
+            var cfg = PoissonConfig.Instance;
+            string trimmerExe = Path.Combine(PathHelper.GetApplicationPath(), "ExternalApps", cfg.TrimmerExe);
 
-            return Reconstruct(OrganizedPointCloud.BuildPointCloudMesh(points, normals, mask), opts);
+            Mesh result = null;
+            TemporaryFile.GetAndDeleteMultiple(2, ".ply", files =>
+            {
+                string inputFile = files[0];
+                string outputFile = files[1];
+                
+                var plyWriter = new PLYMaximumCompatibilityWriter(writeXYZAsFloat: false,
+                                                                  writeNormalLengthsAsValue: true);
+                PLYSerializer.Write(meshWithValueScaledNormals, inputFile, plyWriter);
+                
+                string arguments = string.Format("--in {0} --out {1} --trim {2} {3}",
+                                                 inputFile, outputFile, options.TrimmerLevel,
+                                                 options.TrimmerIslandPct > 0 ?
+                                                 "--aRatio " + options.TrimmerIslandPct : "");
+                logger.InfoFormat("running command: {0} {1}", trimmerExe, arguments);
+                
+                var pr = new ProgramRunner(trimmerExe, arguments, captureOutput: true);
+                try
+                {
+                    int exitCode = pr.Run();
+                    
+                    if (exitCode != 0)
+                    {
+                        throw new MeshException("trimmer exited with status " + exitCode);
+                    }
+                    
+                    //at least some legacy versions of PoissonRecon.exe can error out but still
+                    //have zero exit code and write a valid and nonempty output mesh
+                    //it seems the only way to detect that is like this
+                    if (cfg.PoissonExeLegacy && !string.IsNullOrEmpty(pr.ErrorText) &&
+                        !Regex.Split(pr.ErrorText, "\r\n|\r|\n").All(l => l.StartsWith("[WARNING]")))
+                    {
+                        throw new MeshException("trimmer nonempty error output");
+                    }
+                    
+                    if (!File.Exists(outputFile))
+                    {
+                        throw new MeshException("trimmer no output file");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    logger.Error(pr.OutputText);
+                    logger.Error(pr.ErrorText);
+                    throw new MeshException("failed to run " + (cfg.PoissonExeLegacy ? "(legacy) " : "") +
+                                            trimmerExe + " " + arguments + ": " + ex.Message);
+                }
+                
+                result = Mesh.Load(outputFile); //don't scale normals
+                
+                if (result.Vertices.Count == 0 || result.Faces.Count == 0)
+                {
+                    throw new MeshException("trimmer empty output");
+                }
+                logger.InfoFormat("trimmed mesh has {0} faces", Fmt.KMG(result.Faces.Count));
+            });
+            return result;
         }
     }
 }

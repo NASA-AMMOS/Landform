@@ -242,13 +242,14 @@ namespace OPS.Landform
             return " alignment";
         }
 
-        protected override void SaveMesh(Mesh mesh, string name, string texture = null)
+        protected override void SaveMesh(Mesh mesh, string name, string texture = null,
+                                         bool writeNormalLengthsAsValue = false)
         {
             if (dbgMeshTransform.HasValue)
             {
                 mesh = mesh.Transformed(dbgMeshTransform.Value);
             }
-            base.SaveMesh(mesh, name, texture);
+            base.SaveMesh(mesh, name, texture, writeNormalLengthsAsValue);
         }
 
         protected virtual bool AutoUseMeshRDRs()

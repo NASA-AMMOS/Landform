@@ -210,7 +210,6 @@ namespace OPS.Geometry
 
             foreach (Vertex[] edge in edges)
             {
-
                 // Plane.D is the negative of the distance from the origin to the plane in the direction of the normal
                 double dist = -plane.D;
 

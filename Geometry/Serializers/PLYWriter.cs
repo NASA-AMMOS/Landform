@@ -4,6 +4,8 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Microsoft.Xna.Framework;
+using OPS.MathExtensions;
 
 namespace OPS.Geometry
 {
@@ -133,17 +135,20 @@ namespace OPS.Geometry
     /// </summary>
     public abstract class PLYBaseWriter : PLYWriter
     {
-        protected bool writeXYZValuesAsFloat;
-        public PLYBaseWriter(bool writeXYZValuesAsFloat = false)
+        protected bool writeXYZAsFloat;
+        protected bool writeNormalLengthsAsValue;
+
+        public PLYBaseWriter(bool writeXYZAsFloat = false, bool writeNormalLengthsAsValue = false)
         {
-            this.writeXYZValuesAsFloat = writeXYZValuesAsFloat;
+            this.writeXYZAsFloat = writeXYZAsFloat;
+            this.writeNormalLengthsAsValue = writeNormalLengthsAsValue;
         }
 
         protected string NumberFormat
         {
             get
             {
-                return writeXYZValuesAsFloat ? "float" : "double";
+                return writeXYZAsFloat ? "float" : "double";
             }
         }
         protected override void WriteVertexPositionHeader(StreamWriter sw)
@@ -155,7 +160,7 @@ namespace OPS.Geometry
 
         protected override void WriteVertexPostion(Vertex v, Stream s)
         {
-            if (writeXYZValuesAsFloat)
+            if (writeXYZAsFloat)
             {
                 WriteFloatValue((float)v.Position.X, s);
                 WriteFloatValue((float)v.Position.Y, s);
@@ -174,13 +179,31 @@ namespace OPS.Geometry
             sw.WriteLine("property float nx");
             sw.WriteLine("property float ny");
             sw.WriteLine("property float nz");
+            if (writeNormalLengthsAsValue)
+            {
+                sw.WriteLine("property float value");
+            }
         }
 
         protected override void WriteVertexNormal(Vertex v, Stream s)
         {
-            WriteFloatValue((float)v.Normal.X, s);
-            WriteFloatValue((float)v.Normal.Y, s);
-            WriteFloatValue((float)v.Normal.Z, s);
+            Vector3 n = v.Normal;
+            double val = -1;
+            if (writeNormalLengthsAsValue)
+            {
+                val = n.Length();
+                if (val > MathE.EPSILON && Math.Abs(val - 1) > MathE.EPSILON)
+                {
+                    n.Normalize();
+                }
+            }
+            WriteFloatValue((float)n.X, s);
+            WriteFloatValue((float)n.Y, s);
+            WriteFloatValue((float)n.Z, s);
+            if (writeNormalLengthsAsValue)
+            {
+                WriteFloatValue((float)val, s);
+            }
         }
     }
 
@@ -202,7 +225,7 @@ namespace OPS.Geometry
     /// A type value means only supported with that type
     /// NA means ignored
     /// 
-    ///                                                 MeshLab         Blender         CloudCompare
+    ///                                                 MeshLab         Blender         CloudCompare   PoissionRecon
     /// ply
     /// format binary_little_endian 1.0
     /// [comments TextureFile filename] 
@@ -213,6 +236,7 @@ namespace OPS.Geometry
     /// property float nx
     /// property float ny
     /// property float nz
+    /// [property float value]                           NA             NA              NA             density
     /// property float texture_u                         float          NA              NA
     /// property float texture_v                         float          NA              NA
     /// property double s                                NA             float/double    NA
@@ -228,7 +252,9 @@ namespace OPS.Geometry
     /// </summary>
     public class PLYMaximumCompatibilityWriter : PLYBaseWriter
     {
-        public PLYMaximumCompatibilityWriter(bool writeXYZValuesAsFloat) : base(writeXYZValuesAsFloat) { }
+        public PLYMaximumCompatibilityWriter(bool writeXYZAsFloat = false, bool writeNormalLengthsAsValue = false)
+            : base(writeXYZAsFloat, writeNormalLengthsAsValue)
+        { }
 
         protected override void WriteVertexUV(Vertex v, Stream s)
         {
@@ -303,6 +329,7 @@ namespace OPS.Geometry
     /// property float nx
     /// property float ny
     /// property float nz
+    /// [property float value]
     /// property double s 
     /// property double t 
     /// property float red
@@ -315,7 +342,8 @@ namespace OPS.Geometry
     /// </summary>
     public class PLYHighPrecisionWriter : PLYBaseWriter
     {
-        public PLYHighPrecisionWriter() : base(false) { }
+        public PLYHighPrecisionWriter(bool writeNormalLengthsAsValue = false) : base(false, writeNormalLengthsAsValue)
+        { }
 
         protected override void WriteVertexUVHeader(StreamWriter sw)
         {
@@ -362,6 +390,7 @@ namespace OPS.Geometry
     /// property float nx
     /// property float ny
     /// property float nz
+    /// [property float value]
     /// property float texture_u
     /// property float texture_v
     /// property float red
@@ -374,7 +403,9 @@ namespace OPS.Geometry
     /// </summary>
     public class PLYCompactFileWriter : PLYBaseWriter
     {
-        public PLYCompactFileWriter(bool writeXYZValuesAsFloat = false) : base(writeXYZValuesAsFloat) { }
+        public PLYCompactFileWriter(bool writeXYZAsFloat = false, bool writeNormalLengthsAsValue = false)
+            : base(writeXYZAsFloat, writeNormalLengthsAsValue)
+        { }
 
         protected override void WriteVertexUVHeader(StreamWriter sw)
         {

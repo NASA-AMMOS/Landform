@@ -31,9 +31,15 @@ namespace OPS.Geometry
         /// <param name="defaultAlpha">if the ply file only has RGB then use this value as the default alpha</param>
         /// <returns>A mesh containing the ply file contents</returns>
         public static Mesh Read(string filename, out string textureFilename, double defaultAlpha = 1,
-                                bool onlyGetImageFilename = false)
+                                bool onlyGetImageFilename = false, bool readValuesAsNormalLengths = false)
         {
-            return (new PLYReader(filename)).Read(out textureFilename, defaultAlpha, onlyGetImageFilename);
+            var reader = new PLYReader(filename, readValuesAsNormalLengths);
+            return reader.Read(out textureFilename, defaultAlpha, onlyGetImageFilename);
+        }
+
+        public static Mesh Read(string filename, double defaultAlpha = 1, bool readValuesAsNormalLengths = false)
+        {
+            return Read(filename, out string textureFilename, defaultAlpha, false, readValuesAsNormalLengths);
         }
 
         /// <summary>

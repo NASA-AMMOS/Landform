@@ -24,7 +24,7 @@ namespace OPS.Geometry
         /// <param name="scale"></param>
         public FSSRPlyWriter(float scale)
         {
-            this.writeXYZValuesAsFloat = true;
+            this.writeXYZAsFloat = true;
             this.scale = scale;
         }
         

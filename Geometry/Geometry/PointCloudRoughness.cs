@@ -260,7 +260,9 @@ namespace OPS.Geometry
             /// <summary>
             /// Scale value to use for all points in the mesh
             /// </summary>
-            public RoughnessPlyWriter(bool writeXYZValuesAsFloat) : base(writeXYZValuesAsFloat) { }
+            public RoughnessPlyWriter(bool writeXYZAsFloat = false, bool writeNormalLengthsAsValue = false)
+                : base(writeXYZAsFloat, writeNormalLengthsAsValue)
+            { }
 
             protected override void WriteVertexStructureHeader(Mesh m, StreamWriter sw)
             {
@@ -277,7 +279,7 @@ namespace OPS.Geometry
             {
                 base.WriteVertex(m, v, s);
                 VertexWithRoughness rv = (VertexWithRoughness)v;
-                if (writeXYZValuesAsFloat)
+                if (writeXYZAsFloat)
                 {
                     WriteFloatValue((float)rv.RMS, s);
                     WriteFloatValue((float)rv.AverageDistance, s);
