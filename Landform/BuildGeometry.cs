@@ -208,6 +208,7 @@ namespace OPS.Landform
         public const int BLEND_GUTTER_SAMPLES = 4;
 
         private string dbgMeshPrefix;
+        private int dbgMeshCount;
 
         private BuildGeometryOptions options;
 
@@ -627,10 +628,7 @@ namespace OPS.Landform
                 pipeline.LogInfo("merging {0} observation point clouds without clever combine, total {1} points",
                                  clouds.Length, Fmt.KMG(nv));
                 pointCloud.MergeWith(clouds, normalize: false, removeDuplicateVerts: false);
-                if (options.WriteDebug)
-                {
-                    SaveMesh(pointCloud, dbgMeshPrefix + "-cloud");
-                }
+                SaveDebugMesh(pointCloud, "cloud");
             }
             else
             {
@@ -672,10 +670,7 @@ namespace OPS.Landform
                     pointCloud.MergeWith(clouds, normalize: false, removeDuplicateVerts: false);
                 }
 
-                if (options.WriteDebug)
-                {
-                    SaveMesh(pointCloud, dbgMeshPrefix + "-cloud");
-                }
+                SaveDebugMesh(pointCloud, "cloud");
 
                 if (clouds.Length > 1)
                 {
@@ -688,10 +683,7 @@ namespace OPS.Landform
                     
                     pipeline.LogInfo("clever combine returned {0} points", Fmt.KMG(pointCloud.Vertices.Count));
                     
-                    if (options.WriteDebug)
-                    {
-                        SaveMesh(pointCloud , dbgMeshPrefix + "-cloud-combined");
-                    }
+                    SaveDebugMesh(pointCloud , "cloud-combined");
                 }
                 else
                 {
@@ -717,10 +709,7 @@ namespace OPS.Landform
             envelopeBounds.Min -= options.ExpandEnvelopeBounds * Vector3.UnitZ;
             poissonOpts.Envelope = envelopeBounds;
 
-            if (options.WriteDebug)
-            {
-                SaveMesh(envelopeBounds.ToMesh(), dbgMeshPrefix + "-envelope");
-            }
+            SaveDebugMesh(envelopeBounds.ToMesh(), "envelope");
         }
 
         private void ReconstructMesh()
@@ -733,21 +722,12 @@ namespace OPS.Landform
             void saveUntrimmedMesh(Mesh utm)
             {
                 untrimmedMesh = utm;
-                if (options.WriteDebug)
-                {
-                    SaveMesh(utm, dbgMeshPrefix + "-untrimmed", writeNormalLengthsAsValue: true);
-                }
+                SaveDebugMesh(utm, "untrimmed", writeNormalLengthsAsValue: true);
             }
             
             void saveRawReconstructedMesh(string reconstructedMeshTempFile)
             {
-                if (options.WriteDebug)
-                {
-                    string name = dbgMeshPrefix + "-reconstructed-raw";
-                    string meshFile = Path.Combine(localOutputPath, name + meshExt);
-                    PathHelper.EnsureExists(Path.GetDirectoryName(meshFile)); //name could have a subpath in it
-                    File.Copy(reconstructedMeshTempFile, meshFile, overwrite: true);
-                }
+                SaveDebugMesh(reconstructedMeshTempFile, "reconstructed-raw");
             }
             
             switch (options.ReconstructionMethod)
@@ -770,13 +750,12 @@ namespace OPS.Landform
 
             if (options.WriteDebug)
             {
-                SaveMesh(mesh, dbgMeshPrefix + "-reconstructed");
-
+                SaveDebugMesh(mesh, "reconstructed");
                 var colored = new Mesh(mesh);
                 var red = new Vector3(1, 0, 0);
                 var green = new Vector3(0, 1, 0);
                 colored.ColorByNormalMagnitude(red, green);
-                SaveMesh(colored, dbgMeshPrefix + "-confidence");
+                SaveDebugMesh(colored, "confidence");
             }
         }
 
@@ -808,10 +787,7 @@ namespace OPS.Landform
         private void ClipSurfaceMesh()
         {
             ClipMesh(options.SurfaceExtent);
-            if (options.WriteDebug)
-            {
-                SaveMesh(mesh, dbgMeshPrefix + "-clipped-surface");
-            }
+            SaveDebugMesh(mesh, "clipped-surface");
         }
 
         //currently "shrinkwrap" just really means
@@ -832,10 +808,7 @@ namespace OPS.Landform
                                              Shrinkwrap.ProjectionMissResponse.Clip);
             shrinkwrapMesh.Clean();
 
-            if (options.WriteDebug)
-            {
-                SaveMesh(shrinkwrapMesh, dbgMeshPrefix + "-shrinkwrap");
-            }
+            SaveDebugMesh(shrinkwrapMesh, "shrinkwrap");
         }
 
         //populates maskUVMeshOp so that later stages can trim meshes to an XY plane boundary
@@ -927,10 +900,7 @@ namespace OPS.Landform
                     maskMesh.ReverseWinding();
                 }
                 
-                if (options.WriteDebug)
-                {
-                    SaveMesh(maskMesh, dbgMeshPrefix + "-surface-mask");
-                }
+                SaveDebugMesh(maskMesh, "surface-mask");
 
                 maskMesh.XYToUV();
                 maskUVMeshOp =
@@ -952,10 +922,7 @@ namespace OPS.Landform
         {
             poissonOpts.TrimmerLevel = options.TrimmerLevelLenient;
             mesh = PoissonReconstruction.Trim(untrimmedMesh, poissonOpts);
-            if (options.WriteDebug)
-            {
-                SaveMesh(mesh, dbgMeshPrefix + "-trimmed-lenient");
-            }
+            SaveDebugMesh(mesh, "trimmed-lenient");
 
             mesh.Faces = mesh.Faces.Where(face =>
             {
@@ -973,10 +940,7 @@ namespace OPS.Landform
 
             CleanMesh();
 
-            if (options.WriteDebug)
-            {
-                SaveMesh(mesh, dbgMeshPrefix + "-masked");
-            }
+            SaveDebugMesh(mesh, "masked");
         }
 
         private void BuildOrbitalMesh()
@@ -1031,10 +995,7 @@ namespace OPS.Landform
 
             if (blendBounds != null)
             {
-                if (options.WriteDebug)
-                {
-                    SaveMesh(orbitalMesh, dbgMeshPrefix + "-outer-orbital");
-                }
+                SaveDebugMesh(orbitalMesh, "outer-orbital");
 
                 pipeline.LogInfo("making {0:f3}x{0:f3} orbital blend mesh at {1:f3} samples/meter",
                                  2 * blendRadiusPixels * orbitalDEMMetersPerPixel,
@@ -1042,10 +1003,7 @@ namespace OPS.Landform
 
                 var blendMesh = makeMesh(blendSamplesPerPixel, blendBounds);
 
-                if (options.WriteDebug)
-                {
-                    SaveMesh(blendMesh, dbgMeshPrefix + "-preblend-orbital");
-                }
+                SaveDebugMesh(blendMesh, "preblend-orbital");
 
                 pipeline.LogInfo("made orbital blend mesh with {0} triangles", Fmt.KMG(blendMesh.Faces.Count));
 
@@ -1060,10 +1018,7 @@ namespace OPS.Landform
                 }
             }
                 
-            if (options.WriteDebug)
-            {
-                SaveMesh(orbitalMesh, dbgMeshPrefix + "-orbital");
-            }
+            SaveDebugMesh(orbitalMesh, "orbital");
         }
 
         private void BlendOrbitalToSurface()
@@ -1167,10 +1122,7 @@ namespace OPS.Landform
             blendedOrbitalMesh.Clean(); //removes degnerate faces
             blendedOrbitalMesh.GenerateVertexNormals(); //we moved stuff, recompute vertex normals from faces
 
-            if (options.WriteDebug)
-            {
-                SaveMesh(blendedOrbitalMesh, dbgMeshPrefix + "-blended-orbital");
-            }
+            SaveDebugMesh(blendedOrbitalMesh, "blended-orbital");
 
             int nv = mesh.Vertices.Count;
             mesh.Vertices.AddRange(blendedOrbitalMesh.Vertices);
@@ -1178,10 +1130,7 @@ namespace OPS.Landform
 
             mesh.Clean();
 
-            if (options.WriteDebug)
-            {
-                SaveMesh(mesh, dbgMeshPrefix + "-combined");
-            }
+            SaveDebugMesh(mesh, "combined");
         }
 
         private void ClipMesh(double extent, bool clipToPointCloudBounds = true)
@@ -1236,10 +1185,7 @@ namespace OPS.Landform
                 throw new Exception("mesh is empty");
             }
 
-            if (options.WriteDebug)
-            {
-                SaveMesh(mesh, dbgMeshPrefix + "-decimated");
-            }
+            SaveDebugMesh(mesh, "decimated");
         }
 
         private void FilterMesh()
@@ -1275,10 +1221,7 @@ namespace OPS.Landform
 
             pipeline.LogInfo("kept {0} faces visible in specified observations", Fmt.KMG(mesh.Faces.Count));
 
-            if (options.WriteDebug)
-            {
-                SaveMesh(mesh, dbgMeshPrefix + "-filtered");
-            }
+            SaveDebugMesh(mesh, "filtered");
         }
 
         private void AtlasMesh()
@@ -1291,10 +1234,7 @@ namespace OPS.Landform
                 {
                     throw new Exception("atlasing failed");
                 }
-                if (options.WriteDebug)
-                {
-                    SaveMesh(mesh, dbgMeshPrefix + "-atlassed");
-                }
+                SaveDebugMesh(mesh, "atlassed");
                 return;
             }
 
@@ -1335,10 +1275,7 @@ namespace OPS.Landform
 
                 var centralMesh = mesh.Clipped(centralBounds);
 
-                if (options.WriteDebug)
-                {
-                    SaveMesh(centralMesh, dbgMeshPrefix + "-central");
-                }
+                SaveDebugMesh(centralMesh, "central");
 
                 switch (options.SurfaceUVMode)
                 {
@@ -1352,52 +1289,43 @@ namespace OPS.Landform
                     throw new Exception("atlasing failed");
                 }
 
-                if (options.WriteDebug)
-                {
-                    SaveMesh(centralMesh, dbgMeshPrefix + "-central-atlassed");
-                }
+                SaveDebugMesh(centralMesh, "central-atlassed");
 
                 centralMesh.RescaleUVs(BoundingBoxExtensions.CreateXY(PointToUV(meshBounds, centralBounds.Min),
                                                                       PointToUV(meshBounds, centralBounds.Max)));
 
-                if (options.WriteDebug)
-                {
-                    SaveMesh(centralMesh, dbgMeshPrefix + "-central-atlassed-rescaled");
-                }
+                SaveDebugMesh(centralMesh, "central-atlassed-rescaled");
 
                 var peripheralMesh = mesh.Cutted(centralBounds);
                 pipeline.LogInfo("heightmap atlassing {0}m orbital periphery ({1} tris)",
                                  0.5 * (options.Extent - blendExtent), Fmt.KMG(peripheralMesh.Faces.Count));
                 HeightmapAtlasMesh(peripheralMesh);
 
-                if (options.WriteDebug)
-                {
-                    SaveMesh(peripheralMesh, dbgMeshPrefix + "-peripheral-atlassed");
-                }
+                SaveDebugMesh(peripheralMesh, "peripheral-atlassed");
 
                 mesh = MeshMerge.Merge(msg => pipeline.LogWarn(msg), centralMesh, peripheralMesh);
             }
 
-            void saveDbgMeshes(string name)
+            void saveDebugMeshes(string suffix)
             {
                 if (options.WriteDebug)
                 {
-                    SaveMesh(mesh, dbgMeshPrefix + "-" + name);
+                    SaveDebugMesh(mesh, suffix);
 #if DBG_UV
                     var tmp = new Mesh(mesh);
                     tmp.ColorByUV();
-                    SaveMesh(tmp, dbgMeshPrefix + "-" + name + "-UV");
+                    SaveDebugMesh(tmp, suffix + "-UV");
                     tmp.ColorByUV(vChannel: -1);
-                    SaveMesh(tmp, dbgMeshPrefix + "-" + name + "-U");
+                    SaveDebugMesh(tmp, suffix + "-U");
                     tmp.ColorByUV(uChannel: -1);
-                    SaveMesh(tmp, dbgMeshPrefix + "-" + name + "-V");
+                    SaveDebugMesh(tmp, suffix + "-V");
 #endif
                 }
             }
 
             if (dstSurfaceFrac > srcSurfaceFrac && !options.NoTextureWarp)
             {
-                saveDbgMeshes("prewarpAtlassed");
+                saveDebugMeshes("prewarpAtlassed");
                 
                 pipeline.LogInfo("warping {0:F3}x{0:F3} central UVs to {1:F3}x{1:F3}, ease {2:F3}",
                                  srcSurfaceFrac, dstSurfaceFrac, options.EaseTextureWarp);
@@ -1414,7 +1342,7 @@ namespace OPS.Landform
                 mesh.WarpUVs(src, dst, options.EaseTextureWarp);
             }
 
-            saveDbgMeshes("atlassed");
+            saveDebugMeshes("atlassed");
         }
 
         private void SaveSceneMesh()
@@ -1464,6 +1392,26 @@ namespace OPS.Landform
                     mesh.Save(tmpFile);
                     pipeline.SaveFile(tmpFile, options.OutputMesh, constrainToStorage: false);
                 });
+            }
+        }
+
+        private void SaveDebugMesh(Mesh mesh, string suffix, string texture = null,
+                                   bool writeNormalLengthsAsValue = false)
+        {
+            if (options.WriteDebug)
+            {
+                SaveMesh(mesh, $"{dbgMeshPrefix}-{dbgMeshCount++}-{suffix}", texture, writeNormalLengthsAsValue);
+            }
+        }
+
+        private void SaveDebugMesh(string srcFile, string suffix)
+        {
+            if (options.WriteDebug)
+            {
+                string name = $"{dbgMeshPrefix}-{dbgMeshCount++}-{suffix}";
+                string dstFile = Path.Combine(localOutputPath, name + meshExt);
+                PathHelper.EnsureExists(Path.GetDirectoryName(dstFile)); //name could have a subpath in it
+                File.Copy(srcFile, dstFile, overwrite: true);
             }
         }
     }
