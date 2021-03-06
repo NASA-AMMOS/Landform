@@ -589,15 +589,45 @@ namespace OPS.Pipeline
                 "}";
         }
 
-        public override string GetPlacesConfigDefaults()
+        protected string GetPlacesConfigDefaults(string url)
         {
-            string sfx = venue == "dev" ? "-dev" : "";
+            //From RGD:
+            //this is basically the same as MSL, except some of the names have changed.
+            //There are three views you  might care about (there are a few others you won't):
+            //
+            //telemetry
+            //best_tactical
+            //best_interp
+            //
+            //Telemetry contains whatever the rover sent, period.
+            //It has all frames we know anything about, but NO localization whatsoever.
+            //
+            //Best_tactical contains ONLY the localization points.  So if you do a normal, shallow query, you'll see
+            //only those places where the rover was actually localized (generally end-of-drive, although also sometimes
+            //mid-drive).  If you do a deep query (deep=true) then it'll go to the parent for answers, which means
+            //telemetry.  HOWEVER... those are unlocalized telemetry values, so you'd get a discontinuous path.  Not
+            //recommended.  The purpose of best_tactical is to highlight and store the actual localization points.
+            //
+            //Best_interp contains the interpolated drive path.  That is, all the points from telemetry, interpolated
+            //between localization points so we have a continuous drive path.  This is the one you almost certainly want
+            //to use.
+            //
+            //However, neither best_tactical nor best_interp will show a value if localization has not yet been done.
+            //If you add deep=true then it will go back to telemetry if there's no answer yet... but you may get a
+            //discontinuous drive path that way.
+
             return "{\n" +
-                $"\"Url\": \"https://places{sfx}.{venue}.m20.jpl.nasa.gov\",\n" +
-                "\"Views\": \"telemetry,best_interp,best_tactical\",\n" +
+                $"\"Url\": \"{url}\",\n" +
+                "\"Views\": \"telemetry,best_tactical,best_interp\",\n" +
                 "\"AuthCookieName\": \"ssosession\",\n" +
                 $"\"AuthCookieFile\": \"~/.cssotoken/{venue}/ssosession\"\n" +
                 "}";
+        }
+
+        public override string GetPlacesConfigDefaults()
+        {
+            string sfx = venue == "dev" ? "-dev" : "";
+            return GetPlacesConfigDefaults($"https://places{sfx}.{venue}.m20.jpl.nasa.gov");
         }
 
         public override string SolToString(int sol)
@@ -685,13 +715,7 @@ namespace OPS.Pipeline
 
         public override string GetPlacesConfigDefaults()
         {
-            return
-                "{ " +
-                "\"Url\": \"https://places-external-roastt.m20-training.jpl.nasa.gov/m2020-places\", " +
-                "\"Views\": \"telemetry,best_interp,best_tactical\",\n" +
-                "\"AuthCookieName\": \"ssosession\", " +
-                $"\"AuthCookieFile\": \"~/.cssotoken/{venue}/ssosession\"" +
-                "}";
+            return GetPlacesConfigDefaults("https://places-external-roastt.m20-training.jpl.nasa.gov/m2020-places");
         }
 
         public override RoverProductGeometry GetTacticalMeshGeometry()
@@ -745,12 +769,7 @@ namespace OPS.Pipeline
 
         public override string GetPlacesConfigDefaults()
         {
-            return "{\n" +
-                "\"Url\": \"https://places-sstage.m20.jpl.nasa.gov\",\n" +
-                "\"Views\": \"telemetry,best_interp,best_tactical\",\n" +
-                "\"AuthCookieName\": \"ssosession\",\n" +
-                $"\"AuthCookieFile\": \"~/.cssotoken/{venue}/ssosession\"\n" +
-                "}";
+            return GetPlacesConfigDefaults("https://places-sstage.m20.jpl.nasa.gov");
         }
 
         public override RoverProductGeometry GetTacticalMeshGeometry()
@@ -933,12 +952,7 @@ namespace OPS.Pipeline
             //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/725#issuecomment-267319
             //per Kevin Grimes on 3/18/20 ROASTT20 data will soon move to
             //https://places-roastt.dev.m20.jpl.nasa.gov
-            return "{\n" +
-                $"\"Url\": \"https://places-rocs.{venue}.m20.jpl.nasa.gov\",\n" +
-                "\"Views\": \"telemetry,best_interp,best_tactical\",\n" +
-                "\"AuthCookieName\": \"ssosession\",\n" +
-                $"\"AuthCookieFile\": \"~/.cssotoken/{venue}/ssosession\"\n" +
-                "}";
+            return GetPlacesConfigDefaults("https://places-rocs.{venue}.m20.jpl.nasa.gov");
         }
 
         public override RoverProductGeometry GetTacticalMeshGeometry()
