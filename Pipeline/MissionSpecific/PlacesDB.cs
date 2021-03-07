@@ -179,14 +179,12 @@ namespace OPS.Pipeline
             {
                 GetOffsetToStart(new SiteDrive(1, 0)); //test query
             }
-            catch
+            catch (Exception ex)
             {
-                if (logger != null)
-                {
-                    logger.LogWarn("PlacesDB test query for sitedrive (1, 0) failed" +
-                                   ", check list at {0}/view/VIEW/rmcs for VIEW in {1}",
-                                   config.Url, String.Join(",", views));
-                }
+                throw new Exception(string.Format("PlacesDB test query for sitedrive (1, 0) failed: {0}" +
+                                                  "; check list at {1}/view/VIEW/rmcs for VIEW in {2}",
+                                                  ex.Message, config.Url, String.Join(",", views)),
+                                    ex);
             }
         }
 
