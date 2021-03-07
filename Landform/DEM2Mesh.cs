@@ -272,16 +272,17 @@ namespace OPS.Landform
                 int index = options.DEMPlacesDBIndex >= 0 ? options.DEMPlacesDBIndex : cfg.DEMPlacesDBIndex;
                 var sd = new SiteDrive(options.OutputFrame);
 
-                var placesDB = new PlacesDB(logger);
+                var placesDB = new PlacesDB(logger, options.Debug);
 
-                var eastingNorthingElev = placesDB.GetEastingNorthingElevation(sd, index);
+                string bestView = null;
+                var eastingNorthingElev = placesDB.GetEastingNorthingElevation(sd, index, view: v => { bestView = v; });
 
                 originPixel = demCamera.EastingNorthingToImage(eastingNorthingElev).XY();
 
-                logger.LogInfo("resolved output frame site drive {0} using PlacesDB orbital index {1}: " +
-                               "(easting, northing, elevation) = ({2:f3}, {3:f3}, {4:f3})m, " +
-                               "(x, y) = ({5:f2}, {6:f2})px",
-                               sd, index, eastingNorthingElev.X, eastingNorthingElev.Y, eastingNorthingElev.Z,
+                logger.LogInfo("resolved output frame site drive {0} using PlacesDB {1} orbital index {2}: " +
+                               "(easting, northing, elevation) = ({3:f3}, {4:f3}, {5:f3})m, " +
+                               "(x, y) = ({6:f2}, {7:f2})px",
+                               sd, bestView, index, eastingNorthingElev.X, eastingNorthingElev.Y, eastingNorthingElev.Z,
                                originPixel.X, originPixel.Y);
             
                 var mpp = demCamera.CheckLocalGISImageBasisAndGetResolution(originPixel, logger);

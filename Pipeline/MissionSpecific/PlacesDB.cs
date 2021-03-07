@@ -87,6 +87,11 @@ namespace OPS.Pipeline
         //https://github.jpl.nasa.gov/OnSight/Landform/issues/1154
         [ConfigEnvironmentVariable("LANDFORM_PLACES_MAX_RETRIES")]
         public int MaxRetries { get; set; } = 20;
+
+        //always do a query like view/VIEW/rmc/REF to verify availability of REF in view
+        //otherwise a query like query/primary/VIEW?from=REF0&to=REF1 will be used for pairs of refs
+        [ConfigEnvironmentVariable("LANDFORM_PLACES_ALWAYS_CHECK_RMC")]
+        public bool AlwaysCheckRMC { get; set; }
     }
 
     /// <summary>
@@ -327,9 +332,17 @@ namespace OPS.Pipeline
             return JsonHelper.FromJson<JsonDocument>(response);
         }
 
-        private Vector3 GetOffset(string query)
+        private Vector3? FetchOffset(string query, bool throwOnError = true)
         {
-            string response = Fetch(query);
+            string response = Fetch(query, throwOnError);
+            if (response == null)
+            {
+                if (throwOnError)
+                {
+                    throw new Exception("fetch failed for query " + query);
+                }
+                return null;
+            }
             Vector3 offset = new Vector3();
             if (response.StartsWith("{"))
             {
@@ -337,7 +350,11 @@ namespace OPS.Pipeline
                 var translations = doc.translations;
                 if (translations.Length != 1)
                 {
-                    throw new Exception("PlacesDB: unexpected number of offsets in response");
+                    if (throwOnError)
+                    {
+                        throw new Exception("PlacesDB: unexpected number of offsets in response");
+                    }
+                    return null;
                 }
                 offset = new Vector3(translations[0].offset[0], translations[0].offset[1], translations[0].offset[2]);
             }
@@ -347,14 +364,18 @@ namespace OPS.Pipeline
                 XmlNodeList nodes = doc.GetElementsByTagName("offset");
                 if (nodes.Count != 1)
                 {
-                    throw new Exception("PlacesDB: unexpected number of offsets in response");
+                    if (throwOnError)
+                    {
+                        throw new Exception("PlacesDB: unexpected number of offsets in response");
+                    }
+                    return null;
                 }
                 offset = new Vector3(double.Parse(nodes[0].Attributes["x"].Value),
                                      double.Parse(nodes[0].Attributes["y"].Value),
                                      double.Parse(nodes[0].Attributes["z"].Value));
             }
 
-            Debug("request: {0}, offset {1}", query, offset);
+            Debug("got offset {0} for {1}", offset, query);
 
             return offset;
         }
@@ -586,9 +607,9 @@ namespace OPS.Pipeline
         /// returns X = col, Y = row pixel for sitedrive sd in orbitalIndex
         /// </summary>
         public Vector2 GetOrbitalPixel(SiteDrive sd, int orbitalIndex, double defMetersPerPixel = 0,
-                                       Vector2? defULCEastingNorthing = null)
+                                       Vector2? defULCEastingNorthing = null, Action<string> view = null)
         {
-            var eastingNorthingElevation = GetEastingNorthingElevation(sd, orbitalIndex, false, defULCEastingNorthing);
+            var ene = GetEastingNorthingElevation(sd, orbitalIndex, false, defULCEastingNorthing, view);
             var mpp = GetOrbitalMetersPerPixel(orbitalIndex);
             if (!mpp.HasValue)
             {
@@ -603,74 +624,11 @@ namespace OPS.Pipeline
                                         $"for index {orbitalIndex} and default meters per pixel not specified");
                 }
             }
-            double col = eastingNorthingElevation.X / mpp.Value.X;
-            double row = -1 * eastingNorthingElevation.Y / mpp.Value.Y;
-            return new Vector2(col, row);
-        }
-
-        /// <summary>
-        /// Formulate a PlacesDB query reference for the given sitedrive (S,D).
-        /// If D=0 then the query will be of the form site(S), because queries like rover(S,0) generally don't work.
-        /// Otherwise the query will be of the form rover(S,D,POSE_IDENTIFIER)
-        /// POSE_IDENTIFIER=^ means the frame of the latest available pose in the sitedrive
-        /// POSE_IDENTIFIER=-1 means the frame of the earliest available pose (I think??)
-        /// in that site and drive.  Note that in some venues queries like rover(S,D) work but in others they don't,
-        /// but adding the carat should work in all cases (per Kevin Grimes).
-        /// </summary>
-        private static string GetSDRef(SiteDrive sd)
-        {
-            return GetSDRef(sd.Site, sd.Drive);
-        }
-
-        private static string GetSDRef(int site, int drive = 0)
-        {
-            return drive > 0 ? $"rover({site},{drive},{POSE_IDENTIFIER})" : $"site({site})";
-        }
-
-        private string GetBestView(params string[] refs)
-        {
-            Array.Sort(refs);
-            string key = String.Join(",", refs);
-
-            Exception makeException()
-            {
-                return new Exception($"no PlacesDB view available for {key}; tried " + String.Join(",", views));
-            }
-
-            lock (bestViewCache)
-            {
-                if (bestViewCache.ContainsKey(key))
-                {
-                    string ret = bestViewCache[key];
-                    if (ret == null)
-                    {
-                        throw makeException();
-                    }
-                    return ret;
-                }
-                var remaining = new bool[views.Length];
-                for (int v = 0; v < views.Length; v++)
-                {
-                    remaining[v] = true;
-                }
-                for (int r = 0; r < refs.Length; r++)
-                {
-                    for (int v = views.Length - 1; v >= 0; v--)
-                    {
-                        remaining[v] &= Fetch($"view/{views[v]}/rmc/{refs[r]}", throwOnError: false) != null;
-                    }
-                }
-                int best = Array.LastIndexOf(remaining, true);
-                if (best >= 0)
-                {
-                    bestViewCache[key] = views[best];
-                    return views[best];
-                }
-#if CACHE_FAILED_REQUESTS
-                bestViewCache[key] = null;
-#endif
-                throw makeException();
-            }
+            double col = ene.X / mpp.Value.X;
+            double row = -1 * ene.Y / mpp.Value.Y;
+            var ret = new Vector2(col, row);
+            Debug("got orbital pixel (col, row) {0} for {1}", ret, sd);
+            return ret;
         }
 
         /// <summary>
@@ -686,15 +644,15 @@ namespace OPS.Pipeline
         /// in the metadata for orbitalIndex or defULCEastingNorthing to be specified
         /// </summary>
         public Vector3 GetEastingNorthingElevation(SiteDrive sd, int orbitalIndex, bool absolute = true,
-                                                   Vector2? defULCEastingNorthing = null)
+                                                   Vector2? defULCEastingNorthing = null, Action<string> view = null)
         {
             string sdRef = GetSDRef(sd);
             string oRef = $"orbital({orbitalIndex})";
-            string view = GetBestView(sdRef, oRef);
-            string query = $"query/primary/{view}?from={sdRef}&to={oRef}";
+            string bestView = GetBestView(sdRef, oRef);
+            string query = $"query/primary/{bestView}?from={sdRef}&to={oRef}";
 
             //offset is in standard mission local level frame: +X north, +Y east, +Z down
-            var v = GetOffset(query);
+            var v = FetchOffset(query).Value;
             double easting = v.Y;
             double northing = v.X;
             double elevation = -v.Z;
@@ -727,37 +685,154 @@ namespace OPS.Pipeline
                                         "default ULC easting/northing not specified");
                 }
             }
-            return new Vector3(easting, northing, elevation);
+            
+            var ret = new Vector3(easting, northing, elevation);
+            Debug("got (easting, northing, elevation) {0} from view {1} for {2}", ret, bestView, query);
+            if (view != null)
+            {
+                view(bestView);
+            }
+            return ret;
         }
 
         /// <summary>
         /// Returns the LOCAL_LEVEL frame offset from fromSD to toSite.
         /// </summary>
-        public Vector3 GetOffsetToSite(SiteDrive fromSD, int toSite)
+        public Vector3 GetOffsetToSite(SiteDrive fromSD, int toSite, Action<string> view = null)
         {
             string sdRef = GetSDRef(fromSD);
             string siteRef = GetSDRef(toSite);
-            string view = GetBestView(sdRef, siteRef);
-            return GetOffset($"query/primary/{view}?from={sdRef}&to={siteRef}");
+            string bestView = GetBestView(sdRef, siteRef);
+            string query = $"query/primary/{bestView}?from={sdRef}&to={siteRef}";
+            var ret = FetchOffset(query).Value;
+            Debug("got offset {0} from view {1} for {2}", ret, bestView, query);
+            if (view != null)
+            {
+                view(bestView);
+            }
+            return ret;
         }
 
         /// <summary>
         /// Returns the LOCAL_LEVEL frame offset from sd to site 1, drive 0 (landing).
         /// </summary>
-        public Vector3 GetOffsetToStart(SiteDrive sd)
+        public Vector3 GetOffsetToStart(SiteDrive sd, Action<string> view = null)
         {
-            return cachedOffsetFromStart.GetOrAdd(sd, _ => GetOffsetToSite(sd, 1));
+            return cachedOffsetFromStart.GetOrAdd(sd, _ => GetOffsetToSite(sd, 1, view));
         }
 
         /// <summary>
         /// Returns the LOCAL_LEVEL frame offset from fromSD to toSD.
         /// </summary>
-        public Vector3 GetOffset(SiteDrive fromSD, SiteDrive toSD)
+        public Vector3 GetOffset(SiteDrive fromSD, SiteDrive toSD, Action<string> view = null)
         {
             string fromRef = GetSDRef(fromSD);
             string toRef = GetSDRef(toSD);
-            string view = GetBestView(fromRef, toRef);
-            return GetOffset($"query/primary/{view}?from={fromRef}&to={toRef}");
+            string bestView = GetBestView(fromRef, toRef);
+            string query = $"query/primary/{bestView}?from={fromRef}&to={toRef}";
+            var ret = FetchOffset(query).Value;
+            Debug("got offset {0} from view {1} for {2}", ret, bestView, query);
+            if (view != null)
+            {
+                view(bestView);
+            }
+            return ret;
+        }
+
+        /// <summary>
+        /// Formulate a PlacesDB query reference for the given sitedrive (S,D).
+        /// If D=0 then the query will be of the form site(S), because queries like rover(S,0) generally don't work.
+        /// Otherwise the query will be of the form rover(S,D,POSE_IDENTIFIER)
+        /// POSE_IDENTIFIER=^ means the frame of the latest available pose in the sitedrive
+        /// POSE_IDENTIFIER=-1 means the frame of the earliest available pose (I think??)
+        /// in that site and drive.  Note that in some venues queries like rover(S,D) work but in others they don't,
+        /// but adding the carat should work in all cases (per Kevin Grimes).
+        /// </summary>
+        private static string GetSDRef(SiteDrive sd)
+        {
+            return GetSDRef(sd.Site, sd.Drive);
+        }
+
+        private static string GetSDRef(int site, int drive = 0)
+        {
+            return drive > 0 ? $"rover({site},{drive},{POSE_IDENTIFIER})" : $"site({site})";
+        }
+
+        private string GetBestView(params string[] refs)
+        {
+            string all = String.Join(",", refs);
+            string[] sorted = (string[])refs.Clone();
+            string key = String.Join(",", sorted);
+
+            if (views.Length == 0)
+            {
+                throw new Exception("no PlacesDB views configured");
+            }
+
+            if (views.Length == 1)
+            {
+                Debug("using only available view {0} for {1}", views[0], all);
+                return views[0];
+            }
+
+            Exception makeException()
+            {
+                return new Exception($"no PlacesDB view available for {all}; tried " + String.Join(",", views));
+            }
+
+            lock (bestViewCache)
+            {
+                if (bestViewCache.ContainsKey(key))
+                {
+                    string ret = bestViewCache[key];
+                    if (ret == null)
+                    {
+                        throw makeException();
+                    }
+                    Debug("using cached best view {0} for {1}", ret, all);
+                    return ret;
+                }
+                string best = null;
+                if (!config.AlwaysCheckRMC && refs.Length == 2)
+                {
+                    for (int v = views.Length - 1; v >= 0 && best == null; v--)
+                    {
+                        if (FetchOffset($"query/primary/{views[v]}?from={refs[0]}&to={refs[1]}",
+                                        throwOnError: false).HasValue)
+                        {
+                            best = views[v];
+                        }
+                    }
+                }
+                else
+                {
+                    for (int v = views.Length - 1; v >= 0 && best == null; v--)
+                    {
+                        for (int r = 0; r < refs.Length; r++)
+                        {
+                            if (Fetch($"view/{views[v]}/rmc/{refs[r]}", throwOnError: false) == null)
+                            {
+                                break;
+                            }
+                            if (r == 0)
+                            {
+                                best = views[v];
+                            }
+                        }
+                    }
+                }
+                if (best != null)
+                {
+                    Debug("found best view {0} for {1}", best, all);
+                    bestViewCache[key] = best;
+                    return best;
+                }
+                Debug("no view for {0}", all);
+#if CACHE_FAILED_REQUESTS
+                bestViewCache[key] = null;
+#endif
+                throw makeException();
+            }
         }
     }
 }

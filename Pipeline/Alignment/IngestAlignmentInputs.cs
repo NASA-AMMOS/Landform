@@ -662,10 +662,14 @@ namespace OPS.Pipeline
                 {
                     try
                     {
-                        pipeline.LogInfo("adding transform from orbital frame {0} to project root {1} from PlacesDB",
-                                         orbitalFrameName, rootSDFrame.Name);
+                        string bestView = null;
                         Vector3 orbitalToRoot = places.GetOffset(new SiteDrive(orbitalFrameName),
-                                                                 new SiteDrive(rootSDFrame.Name));
+                                                                 new SiteDrive(rootSDFrame.Name),
+                                                                 view: v => { bestView = v; });
+                        pipeline.LogInfo("got offset ({0:F3}, {1:F3}, {2:F3}) from orbital frame {3} " +
+                                         "to project root {4} from PlacesDB {5}",
+                                         orbitalToRoot.X, orbitalToRoot.Y, orbitalToRoot.Z,
+                                         orbitalFrameName, rootSDFrame.Name, bestView);
                         var xform = new UncertainRigidTransform(Matrix.CreateTranslation(orbitalToRoot),
                                                                 IngestPDSImage.PLACES_COVARIANCE);
                         var source = TransformSource.PlacesDB;
@@ -717,14 +721,17 @@ namespace OPS.Pipeline
                         var sd = new SiteDrive(frame.Name);
                         try
                         {
-                            var ene = places.GetEastingNorthingElevation(sd, placesDEMIndex, absolute: true);
+                            string bestView = null;
+                            var ene = places.GetEastingNorthingElevation(sd, placesDEMIndex, absolute: true,
+                                                                         view: v => { bestView = v; });
                             var lonLat = gisCam != null ? gisCam.EastingNorthingToLonLat(ene)
                                 : body.EastingNorthingToLonLat(ene); //assumes standard parallel is equator
                             pipeline.LogInfo("site drive {0} absolute (easting, northing, elevation) = " +
                                              "({1:f3}, {2:f3}, {3:f3})m, " +
                                              "(longitude, latitude) = ({4:f7}, {5:f7})deg, source {6}",
                                              sd, ene.X, ene.Y, ene.Z, lonLat.X, lonLat.Y,
-                                             gisCam != null ? "GeoTIFF" : $"PlacesDB orbital({placesDEMIndex})");
+                                             (gisCam != null ? "GeoTIFF and " : "") +
+                                             $"PlacesDB {bestView} orbital({placesDEMIndex})");
                             frame.EastingMeters = ene.X;
                             frame.NorthingMeters = ene.Y;
                             frame.ElevationMeters = ene.Z;
@@ -1020,12 +1027,14 @@ namespace OPS.Pipeline
 
             PlanetaryBody body = PlanetaryBody.GetByName(cfg.BodyName);
             int placesENEIndex = placesIndex >= 0 ? placesIndex : placesDEMIndex;
+            string bestView = null;
             Vector3 eastingNorthingElev =
-                places != null ? places.GetEastingNorthingElevation(sd, placesENEIndex, absolute: true)
+                places != null ? places.GetEastingNorthingElevation(sd, placesENEIndex, absolute: true,
+                                                                    view: v => { bestView = v; })
                 : isLanding ? body.LonLatToEastingNorthing(landingLonLatElev)
                 : new Vector3(double.NaN, double.NaN, double.NaN);
             var eneSource =
-                places != null ? $"PlacesDB orbital({placesENEIndex})"
+                places != null ? $"PlacesDB {bestView} orbital({placesENEIndex})"
                 : isLanding ? "expected landing (lon, lat)" : null;
 
             double nominalMPP = isDEM ? cfg.DEMMetersPerPixel : cfg.ImageMetersPerPixel;
@@ -1102,10 +1111,11 @@ namespace OPS.Pipeline
                         variance(new Exception
                                  ($"PlacesDB orbital(placesIndex) variances: " + string.Join("; ", variances)));
                     }
-                    
+
+                    bestView = null;
                     if (gisCam == null)
                     {
-                        sdPixel = places.GetOrbitalPixel(sd, placesIndex, nominalMPP);
+                        sdPixel = places.GetOrbitalPixel(sd, placesIndex, nominalMPP, view: v => { bestView = v; });
                     }
                     else
                     {
@@ -1114,7 +1124,8 @@ namespace OPS.Pipeline
                         {
                             variance(new Exception
                                      ($"site drive {sd} pixel (x, y) = ({px.X:f3}, {px.Y:f3}) from PlacesDB " +
-                                      $"orbital({placesIndex}) != ({sdPixel.X:f3}, {sdPixel.Y:f3}) from GeoTIFF"));
+                                      $"{bestView} orbital({placesIndex}) != ({sdPixel.X:f3}, {sdPixel.Y:f3}) " +
+                                      "from GeoTIFF"));
                         }
                         
                         var gisULC = gisCam.ULCEastingNorthing;

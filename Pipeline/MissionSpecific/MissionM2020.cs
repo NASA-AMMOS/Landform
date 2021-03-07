@@ -591,8 +591,7 @@ namespace OPS.Pipeline
 
         protected string GetPlacesConfigDefaults(string url)
         {
-            //From RGD:
-            //this is basically the same as MSL, except some of the names have changed.
+            //From RGD: this is basically the same as MSL, except some of the names have changed.
             //There are three views you  might care about (there are a few others you won't):
             //
             //telemetry
@@ -615,10 +614,10 @@ namespace OPS.Pipeline
             //However, neither best_tactical nor best_interp will show a value if localization has not yet been done.
             //If you add deep=true then it will go back to telemetry if there's no answer yet... but you may get a
             //discontinuous drive path that way.
-
             return "{\n" +
                 $"\"Url\": \"{url}\",\n" +
                 "\"Views\": \"telemetry,best_tactical,best_interp\",\n" +
+                "\"AlwaysCheckRMC\": true,\n" +
                 "\"AuthCookieName\": \"ssosession\",\n" +
                 $"\"AuthCookieFile\": \"~/.cssotoken/{venue}/ssosession\"\n" +
                 "}";
