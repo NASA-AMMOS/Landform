@@ -42,12 +42,12 @@ using OPS.Pipeline.AlignmentServer;
 ///
 /// Generate merged unaligned sitedrive meshes:
 ///
-/// Landform.exe observation-products windjana --onlymergedsitedrivemeshes --onlyforphases=meshing --meshframe 0311472
+/// Landform.exe observation-products windjana --onlymergedsitedrivemeshes --onlyforphases=meshing
 ///   --usepriors
 ///
 /// Generate merged aligned sitedrive meshes:
 ///
-/// Landform.exe observation-products windjana --onlymergedsitedrivemeshes --onlyforphases=meshing --meshframe 0311472
+/// Landform.exe observation-products windjana --onlymergedsitedrivemeshes --onlyforphases=meshing
 ///
 /// Just spew stats:
 ///
@@ -271,12 +271,6 @@ namespace OPS.Landform
             withTextures = buildWedgeMeshes && options.ColorMeshesBy == MeshColor.Texture;
             buildWedgeImages = withTextures || !options.NoWedgeImages;
             
-            if (options.MergedSiteDriveMeshes && options.MeshFrame == "rover")
-            {
-                pipeline.LogWarn("cannot write merged sitedrive meshes in rover frame, using newest sitedrive");
-                options.MeshFrame = "newest";
-            }
-
             if (!ParseArgumentsAndLoadCaches("alignment/ObservationProducts"))
             {
                 return false; // help

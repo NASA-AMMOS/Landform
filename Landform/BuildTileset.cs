@@ -48,7 +48,7 @@ using OPS.Pipeline.TilingServer;
 ///
 /// Example:
 ///
-/// Landform.exe build-tileset windjana --meshframe 0311472
+/// Landform.exe build-tileset windjana
 ///
 /// </summary>
 namespace OPS.Landform
@@ -127,8 +127,6 @@ namespace OPS.Landform
 
             PipelineOperation.LessSpew = PipelineStateMachine.LessSpew = !(pipeline.Verbose || pipeline.Debug);
             PipelineOperation.SingleWorkflowSpew = PipelineStateMachine.SingleWorkflowSpew = true;
-
-            tilesetFolder = DecorateOutDir(TILESET_DIR);
 
             LoadTileList();
 

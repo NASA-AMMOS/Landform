@@ -61,7 +61,7 @@ using OPS.Util;
 ///
 /// Example:
 ///
-/// Landform.exe build-tiling-input windjana --meshframe 0311472
+/// Landform.exe build-tiling-input windjana
 ///
 /// </summary>
 namespace OPS.Landform
@@ -74,6 +74,9 @@ namespace OPS.Landform
 
         [Option(Default = "None", HelpText = "Mission to use if creating project (only if --inputmesh and --inputtexture (or texturing disabled), optional :venue override, e.g. None, MSL, M2020, M20SOPS, M20SOPS:dev, M20SOPS:sbeta")]
         public string Mission { get; set; }
+
+        [Option(HelpText = "Scene mesh coordinate frame: auto, tactical, passthrough", Default = "auto")]
+        public string MeshFrame { get; set; }
 
         [Option(Default = null, HelpText = "Scene mesh texture image to bake into tiles, backproject observations instead if omitted")]
         public string InputTexture { get; set; }
@@ -225,7 +228,7 @@ namespace OPS.Landform
                 }
                 else
                 {
-                    textureMode = DisableDatabase() ? TextureMode.Clip : TextureMode.Backproject;
+                    textureMode = AllowCreateProject() ? TextureMode.Clip : TextureMode.Backproject;
                 }
             }
             else if (!Enum.TryParse<TextureMode>(options.TextureMode, true, out textureMode))
@@ -243,7 +246,7 @@ namespace OPS.Landform
             return true;
         }
 
-        private bool DisableDatabase()
+        private bool AllowCreateProject()
         {
             //this is called by hooks from base base.ParseArgumentsAndLoadCaches()
             //so don't use anything that wouldn't be availale yet in that context
@@ -299,12 +302,12 @@ namespace OPS.Landform
 
         protected override bool RequireSceneMesh()
         {
-            return !DisableDatabase();
+            return !AllowCreateProject();
         }
 
         protected override Project GetProject()
         {
-            if (DisableDatabase())
+            if (AllowCreateProject())
             {
                 string projectName = options.ProjectName;
                 if (string.IsNullOrEmpty(projectName))
@@ -323,9 +326,17 @@ namespace OPS.Landform
                 }
                 string productUrl = pipeline.GetStorageUrl(InitializeAlignmentProject.DATA_PRODUCT_DIR, projectName);
                 string inputUrl = null;
-                bool recreateIfExists = false;
                 var init = new InitializeAlignmentProject(pipeline);
-                return init.Initialize(projectName, productUrl, inputUrl, options.Mission, recreateIfExists);
+                var meshFrame = GetMeshFrame();
+                if (meshFrame.ToLower() == "auto")
+                {
+                    meshFrame = GetAutoMeshFrame();
+                }
+                if (meshFrame.ToLower() == "tactical")
+                {
+                    meshFrame = "passthrough";
+                }
+                return init.Initialize(projectName, options.Mission, meshFrame, productUrl, inputUrl);
             }
             else
             {
@@ -343,19 +354,38 @@ namespace OPS.Landform
                 MissionSpecific.GetInstance(options.Mission);
         }
 
+        protected override string GetMeshFrame()
+        {
+            if (string.IsNullOrEmpty(options.MeshFrame))
+            {
+                return base.GetMeshFrame();
+            }
+            else 
+            {
+                var mf = options.MeshFrame.ToLower();
+                var allowed = new string[] { "auto", "tactical", "passthrough" };
+                if (Array.FindIndex(allowed, f => f == mf) < 0)
+                {
+                    throw new ArgumentException($"invalid mesh frame \"{options.MeshFrame}\", must be one of " +
+                                                string.Join(",", allowed));
+                }
+                return mf;
+            }
+        }
+
         protected override string GetAutoMeshFrame()
         {
-            return DisableDatabase() ? "passthrough" : "newest";
+            return AllowCreateProject() ? "passthrough" : "newest";
         }
 
         protected override bool PassthroughMeshFrameAllowed()
         {
-            return DisableDatabase();
+            return AllowCreateProject();
         }
 
         protected override bool NonPassthroughMeshFrameAllowed()
         {
-            return !DisableDatabase();
+            return !AllowCreateProject();
         }
 
         protected override void HandleSpecialMeshFrames()
@@ -387,7 +417,7 @@ namespace OPS.Landform
 
         protected override void LoadFrameCache()
         {
-            if (!DisableDatabase())
+            if (!AllowCreateProject())
             {
                 base.LoadFrameCache();
             }
@@ -395,7 +425,7 @@ namespace OPS.Landform
 
         protected override void LoadObservationCache()
         {
-            if (!DisableDatabase())
+            if (!AllowCreateProject())
             {
                 base.LoadObservationCache();
             }
@@ -834,19 +864,12 @@ namespace OPS.Landform
             {
                 MeshExt = meshExt,
                 ImageExt = withTextures ? imageExt : null,
-                MeshFrame = meshFrame,
                 HasIndexImages = !options.NoIndexImages,
                 TilingScheme = options.TilingScheme,
                 TextureMode = textureMode,
                 LeafNames = new List<string>(),
                 ParentNames = new List<string>()
             };
-
-            if (sceneMesh != null && sceneMesh.Frame != tileList.MeshFrame)
-            {
-                throw new Exception(string.Format("existing scene mesh in frame {0} but tile list in frame {1}",
-                                                  sceneMesh.Frame, tileList.MeshFrame));
-            } 
 
             var tilesToTexture = tileTree.DepthFirstTraverse()
                 .Where(l => l.HasComponent<MeshImagePair>() && l.GetComponent<MeshImagePair>().Mesh != null)
@@ -995,8 +1018,8 @@ namespace OPS.Landform
             {
                 if (sceneMesh == null)
                 {
-                    pipeline.LogInfo("creating scene mesh in frame {0}", tileList.MeshFrame);
-                    sceneMesh = SceneMesh.Create(pipeline, project, tileList.MeshFrame);
+                    pipeline.LogInfo("creating scene mesh");
+                    sceneMesh = SceneMesh.Create(pipeline, project);
                 }
 
                 pipeline.LogInfo("saving tile list");

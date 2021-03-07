@@ -84,7 +84,7 @@ using System.IO;
 ///
 /// Example:
 ///
-/// Landform.exe build-geometry windjana --meshframe 0311472
+/// Landform.exe build-geometry windjana
 ///
 /// </summary>
 namespace OPS.Landform
@@ -207,7 +207,6 @@ namespace OPS.Landform
 
         public const int BLEND_GUTTER_SAMPLES = 4;
 
-        private string dbgMeshPrefix;
         private int dbgMeshCount;
 
         private BuildGeometryOptions options;
@@ -403,13 +402,10 @@ namespace OPS.Landform
                 MinIslandRatio = !options.NoPoissonRemoveIslands ? options.MinIslandRatio : 0
             };
 
-            var obsNames = onlyForObs.Select(o => o.Name).ToArray();
-            dbgMeshPrefix = SceneMesh.MakeName(meshFrame, MeshVariant.Default, siteDrives, obsNames);
-
             if (!string.IsNullOrEmpty(options.OutputMesh))
             {
                 options.OutputMesh =
-                    CheckOutputURL(options.OutputMesh, dbgMeshPrefix, OUT_DIR, MeshSerializers.Instance);
+                    CheckOutputURL(options.OutputMesh, project.Name, OUT_DIR, MeshSerializers.Instance);
             }
 
             if (!options.NoOrbital && !options.NoSurface)
@@ -1349,10 +1345,6 @@ namespace OPS.Landform
         {
             pipeline.LogInfo("saving scene mesh in frame {0} to project storage", meshFrame);
             
-            var variant = MeshVariant.Default;
-            
-            var obsNames = onlyForObs.Select(obs => obs.Name).ToArray();
-            
             double surfaceExtent = -1; //unlimited
             if (options.NoSurface)
             {
@@ -1363,7 +1355,7 @@ namespace OPS.Landform
                 surfaceExtent = options.SurfaceExtent;
             }
             
-            var sceneMesh = SceneMesh.Find(pipeline, project.Name, meshFrame, variant, siteDrives, obsNames);
+            var sceneMesh = SceneMesh.Find(pipeline, project.Name, MeshVariant.Default);
             if (sceneMesh != null)
             {
                 sceneMesh.SetBounds(mesh.Bounds());
@@ -1381,8 +1373,7 @@ namespace OPS.Landform
             }
             else
             {
-                SceneMesh.Create(pipeline, project, meshFrame, variant, siteDrives, obsNames, mesh: mesh,
-                                 surfaceExtent: surfaceExtent);
+                SceneMesh.Create(pipeline, project, mesh: mesh, surfaceExtent: surfaceExtent);
             }
         
             if (!string.IsNullOrEmpty(options.OutputMesh))
@@ -1400,7 +1391,7 @@ namespace OPS.Landform
         {
             if (options.WriteDebug)
             {
-                SaveMesh(mesh, $"{dbgMeshPrefix}-{dbgMeshCount++}-{suffix}", texture, writeNormalLengthsAsValue);
+                SaveMesh(mesh, $"{meshFrame}-{dbgMeshCount++}-{suffix}", texture, writeNormalLengthsAsValue);
             }
         }
 
@@ -1408,7 +1399,7 @@ namespace OPS.Landform
         {
             if (options.WriteDebug)
             {
-                string name = $"{dbgMeshPrefix}-{dbgMeshCount++}-{suffix}";
+                string name = $"{meshFrame}-{dbgMeshCount++}-{suffix}";
                 string dstFile = Path.Combine(localOutputPath, name + meshExt);
                 PathHelper.EnsureExists(Path.GetDirectoryName(dstFile)); //name could have a subpath in it
                 File.Copy(srcFile, dstFile, overwrite: true);

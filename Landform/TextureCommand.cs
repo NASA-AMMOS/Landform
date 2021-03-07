@@ -267,40 +267,6 @@ namespace OPS.Landform
             return " texturing images and masks";
         }
 
-        /// <summary>
-        /// this override also handles --meshframe=auto
-        /// if the project exists and contains only one scene mesh and --meshframe=auto
-        /// then that sceneMesh is loaded and meshFrame is set to its name
-        /// this allows later commands like local-build-tileset to work without an explicit --meshframe option
-        /// and it also handles the case that the scene mesh was specially built, e.g. for only specific observations
-        /// </summary>
-        protected override Project GetProject()
-        {
-            var project = base.GetProject(); //throws if project doesn't exist
-            meshFrame = tcopts.MeshFrame.ToLower().Trim();
-            if (meshFrame == "auto")
-            {
-                var sceneMeshes = project.GetSceneMeshes();
-                if (sceneMeshes.Count() == 1)
-                {
-                    var sceneMesh = SceneMesh.Load(pipeline, project.Name, sceneMeshes.First());
-                    if (sceneMesh.Variant == MeshVariant.Default)
-                    {
-                        meshFrame = sceneMesh.Frame;
-                        this.sceneMesh = sceneMesh;
-                        pipeline.LogInfo("only one scene mesh in project {0}: {1}, implied mesh frame {2}",
-                                         project.Name, sceneMesh.Name, meshFrame);
-                    }
-                }
-            }
-            return project;
-        }
-
-        protected override string GetMeshFrame()
-        {
-            return !string.IsNullOrEmpty(meshFrame) ? meshFrame : tcopts.MeshFrame.ToLower().Trim();
-        }
-
         protected void BuildBlurredObservationImages()
         {
             int no = roverImages.Count;
@@ -465,13 +431,13 @@ namespace OPS.Landform
         {
             if (sceneMesh == null && project != null) //might have already been loaded in GetProject()
             {
-                sceneMesh = SceneMesh.Find(pipeline, project.Name, meshFrame);
+                sceneMesh = SceneMesh.Find(pipeline, project.Name, MeshVariant.Default);
             }
 
             if (!string.IsNullOrEmpty(tcopts.InputMesh))
             {
                 pipeline.LogInfo("loading input mesh from {0}{1}", tcopts.InputMesh,
-                                 sceneMesh != null ? (", overriding scene mesh " + sceneMesh.Name) : "");
+                                 sceneMesh != null ? ", overriding scene mesh " : "");
                 string meshFile = pipeline.GetFileCached(tcopts.InputMesh, "meshes");
                 if (tcopts.LoadLODs)
                 {
@@ -653,18 +619,17 @@ namespace OPS.Landform
 
         protected virtual void LoadTileList()
         {
+            if (sceneMesh == null)
+            {
+                throw new Exception("no scene mesh");
+            }
+
             if (sceneMesh.TileListGuid == Guid.Empty)
             {
-                throw new Exception(string.Format("scene mesh {0} has no tile list", sceneMesh.Name));
+                throw new Exception(string.Format("scene mesh has no tile list"));
             }
 
             tileList = pipeline.GetDataProduct<TileList>(project, sceneMesh.TileListGuid);
-
-            if (tileList.MeshFrame != meshFrame)
-            {
-                throw new Exception(string.Format("tile list in frame {0}, expected {1}",
-                                                  tileList.MeshFrame, meshFrame));
-            }
 
             if (tileList.LeafNames == null || tileList.LeafNames.Count == 0)
             {
@@ -1005,10 +970,10 @@ namespace OPS.Landform
 
         protected void SaveBackprojectIndexDebug(Image index, bool withMesh = true, string suffix = "")
         {
-            string name = sceneMesh.Name + "_backprojectIndex" + suffix;
+            string name = meshFrame + "_backprojectIndex" + suffix;
             SaveFloatTIFF(index, name);
             Image previewImg = Backproject.GenerateIndexPreviewImage(index);
-            name = sceneMesh.Name + "_backprojectIndexFalseColor" + suffix;
+            name = meshFrame + "_backprojectIndexFalseColor" + suffix;
             pipeline.LogInfo("saving backproject index false color debug image");
             SaveImage(previewImg, name);
             if (withMesh && mesh != null)
@@ -1022,7 +987,7 @@ namespace OPS.Landform
                                                    TextureVariant textureVariant = TextureVariant.Original,
                                                    bool withMesh = true, string suffix = "")
         {
-            string name = sceneMesh.Name + "_backprojectTexture";
+            string name = meshFrame + "_backprojectTexture";
             if (textureVariant != TextureVariant.Original)
             {
                 name += "_" + textureVariant.ToString();
@@ -1051,7 +1016,7 @@ namespace OPS.Landform
 
         protected void SaveSceneMesh(string outputMesh, bool withIndex = false)
         {
-            var meshURL = CheckOutputURL(outputMesh, sceneMesh.Name, outputFolder, MeshSerializers.Instance);
+            var meshURL = CheckOutputURL(outputMesh, project.Name, outputFolder, MeshSerializers.Instance);
             var imgURL = StringHelper.ChangeUrlExtension(meshURL, imageExt);
 
             if (withIndex)

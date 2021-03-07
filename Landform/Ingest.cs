@@ -79,6 +79,9 @@ namespace OPS.Landform
         [Option(HelpText = "input path, ending /** for recursive, or .txt or .json array of paths", Default = null)]
         public string InputPath { get; set; }
 
+        [Option(HelpText = "Scene mesh coordinate frame: auto, passthrough, newest, oldest, mission_root, project_root, numeric sitedrive SSSDDDD", Default = "auto")]
+        public string MeshFrame { get; set; }
+
         [Option(HelpText = "Only use specific observations, comma separated (e.g. MLF_452276219RASLS0311330MCAM02600M1)", Default = null)]
         public string OnlyForObservations { get; set; }
 
@@ -129,9 +132,6 @@ namespace OPS.Landform
 
         [Option(Default = null, HelpText = "Override default orbital image file path")]
         public string OrbitalImage { get; set; }
-
-        [Option(Default = "root", HelpText = "Frame in which to ingest orbital assets, either a sitedrive SSSDDDD, \"root\", or \"project_root\"")]
-        public string OrbitalFrame { get; set; }
     }
 
     public class Ingest : LandformCommand
@@ -192,10 +192,12 @@ namespace OPS.Landform
                 inputUrl = StringHelper.NormalizeUrl(options.InputPath, options.Cloud ? "s3://" : "file://");
             }
 
-            string productUrl = pipeline.GetStorageUrl(InitializeAlignmentProject.DATA_PRODUCT_DIR, options.ProjectName);
+            string productUrl =
+                pipeline.GetStorageUrl(InitializeAlignmentProject.DATA_PRODUCT_DIR, options.ProjectName);
 
             var init = new InitializeAlignmentProject(pipeline);
-            return init.Initialize(options.ProjectName, productUrl, inputUrl, options.Mission, options.RedoProject);
+            return init.Initialize(options.ProjectName, options.Mission, options.MeshFrame, productUrl, inputUrl,
+                                   options.RedoProject);
         }
 
         protected override MissionSpecific GetMission()
@@ -228,7 +230,7 @@ namespace OPS.Landform
                                                  options.RedoObservations, options.RedoPriors,
                                                  options.OnlyForObservations, options.OnlyForFrames,
                                                  options.OnlyForCameras, options.OnlyForSiteDrives, options.OnlyForSols,
-                                                 orbitalDEM, orbitalImage, options.OrbitalFrame,
+                                                 orbitalDEM, orbitalImage,
                                                  options.NoSurface, options.NoOrbital, options.NoProgress);
             baseUrls = ingester.BaseUrls.Select(b => b.Url).ToList();
         }

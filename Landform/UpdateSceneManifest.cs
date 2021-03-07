@@ -185,9 +185,6 @@ namespace OPS.Landform
 
         [Option(HelpText = "Option disabled for this command", Default = null)]
         public override string OnlyForSiteDrives { get; set; }
-
-        [Option(HelpText = "Option disabled for this command", Default = null)]
-        public override string MeshFrame { get; set; }
     } 
 
     public class UpdateSceneManifest : GeometryCommand
@@ -423,11 +420,6 @@ namespace OPS.Landform
             if (!string.IsNullOrEmpty(options.OnlyForSiteDrives))
             {
                 throw new Exception("--onlyforsitedrives not implemented for this command");
-            }
-
-            if (!string.IsNullOrEmpty(options.MeshFrame))
-            {
-                throw new Exception("--meshframe not implemented for this command");
             }
 
             if (!ParseArgumentsAndLoadCaches("tiling/SceneManifest"))
@@ -730,16 +722,7 @@ namespace OPS.Landform
                 tilesetUrl = FindJSONUrl(tilesetId);
             }
 
-            SceneMesh sceneMesh = null;
-            foreach (var name in project.GetSceneMeshes())
-            {
-                var sm = SceneMesh.Load(pipeline, project.Name, name);
-                if (sm.Variant == MeshVariant.Default && sm.Frame == options.SiteDrive)
-                {
-                    sceneMesh = sm;
-                    break;
-                }
-            }
+            SceneMesh sceneMesh = SceneMesh.Find(pipeline, project.Name, MeshVariant.Default);
 
             var images = observationCache.GetAllObservations()
                 .Where(obs => obs is RoverObservation)
@@ -758,12 +741,6 @@ namespace OPS.Landform
                     {
                         var tileList = pipeline.GetDataProduct<TileList>(project, sceneMesh.TileListGuid);
                         
-                        if (tileList.MeshFrame != sceneMesh.Frame)
-                        {
-                            throw new Exception(string.Format("tile list in frame {0}, expected {1}",
-                                                              tileList.MeshFrame, sceneMesh.Frame));
-                        }
-                        
                         if (tileList.LeafNames == null || tileList.LeafNames.Count == 0)
                         {
                             throw new Exception("leaf list empty");
@@ -776,7 +753,7 @@ namespace OPS.Landform
 
                         pipeline.LogInfo("counting backprojected pixels from {0} leaves", tileList.LeafNames.Count);
 
-                        string leafFolder = DecorateOutDir(TilingCommand.TILING_DIR);
+                        string leafFolder = TilingCommand.TILING_DIR;
                         CoreLimitedParallel.ForEach(tileList.LeafNames, leaf =>
                         {
                             string indexName = leaf + TileList.INDEX_FILE_SUFFIX + TileList.INDEX_FILE_EXT;
@@ -810,8 +787,7 @@ namespace OPS.Landform
                 }
                 else
                 {
-                    pipeline.LogWarn("cannot count backprojected pixels, scene mesh {0} has no tile list",
-                                     sceneMesh.Name);
+                    pipeline.LogWarn("cannot count backprojected pixels, scene mesh has no tile list");
                 }
                 if (gotBPP && options.CullImagesWithoutBackprojectedPixels)
                 {

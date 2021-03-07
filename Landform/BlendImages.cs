@@ -90,7 +90,7 @@ using OPS.Pipeline.TilingServer;
 ///
 /// Example:
 ///
-/// Landform.exe blend-images windjana --meshframe 0311472
+/// Landform.exe blend-images windjana
 ///
 /// </summary>
 namespace OPS.Landform
@@ -285,7 +285,7 @@ namespace OPS.Landform
                 return false; //help
             }
 
-            sceneMesh = SceneMesh.Find(pipeline, project.Name, meshFrame, MeshVariant.Default, siteDrives);
+            sceneMesh = SceneMesh.Find(pipeline, project.Name, MeshVariant.Default);
 
             if (!options.NoUseExistingLeaves && sceneMesh != null && sceneMesh.TileListGuid != Guid.Empty)
             {
@@ -303,11 +303,10 @@ namespace OPS.Landform
                 }
                 else
                 {
-                    sceneMesh = SceneMesh.Find(pipeline, project.Name, meshFrame, MeshVariant.Shrinkwrap, siteDrives);
+                    sceneMesh = SceneMesh.Find(pipeline, project.Name, MeshVariant.Shrinkwrap);
                     if (sceneMesh == null)
                     {
-                        sceneMesh = SceneMesh.Create(pipeline, project, meshFrame, MeshVariant.Shrinkwrap, siteDrives,
-                                                     noSave: options.NoSave);
+                        sceneMesh = SceneMesh.Create(pipeline, project, MeshVariant.Shrinkwrap, noSave: options.NoSave);
                     }
                     else if (!options.NoUseExistingIndex && sceneMesh.BackprojectIndexGuid != Guid.Empty)
                     {
@@ -391,7 +390,7 @@ namespace OPS.Landform
                 }
                 else
                 {
-                    SceneMesh dsm = SceneMesh.Find(pipeline, project.Name, meshFrame, MeshVariant.Default, siteDrives);
+                    SceneMesh dsm = SceneMesh.Find(pipeline, project.Name, MeshVariant.Default);
                     if (dsm != null && dsm.MeshGuid != Guid.Empty)
                     {
                         pipeline.LogInfo("loading scene mesh from database");
@@ -438,7 +437,7 @@ namespace OPS.Landform
                     {
                         if (options.WriteDebug)
                         {
-                            SaveMesh(mesh, sceneMesh.Name + "-prewarp");
+                            SaveMesh(mesh, meshFrame + "-prewarp");
                         }
 
                         pipeline.LogInfo("warping {0:F3}x{0:F3} central UVs to {1:F3}x{1:F3}, ease {2:F3}",
@@ -484,7 +483,7 @@ namespace OPS.Landform
 
             if (options.WriteDebug)
             {
-                SaveMesh(mesh, sceneMesh.Name);
+                SaveMesh(mesh, meshFrame);
             }
         }
 
@@ -551,7 +550,7 @@ namespace OPS.Landform
             {
                 if (options.WriteDebug)
                 {
-                    string name = sceneMesh.Name + "_backprojectTexture_" + TextureVariant.Blended;
+                    string name = meshFrame + "_backprojectTexture_" + TextureVariant.Blended;
                     SaveImage(blendedTexture, name);
                     if (mesh != null)
                     {
@@ -1033,7 +1032,7 @@ namespace OPS.Landform
                 bounds = sceneMesh.GetBounds();
                 if (!bounds.HasValue)
                 {
-                    throw new Exception(string.Format("scene mesh {0} missing bounds", sceneMesh.Name));
+                    throw new Exception(string.Format("scene mesh missing bounds"));
                 }
             }
             var boundsSize = bounds.Value.Extent();
@@ -1054,7 +1053,7 @@ namespace OPS.Landform
             pipeline.LogInfo("rasterizing {0}x{0} backproject index from {1} leaves, {2:F5} meters/pixel",
                              sceneTextureResolution, tileList.LeafNames.Count, opts.MetersPerPixel);
 
-            string leafFolder = DecorateOutDir(TilingCommand.TILING_DIR);
+            string leafFolder = TilingCommand.TILING_DIR;
             CoreLimitedParallel.ForEach(tileList.LeafNames, leaf =>
             {
                 string meshUrl = pipeline.GetStorageUrl(leafFolder, project.Name, leaf + tileList.MeshExt);
@@ -1127,7 +1126,7 @@ namespace OPS.Landform
 
         private void BuildBlendedLeafTextures()
         {
-            string leafFolder = DecorateOutDir(TilingCommand.TILING_DIR);
+            string leafFolder = TilingCommand.TILING_DIR;
             BuildBlendedLeafTextures(pipeline, project, leafFolder, tileList, indexedImages, orbitalTexture,
                                      options.BackprojectInpaintMissing, options.BackprojectInpaintGutter,
                                      colorizeHue: options.Colorize ? medianHue : -1);

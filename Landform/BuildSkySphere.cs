@@ -65,7 +65,7 @@ using OPS.Pipeline.TilingServer;
 ///
 /// Example:
 ///
-/// Landform.exe build-sky-sphere windjana --meshframe 0311472
+/// Landform.exe build-sky-sphere windjana
 ///
 /// </summary>
 namespace OPS.Landform
@@ -472,7 +472,7 @@ namespace OPS.Landform
                                      (float)options.SkyColorGreen / 255.0f,
                                      (float)options.SkyColorBlue / 255.0f };
 
-            tilesetFolder = DecorateOutDir(SKY_TILESET_DIR);
+            tilesetFolder = SKY_TILESET_DIR;
 
             return true;
         }
@@ -498,7 +498,7 @@ namespace OPS.Landform
                 //but we need to get them done sooner here so that we can get the sceneCaster
                 if (sceneMesh == null) //might have already been loaded in GetProject()
                 {
-                    sceneMesh = SceneMesh.Find(pipeline, project.Name, meshFrame);
+                    sceneMesh = SceneMesh.Find(pipeline, project.Name, MeshVariant.Default);
                 }
                 if (sceneMesh != null)
                 {
@@ -638,7 +638,6 @@ namespace OPS.Landform
             {
                 MeshExt = meshExt,
                 ImageExt = imageExt,
-                MeshFrame = meshFrame,
                 HasIndexImages = true,
                 TilingScheme = TilingScheme.Flat,
                 LeafNames = new List<string>(),

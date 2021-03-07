@@ -11,7 +11,6 @@ namespace OPS.Pipeline
         public const string INDEX_FILE_EXT = ".tif";
         public string MeshExt;
         public string ImageExt;
-        public string MeshFrame;
         public bool HasIndexImages;
         public TilingScheme TilingScheme;
         public TextureMode TextureMode;

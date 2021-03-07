@@ -48,7 +48,7 @@ namespace OPS.Pipeline
         private ConcurrentDictionary<Tuple<int, int>, UncertainRigidTransform> pdsSiteOffsets =
             new ConcurrentDictionary<Tuple<int, int>, UncertainRigidTransform>();
 
-        private string orbitalDEM, orbitalImage, orbitalFrameName;
+        private string orbitalDEM, orbitalImage;
         private bool noSurface, noOrbital;
         private Frame orbitalFrame;
 
@@ -60,7 +60,7 @@ namespace OPS.Pipeline
                                      string onlyForCameras = null, string onlyForSiteDrives = null, 
                                      string onlyForSols = null,
                                      string orbitalDEM = null, string orbitalImage = null,
-                                     string orbitalFrameName = null, bool noSurface = false, bool noOrbital = false,
+                                     bool noSurface = false, bool noOrbital = false,
                                      bool noProgress = false)
             : base(pipeline)
         {
@@ -121,7 +121,6 @@ namespace OPS.Pipeline
 
             this.orbitalDEM = orbitalDEM;
             this.orbitalImage = orbitalImage;
-            this.orbitalFrameName = orbitalFrameName;
 
             this.noSurface = noSurface;
             this.noOrbital = noOrbital;
@@ -611,6 +610,8 @@ namespace OPS.Pipeline
 
         private Frame EnsureOrbitalFrame(PlacesDB places, FrameCache frameCache, SiteDrive? rootSiteDrive = null)
         {
+            string orbitalFrameName = project.MeshFrame;
+
             if (string.IsNullOrEmpty(orbitalFrameName))
             {
                 orbitalFrameName = "project_root";
@@ -894,7 +895,7 @@ namespace OPS.Pipeline
         {
             if (orbitalFrame == null)
             {
-                pipeline.LogError("no frame {0}, cannot ingest orbital", orbitalFrameName);
+                pipeline.LogError("no orbital frame, cannot ingest orbital");
                 return 0;
             }
 

@@ -213,15 +213,17 @@ namespace OPS.Landform
                 pipeline.LogInfo("uploading {0} tile meshes{1} to {2}", tilingOpts.MeshFormat, texMsg, storageUrl);
             }
 
-            if (sceneMesh == null) //might have already been loaded in GetProject()
+            if (sceneMesh == null)
             {
-                sceneMesh = SceneMesh.Find(pipeline, project.Name, meshFrame);
+                sceneMesh = SceneMesh.Find(pipeline, project.Name, MeshVariant.Default);
             }
 
             if (sceneMesh == null && RequireSceneMesh())
             {
                 throw new Exception($"no scene mesh for project {project.Name} in frame {meshFrame}");
             }
+
+            tilesetFolder = TILESET_DIR;
 
             return true;
         }
