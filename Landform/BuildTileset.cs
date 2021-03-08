@@ -140,9 +140,9 @@ namespace OPS.Landform
             return true;
         }
 
-        protected override bool DeleteLocalProductsBeforeRedo()
+        protected override bool DeleteProductsBeforeRedo()
         {
-            //see comments in BuildTilingInput.DeleteLocalProducts()
+            //see comments in TilingCommand.DeleteProducts()
             return false;
         }
             

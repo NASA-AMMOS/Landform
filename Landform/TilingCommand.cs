@@ -238,6 +238,26 @@ namespace OPS.Landform
             return true;
         }
 
+        protected override void DeleteProducts()
+        {
+            //delete <StorageDir>/<venue>/<outputFolder>/<project.Name>/tiling/Tile/*
+            //and <StorageDir>/<venue>/<outputFolder>/<project.Name>/tiling/TileSet/*
+            //there are two kinds of things saved there:
+            //1) individual tile meshes and textures stored in our internal formats (typically ply and png)
+            //2) inputnames.json and nodeids.json referenced by the TilingProject, if BuildTileset has already run
+            //because of (1), BuildTileset overrides DeleteProductsBeforeRedo() to return false
+            //but BuildTileset --redo will still delete any existing TilingProject including those json files
+            //because of (2), when called from BuildTilingInput, we always delete any existing TilingProject here first
+            //otherwise the json files will get deleted by the call to base.DeleteProducts()
+            //and then later attempts to delete the tiling project will not work completely
+            //because existing TilingInput and TilingNode DB entries will not be found
+
+            GetOrDeleteTilingProject(forceDelete: true);
+
+            base.DeleteProducts();
+        }
+
+
         protected TilingProject GetOrDeleteTilingProject(ISet<string> keepMeshes = null, bool forceDelete = false)
         {
             var tilingProject = TilingProject.Find(pipeline, project.Name);
@@ -249,6 +269,18 @@ namespace OPS.Landform
                 bool ignoreErrors = true;
                 tilingProject.Delete(pipeline, ignoreErrors, keepMeshes);
                 tilingProject = null;
+            }
+
+            if (tilesetFolder != null)
+            {
+                //delete any exported tileset in <StorageDir>/<venue>/<outputFolder>/<project.Name>/tiling/TileSet/*
+                //this should have already been done if tilingProject.Delete() was called
+                //but make sure it's done
+                //* even if tilingProject == null because e.g. BuildSkySphere doesn't create a TilingProject
+                //* even if tilingOpts.UseExistingTilingProject=true, because don't want to re-use the exported tileset
+                string url = StringHelper.EnsureTrailingSlash(pipeline.GetStorageUrl(tilesetFolder, project.Name));
+                pipeline.LogInfo("deleting any prior results under {0}", url);
+                pipeline.DeleteFiles(url);
             }
 
             return tilingProject;

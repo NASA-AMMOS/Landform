@@ -188,7 +188,7 @@ namespace OPS.Landform
             return mission != null ? mission.GetMasker() : null;
         }
 
-        protected virtual bool DeleteLocalProductsBeforeRedo()
+        protected virtual bool DeleteProductsBeforeRedo()
         {
             return true;
         }
@@ -199,12 +199,18 @@ namespace OPS.Landform
             localOutputPath = pipeline.GetLocalFolder(lcopts.OutputFolder, outDir, project != null ? project.Name : "");
         }
 
-        protected virtual void DeleteLocalProducts()
+        protected virtual void DeleteProducts()
         {
             if (Directory.Exists(localOutputPath))
             {
                 pipeline.LogInfo("deleting any prior results under {0}", localOutputPath);
                 Directory.Delete(localOutputPath, true);
+            }
+            if ((pipeline is CloudPipeline) && project != null)
+            {
+                string url = StringHelper.EnsureTrailingSlash(pipeline.GetStorageUrl(outputFolder, project.Name));
+                pipeline.LogInfo("deleting any prior results under {0}", url);
+                pipeline.DeleteFiles(url);
             }
         }
 
@@ -240,9 +246,9 @@ namespace OPS.Landform
 
             DumpOutputPaths();
 
-            if (lcopts.Redo && DeleteLocalProductsBeforeRedo())
+            if (lcopts.Redo && DeleteProductsBeforeRedo())
             {
-                DeleteLocalProducts();
+                DeleteProducts();
             }
 
             return true;

@@ -172,7 +172,8 @@ namespace OPS.Pipeline.TilingServer
         }
 
         public const int SLEEP_BETWEEN_NODE_DELETES_MS = 10;
-        public void Delete(PipelineCore pipeline, bool ignoreErrors = true, ISet<string> keepMeshes = null, bool keepTileset = false)
+        public void Delete(PipelineCore pipeline, bool ignoreErrors = true, ISet<string> keepMeshes = null,
+                           bool keepTileset = false)
         {
             var nodes = TilingNode.Find(pipeline, this, pipeline.Logger, ignoreErrors);
             int n = 0; 
@@ -224,7 +225,8 @@ namespace OPS.Pipeline.TilingServer
                 pipeline.DeleteFiles(baseUrl, "*", ignoreErrors);
             }
 
-            if (!keepTileset && !string.IsNullOrEmpty(TilesetDir) && TilesetDir != ExportDir && TilesetDir != InternalTileDir)
+            if (!keepTileset && !string.IsNullOrEmpty(TilesetDir) && TilesetDir != ExportDir &&
+                TilesetDir != InternalTileDir)
             {
                 //trailing slash is necessary to make sure we don't delete foo_bar/* in addition to foo/*
                 var baseUrl = StringHelper.EnsureTrailingSlash(pipeline.GetStorageUrl(TilesetDir, Name));
