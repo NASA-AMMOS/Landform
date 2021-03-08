@@ -346,8 +346,8 @@ namespace OPS.Geometry
         {
             base.WriteVertexUVHeader(sw);
             string dt = writeUVAsFloat ? "float" : "double";
-            sw.WriteLine("property {dt} s");
-            sw.WriteLine("property {dt} t");
+            sw.WriteLine($"property {dt} s");
+            sw.WriteLine($"property {dt} t");
         }
 
         protected override void WriteFaceHeader(Mesh m, StreamWriter sw)
