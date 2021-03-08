@@ -188,6 +188,9 @@ namespace OPS.Landform
         [Option(HelpText = "Surface density based trimmer octree lenient level (higher means more aggressive, 0 disables)", Default = PoissonReconstruction.DEF_TRIMMER_LEVEL_LENIENT)]
         public double PoissonTrimmerLevelLenient { get; set; }
 
+        [Option(HelpText = "FSSR global scale, negative to auto-compute, 0 to use individual point scales", Default = 0)]
+        public double FSSRScale { get; set; }
+
         [Option(HelpText = "Filter out triangles whose barycenter is further than this from any input point", Default = 0)]
         public double FilterTriangles { get; set; }
 
@@ -212,7 +215,10 @@ namespace OPS.Landform
         private BuildGeometryOptions options;
 
         private RoverObservation[] onlyForObs;
+
         private PoissonReconstruction.Options poissonOpts;
+
+        private WedgeObservations.MeshOptions wedgeMeshOpts;
 
         private ConcurrentDictionary<string, Mesh> observationPointClouds = new ConcurrentDictionary<string, Mesh>();
         private Mesh pointCloud;
@@ -438,6 +444,24 @@ namespace OPS.Landform
                 meshToOrbital = meshToRoot * Matrix.Invert(orbitalDEMToRoot);
             }
 
+            wedgeMeshOpts = new WedgeObservations.MeshOptions()
+            {
+                Frame = meshFrame,
+                NormalFilter = options.NormalFilter
+            };
+
+            if ((options.ReconstructionMethod == MeshReconstructionMethod.Poisson) &&
+                (options.PoissonConfidenceExponent != 0))
+            {
+                wedgeMeshOpts.NormalScale = NormalScale.Confidence;
+            }
+
+            if ((options.ReconstructionMethod == MeshReconstructionMethod.FSSR) &&
+                (options.FSSRScale == 0))
+            {
+                wedgeMeshOpts.NormalScale = NormalScale.PointScale;
+            }
+
             return true;
         }
 
@@ -485,15 +509,6 @@ namespace OPS.Landform
                 pipeline.LogError("no wedge observations");
             }
 
-            var meshOpts = new WedgeObservations.MeshOptions()
-            {
-                Frame = meshFrame,
-                NormalFilter = options.NormalFilter,
-                ScaleNormalsByConfidence =
-                (options.ReconstructionMethod == MeshReconstructionMethod.Poisson) &&
-                (options.PoissonConfidenceExponent != 0)
-            };
-
             int no = wedges.Count;
             pipeline.LogInfo("building point clouds for {0} wedges", no);
             int np = 0, nc = 0, nf = 0;
@@ -507,7 +522,7 @@ namespace OPS.Landform
                 pipeline.LogVerbose("building {0} wedge point clouds in parallel, completed {1}/{2}, {3} failed",
                                     np, nc, no, nf);
 
-                var mo = meshOpts.Clone();
+                var mo = wedgeMeshOpts.Clone();
                 mo.Decimate = WedgeObservations.AutoDecimate(obs.Points, options.DecimateWedgeMeshes,
                                                              options.TargetWedgeMeshResolution);
                 if (mo.Decimate > 1 && mo.Decimate != options.DecimateWedgeMeshes && !options.NoProgress)
@@ -705,14 +720,15 @@ namespace OPS.Landform
 
             SaveDebugMesh(envelopeBounds.ToMesh(), "envelope");
 
-            if (options.WriteDebug && (options.ReconstructionMethod == MeshReconstructionMethod.Poisson) &&
-                (options.PoissonConfidenceExponent != 0))
+            if (options.WriteDebug && wedgeMeshOpts.NormalScale != NormalScale.None)
             {
+                bool isConf = wedgeMeshOpts.NormalScale == NormalScale.Confidence;
                 var colored = new Mesh(pointCloud);
-                var red = new Vector3(1, 0, 0);
-                var green = new Vector3(0, 1, 0);
-                colored.ColorByNormalMagnitude(red, green);
-                SaveDebugMesh(colored, "confidence");
+                var low =  isConf ? new Vector3(1, 0, 0) : new Vector3(0, 1, 0);
+                var high = isConf ? new Vector3(0, 1, 0) : new Vector3(1, 0, 0);
+                colored.ColorByNormalMagnitude(low, high);
+                colored.NormalizeNormals();
+                SaveDebugMesh(colored, wedgeMeshOpts.NormalScale.ToString());
             }
         }
 
@@ -751,7 +767,7 @@ namespace OPS.Landform
             {
                 case MeshReconstructionMethod.FSSR:
                 {
-                    mesh = FSSR.Reconstruct(pc, uncleanedMesh: saveUncleanedMesh);
+                    mesh = FSSR.Reconstruct(pc, options.FSSRScale, options.FSSRScale == 0, saveUncleanedMesh);
                     break;
                 }
                 case MeshReconstructionMethod.Poisson:

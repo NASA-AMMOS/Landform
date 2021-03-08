@@ -109,8 +109,8 @@ namespace OPS.Landform
         [Option(HelpText = "Disable generating organized mesh normals when normal image missing", Default = false)]
         public bool NoGenerateNormals { get; set; }
 
-        [Option(HelpText = "Scale normals by confidence (for Poisson reconstruction)", Default = false)]
-        public bool ScaleNormalsByConfidence { get; set; }
+        [Option(HelpText = "Normal scaling mode, one of None, Confidence, PointScale", Default = NormalScale.None)]
+        public NormalScale NormalScale { get; set; }
 
         [Option(HelpText = "Don't split output by site drive", Default = false)]
         public bool SuppressSiteDriveDirectories { get; set; }
@@ -323,7 +323,7 @@ namespace OPS.Landform
                     UsePriors = options.UsePriors,
                     OnlyAligned = options.OnlyAligned,
                     Decimate = options.DecimateWedgeMeshes,
-                    ScaleNormalsByConfidence = options.ScaleNormalsByConfidence,
+                    NormalScale = options.NormalScale,
                     ApplyTexture = withTextures,
                     MaxTriangleAspect = options.MaxTriangleAspect,
                     IsolatedPointSize = options.IsolatedPointSize,
@@ -630,13 +630,16 @@ namespace OPS.Landform
                     var maskUrl = obs.Mask != null ? obs.Mask.Url : null;
                     mask = masker.LoadOrBuild(pipeline, maskUrl, normals.Metadata as PDSMetadata);
                 }
-                Image confidence = null;
+                Image scale = null;
                 PDSImage points = new PDSImage(pipeline.LoadImage(obs.Points.Url));
-                if (options.ScaleNormalsByConfidence)
+                switch (options.NormalScale)
                 {
-                    confidence = points.GenerateConfidence();
+                    case NormalScale.Confidence: scale = points.GenerateConfidence(); break;
+                    case NormalScale.PointScale: scale = points.GenerateScale(); break;
+                    case NormalScale.None: break;
+                    default: throw new ArgumentException("unknown normal scaling mode " + options.NormalScale);
                 }
-                normals = (new PDSImage(normals)).ConvertNormals(confidence, points.ConvertPoints());
+                normals = (new PDSImage(normals)).ConvertNormals(scale, points.ConvertPoints());
                 if (normals != null)
                 {
                     normals = OrganizedPointCloud.MaskAndDecimateNormals(normals, mbs, mask);

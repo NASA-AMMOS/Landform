@@ -24,8 +24,8 @@ namespace OPS.Geometry
         /// Requires the mesh has normals but not uvs or colors
         /// Returns a mesh with normals
         /// </summary>
-        public static Mesh Reconstruct(Mesh pointCloud, double? globalScale = null,
-                                       bool useNormalLenghAsVertexScale = false,
+        public static Mesh Reconstruct(Mesh pointCloud, double globalScale = -1,
+                                       bool useNormalLengthAsVertexScale = false,
                                        Action<Mesh> uncleanedMesh = null, bool runClean = true)
         {
             if (pointCloud.Vertices.Count == 0)
@@ -46,23 +46,25 @@ namespace OPS.Geometry
             }
             if (pointCloud.HasColors)
             {
-                throw new MeshException("FSSR meshes cannot have colors");
+                logger.Warn("FSSR meshes cannot have colors - removing colors");
+                pointCloud = new Mesh(pointCloud);
+                pointCloud.ClearColors();
             }
 
-            if (!globalScale.HasValue && !useNormalLenghAsVertexScale)
+            if (useNormalLengthAsVertexScale)
+            {
+                logger.InfoFormat("using point cloud normal lengths as individual vertex scale values");
+            }
+            else if (globalScale <= 0)
             {
                 double maxDim = pointCloud.Bounds().MaxDimension();
                 globalScale = 2 * (maxDim / Math.Sqrt(pointCloud.Vertices.Count));
                 logger.InfoFormat("auto computed global scale {0} for point cloud with max bound {1}m and {2} vertices",
-                                  globalScale.Value, maxDim, pointCloud.Vertices.Count);
-            }
-            else if (globalScale.HasValue)
-            {
-                logger.InfoFormat("using global scale value {0}", globalScale.Value);
+                                  globalScale, maxDim, pointCloud.Vertices.Count);
             }
             else
             {
-                logger.InfoFormat("using point cloud normal lengths as individual vertex scale values");
+                logger.InfoFormat("using global scale value {0}", globalScale);
             }
 
             string fssrExe = Path.Combine(PathHelper.GetApplicationPath(), "ExternalApps", "fssrecon.exe");
@@ -76,8 +78,8 @@ namespace OPS.Geometry
                 string outputFile = files[1];
                 string cleanFile = files[2];
 
-                var writer = useNormalLenghAsVertexScale ?
-                    new FSSRPLYWriter(true) : new FSSRPLYWriter(globalScale.Value);
+                var writer = useNormalLengthAsVertexScale ?
+                    new FSSRPLYWriter(true) : new FSSRPLYWriter(globalScale);
                 PLYSerializer.Write(pointCloud, inputFile, writer);
 
                 string arguments = inputFile + " " + outputFile;
@@ -171,13 +173,15 @@ namespace OPS.Geometry
         /// normals image must be supplied
         /// if mask image is provided then any pixels which are 0 there are ignored
         /// </summary>
-        public static Mesh Reconstruct(Image points, Image normals, Image mask = null)
+        public static Mesh Reconstruct(Image points, Image normals, Image mask = null,
+                                       bool useNormalLengthAsVertexScale = false)
         {
             if (normals == null)
             {
                 throw new ArgumentException("FSSR reconstruction requires normals");
             }
-            return Reconstruct(OrganizedPointCloud.BuildPointCloudMesh(points, normals, mask));            
+            return Reconstruct(OrganizedPointCloud.BuildPointCloudMesh(points, normals, mask),
+                               useNormalLengthAsVertexScale: useNormalLengthAsVertexScale);
         }
     }
 

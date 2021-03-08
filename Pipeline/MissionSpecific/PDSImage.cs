@@ -450,6 +450,98 @@ namespace OPS.Pipeline
         }
 
         /// <summary>
+        /// generate per-point scale values for FSSR
+        /// </summary>
+        public Image GenerateScale()
+        {
+            switch (Parser.DerivedImageType)
+            {
+                case RoverProductType.Range: return GenerateScaleFromRNG();
+                case RoverProductType.Points: return GenerateScaleFromXYZ();
+                default: throw new NotImplementedException("synthetic confidence requires range or XYZ map"); ;
+            }
+        }
+
+        public Image GenerateScaleFromRNG()
+        {
+            CheckType(RoverProductType.Range, "GenerateScaleFromRNG");
+            Image src = this.Image;
+            Image ret = new Image(1, src.Width, src.Height);
+            AddMaskForMissingConstant(ret);
+            bool hasMissingConstant = Parser.HasMissingConstant;
+            for (int row = 0; row < src.Height; row++)
+            {
+                for (int col = 0; col < src.Width; col++)
+                {
+                    if (!src.IsValid(row, col) || //respect input image mask if it has one
+                        src[0, row, col] <= 0.0f) //non-positive range values are invalid
+                    {
+                        ret.SetMaskValue(row, col, true);
+                    }
+                    else if (!hasMissingConstant || ret.IsValid(row, col))
+                    {
+                        ret[0, row, col] = (float)DistanceToScale(row, col, src[0, row, col]);
+                    }
+                    //else AddMaskForMissingConstant() already masked ret[row, col]
+                }
+            }
+
+            return ret;
+        }
+
+        public Image GenerateScaleFromXYZ()
+        {
+            CheckType(RoverProductType.Points, "GenerateScaleFromXYZ");
+            Vector3 c = CheckCameraCenter("GenerateScaleFromXYZ", false);
+            Matrix xform = GetDataToRoverFrameTransform(Parser);
+            Image src = this.Image;
+            Image ret = new Image(1, src.Width, src.Height);
+            AddMaskForMissingConstant(ret);
+            bool hasMissingConstant = Parser.HasMissingConstant;
+            for (int row = 0; row < src.Height; row++)
+            {
+                for (int col = 0; col < src.Width; col++)
+                {
+                    if (!src.IsValid(row, col)) //respect input image mask if it has one
+                    {
+                        ret.SetMaskValue(row, col, true);
+                    }
+                    else if (!hasMissingConstant || ret.IsValid(row, col))
+                    {
+                        var p = new Vector3(src[0, row, col], src[1, row, col], src[2, row, col]);
+                        double d = Vector3.Distance(Vector3.Transform(p, xform), c);
+                        ret[0, row, col] = (float)DistanceToScale(row, col, d);
+                    }
+                    //else AddMaskForMissingConstant() already masked ret[row, col]
+                }
+            }
+            return ret;
+        }
+
+        public double DistanceToScale(int row, int col, double distance,
+                                      double minDist = 1, double maxDist = 100, double enlarge = 2)
+        {
+            double def = 0.1;
+            if (row < 0 || col < 0 || row >= Image.Height || col >= Image.Width ||
+                Image.Height == 0 || Image.Width == 0 || Image.CameraModel == null)
+            {
+                return enlarge * def;
+            }
+            distance = Math.Max(Math.Min(distance, maxDist), minDist);
+            int oRow = row > 0 ? row - 1 : row + 1;
+            int oCol = col > 0 ? col - 1 : col + 1;
+            try
+            {
+                return enlarge * Vector3.Distance(Image.CameraModel.Unproject(new Vector2(col, row), distance),
+                                                  Image.CameraModel.Unproject(new Vector2(oCol, oRow), distance));
+            }
+            catch (CameraModelException)
+            {
+                return enlarge * def;
+            }
+        }
+
+        /// <summary>
         /// gnenerate normals in rover frame consistent to the UVW mission product
         ///
         /// filters out normals pointing away from camera or fewer than minValid8Neighbors valid neighbors
