@@ -128,6 +128,12 @@ namespace OPS.Landform
         [Option(HelpText = "Orbital sampling rate inside blend radius, non-positive to use DEM resolution", Default = 15)]
         public double OrbitalBlendPointsPerMeter { get; set; }
 
+        [Option(HelpText = "Orbital sampling rate to fill holes, negative to use DEM resolution, 0 to disable", Default = 15)]
+        public double OrbitalFillPointsPerMeter { get; set; }
+
+        [Option(HelpText = "Orbital sampling confidence to fill holes", Default = 0.01)]
+        public double OrbitalFillPoissonConfidence { get; set; }
+
         [Option(HelpText = "Mask resolution for clipping surface/orbital", Default = 2)]
         public double ShrinkwrapPointsPerMeter { get; set; }
 
@@ -235,7 +241,7 @@ namespace OPS.Landform
 
         private double blendRadius, sewRadius;
         private double blendExtent;
-        private int blendSamplesPerPixel;
+        private int orbitalBlendSamplesPerPixel, orbitalFillSamplesPerPixel;
         private Matrix meshToOrbital, orbitalToMesh;
 
         private float[][] sourceColors;
@@ -434,10 +440,22 @@ namespace OPS.Landform
                 blendExtent = Math.Min(options.Extent, options.SurfaceExtent + 2 * Math.Max(blendRadius, 0));
             }
 
-            blendSamplesPerPixel = 1;
+            orbitalBlendSamplesPerPixel = 1;
             if (options.OrbitalBlendPointsPerMeter > 0)
             {
-                blendSamplesPerPixel = (int)Math.Ceiling(options.OrbitalBlendPointsPerMeter * orbitalDEMMetersPerPixel);
+                orbitalBlendSamplesPerPixel =
+                    (int)Math.Ceiling(options.OrbitalBlendPointsPerMeter * orbitalDEMMetersPerPixel);
+            }
+
+            orbitalFillSamplesPerPixel = 0;
+            if (options.OrbitalFillPointsPerMeter > 0)
+            {
+                orbitalFillSamplesPerPixel =
+                    (int)Math.Ceiling(options.OrbitalFillPointsPerMeter * orbitalDEMMetersPerPixel);
+            }
+            else if (options.OrbitalFillPointsPerMeter < 0)
+            {
+                orbitalFillSamplesPerPixel = 1;
             }
 
             if (!options.NoOrbital)
@@ -607,9 +625,7 @@ namespace OPS.Landform
 
             int nv = observationPointClouds.Values.Sum(pc => pc.Vertices.Count);
 
-            pointCloud = new Mesh(hasNormals: true);
-
-            var clouds = groups.Select(group =>
+            var cloudList = groups.Select(group =>
             {
                 var obsClouds = group.Select(pair => pair.Value).ToArray();
                 if (obsClouds.Length == 1)
@@ -619,10 +635,42 @@ namespace OPS.Landform
                 pipeline.LogInfo("merging {0} observation point clouds in sitedrive {1} without clever combine, " +
                                  "total {2} points", obsClouds.Length, group.Key,
                                  Fmt.KMG(obsClouds.Sum(c => c.Vertices.Count)));
-                var pc = new Mesh(pointCloud.HasNormals);
+                var pc = new Mesh(hasNormals: true);
                 pc.MergeWith(obsClouds, normalize: false, removeDuplicateVerts: false);
                 return pc;
-            }).ToArray();
+            }).ToList();
+
+            int numNonOrbitalClouds = cloudList.Count;
+
+            if (!options.NoFillHoles && !options.NoOrbital && orbitalFillSamplesPerPixel > 0 && orbitalDEM != null)
+            {
+                pipeline.LogInfo("adding orbital point cloud for hole filling, subsample {0}",
+                                 orbitalFillSamplesPerPixel);
+                var opc = MakeOrbitalPointCloud();
+                double ons = 1;
+                switch (wedgeMeshOpts.NormalScale)
+                {
+                    case NormalScale.Confidence: ons = options.OrbitalFillPoissonConfidence; break;
+                    case NormalScale.PointScale: ons = 2 * orbitalDEMMetersPerPixel / orbitalFillSamplesPerPixel; break;
+                    case NormalScale.None: break;
+                }
+                if (ons != 1)
+                {
+                    if (ons <= 0)
+                    {
+                        throw new ArgumentException($"orbital normal scale {ons} <= 0");
+                    }
+                    foreach (Vertex v in opc.Vertices)
+                    {
+                        v.Normal *= ons;
+                    }
+                }
+                cloudList.Add(opc);
+                pipeline.LogInfo("orbital point cloud has {0} points", Fmt.KMG(opc.Vertices.Count));
+            }
+
+            var clouds = cloudList.ToArray();
+
             int numDownward = 0;
             foreach (Mesh cloud in clouds)
             {
@@ -643,11 +691,11 @@ namespace OPS.Landform
             pipeline.LogInfo("{0} downward facing normals{1}", Fmt.KMG(numDownward),
                              options.FlipDownwardFacingNormals ? " (flipped)" : "");
         
+            pointCloud = new Mesh(hasNormals: true);
 
-            if (options.WriteDebug && clouds.Length > 1 &&
-                options.ReconstructionMethod == MeshReconstructionMethod.Poisson)
+            if (options.WriteDebug && clouds.Length > 1)
             {
-                sourceColors = Colorspace.RandomHues(clouds.Length + 1); //extra color for orbital
+                sourceColors = Colorspace.RandomHues(numNonOrbitalClouds + 1); //extra color for orbital
                 for (int i = 0; i < clouds.Length; i++)
                 {
                     clouds[i].SetColor(sourceColors[i]);
@@ -706,9 +754,9 @@ namespace OPS.Landform
 
                 if (clouds.Length > 1)
                 {
-                    pipeline.LogInfo("clever combining {0} {1} point clouds, cell size {2}, aspect {3}, total {4} pts",
-                                     clouds.Length, options.IntraSitedriveCleverCombine ? "observation" : "sitedrive",
-                                     options.CleverCombineCellSize, options.CleverCombineCellAspect, Fmt.KMG(nv));
+                    pipeline.LogInfo("clever combining {0} point clouds, cell size {1}, aspect {2}, total {3} pts",
+                                     clouds.Length, options.CleverCombineCellSize, options.CleverCombineCellAspect,
+                                     Fmt.KMG(nv));
                     
                     var cc = new CleverCombine(options.CleverCombineCellSize, options.CleverCombineCellAspect);
                     pointCloud = cc.Combine(clouds, origins, pipeline);
@@ -719,15 +767,7 @@ namespace OPS.Landform
                 }
                 else
                 {
-                    if (observationPointClouds.Count < 2)
-                    {
-                        pipeline.LogInfo("skipping clever combine: less than two observations");
-                    }
-                    else
-                    {
-                        pipeline.LogInfo("skipping clever combine: less than two sitedrives " +
-                                         "and --intrasitedriveclevercombine not specified");
-                    }
+                    pipeline.LogInfo("skipping clever combine: less than two point clouds");
                 }
             }
 
@@ -1024,6 +1064,31 @@ namespace OPS.Landform
             SaveDebugMesh(mesh, "masked");
         }
 
+        private Mesh MakeOrbitalPointCloud()
+        {
+            int surfaceRadiusPixels = (int)Math.Ceiling(0.5 * options.SurfaceExtent / orbitalDEMMetersPerPixel);
+            Vector3 meshOriginInOrbital = Vector3.Transform(Vector3.Zero, meshToOrbital);
+            var surfaceBounds = orbitalDEM.GetSubrectPixels(surfaceRadiusPixels, meshOriginInOrbital);
+            return MakeOrbitalMesh(orbitalFillSamplesPerPixel, surfaceBounds);
+        }
+
+        private Mesh MakeOrbitalMesh(double subsample, Image.Subrect outerBounds, Image.Subrect innerBounds = null,
+                                     MeshOperator maskOp = null)
+        {
+            Func<Vector3, bool> filter = pt => 
+            {
+                pt = Vector3.Transform(pt, orbitalToMesh);
+                return maskOp == null || maskOp.UVToBarycentric(new Vector2(pt.X, pt.Y)) == null; //not in surf mesh
+            };
+            var ret = orbitalDEM.OrganizedMesh(outerBounds, innerBounds, subsample, filter, withNormals: true,
+                                               quadsOnly: true);
+            if (sourceColors != null && sourceColors.Length > 0)
+            {
+                ret.SetColor(sourceColors[sourceColors.Length - 1]);
+            }
+            return ret.Transformed(orbitalToMesh);
+        }
+
         private void BuildOrbitalMesh()
         {
             var maskOp = maskUVMeshOp;
@@ -1034,29 +1099,13 @@ namespace OPS.Landform
                 maskOp = new MeshOperator(tmp, buildFaceTree: false, buildVertexTree: false, buildUVFaceTree: true);
             }
 
-            Mesh makeMesh(double subsample, Image.Subrect outerBounds, Image.Subrect innerBounds = null)
-            {
-                Func<Vector3, bool> filter = pt => 
-                {
-                    pt = Vector3.Transform(pt, orbitalToMesh);
-                    return maskOp == null || maskOp.UVToBarycentric(new Vector2(pt.X, pt.Y)) == null; //not in surf mesh
-                };
-                var ret = orbitalDEM.OrganizedMesh(outerBounds, innerBounds, subsample, filter, withNormals: true,
-                                                   quadsOnly: true);
-                if (sourceColors != null && sourceColors.Length > 0)
-                {
-                    ret.SetColor(sourceColors[sourceColors.Length - 1]);
-                }
-                return ret;
-            }
-
             int orbitalRadiusPixels = (int)Math.Ceiling(0.5 * options.Extent / orbitalDEMMetersPerPixel);
             int blendRadiusPixels = (int)Math.Ceiling(0.5 * blendExtent / orbitalDEMMetersPerPixel);
 
             Vector3 meshOriginInOrbital = Vector3.Transform(Vector3.Zero, meshToOrbital);
 
             Image.Subrect blendBounds = null;
-            if (blendSamplesPerPixel != orbitalSamplesPerPixel && blendRadiusPixels > 0)
+            if (orbitalBlendSamplesPerPixel != orbitalSamplesPerPixel && blendRadiusPixels > 0)
             {
                 blendBounds = orbitalDEM.GetSubrectPixels(blendRadiusPixels, meshOriginInOrbital);
             }
@@ -1069,7 +1118,7 @@ namespace OPS.Landform
                                  2 * orbitalRadiusPixels * orbitalDEMMetersPerPixel,
                                  orbitalSamplesPerPixel / orbitalDEMMetersPerPixel);
                 
-                orbitalMesh = makeMesh(orbitalSamplesPerPixel, orbitalBounds, blendBounds);
+                orbitalMesh = MakeOrbitalMesh(orbitalSamplesPerPixel, orbitalBounds, blendBounds, maskOp);
 
                 pipeline.LogInfo("made orbital mesh with {0} triangles", Fmt.KMG(orbitalMesh.Faces.Count));
             }
@@ -1080,9 +1129,9 @@ namespace OPS.Landform
 
                 pipeline.LogInfo("making {0:f3}x{0:f3} orbital blend mesh at {1:f3} samples/meter",
                                  2 * blendRadiusPixels * orbitalDEMMetersPerPixel,
-                                 blendSamplesPerPixel / orbitalDEMMetersPerPixel);
+                                 orbitalBlendSamplesPerPixel / orbitalDEMMetersPerPixel);
 
-                var blendMesh = makeMesh(blendSamplesPerPixel, blendBounds);
+                var blendMesh = MakeOrbitalMesh(orbitalBlendSamplesPerPixel, blendBounds, null, maskOp);
 
                 SaveDebugMesh(blendMesh, "preblend-orbital");
 
@@ -1113,7 +1162,7 @@ namespace OPS.Landform
 
             if (BLEND_GUTTER_SAMPLES > 0)
             {
-                double gutterMeters = BLEND_GUTTER_SAMPLES * (orbitalDEMMetersPerPixel / blendSamplesPerPixel);
+                double gutterMeters = BLEND_GUTTER_SAMPLES * (orbitalDEMMetersPerPixel / orbitalBlendSamplesPerPixel);
                 if (radius > gutterMeters)
                 {
                     radius -= gutterMeters;
