@@ -105,7 +105,8 @@ namespace OPS.Geometry
 
         public static Mesh Reconstruct(Mesh pointCloud, Options options = null,
                                        Action<string> rawReconstructedMeshFile = null,
-                                       Action<Mesh> untrimmedMeshWithValueScaledNormals = null)
+                                       Action<Mesh> untrimmedMeshWithValueScaledNormals = null,
+                                       bool quiet = true)
         {
             var cfg = PoissonConfig.Instance;
             string reconstructExe = Path.Combine(PathHelper.GetApplicationPath(), "ExternalApps", cfg.PoissonExe);
@@ -220,7 +221,10 @@ namespace OPS.Geometry
                     ProgramRunner pr = new ProgramRunner(reconstructExe, arguments, captureOutput: true);
                     try
                     {
-                        logger.InfoFormat("running command: {0} {1}", reconstructExe, arguments);
+                        if (!quiet)
+                        {
+                            logger.InfoFormat("running command: {0} {1}", reconstructExe, arguments);
+                        }
                         int exitCode = pr.Run();
                         
                         if (exitCode != 0)
@@ -254,7 +258,10 @@ namespace OPS.Geometry
                             throw new MeshException("Poisson empty output");
                         }
 
-                        logger.InfoFormat("reconstructed mesh has {0} faces", Fmt.KMG(result.Faces.Count));
+                        if (!quiet)
+                        {
+                            logger.InfoFormat("reconstructed mesh has {0} faces", Fmt.KMG(result.Faces.Count));
+                        }
                     }
                     catch (Exception ex)
                     {
@@ -266,25 +273,38 @@ namespace OPS.Geometry
 
                     if (options != null && options.Envelope.HasValue && options.ClipToEnvelope)
                     {
-                        logger.Info("clipping mesh to envelope bounds");
+                        if (!quiet)
+                        {
+                            logger.Info("clipping mesh to envelope bounds");
+                        }
                         result.Clip(options.Envelope.Value, normalize: false);
                         if (result.Vertices.Count == 0 || result.Faces.Count == 0)
                         {
                             throw new MeshException("empty output after clipping to envelope");
                         }
-                        logger.InfoFormat("clipped mesh has {0} faces", Fmt.KMG(result.Faces.Count));
+                        if (!quiet)
+                        {
+                            logger.InfoFormat("clipped mesh has {0} faces", Fmt.KMG(result.Faces.Count));
+                        }
                     }
 
                     if (options != null && options.MinIslandRatio > 0)
                     {
-                        logger.InfoFormat("removing islands less than {0} of largest island diameter",
-                                          options.MinIslandRatio);
+                        if (!quiet)
+                        {
+                            logger.InfoFormat("removing islands less than {0} of largest island diameter",
+                                              options.MinIslandRatio);
+                        }
                         int nr = result.RemoveIslands(options.MinIslandRatio);
                         if (result.Vertices.Count == 0 || result.Faces.Count == 0)
                         {
                             throw new MeshException("empty output after removing islands");
                         }
-                        logger.InfoFormat("removed {0} islands, mesh has {1} faces", nr, Fmt.KMG(result.Faces.Count));
+                        if (!quiet)
+                        {
+                            logger.InfoFormat("removed {0} islands, mesh has {1} faces",
+                                              nr, Fmt.KMG(result.Faces.Count));
+                        }
                     }
 
                     if (untrimmedMeshWithValueScaledNormals != null)
@@ -302,7 +322,7 @@ namespace OPS.Geometry
             return result;
         }
 
-        public static Mesh Trim(Mesh meshWithValueScaledNormals, Options options)
+        public static Mesh Trim(Mesh meshWithValueScaledNormals, Options options, bool quiet = true)
         {
             if (options == null || options.TrimmerLevel <= 0)
             {
@@ -326,7 +346,10 @@ namespace OPS.Geometry
                                                  inputFile, outputFile, options.TrimmerLevel,
                                                  options.MinIslandRatio > 0 ?
                                                  "--aRatio " + options.MinIslandRatio : "");
-                logger.InfoFormat("running command: {0} {1}", trimmerExe, arguments);
+                if (!quiet)
+                {
+                    logger.InfoFormat("running command: {0} {1}", trimmerExe, arguments);
+                }
                 
                 var pr = new ProgramRunner(trimmerExe, arguments, captureOutput: true);
                 try
@@ -366,7 +389,10 @@ namespace OPS.Geometry
                 {
                     throw new MeshException("trimmer empty output");
                 }
-                logger.InfoFormat("trimmed mesh has {0} faces", Fmt.KMG(result.Faces.Count));
+                if (!quiet)
+                {
+                    logger.InfoFormat("trimmed mesh has {0} faces", Fmt.KMG(result.Faces.Count));
+                }
             });
             return result;
         }

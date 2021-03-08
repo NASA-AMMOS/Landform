@@ -26,7 +26,8 @@ namespace OPS.Geometry
         /// </summary>
         public static Mesh Reconstruct(Mesh pointCloud, double globalScale = -1,
                                        bool useNormalLengthAsVertexScale = false,
-                                       Action<Mesh> uncleanedMesh = null, bool runClean = true)
+                                       Action<Mesh> uncleanedMesh = null, bool runClean = true,
+                                       bool quiet = true)
         {
             if (pointCloud.Vertices.Count == 0)
             {
@@ -51,20 +52,26 @@ namespace OPS.Geometry
                 pointCloud.ClearColors();
             }
 
-            if (useNormalLengthAsVertexScale)
-            {
-                logger.InfoFormat("using point cloud normal lengths as individual vertex scale values");
-            }
-            else if (globalScale <= 0)
+            if (globalScale <= 0 && !useNormalLengthAsVertexScale)
             {
                 double maxDim = pointCloud.Bounds().MaxDimension();
                 globalScale = 2 * (maxDim / Math.Sqrt(pointCloud.Vertices.Count));
-                logger.InfoFormat("auto computed global scale {0} for point cloud with max bound {1}m and {2} vertices",
-                                  globalScale, maxDim, pointCloud.Vertices.Count);
+                if (!quiet)
+                {
+                    logger.InfoFormat("computed global scale {0} for point cloud with max bound {1}m and {2} vertices",
+                                      globalScale, maxDim, pointCloud.Vertices.Count);
+                }
             }
-            else
+            else if (!quiet)
             {
-                logger.InfoFormat("using global scale value {0}", globalScale);
+                if (useNormalLengthAsVertexScale)
+                {
+                    logger.InfoFormat("using point cloud normal lengths as individual vertex scale values");
+                }
+                else
+                {
+                    logger.InfoFormat("using global scale value {0}", globalScale);
+                }
             }
 
             string fssrExe = Path.Combine(PathHelper.GetApplicationPath(), "ExternalApps", "fssrecon.exe");
@@ -86,7 +93,10 @@ namespace OPS.Geometry
                 ProgramRunner pr = new ProgramRunner(fssrExe, arguments, captureOutput: true);
                 try
                 {
-                    logger.InfoFormat("running command: {0} {1}", fssrExe, arguments);
+                    if (!quiet)
+                    {
+                        logger.InfoFormat("running command: {0} {1}", fssrExe, arguments);
+                    }
                     int exitCode = pr.Run();
 
                     if (exitCode != 0)
@@ -108,7 +118,10 @@ namespace OPS.Geometry
                         throw new MeshException("FSSR empty output");
                     }
 
-                    logger.InfoFormat("reconstructed mesh has {0} faces", Fmt.KMG(result.Faces.Count));
+                    if (!quiet)
+                    {
+                        logger.InfoFormat("reconstructed mesh has {0} faces", Fmt.KMG(result.Faces.Count));
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -129,7 +142,10 @@ namespace OPS.Geometry
                     pr = new ProgramRunner(cleanExe, arguments, captureOutput: true);
                     try
                     {
-                        logger.InfoFormat("running command: {0} {1}", cleanExe, arguments);
+                        if (!quiet)
+                        {
+                            logger.InfoFormat("running command: {0} {1}", cleanExe, arguments);
+                        }
                         int exitCode = pr.Run();
                         
                         if (exitCode != 0)
@@ -151,7 +167,10 @@ namespace OPS.Geometry
                             throw new MeshException("FSSR clean empty output");
                         }
                         
-                    logger.InfoFormat("cleaned mesh has {0} faces", Fmt.KMG(result.Faces.Count));
+                        if (!quiet)
+                        {
+                            logger.InfoFormat("cleaned mesh has {0} faces", Fmt.KMG(result.Faces.Count));
+                        }
                     }
                     catch (Exception ex)
                     {
