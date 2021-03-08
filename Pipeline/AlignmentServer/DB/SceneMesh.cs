@@ -76,13 +76,13 @@ namespace OPS.Pipeline.AlignmentServer
                                        bool noSave = false)
         {
             var meshProd = mesh != null ? new PlyGZDataProduct(mesh) : null;
-            if (meshProd != null)
+            if (meshProd != null && !noSave)
             {
                 pipeline.SaveDataProduct(project, meshProd);
             }
 
             PngDataProduct textureProd = texture != null ? new PngDataProduct(texture) : null;
-            if (textureProd != null)
+            if (textureProd != null && !noSave)
             {
                 pipeline.SaveDataProduct(project, textureProd);
             } 
