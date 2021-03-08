@@ -382,7 +382,7 @@ namespace OPS.Pipeline
         }
 
         /// <summary>
-        /// naive confidence: farther away the point is from the camera the lower the confidence
+        /// naive confidence: the farther away the point is from the camera the lower the confidence
         /// </summary>
         public Image GenerateConfidenceFromRNG()
         {
@@ -402,7 +402,7 @@ namespace OPS.Pipeline
                     }
                     else if (!hasMissingConstant || ret.IsValid(row, col))
                     {
-                        ret[0, row, col] = 1 / src[0, row, col];
+                        ret[0, row, col] = (float)DistanceToConfidence(src[0, row, col]);
                     }
                     //else AddMaskForMissingConstant() already masked ret[row, col]
                 }
@@ -412,7 +412,7 @@ namespace OPS.Pipeline
         }
 
         /// <summary>
-        /// naive confidence: farther away the point is from the camera the lower the confidence
+        /// naive confidence: the farther away the point is from the camera the lower the confidence
         /// </summary>
         public Image GenerateConfidenceFromXYZ()
         {
@@ -434,12 +434,19 @@ namespace OPS.Pipeline
                     else if (!hasMissingConstant || ret.IsValid(row, col))
                     {
                         var p = new Vector3(src[0, row, col], src[1, row, col], src[2, row, col]);
-                        ret[0, row, col] = 1 / (float)Vector3.Distance(Vector3.Transform(p, xform), c);
+                        double d = Vector3.Distance(Vector3.Transform(p, xform), c);
+                        ret[0, row, col] = (float)DistanceToConfidence(d);
                     }
                     //else AddMaskForMissingConstant() already masked ret[row, col]
                 }
             }
             return ret;
+        }
+
+        public double DistanceToConfidence(double distance, double minDist = 1, double maxDist = 100)
+        {
+            distance = Math.Max(Math.Min(distance, maxDist), minDist);
+            return 1.0 / distance;
         }
 
         /// <summary>
