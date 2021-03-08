@@ -13,7 +13,7 @@ using OPS.Pipeline;
 
 namespace OPS.Pipeline.AlignmentServer
 {
-    public enum MeshVariant { Default = 0, Shrinkwrap = 1 }
+    public enum MeshVariant { Default = 0, Shrinkwrap = 1, Sky = 2 }
 
     [DynamoDBTable("SceneMeshes")]
     [DynamoDBReadCapacity(50, 100)]

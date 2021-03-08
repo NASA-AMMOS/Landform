@@ -132,6 +132,7 @@ namespace OPS.Pipeline
         public string frame_id;
         public int index;
         public int backprojected_pixels;
+        public int backprojected_pixels_sky;
         public int width;
         public int height;
         public int bands;
@@ -550,6 +551,7 @@ namespace OPS.Pipeline
             image.frame_id = imageFrameId;
             image.index = 0;
             image.backprojected_pixels = 0;
+            image.backprojected_pixels_sky = 0;
             image.width = parser.metadata.Width;
             image.height = parser.metadata.Height;
             image.bands = parser.metadata.Bands;
@@ -584,6 +586,8 @@ namespace OPS.Pipeline
                                Tilesets.ContainsKey(tilesetId) ? "updating" : "adding", tilesetId);
             }
 
+            bool sky = tilesetId.EndsWith("_sky");
+
             var sdFrame = GetOrAddSiteDriveFrame(siteDrive);
 
             if (frameCache.ContainsFrame(siteDrive)) {
@@ -595,6 +599,10 @@ namespace OPS.Pipeline
             tileset.frame_id = sdFrame.id; //contextual mesh is always in sitedrive frame
             tileset.groups.Clear();
             tileset.groups.Add("contextual");
+            if (sky)
+            {
+                tileset.groups.Add("sky");
+            }
 
             if (logger != null)
             {
@@ -615,7 +623,15 @@ namespace OPS.Pipeline
                 image.thumbnail = null; //see SceneManifestHelper.UpdateImageURIs()
                 image.frame_id = "contextual_" + obs.FrameName;
                 image.index = obs.Index;
-                image.backprojected_pixels = bpp != null && bpp.ContainsKey(obs.Index) ? bpp[obs.Index] : 0;
+                int nbpp = bpp != null && bpp.ContainsKey(obs.Index) ? bpp[obs.Index] : 0;
+                if (sky)
+                {
+                    image.backprojected_pixels_sky += nbpp;
+                }
+                else
+                {
+                    image.backprojected_pixels += nbpp;
+                }
                 image.width = obs.Width;
                 image.height = obs.Height;
                 image.bands = obs.Bands;
@@ -636,24 +652,6 @@ namespace OPS.Pipeline
             }
             tileset.sols.Clear();
             tileset.sols.AddRange(sols);
-        }
-
-        public void AddOrUpdateSkyTileset(string tilesetId, string tilesetUrl, string siteDrive, ILogger logger = null)
-        {
-            if (logger != null)
-            {
-                logger.LogInfo("{0} manifest for sky tileset {1}",
-                               Tilesets.ContainsKey(tilesetId) ? "updating" : "adding", tilesetId);
-            }
-            var sdFrame = GetOrAddSiteDriveFrame(siteDrive);
-            var tileset = GetOrAddTileset(tilesetId);
-            tileset.uri = tilesetUrl;
-            tileset.frame_id = sdFrame.id; //contextual mesh is always in sitedrive frame
-            tileset.groups.Clear();
-            tileset.groups.Add("contextual");
-            tileset.groups.Add("sky");
-            tileset.image_ids.Clear();
-            tileset.sols.Clear();
         }
     }
 }

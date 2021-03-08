@@ -640,6 +640,7 @@ namespace OPS.Landform
                 ImageExt = imageExt,
                 HasIndexImages = true,
                 TilingScheme = TilingScheme.Flat,
+                TextureMode = TextureMode.Backproject,
                 LeafNames = new List<string>(),
                 ParentNames = new List<string>()
             };
@@ -760,6 +761,15 @@ namespace OPS.Landform
 
             root.AddComponent(new NodeBounds(rootBounds));
             tileTree = root;
+
+            if (!options.NoSave)
+            {
+                pipeline.LogInfo("saving sky tile list");
+                var skySceneMesh = SceneMesh.Create(pipeline, project, MeshVariant.Sky, mesh);
+                pipeline.SaveDataProduct(project, tileList);
+                skySceneMesh.TileListGuid = tileList.Guid;
+                skySceneMesh.Save(pipeline);
+            }
         }
 
         private void BuildTileTexturesAndSaveTiles()
@@ -790,7 +800,10 @@ namespace OPS.Landform
 
                 if (mip.Mesh != null && mip.Image != null && mip.Index != null)
                 {
-                    SaveTile(mip, tile.Name, localSave, cloudSave, tile.IsLeaf);
+                    if (!options.NoSave)
+                    {
+                        SaveTile(mip, tile.Name, localSave, cloudSave, tile.IsLeaf);
+                    }
                     Interlocked.Increment(ref numSucceded);
                 }
                 else

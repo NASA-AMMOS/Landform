@@ -722,16 +722,38 @@ namespace OPS.Landform
                 tilesetUrl = FindJSONUrl(tilesetId);
             }
 
-            SceneMesh sceneMesh = SceneMesh.Find(pipeline, project.Name, MeshVariant.Default);
-
-            var images = observationCache.GetAllObservations()
+            var imgObs = observationCache.GetAllObservations()
                 .Where(obs => obs is RoverObservation)
                 .Cast<RoverObservation>()
                 .Where(obs => obs.ObservationType == RoverProductType.Image)
                 .ToList();
 
             var backprojectedPixels = new Dictionary<int, int>();
+            var images = FilterImages(imgObs, MeshVariant.Default, TilingCommand.TILING_DIR, backprojectedPixels);
+            sceneManifest.AddOrUpdateContextualTileset(tilesetId, tilesetUrl, options.SiteDrive,
+                                                       frameCache, options.UsePriors, options.OnlyAligned,
+                                                       images, backprojectedPixels, pipeline);
 
+            if (!options.NoSky)
+            {
+                string skyTilesetId = tilesetId + "_sky";
+                string skyTilesetUrl = FindJSONUrl(skyTilesetId);
+                if (skyTilesetUrl != null)
+                {
+                    images = FilterImages(imgObs, MeshVariant.Sky, BuildSkySphere.SKY_TILING_DIR, backprojectedPixels);
+                    sceneManifest.AddOrUpdateContextualTileset(skyTilesetId, !options.NoURLs ? skyTilesetUrl : null,
+                                                               options.SiteDrive, frameCache,
+                                                               options.UsePriors, options.OnlyAligned,
+                                                               images, backprojectedPixels, pipeline);
+                }
+            }
+        }
+
+        private List<RoverObservation> FilterImages(List<RoverObservation> images, MeshVariant meshVariant,
+                                                    string leafFolder, Dictionary<int, int> backprojectedPixels)
+        {
+            backprojectedPixels.Clear();
+            var sceneMesh = SceneMesh.Find(pipeline, project.Name, meshVariant);
             if (sceneMesh != null)
             {
                 bool gotBPP = false;
@@ -743,17 +765,17 @@ namespace OPS.Landform
                         
                         if (tileList.LeafNames == null || tileList.LeafNames.Count == 0)
                         {
-                            throw new Exception("leaf list empty");
+                            throw new Exception($"{meshVariant} leaf list empty");
                         }
                         
                         if (!tileList.HasIndexImages)
                         {
-                            throw new Exception("tile list missing backproject index images");
+                            throw new Exception($"{meshVariant} tile list missing backproject index images");
                         }
 
-                        pipeline.LogInfo("counting backprojected pixels from {0} leaves", tileList.LeafNames.Count);
+                        pipeline.LogInfo("counting {0} backprojected pixels from {1} leaves",
+                                         meshVariant, tileList.LeafNames.Count);
 
-                        string leafFolder = TilingCommand.TILING_DIR;
                         CoreLimitedParallel.ForEach(tileList.LeafNames, leaf =>
                         {
                             string indexName = leaf + TileList.INDEX_FILE_SUFFIX + TileList.INDEX_FILE_EXT;
@@ -782,27 +804,30 @@ namespace OPS.Landform
                     }
                     catch (Exception ex)
                     {
-                        pipeline.LogWarn("error counting backprojected pixels: {0}", ex.Message);
+                        pipeline.LogWarn("error counting {0} backprojected pixels: {1}", meshVariant, ex.Message);
                     }
                 }
                 else
                 {
-                    pipeline.LogWarn("cannot count backprojected pixels, scene mesh has no tile list");
+                    pipeline.LogWarn("cannot count backprojected pixels, {0} scene mesh has no tile list", meshVariant);
                 }
+
                 if (gotBPP && options.CullImagesWithoutBackprojectedPixels)
                 {
                     int origCount = images.Count;
                     images = images.Where(obs => backprojectedPixels.ContainsKey(obs.Index)).ToList();
-                    pipeline.LogInfo("culled {0} of {1} images with no backprojected pixels",
-                                     origCount - images.Count, origCount);
+                    pipeline.LogInfo("culled {0} of {1} {2} images with no backprojected pixels",
+                                     origCount - images.Count, origCount, meshVariant);
                 }
-                else if (!options.NoFilterImagesToMeshHull)
+
+                if (!options.NoFilterImagesToMeshHull)
                 {
-                    pipeline.LogInfo("loading scene mesh from database to filter images");
+                    pipeline.LogInfo("loading {0} scene mesh from database to filter images", meshVariant);
                     var mesh = pipeline.GetDataProduct<PlyGZDataProduct>(project, sceneMesh.MeshGuid).Mesh;
                     var meshHull = ConvexHull.CreateWithFallback(mesh);
                     
-                    pipeline.LogInfo("testing {0} image frusta for intersection with scene mesh hull", images.Count);
+                    pipeline.LogInfo("testing {0} image frusta for intersection with {1} scene mesh hull",
+                                     images.Count, meshVariant);
                     var obsToHull = Backproject.BuildFrustumHulls(pipeline, frameCache, options.SiteDrive,
                                                                   options.UsePriors, options.OnlyAligned, images);
                     var tmp = new ConcurrentBag<string>();
@@ -815,8 +840,8 @@ namespace OPS.Landform
                     });
                     var keepers = new HashSet<string>();
                     keepers.UnionWith(tmp);
-                    pipeline.LogInfo("culled {0} of {1} images that did not intersect mesh hull",
-                                     images.Count - keepers.Count, images.Count);
+                    pipeline.LogInfo("culled {0} of {1} {2} images that did not intersect mesh hull",
+                                     images.Count - keepers.Count, images.Count, meshVariant);
                     images = images.Where(obs => keepers.Contains(obs.Name)).ToList();
                 }
             }
@@ -824,23 +849,9 @@ namespace OPS.Landform
             {
                 pipeline.LogWarn("no {0} scene mesh in frame {1} in project {2}, using all {3} images, " +
                                  "cannot count backprojected pixels",
-                                 MeshVariant.Default, options.SiteDrive, project.Name, images.Count);
+                                 meshVariant, options.SiteDrive, project.Name, images.Count);
             }
-
-            sceneManifest.AddOrUpdateContextualTileset(tilesetId, tilesetUrl, options.SiteDrive,
-                                                       frameCache, options.UsePriors, options.OnlyAligned,
-                                                       images, backprojectedPixels, pipeline);
-
-            if (!options.NoSky)
-            {
-                string skyTilesetId = tilesetId + "_sky";
-                string skyTilesetUrl = FindJSONUrl(skyTilesetId);
-                if (skyTilesetUrl != null)
-                {
-                    sceneManifest.AddOrUpdateSkyTileset(skyTilesetId, !options.NoURLs ? skyTilesetUrl : null,
-                                                        options.SiteDrive, pipeline);
-                }
-            }
+            return images;
         }
 
         private void UpdateTacticalMeshManifests()
