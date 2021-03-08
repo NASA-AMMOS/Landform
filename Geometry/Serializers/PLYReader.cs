@@ -432,6 +432,12 @@ namespace OPS.Geometry
                     {
                         string[] tokens = line.Split(' ');
                         string propName = tokens[2];
+
+                        if (!typeLookup.ContainsKey(tokens[1]))
+                        {
+                            throw new PLYSerializerException($"unknown vertex property data type in PLY \"{line}\"");
+                        }
+
                         Type propType = typeLookup[tokens[1]];
 
                         if (meshFlaggers.ContainsKey(propName))
@@ -508,7 +514,7 @@ namespace OPS.Geometry
                         }
                         else
                         {
-                            throw new PLYSerializerException("Unknown face property");
+                            throw new PLYSerializerException("Unknown face property \"{line}\"");
                         }
                     }
                     else if (line.Contains("end_header"))
@@ -552,13 +558,20 @@ namespace OPS.Geometry
                              refIndexProperty, faceIndexProperty, faceUVProperty, ignoreFaceUVs);
                     if (fs.Position != fs.Length)
                     {
-                        throw new PLYSerializerException("Unexpected end of PLY file");
+                        throw new PLYSerializerException("unexpected end of PLY file");
                     }
                 }
             }
-            if (vertexCount != result.Vertices.Count  || faceCount != result.Faces.Count)
+            if (vertexCount != result.Vertices.Count)
             {
-                throw new PLYSerializerException("Unexpected number of vertices or faces in PLY file");
+                throw new PLYSerializerException(
+                    $"unexpected number of vertices {result.Vertices.Count} != {vertexCount} in PLY file");
+            }
+
+            if (faceCount != result.Faces.Count)
+            {
+                throw new PLYSerializerException(
+                    $"unexpected number of faces {result.Faces.Count} != {faceCount} in PLY file");
             }
 
             if (result.HasNormals && hasValue && readValuesAsNormalLengths)

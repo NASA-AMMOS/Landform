@@ -420,10 +420,10 @@ namespace OPS.Geometry
     /// [property float value]
     /// property float texture_u
     /// property float texture_v
-    /// property byte red
-    /// property byte green
-    /// property byte blue
-    /// [property byte alpha]
+    /// property uchar red
+    /// property uchar green
+    /// property uchar blue
+    /// [property uchar alpha]
     /// element face 1
     /// property list uchar int vertex_indices
     /// end_header
