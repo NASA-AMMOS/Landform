@@ -213,8 +213,8 @@ namespace OPS.Pipeline
             {
                 LogInfo("creating project");
                 TilingProject.Create(pipeline, projectName, m.TilingScheme, m.SkirtMode, m.ReconstructionMethod,
-                                     m.FacesPerTile, m.TextureResolution, m.TextureMode, m.ProjectType,
-                                     m.ConvertLinearRGBToSRGB, m.ExportMeshFormat, m.ExportImageFormat,
+                                     m.FacesPerTile, m.TextureResolution, m.MaxTextureStretch, m.TextureMode,
+                                     m.ProjectType, m.ConvertLinearRGBToSRGB, m.ExportMeshFormat, m.ExportImageFormat,
                                      m.MaxLeafGroupSize, m.ProductPath);
             }
             else
@@ -634,6 +634,7 @@ namespace OPS.Pipeline
         public MeshReconstructionMethod ReconstructionMethod;
         public int FacesPerTile;
         public int TextureResolution;
+        public double MaxTextureStretch;
         public TextureMode TextureMode;
         public PipelineStateMachine.ProjectType ProjectType;
         public bool ConvertLinearRGBToSRGB;

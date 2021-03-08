@@ -33,6 +33,9 @@ namespace OPS.TilingServer
         [Option(Default = 256, HelpText = "maximum image resolution per tile, 0 disables texturing, negative for unlimited/default")]
         public int TextureResolution { get; set; }
 
+        [Option(Default = UVAtlas.DEF_MAX_STRETCH, HelpText = "Max texture atlas stretch (0 = no stretch, 1 = unlimited)")]
+        public double MaxTextureStretch { get; set; }
+
         [Option(Default = TextureMode.Bake, HelpText = "texture mode (None, Clip, Bake)")]
         public TextureMode TextureMode { get; set; }
 
@@ -142,7 +145,8 @@ namespace OPS.TilingServer
                 return 1; //argument error
             }
 
-            string productUrl = pipeline.GetStorageUrl(InitializeAlignmentProject.DATA_PRODUCT_DIR, options.ProjectName);
+            string productUrl =
+                pipeline.GetStorageUrl(InitializeAlignmentProject.DATA_PRODUCT_DIR, options.ProjectName);
 
             pipeline.EnqueueToMaster(new CreateProjectMessage(options.ProjectName)
                                      {
@@ -152,6 +156,7 @@ namespace OPS.TilingServer
                                          FacesPerTile = options.FacesPerTile,
                                          ProjectType = options.ProjectType,
                                          TextureResolution = options.TextureResolution,
+                                         MaxTextureStretch = options.MaxTextureStretch,
                                          TextureMode = options.TextureMode,
                                          ConvertLinearRGBToSRGB = !options.NoConvertLinerRGBToSRGB,
                                          ExportMeshFormat = exMeshFmt,

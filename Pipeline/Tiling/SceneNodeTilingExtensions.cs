@@ -162,9 +162,9 @@ namespace OPS.Pipeline
         public static bool BuildParentGeometry
             (this SceneNode node, SceneNode root,
              int maxFaceCountTarget, MeshReconstructionMethod reconstructionMethod, BoxAxis upAxis,
-             TextureMode textureMode, int maxTextureRes,
+             TextureMode textureMode, int maxTextureRes, double maxTextureStretch, 
              //TODO when dev/tiling-updates is merged
-             //double maxTexelsPerMeter, double maxTextureStretch, bool powerOfTwoTextures,
+             //double maxTexelsPerMeter, bool powerOfTwoTextures,
              TextureProjector textureProjector = null, Image textureImage = null,
              Action<string> info = null, Action<string> error = null)
         {
@@ -293,15 +293,15 @@ namespace OPS.Pipeline
                                               textureProjector.CameraModel, meshToImage: textureProjector.MeshToImage);
                     if (textureMode != TextureMode.Clip || textureImage == null)
                     {
-                        parentMesh.RescaleUVsForTexture(textureSize, textureSize);
-                                   //TODO when dev/tiling-updates is merged , maxTextureStretch);
+                        parentMesh.RescaleUVsForTexture(textureSize, textureSize, maxTextureStretch);
                     }
                 }
                 else
                 {
-                    info($"atlasing parent tile with UVAtlas, resolution {textureSize}x{textureSize}");
-                    if (!UVAtlas.Atlas(parentMesh, textureSize, textureSize, logger: logger))
-                        //TODO when dev/tiling-updates is merged , maxStretch: maxTextureStretch)
+                    info($"atlasing parent tile with UVAtlas, resolution {textureSize}x{textureSize}, " +
+                         $"max stretch {maxTextureStretch}");
+                    if (!UVAtlas.Atlas(parentMesh, textureSize, textureSize, maxStretch: maxTextureStretch,
+                                       logger: logger))
                     {
                         error("failed to atlas parent tile with UVAtlas");
                         return false;
@@ -344,13 +344,10 @@ namespace OPS.Pipeline
                     //but a parent tile can only get UVs usable for clipping by texture projection
                 }
 
-                /* TODO when dev/tiling-updates is merged
-                if (maxTextureStretch < 1 && !powerOfTwoTextures)
+                if (maxTextureStretch < 1 /* TODO && !powerOfTwoTextures */)
                 {
-                    parentImg = parentMesh.ClipImageAndRemapUVs(parentImg);
-                    //TODO need to deal with parentIndex here too
+                    parentImg = parentMesh.ClipImageAndRemapUVs(parentImg, ref parentIndex);
                 }
-                */
             }
 
             node.AddComponent(new MeshImagePair(parentMesh, parentImg, parentIndex));

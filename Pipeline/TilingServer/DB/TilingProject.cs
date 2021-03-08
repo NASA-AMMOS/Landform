@@ -43,6 +43,8 @@ namespace OPS.Pipeline.TilingServer
 
         public int TextureResolution;
 
+        public double MaxTextureStretch;
+
         public TextureMode TextureMode;
 
         public bool TilesDefined;
@@ -113,7 +115,7 @@ namespace OPS.Pipeline.TilingServer
         /// <param name="name">Project names in the database must be unique</param>
         protected TilingProject(string name, TilingScheme tilingScheme, SkirtMode skirtMode,
                                 MeshReconstructionMethod reconstructionMethod, int faces,
-                                int textureResolution, TextureMode textureMode, 
+                                int textureResolution, double maxTextureStretch, TextureMode textureMode,
                                 PipelineStateMachine.ProjectType projectType, bool convertLinearRGBToSRGB,
                                 string exportMeshFormat, string exportImageFormat, int maxLeafGroupSize,
                                 string productPath)
@@ -124,6 +126,7 @@ namespace OPS.Pipeline.TilingServer
             ReconstructionMethod = reconstructionMethod;
             FacesPerTile = faces;
             TextureResolution = textureResolution;
+            MaxTextureStretch = maxTextureStretch;
             TextureMode = textureMode;
             ProjectType = projectType;
             TilesDefined = false;
@@ -137,13 +140,13 @@ namespace OPS.Pipeline.TilingServer
 
         public static TilingProject Create(PipelineCore pipeline, string name, TilingScheme tilingScheme,
                                            SkirtMode skirtMode, MeshReconstructionMethod reconstructionMethod,
-                                           int faces, int textureResolution, TextureMode textureMode,
-                                           PipelineStateMachine.ProjectType projectType, bool convertLinearRGBToSRGB,
-                                           string exportMeshFormat, string exportImageFormat, int maxLeafGroupSize,
-                                           string productPath)
+                                           int faces, int textureResolution, double maxTextureStretch,
+                                           TextureMode textureMode, PipelineStateMachine.ProjectType projectType,
+                                           bool convertLinearRGBToSRGB, string exportMeshFormat,
+                                           string exportImageFormat, int maxLeafGroupSize, string productPath)
         {
             TilingProject project = new TilingProject(name, tilingScheme, skirtMode, reconstructionMethod, faces,
-                                                      textureResolution, textureMode, projectType,
+                                                      textureResolution, maxTextureStretch, textureMode, projectType,
                                                       convertLinearRGBToSRGB, exportMeshFormat, exportImageFormat,
                                                       maxLeafGroupSize, productPath);
             project.Save(pipeline);

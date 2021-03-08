@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
+using OPS.Util;
 using OPS.Imaging;
 using OPS.Geometry;
 
@@ -112,7 +113,7 @@ namespace OPS.Pipeline
         /// <param name="mesh"></param>
         /// <param name="textureSize"></param>
         /// <returns></returns>
-        public MeshImagePair BakeTexture(Mesh mesh, int textureSize, Action<string> info = null)
+        public MeshImagePair BakeTexture(Mesh mesh, int textureSize, double maxStretch = 1, Action<string> info = null)
         {
             if (textureBaker == null)
             {
@@ -124,7 +125,8 @@ namespace OPS.Pipeline
 
             if (!mesh.HasUVs)
             {
-                if (!UVAtlas.Atlas(mesh, textureSize, textureSize))
+                if (!UVAtlas.Atlas(mesh, textureSize, textureSize, maxStretch: maxStretch,
+                                   logger: new ThunkLogger() { Info = info }))
                 {
                     info("failed to atlas mesh with UVAtlas");
                     return null;

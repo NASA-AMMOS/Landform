@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
+using OPS.Util;
 using OPS.Geometry;
 using OPS.Imaging;
 using OPS.RayTrace;
@@ -31,7 +32,9 @@ namespace OPS.Pipeline
         public CameraInstance[] cameraInstances;
         public SceneCaster scInMesh;
         public double raycastTolerance;
+        public double maxTextureStretch;
         public bool redoUVs;
+        public Action<string> warn;
     }
 
     abstract public class TextureSplitCriteria : ITileSplitCriteria
@@ -134,7 +137,9 @@ namespace OPS.Pipeline
             {
                 try
                 {
-                    if (!UVAtlas.Atlas(clippedMesh, options.tileResolution, options.tileResolution))
+                    if (!UVAtlas.Atlas(clippedMesh, options.tileResolution, options.tileResolution,
+                                       maxStretch: options.maxTextureStretch,
+                                       logger: new ThunkLogger() { Warn = options.warn }))
                     {
                         return false;
                     }
@@ -150,7 +155,8 @@ namespace OPS.Pipeline
             }
             else
             {
-                clippedMesh.RescaleUVsForTexture(options.tileResolution, options.tileResolution);
+                clippedMesh.RescaleUVsForTexture(options.tileResolution, options.tileResolution,
+                                                 options.maxTextureStretch);
             }
 
             //choose a sub-set of points (for perf) from the output atlas texture to test

@@ -20,10 +20,10 @@ namespace OPS.Landform
         [Option(HelpText = "Scene mesh texture resolution, should be power of two", Default = 8192)]
         public virtual int TextureResolution { get; set; }
 
-        [Option(HelpText = "Max texture charts, 0 for unlimited", Default = 0)]
+        [Option(HelpText = "Max texture charts, 0 for unlimited", Default = UVAtlas.DEF_MAX_CHARTS)]
         public int MaxTextureCharts { get; set; }
 
-        [Option(HelpText = "Max texture stretch, 0 for none, 1 for unlimited", Default = 0.1)]
+        [Option(HelpText = "Max texture stretch, 0 for none, 1 for unlimited", Default = UVAtlas.DEF_MAX_STRETCH)]
         public double MaxTextureStretch { get; set; }
 
         [Option(HelpText = "Min fraction of texture space to use for surface data", Default = 0.5)]
@@ -50,6 +50,7 @@ namespace OPS.Landform
         protected GeometryCommandOptions gcopts;
 
         protected int sceneTextureResolution;
+        protected double maxTextureStretch;
 
         protected double orbitalSamplesPerPixel;
 
@@ -77,6 +78,12 @@ namespace OPS.Landform
                 orbitalSamplesPerPixel = gcopts.OrbitalPointsPerMeter * orbitalDEMMetersPerPixel;
             }
             
+            maxTextureStretch = gcopts.MaxTextureStretch;
+            if (maxTextureStretch < 0 || maxTextureStretch > 1)
+            {
+                throw new Exception("MaxTextureStretch must be between 0 and 1");
+            }
+
             return true;
         }
 
@@ -102,8 +109,8 @@ namespace OPS.Landform
 
             try
             {
-                if (!UVAtlas.Atlas(mesh, resolution, resolution,
-                                   gcopts.MaxTextureCharts, (float)gcopts.MaxTextureStretch))
+                if (!UVAtlas.Atlas(mesh, resolution, resolution, gcopts.MaxTextureCharts,
+                                   maxTextureStretch, logger: pipeline))
                 {
                     throw new Exception("failed to atlas mesh with UVAtlas");
                 }

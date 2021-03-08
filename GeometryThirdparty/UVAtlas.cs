@@ -10,6 +10,12 @@ namespace OPS.Geometry
     /// </summary>
     public static class UVAtlas
     {
+        public const int DEF_RESOLUTION = 512;
+        public const int DEF_MAX_CHARTS = 0;
+        //public const double DEF_MAX_STRETCH = 0.1666f;
+        public const double DEF_MAX_STRETCH = 1;
+        public const double DEF_GUTTER = 2;
+
         /// <summary>
         /// Resulting UV coordinates will be normalized 0 - 1 and centered on pixels
         /// for an image with resolution `width` x `height`.
@@ -17,9 +23,10 @@ namespace OPS.Geometry
         /// `maxStretch` should be 0-1, 0 being no stretch, 1 being no limit
         /// `gutter` indicates minimum distance between components in pixels
         /// </summary>
-        public static bool Atlas(Mesh mesh, int width = 512, int height = 512, int maxCharts = 0,
-                                 float maxStretch = 0.1666f, float gutter = 2, bool forceHighestQuality = false,
-                                 float adjacencyEpsilon = 0, ILogger logger = null, bool fallbackToNaive = true)
+        public static bool Atlas(Mesh mesh, int width = DEF_RESOLUTION, int height = DEF_RESOLUTION,
+                                 int maxCharts = DEF_MAX_CHARTS, double maxStretch = DEF_MAX_STRETCH,
+                                 double gutter = DEF_GUTTER, bool forceHighestQuality = false,
+                                 double adjacencyEpsilon = 0, ILogger logger = null, bool fallbackToNaive = true)
         {
             int nVerts = mesh.Vertices.Count;
             float[] inX = new float[nVerts];
@@ -52,7 +59,8 @@ namespace OPS.Geometry
             UVAtlasNET.UVAtlas.ReturnCode rc =
                 UVAtlasNET.UVAtlas.Atlas(inX, inY, inZ, indices,
                                          out outU, out outV, out indices, out outVertexRemap,
-                                         maxCharts, maxStretch, gutter, width, height, quality, adjacencyEpsilon);
+                                         maxCharts, (float)maxStretch, (float)gutter, width, height, quality,
+                                         (float)adjacencyEpsilon);
 
             if (rc != UVAtlasNET.UVAtlas.ReturnCode.SUCCESS)
             {
@@ -82,6 +90,9 @@ namespace OPS.Geometry
             }
 
             mesh.ApplyAtlas(outU, outV, indices, outVertexRemap);
+
+            mesh.RescaleUVsForTexture(width, height, maxStretch, gutter);
+
             return true;
         }
     }

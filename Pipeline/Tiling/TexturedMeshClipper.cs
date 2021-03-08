@@ -113,7 +113,7 @@ namespace OPS.Pipeline
                 uvBounds.Min.Y = Math.Max(uvBounds.Min.Y - borderSize, 0);
                 uvBounds.Max.X = Math.Min(uvBounds.Max.X + borderSize, originalImage.Width - 1);
                 uvBounds.Max.Y = Math.Min(uvBounds.Max.Y + borderSize, originalImage.Height - 1);
-                uvBounds = originalImage.PixelToUv(uvBounds);
+                uvBounds = originalImage.PixelToUV(uvBounds);
                 if (this.triangles.Count == 0)
                 {
                     this.uvBounds = uvBounds;

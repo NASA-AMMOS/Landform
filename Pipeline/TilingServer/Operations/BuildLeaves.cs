@@ -187,14 +187,19 @@ namespace OPS.Pipeline.TilingServer
                                 mesh.HasUVs ? "using exising UVs" : "assigning new UVs with UVAtlas");
                         if (mesh.HasUVs)
                         {
-                            mesh.RescaleUVsForTexture(maxTexRes, maxTexRes);
+                            mesh.RescaleUVsForTexture(maxTexRes, maxTexRes, project.MaxTextureStretch);
                         }
-                        pair = clipper.BakeTexture(mesh, maxTexRes, msg => LogLess(msg)); //will UVAtlas if necessary
+                        //BakeTexture() will call UVAtlas if necessary
+                        pair = clipper.BakeTexture(mesh, maxTexRes, project.MaxTextureStretch, msg => LogLess(msg));
                     }
                     else if (project.TextureMode == TextureMode.Clip)
                     {
                         LogLess("clipping leaf texture");
                         pair = clipper.ClipWithTexture(bounds, maxTexRes);
+                    }
+                    if (pair.Mesh != null && pair.Image != null && project.MaxTextureStretch < 1)
+                    {
+                        pair.Image = pair.Mesh.ClipImageAndRemapUVs(pair.Image, ref pair.Index);
                     }
                 }
                 else

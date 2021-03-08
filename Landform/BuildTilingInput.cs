@@ -710,7 +710,9 @@ namespace OPS.Landform
                             scInMesh = sceneCaster,
                             cameraInstances = cams,
                             raycastTolerance = options.RaycastTolerance,
-                            redoUVs = !options.NoRedoTileMeshUVs
+                            maxTextureStretch = maxTextureStretch,
+                            redoUVs = !options.NoRedoTileMeshUVs,
+                            warn = msg => pipeline.LogWarn(msg)
                         };
                     }
                 }
@@ -941,10 +943,14 @@ namespace OPS.Landform
                 }
                 else if (textureMode == TextureMode.Bake)
                 {
-                    var tmp = bakeClipper.BakeTexture(mip.Mesh, tileResolution, msg => pipeline.LogVerbose(msg));
-                    mip.Mesh = tmp.Mesh; //may have been atlassed
-                    mip.Image = tmp.Image;
-                    mip.Index = tmp.Index;
+                    var tmp = bakeClipper.BakeTexture(mip.Mesh, tileResolution, maxTextureStretch,
+                                                      msg => pipeline.LogVerbose(msg));
+                    if (tmp != null)
+                    {
+                        mip.Mesh = tmp.Mesh; //may have been atlassed
+                        mip.Image = tmp.Image;
+                        mip.Index = tmp.Index;
+                    }
                 }
                 else if (textureMode == TextureMode.Backproject)
                 {                
@@ -957,6 +963,11 @@ namespace OPS.Landform
                     mip.Mesh = tmp.Mesh; //may have been re-atlassed
                     mip.Image = tmp.Image;
                     mip.Index = tmp.Index;
+                }
+
+                if (mip.Mesh != null && mip.Mesh.HasVertices && mip.Image != null && maxTextureStretch < 1)
+                {
+                    mip.Image = mip.Mesh.ClipImageAndRemapUVs(mip.Image, ref mip.Index);
                 }
 
                 if (mip.Mesh != null && (!withTextures || mip.Image != null))
@@ -1064,7 +1075,11 @@ namespace OPS.Landform
                 if (!tileMesh.HasUVs || !options.NoRedoTileMeshUVs)
                 {
                     tileMesh = AtlasMesh(tileMesh, tileResolution, "tile " + tile.Name);
-                    if (tileMesh == null)
+                    if (tileMesh != null)
+                    {
+                        tileMesh.RescaleUVsForTexture(tileResolution, tileResolution, maxTextureStretch);
+                    }
+                    else
                     {
                         pipeline.LogError("unknown error atlasing tile mesh {0}", tile.Name);
                         return null;
@@ -1073,7 +1088,7 @@ namespace OPS.Landform
                 else
                 {
                     pipeline.LogVerbose("using existing UVs on tile {0}", tile.Name);
-                    tileMesh.RescaleUVsForTexture(tileResolution, tileResolution);
+                    tileMesh.RescaleUVsForTexture(tileResolution, tileResolution, maxTextureStretch);
                 }
             }
             else if (textureMode == TextureMode.Clip)
