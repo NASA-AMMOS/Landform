@@ -209,8 +209,6 @@ namespace OPS.Geometry
         public static void RemoveUnreferencedVertices(this Mesh mesh)
         {
             var referencedIndices = mesh.VertexIndicesReferencedByFaces();
-
-            // Remove unused vertices
             List<Vertex> referencedVertices = new List<Vertex>();
             Dictionary<int, int> oldToNewIndex = new Dictionary<int, int>();
             for (int i = 0; i < mesh.Vertices.Count; i++)
@@ -223,7 +221,6 @@ namespace OPS.Geometry
                 }
             }
             mesh.Vertices = referencedVertices;
-            // Update face indices
             for (int i = 0; i < mesh.Faces.Count; i++)
             {
                 Face f = mesh.Faces[i];
@@ -239,8 +236,7 @@ namespace OPS.Geometry
         /// </summary>
         public static void MergeNearbyVertices(this Mesh mesh, double eps)
         {
-            VertexKDTree kdTree = new VertexKDTree(mesh.Vertices);
-            // Make a list of unique vertices and compute a mapping between old and new indices
+            VertexKDTree kdTree = new VertexKDTree(mesh);
             Dictionary<Vertex, int> vertexToIndex = new Dictionary<Vertex, int>();
             Dictionary<int, int> oldToNewIndex = new Dictionary<int, int>();
             List<Vertex> uniqueVertices = new List<Vertex>();
@@ -249,15 +245,12 @@ namespace OPS.Geometry
                 Vertex v = mesh.Vertices[i];
                 if (!vertexToIndex.ContainsKey(v))
                 {
-                    //find nearest neighbor
-                    Vertex closest = kdTree.NearestNeighbors(v.Position, 1).First();
-                    //if close enough to existing point, merge
+                    Vertex closest = kdTree.NearestNeighbor(v.Position);
                     if (vertexToIndex.ContainsKey(closest) && Vector3.Distance(v.Position, closest.Position) < eps)
                     {
-                        vertexToIndex.Add(v, vertexToIndex[closest]);
+                        vertexToIndex.Add(v, vertexToIndex[closest]); //close enough to existing point, merge
                     }
-                    //else add as new point
-                    else
+                    else //add as new point
                     {
                         vertexToIndex.Add(v, uniqueVertices.Count);
                         uniqueVertices.Add(v);
@@ -265,9 +258,7 @@ namespace OPS.Geometry
                 }
                 oldToNewIndex.Add(i, vertexToIndex[v]);
             }
-            // Update the vertex list
             mesh.Vertices = uniqueVertices;
-            // Update the face indices
             for (int i = 0; i < mesh.Faces.Count; i++)
             {
                 Face f = mesh.Faces[i];
@@ -409,6 +400,20 @@ namespace OPS.Geometry
             mesh.RemoveUnreferencedVertices();
 
             return islandSizes.Values.Count(d => d < threshold);
+        }
+
+        public static void FilterFaces(this Mesh mesh, Func<Face, bool> filter)
+        {
+            var keepers = new List<Face>(mesh.Faces.Count);
+            foreach (var face in mesh.Faces)
+            {
+                if (filter(face))
+                {
+                    keepers.Add(face);
+                }
+            }
+            mesh.Faces = keepers;
+            mesh.RemoveUnreferencedVertices();
         }
     }
 }

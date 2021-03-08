@@ -257,14 +257,14 @@ namespace OPS.Pipeline.Texturing
 
             double searchRadius = SEARCH_RADIUS_SAMPLES * spacing;
             var searchBounds = BoundingBoxExtensions.CreateFromPoint(meshPoint, 2 * searchRadius).ToRectangle();
-            var neighborIndices = rTree.Intersects(searchBounds).ToList();
+            var neighborIndices = rTree.Intersects(searchBounds);
 
             while (neighborIndices.Count == 0 && searchRadius < 10 * spacing)
             {
                 //shouldn't get here often, but there is randomness in this world
                 searchRadius += 0.5 * spacing;
                 searchBounds = BoundingBoxExtensions.CreateFromPoint(meshPoint, 2 * searchRadius).ToRectangle();
-                neighborIndices = rTree.Intersects(searchBounds).ToList();
+                neighborIndices = rTree.Intersects(searchBounds);
             }
 
             switch (SelectionMode)

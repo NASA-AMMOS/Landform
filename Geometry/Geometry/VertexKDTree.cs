@@ -19,26 +19,34 @@ namespace OPS.Geometry
     /// </summary>
     public class VertexKDTree
     {
-        KDTree<double, Vertex> tree;
-        List<Vertex> verts;
+        private KDTree<double, Vertex> tree;
+        private List<Vertex> verts;
+
+        public VertexKDTree(Mesh mesh) : this(mesh.Vertices)
+        { }
 
         public VertexKDTree(List<Vertex> verts)
         {
             this.verts = verts;
-            tree = new KDTree<double, Vertex>(3, verts.Select(v => v.Position.ToDoubleArray()).ToArray(), verts.ToArray(), DistSqrd);
+            double[][] positions = verts.Select(v => v.Position.ToDoubleArray()).ToArray();
+            double distSq(double[] a, double[] b)
+            {
+                double dx = a[0] - b[0];
+                double dy = a[1] - b[1];
+                double dz = a[2] - b[2];
+                return dx * dx + dy * dy + dz * dz;
+            }
+            tree = new KDTree<double, Vertex>(3, positions, verts.ToArray(), distSq);
         }
 
-        static double DistSqrd(double[] a, double[] b)
+        public Vertex NearestNeighbor(Vector3 p)
         {
-            return Vector3.DistanceSquared(new Vector3(a), new Vector3(b));
+            return NearestNeighbors(p, 1).First();
         }
 
         /// <summary>
         /// Returns N nearest neighbors
         /// </summary>
-        /// <param name="p"></param>
-        /// <param name="n"></param>
-        /// <returns></returns>
         public IEnumerable<Vertex> NearestNeighbors(Vector3 p, int n)
         {
             var tt = tree.NearestNeighbors(p.ToDoubleArray(), n);
@@ -48,9 +56,6 @@ namespace OPS.Geometry
         /// <summary>
         /// Queries for nearest neighbors within a distance d
         /// </summary>
-        /// <param name="p"></param>
-        /// <param name="distance"></param>
-        /// <returns></returns>
         public IEnumerable<Vertex> NearestDistance(Vector3 p, double distance, int n = -1)
         {
             var tt = tree.RadialSearch(p.ToDoubleArray(), distance*distance, n);
@@ -92,11 +97,8 @@ namespace OPS.Geometry
         }
 
         /// <summary>
-        /// Similar to Density but tries to provide the result as a single number by combining the mean and standard deviation
+        /// Similar to Density but provides result as a single number by combining the mean and standard deviation
         /// </summary>
-        /// <param name="neighborsPerSample"></param>
-        /// <param name="samples"></param>
-        /// <returns></returns>
         public double AverageDensity(int neighborsPerSample = 5, int samples = 0)
         {
             var ra = Density(neighborsPerSample, samples);
@@ -106,9 +108,6 @@ namespace OPS.Geometry
         /// <summary>
         /// Debug method for benchmarking KD tree against Mesh operator
         /// </summary>
-        /// <param name="m"></param>
-        /// <param name="iterations"></param>
-        /// <param name="logger"></param>
         static void Benchmark(Mesh m, ILog logger, int iterations = 1000)
         {
             logger.Info("Benchmark");

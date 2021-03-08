@@ -233,7 +233,7 @@ namespace OPS.Geometry
         /// <returns></returns>
         public double AverageDensity(int samples = 0)
         {
-            VertexKDTree tree = new VertexKDTree(Vertices);
+            VertexKDTree tree = new VertexKDTree(this);
             return tree.AverageDensity(samples: samples);
         }
 

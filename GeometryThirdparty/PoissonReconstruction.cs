@@ -15,33 +15,14 @@ namespace OPS.Geometry
 {
     public class PoissonConfig : SingletonConfig<PoissonConfig>
     {
-        //on some machines the default version of PoissonRecon.exe fails with "Illegal instruction"
-        //it is usually possible to workaround this, at least sufficient for dev purposes
-        //by setting the environment variable LANDFORM_POISSON_EXE_LEGACY=true
-
         [ConfigEnvironmentVariable("LANDFORM_POISSON_EXE")]
-        public string PoissonExe { get; set; }
+        public string PoissonExe { get; set; } = "PoissonRecon.V13.72.exe";
 
-        [ConfigEnvironmentVariable("LANDFORM_TRIMMER_EXE")]
-        public string TrimmerExe { get; set; }
+        [ConfigEnvironmentVariable("LANDFORM_POISSON_TRIMMER_EXE")]
+        public string TrimmerExe { get; set; } = "SurfaceTrimmer.V13.72.exe";
 
         [ConfigEnvironmentVariable("LANDFORM_POISSON_EXE_LEGACY")]
         public bool PoissonExeLegacy { get; set; }
-
-        public PoissonConfig()
-        {
-            if (string.IsNullOrEmpty(PoissonExe)) PoissonExe = "PoissonRecon.V13.72.exe"; //default
-            if (PoissonExeLegacy) PoissonExe = "PoissonRecon.exe";
-
-            if (string.IsNullOrEmpty(TrimmerExe)) TrimmerExe = "SurfaceTrimmer.V13.72.exe"; //default
-            if (PoissonExeLegacy) TrimmerExe = "SurfaceTrimmer.exe";
-        }
-
-        public void Dump(ILog logger)
-        {
-            logger.Info("Poisson exe: " + PoissonExe + (PoissonExeLegacy ? " (legacy)" : ""));
-            logger.Info("surface trimmer exe: " + TrimmerExe + (PoissonExeLegacy ? " (legacy)" : ""));
-        }
     }
 
     public class PoissonReconstruction
@@ -50,20 +31,17 @@ namespace OPS.Geometry
 
         public const PoissonReconstruction.BoundaryType DEF_BOUNDARY_TYPE = PoissonReconstruction.BoundaryType.Neumann;
         public const int DEF_OCTREE_DEPTH = 0;
-        public const double DEF_MIN_OCTREE_CELL_WIDTH_METERS = 0.025;
+        public const double DEF_MIN_OCTREE_CELL_WIDTH_METERS = 0.05;
         public const int DEF_MIN_OCTREE_SAMPLES_PER_CELL = 15;
         public const int DEF_BSPLINE_DEGREE = 2;
-        public const double DEF_CONFIDENCE_EXP = 2;
-        public const double DEF_TRIMMER_LEVEL = 18.5;
-        public const double DEF_TRIMMER_LEVEL_LENIENT = 17.5;
-        public const double DEF_TRIMMER_ISLAND_PCT = 0.01;
+        public const double DEF_CONFIDENCE_EXP = 0.001;
+        public const double DEF_TRIMMER_LEVEL = 9;
+        public const double DEF_TRIMMER_LEVEL_LENIENT = 8;
         public const bool DEF_PASS_ENVELOPE_TO_POISSON = false;
         public const bool DEF_CLIP_TO_ENVELOPE = true;
         public const double DEF_MIN_ISLAND_RATIO = 0.2;
 
         private static readonly ILog logger = LogManager.GetLogger(typeof(PoissonReconstruction));
-
-        private static bool dumpedConfig;
 
         public class Options
         {
@@ -87,11 +65,6 @@ namespace OPS.Geometry
 
             //exe defaults: 7, if tree level for density is less than amount, remove (higher number == more culling)
             public double TrimmerLevel = DEF_TRIMMER_LEVEL;
-
-            //exe defaults: 0.001
-            //if an island surface area is < this percentage of whole mesh surface area
-            //remove it (higher number == more culling)
-            public double TrimmerIslandPct = DEF_TRIMMER_ISLAND_PCT;
 
             //envelope bounding box
             public BoundingBox? Envelope = null;
@@ -131,43 +104,33 @@ namespace OPS.Geometry
         }
 
         public static Mesh Reconstruct(Mesh pointCloud, Options options = null,
-                                       Action<string> reconFile = null,
-                                       Action<Mesh> untrimmedWithValueScaledNormals = null)
+                                       Action<string> rawReconstructedMeshFile = null,
+                                       Action<Mesh> untrimmedMeshWithValueScaledNormals = null)
         {
-            if (!dumpedConfig)
-            {
-                PoissonConfig.Instance.Dump(logger);
-                dumpedConfig = true;
-            }
-
             var cfg = PoissonConfig.Instance;
             string reconstructExe = Path.Combine(PathHelper.GetApplicationPath(), "ExternalApps", cfg.PoissonExe);
 
             if (pointCloud.Vertices.Count == 0)
             {
-                throw new MeshException("Empty point cloud passed into PoissonRecon");
+                throw new MeshException("Poisson requires non-empty mesh");
             }
-
-            if (pointCloud.HasUVs)
-            {
-                throw new MeshException("PoissonRecon meshes cannot have uvs");
-            }
-
-            if (pointCloud.HasColors && cfg.PoissonExeLegacy)
-            {
-                logger.Warn("PoissionRecon (legacy) meshes cannot have colors - removing colors");
-                pointCloud = new Mesh(pointCloud);
-                pointCloud.ClearColors();
-            }
-
             if (!pointCloud.HasNormals)
             {
-                throw new MeshException("PoissonRecon requires normals");
+                throw new MeshException("Poisson requires normals");
             }
-
             if (pointCloud.ContainsZeroLengthNormals())
             {
-                throw new MeshException("PoissonRecon input mesh had zero length normals");
+                throw new MeshException("Poisson input mesh had zero length normals");
+            }
+            if (pointCloud.HasUVs)
+            {
+                throw new MeshException("Poisson meshes cannot have UVs");
+            }
+            if (pointCloud.HasColors && cfg.PoissonExeLegacy)
+            {
+                logger.Warn("Poission (legacy) meshes cannot have colors - removing colors");
+                pointCloud = new Mesh(pointCloud);
+                pointCloud.ClearColors();
             }
 
             if (options == null || options.ConfidenceExponent == 0)
@@ -183,7 +146,7 @@ namespace OPS.Geometry
                 }
                 if (notNormalCount > 0)
                 {
-                    logger.WarnFormat("PoissonRecon input has {0} non-unit normals, " +
+                    logger.WarnFormat("Poisson input has {0} non-unit normals, " +
                                       "but not using normals for confidence", notNormalCount);
                 }
             }
@@ -197,7 +160,7 @@ namespace OPS.Geometry
                     string envFile = files[1];
                     string outputFile = files[2];
 
-                    var plyWriter = new PLYMaximumCompatibilityWriter(writeXYZAsFloat: false);
+                    var plyWriter = new PLYMaximumCompatibilityWriter();
 
                     PLYSerializer.Write(pointCloud, inputFile, plyWriter);
                     
@@ -253,17 +216,16 @@ namespace OPS.Geometry
                         //arguments += " --threads 1";
                         arguments += " --threads " + CoreLimitedParallel.GetMaxDegreeOfParallelism();
                     }
-                    
-                    logger.InfoFormat("running command: {0} {1}", reconstructExe, arguments);
-                    
+
                     ProgramRunner pr = new ProgramRunner(reconstructExe, arguments, captureOutput: true);
                     try
                     {
+                        logger.InfoFormat("running command: {0} {1}", reconstructExe, arguments);
                         int exitCode = pr.Run();
                         
                         if (exitCode != 0)
                         {
-                            throw new MeshException("poisson exited with status " + exitCode);
+                            throw new MeshException("Poisson exited with status " + exitCode);
                         }
                         
                         //at least some legacy versions of PoissonRecon.exe can error out but still
@@ -272,24 +234,24 @@ namespace OPS.Geometry
                         if (cfg.PoissonExeLegacy && !string.IsNullOrEmpty(pr.ErrorText) &&
                             !Regex.Split(pr.ErrorText, "\r\n|\r|\n").All(l => l.StartsWith("[WARNING]")))
                         {
-                            throw new MeshException("poisson nonempty error output");
+                            throw new MeshException("Poisson nonempty error output");
                         }
                         
                         if (!File.Exists(outputFile))
                         {
-                            throw new MeshException("poisson no output file");
+                            throw new MeshException("Poisson no output file");
                         }
 
-                        if (reconFile != null)
+                        if (rawReconstructedMeshFile != null)
                         {
-                            reconFile(outputFile);
+                            rawReconstructedMeshFile(outputFile);
                         }
 
                         result = PLYSerializer.Read(outputFile, readValuesAsNormalLengths: true);
                         
                         if (result.Vertices.Count == 0 || result.Faces.Count == 0)
                         {
-                            throw new MeshException("empty output");
+                            throw new MeshException("Poisson empty output");
                         }
 
                         logger.InfoFormat("reconstructed mesh has {0} faces", Fmt.KMG(result.Faces.Count));
@@ -298,12 +260,18 @@ namespace OPS.Geometry
                     {
                         logger.Error(pr.OutputText);
                         logger.Error(pr.ErrorText);
-                        throw new MeshException("Failed to run " + (cfg.PoissonExeLegacy ? "(legacy) " : "") +
+                        throw new MeshException("failed to run " + (cfg.PoissonExeLegacy ? "(legacy) " : "") +
                                                 reconstructExe + " " + arguments + ": " + ex.Message);
+                    }
+
+                    if (untrimmedMeshWithValueScaledNormals != null)
+                    {
+                        untrimmedMeshWithValueScaledNormals(result);
                     }
 
                     if (options != null && options.Envelope.HasValue && options.ClipToEnvelope)
                     {
+                        logger.Info("clipping mesh to envelope bounds");
                         result.Clip(options.Envelope.Value, normalize: false);
                         if (result.Vertices.Count == 0 || result.Faces.Count == 0)
                         {
@@ -314,17 +282,14 @@ namespace OPS.Geometry
 
                     if (options != null && options.MinIslandRatio > 0)
                     {
+                        logger.InfoFormat("removing islands less than {0} of largest island diameter",
+                                          options.MinIslandRatio);
                         result.RemoveIslands(options.MinIslandRatio);
                         if (result.Vertices.Count == 0 || result.Faces.Count == 0)
                         {
                             throw new MeshException("empty output after removing islands");
                         }
                         logger.InfoFormat("island removed mesh has {0} faces", Fmt.KMG(result.Faces.Count));
-                    }
-
-                    if (untrimmedWithValueScaledNormals != null)
-                    {
-                        untrimmedWithValueScaledNormals(result);
                     }
 
                     if (options != null && options.TrimmerLevel > 0)
@@ -354,14 +319,13 @@ namespace OPS.Geometry
                 string inputFile = files[0];
                 string outputFile = files[1];
                 
-                var plyWriter = new PLYMaximumCompatibilityWriter(writeXYZAsFloat: false,
-                                                                  writeNormalLengthsAsValue: true);
+                var plyWriter = new PLYMaximumCompatibilityWriter(writeNormalLengthsAsValue: true);
                 PLYSerializer.Write(meshWithValueScaledNormals, inputFile, plyWriter);
                 
                 string arguments = string.Format("--in {0} --out {1} --trim {2} {3}",
                                                  inputFile, outputFile, options.TrimmerLevel,
-                                                 options.TrimmerIslandPct > 0 ?
-                                                 "--aRatio " + options.TrimmerIslandPct : "");
+                                                 options.MinIslandRatio > 0 ?
+                                                 "--aRatio " + options.MinIslandRatio : "");
                 logger.InfoFormat("running command: {0} {1}", trimmerExe, arguments);
                 
                 var pr = new ProgramRunner(trimmerExe, arguments, captureOutput: true);

@@ -698,13 +698,6 @@ namespace OPS.Geometry
                                        (float)box.Min.Z, (float)box.Max.Z); //yes, z last
         }
 
-        public static RTree.Rectangle ToRectangle(this Vector3 v)
-        {
-            return new RTree.Rectangle((float)v.X, (float)v.Y,
-                                       (float)v.X, (float)v.Y,
-                                       (float)v.Z, (float)v.Z); //yes, z last
-        }
-
         public static BoundingBox ToBoundingBox(this RTree.Rectangle rect)
         {
             RTree.dimension dimx = rect.get(0).Value;

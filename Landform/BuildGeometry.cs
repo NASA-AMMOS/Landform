@@ -6,6 +6,7 @@ using System.Collections.Concurrent;
 using System.Threading;
 using CommandLine;
 using Microsoft.Xna.Framework;
+using RTree;
 using OPS.Util;
 using OPS.MathExtensions;
 using OPS.Geometry;
@@ -33,13 +34,12 @@ using System.IO;
 /// of the primary sitedrive frame for the contextual mesh.  Its vertex normals are recomputed from its faces to avoid
 /// issues with bad normals corrupting downstream operations such as reconstruction of parent tile meshes.
 ///
-/// Hole filling is then typically performed.  A non-convex outer boundary is computed by creating a shrinkwrap mesh
-/// and finding its largest boundary polygon.  That polygon is then triangulated and used as a "surface mask" for
-/// further operations.  The surface mesh is reconstructed from the full scene point cloud a second time, but this time
-/// with less aggressive trimming options for Poisson reconstruction (hole filling is only implemented for Poisson
-/// reconstruction).  The resulting mesh is clipped to the surface mask created from the original construction.  In this
-/// way the potential undesirable effects of less aggressive Poisson surface trimming around the outer boundary of the
-/// mesh are avoided, but the benefits of allowing more internal hole filling are gained.
+/// Hole filling is then typically performed.  A non-convex outer boundary is computed by creating a shrinkwrap mesh and
+/// finding its largest boundary polygon.  That polygon is then triangulated and used as a "surface mask" for further
+/// operations.  The surface mesh is reconstructed from the full scene point cloud a second time, but this time with
+/// less aggressive trimming options.  The resulting mesh is clipped to the surface mask created from the original
+/// construction.  In this way the potential undesirable effects of less aggressive surface trimming around the outer
+/// boundary of the mesh are avoided, but the benefits of allowing more internal hole filling are gained.
 ///
 /// If an orbital DEM is available a square portion of it centered on the origin of the primary sitedrive frame is
 /// organized meshed.  The bounds of this mesh may be larger than the surface mesh bounds.  For example, if the surface
@@ -104,17 +104,8 @@ namespace OPS.Landform
         [Option(HelpText = "Stereo eye to prefer (auto, left, right, any)", Default = "auto")]
         public string StereoEye { get; set; }
 
-        [Option(HelpText = "Disable clever combine point cloud merging", Default = false)]
-        public bool NoCleverCombine { get; set; }
-
-        [Option(HelpText = "Apply clever combine to individual observations within sitedrives", Default = false)]
-        public bool IntraSitedriveCleverCombine { get; set; }
-
         [Option(HelpText = "Only include faces that intersect these observations, comma separated", Default = null)]
         public string OnlyFacesForObs { get; set; }
-
-        [Option(HelpText = "Pre-clip observation point clouds to XY box of this size in meters around mesh frame origin if positive", Default = 0)]
-        public double PreClipPointCloudExtent { get; set; }
 
         [Option(HelpText = "Clip reconstructed surface to XY box of this size in meters around mesh frame origin if positive", Default = BuildGeometry.DEF_SURFACE_EXTENT)]
         public double SurfaceExtent { get; set; }
@@ -122,29 +113,23 @@ namespace OPS.Landform
         [Option(HelpText = "Final clip box XY size in meters, 0 to clip to aggregate point cloud bounds", Default = BuildGeometry.DEF_EXTENT)]
         public double Extent { get; set; }
 
-        [Option(HelpText = "Surface density based trimmer octree level (higher means more aggressive, 0 disables)", Default = PoissonReconstruction.DEF_TRIMMER_LEVEL)]
-        public double TrimmerLevel { get; set; }
+        [Option(HelpText = "Pre-clip observation point clouds to XY box of this size in meters around mesh frame origin if positive", Default = 0)]
+        public double PreClipPointCloudExtent { get; set; }
 
-        [Option(HelpText = "Surface density based trimmer octree lenient level (higher means more aggressive, 0 disables)", Default = PoissonReconstruction.DEF_TRIMMER_LEVEL_LENIENT)]
-        public double TrimmerLevelLenient { get; set; }
-
-        [Option(HelpText = "Fill holes in largest island created from surface trimmer, cull other islands (hole filling requires --reconstructionmethod=Poisson)", Default = false)]
+        [Option(HelpText = "Fill holes in largest island created from surface trimmer, cull other islands", Default = false)]
         public bool NoFillHoles { get; set; }
 
-        [Option(HelpText = "Island removal based on percentage of total surface area (higher means more aggressive, 0 disables)", Default = PoissonReconstruction.DEF_TRIMMER_ISLAND_PCT)]
-        public double TrimmerIslandPct { get; set; }
-
-        [Option(HelpText = "Remove islands whose bounding box diameter is less than this ratio of the max island bounding box diameter", Default = PoissonReconstruction.DEF_MIN_ISLAND_RATIO)]
+        [Option(HelpText = "Remove islands whose bounding box diameter is less than this ratio of the max island bounding box diameter", Default = 0.2)]
         public double MinIslandRatio { get; set; }
+
+        [Option(HelpText = "Mask offset for clipping surface/orbital", Default = 0.05)]
+        public double MaskOffset { get; set; }
 
         [Option(HelpText = "Orbital sampling rate inside blend radius, non-positive to use DEM resolution", Default = 15)]
         public double OrbitalBlendPointsPerMeter { get; set; }
 
         [Option(HelpText = "Mask resolution for clipping surface/orbital", Default = 2)]
         public double ShrinkwrapPointsPerMeter { get; set; }
-
-        [Option(HelpText = "Mask offset for clipping surface/orbital", Default = 0.05)]
-        public double MaskOffset { get; set; }
 
         [Option(HelpText = "Blend orbital within this distance from surface in meters, 0 disables blend, negative for default", Default = BuildGeometry.DEF_BLEND_RADIUS)]
         public double OrbitalBlendRadius { get; set; }
@@ -155,20 +140,29 @@ namespace OPS.Landform
         [Option(HelpText = "Orbital blend min blend, 0-1, larger preserves orbital more", Default = 0.1)]
         public double OrbitalBlendMin { get; set; }
 
+        [Option(HelpText = "Discard observation point cloud normals with fewer than this many valid 8-neighbors", Default = 8)]
+        public int NormalFilter { get; set; }
+
+        [Option(HelpText = "Disable clever combine point cloud merging", Default = false)]
+        public bool NoCleverCombine { get; set; }
+
+        [Option(HelpText = "Apply clever combine to individual observations within sitedrives", Default = false)]
+        public bool IntraSitedriveCleverCombine { get; set; }
+
         [Option(HelpText = "Clever combine cell size (meters)", Default = CleverCombine.DEF_CELL_SIZE)]
         public double CleverCombineCellSize { get; set; }
 
         [Option(HelpText = "Clever combine cell aspect (height relative to width)", Default = CleverCombine.DEF_CELL_ASPECT)]
         public double CleverCombineCellAspect { get; set; }
 
+        [Option(HelpText = "Expand poinnt bounds to envelope bounds", Default = SceneNodeTilingExtensions.CLIP_BOUNDS_EXPAND_HEIGHT)]
+        public double ExpandEnvelopeBounds { get; set; }
+
         [Option(HelpText = "Poisson cell size (meters), mutually exclusive with PoissonTreeDepth, 0 to disable", Default = PoissonReconstruction.DEF_MIN_OCTREE_CELL_WIDTH_METERS)]
         public double PoissonCellSize { get; set; }
 
         [Option(HelpText = "Poisson octtree depth, mutually exclusive with PoissonCellSize, 0 to disable", Default = PoissonReconstruction.DEF_OCTREE_DEPTH)]
         public int PoissonTreeDepth { get; set; }
-
-        [Option(HelpText = "Expand poinnt bounds to envelope bounds", Default = SceneNodeTilingExtensions.CLIP_BOUNDS_EXPAND_HEIGHT)]
-        public double ExpandEnvelopeBounds { get; set; }
 
         [Option(HelpText = "Pass combined cloud envelop to Poisson", Default = false)]
         public bool PassEnvelopeToPoisson { get; set; }
@@ -179,9 +173,6 @@ namespace OPS.Landform
         [Option(HelpText = "Don't remove islands after Poisson reconstruction but before surface trimming", Default = false)]
         public bool NoPoissonRemoveIslands { get; set; }
 
-        [Option(HelpText = "Discard observation point cloud normals with fewer than this many valid 8-neighbors", Default = 8)]
-        public int NormalFilter { get; set; }
-
         [Option(HelpText = "Scale observation point cloud normals by confidence and then apply this exponent in Poisson reconstruction (disabled if 0)", Default = PoissonReconstruction.DEF_CONFIDENCE_EXP)]
         public double PoissonConfidenceExponent { get; set; }
 
@@ -190,6 +181,15 @@ namespace OPS.Landform
 
         [Option(HelpText = "Poisson reconstruction BSpline degree", Default = PoissonReconstruction.DEF_BSPLINE_DEGREE)]
         public int PoissonBSplineDegree { get; set; }
+
+        [Option(HelpText = "Surface density based trimmer octree level (higher means more aggressive, 0 disables)", Default = PoissonReconstruction.DEF_TRIMMER_LEVEL)]
+        public double PoissonTrimmerLevel { get; set; }
+
+        [Option(HelpText = "Surface density based trimmer octree lenient level (higher means more aggressive, 0 disables)", Default = PoissonReconstruction.DEF_TRIMMER_LEVEL_LENIENT)]
+        public double PoissonTrimmerLevelLenient { get; set; }
+
+        [Option(HelpText = "Filter out triangles whose barycenter is further than this from any input point", Default = 0)]
+        public double FilterTriangles { get; set; }
 
         [Option(HelpText = "Generate full-mesh UVs", Default = false)]
         public bool GenerateUVs { get; set; }
@@ -220,7 +220,6 @@ namespace OPS.Landform
         private Mesh mesh;
 
         private Mesh untrimmedMesh;
-        private Mesh shrinkwrapMesh;
         private MeshOperator maskUVMeshOp;
 
         private Mesh orbitalMesh;
@@ -251,12 +250,15 @@ namespace OPS.Landform
                     RunPhase("build observation point clouds", BuildObservationPointClouds);
                     RunPhase("merge point clouds", MergePointClouds);
                     RunPhase("reconstruct mesh", ReconstructMesh);
+                    if (options.FilterTriangles > 0)
+                    {
+                        RunPhase("filter mesh", FilterMesh);
+                    }
                 }
 
-                if (!options.NoSurface && (!options.NoFillHoles || !options.NoOrbital))
+                if (!options.NoSurface)
                 {
                     RunPhase("clip surface mesh", ClipSurfaceMesh);
-                    RunPhase("create shrinkwrapped surface mesh", CreateShrinkwrappedSurfaceMesh);
                     RunPhase("create surface mask mesh", CreateSurfaceMaskMesh);
                     if (maskUVMeshOp != null) //CreateSurfaceMaskMesh() failed
                     {
@@ -299,7 +301,7 @@ namespace OPS.Landform
 
                 if (onlyForObs.Length > 0)
                 {
-                    RunPhase("filter mesh", FilterMesh);
+                    RunPhase("reduce mesh to specified observations", ReduceMesh);
                 }
 
                 if (options.GenerateUVs && !mesh.HasUVs)
@@ -332,12 +334,6 @@ namespace OPS.Landform
                 options.ReconstructionMethod != MeshReconstructionMethod.Poisson)
             {
                 throw new Exception("unsupported mesh reconstruction method: " + options.ReconstructionMethod);
-            }
-
-            if ((!options.NoOrbital || !options.NoFillHoles) &&
-                options.ReconstructionMethod != MeshReconstructionMethod.Poisson)
-            {
-                throw new Exception("orbital geometry and hole filling require poisson surface trimmer");
             }
 
             if (options.NormalFilter < 0 || options.NormalFilter > 8)
@@ -395,8 +391,7 @@ namespace OPS.Landform
                 MinOctreeSamplesPerCell = options.PoissonMinSamplesPerCell,
                 BSplineDegree = options.PoissonBSplineDegree,
                 ConfidenceExponent = options.PoissonConfidenceExponent,
-                TrimmerLevel = options.TrimmerLevel,
-                TrimmerIslandPct = options.TrimmerIslandPct,
+                TrimmerLevel = options.PoissonTrimmerLevel,
                 PassEnvelopeToPoisson = options.PassEnvelopeToPoisson,
                 ClipToEnvelope = !options.NoPoissonClipToEnvelope,
                 MinIslandRatio = !options.NoPoissonRemoveIslands ? options.MinIslandRatio : 0
@@ -494,7 +489,9 @@ namespace OPS.Landform
             {
                 Frame = meshFrame,
                 NormalFilter = options.NormalFilter,
-                ScaleNormalsByConfidence = options.PoissonConfidenceExponent != 0
+                ScaleNormalsByConfidence =
+                (options.ReconstructionMethod == MeshReconstructionMethod.Poisson) &&
+                (options.PoissonConfidenceExponent != 0)
             };
 
             int no = wedges.Count;
@@ -609,7 +606,8 @@ namespace OPS.Landform
                 return pc;
             }).ToArray();
 
-            if (options.WriteDebug && clouds.Length > 1)
+            if (options.WriteDebug && clouds.Length > 1 &&
+                options.ReconstructionMethod == MeshReconstructionMethod.Poisson)
             {
                 sourceColors = Colorspace.RandomHues(clouds.Length + 1); //extra color for orbital
                 for (int i = 0; i < clouds.Length; i++)
@@ -706,6 +704,16 @@ namespace OPS.Landform
             poissonOpts.Envelope = envelopeBounds;
 
             SaveDebugMesh(envelopeBounds.ToMesh(), "envelope");
+
+            if (options.WriteDebug && (options.ReconstructionMethod == MeshReconstructionMethod.Poisson) &&
+                (options.PoissonConfidenceExponent != 0))
+            {
+                var colored = new Mesh(pointCloud);
+                var red = new Vector3(1, 0, 0);
+                var green = new Vector3(0, 1, 0);
+                colored.ColorByNormalMagnitude(red, green);
+                SaveDebugMesh(colored, "confidence");
+            }
         }
 
         private void ReconstructMesh()
@@ -715,28 +723,47 @@ namespace OPS.Landform
             pipeline.LogInfo("reconstructing mesh from {0} points with {1}",
                              Fmt.KMG(pc.Vertices.Count), options.ReconstructionMethod);
 
-            void saveUntrimmedMesh(Mesh utm)
+            void saveUncleanedMesh(Mesh m)
             {
-                untrimmedMesh = utm;
-                SaveDebugMesh(utm, "untrimmed", writeNormalLengthsAsValue: true);
+                untrimmedMesh = m;
+                SaveDebugMesh(m, "untrimmed");
+            }
+
+            void saveUntrimmedMesh(Mesh m)
+            {
+                untrimmedMesh = m;
+                SaveDebugMesh(m, "untrimmed", writeNormalLengthsAsValue: true);
+
+                var colored = new Mesh(untrimmedMesh);
+                var red = new Vector3(1, 0, 0);
+                var green = new Vector3(0, 1, 0);
+                colored.ColorByNormalMagnitude(red, green);
+                colored.NormalizeNormals();
+                SaveDebugMesh(colored, "density");
             }
             
-            void saveRawReconstructedMesh(string reconstructedMeshTempFile)
+            void saveRawReconstructedMesh(string file)
             {
-                SaveDebugMesh(reconstructedMeshTempFile, "reconstructed-raw");
+                SaveDebugMesh(file, "Poisson-raw");
             }
             
             switch (options.ReconstructionMethod)
             {
-                case MeshReconstructionMethod.FSSR: mesh = FSSR.Reconstruct(pc); break;
+                case MeshReconstructionMethod.FSSR:
+                {
+                    mesh = FSSR.Reconstruct(pc, uncleanedMesh: saveUncleanedMesh);
+                    break;
+                }
                 case MeshReconstructionMethod.Poisson:
                 {
                     mesh = PoissonReconstruction.Reconstruct(pc, poissonOpts,
-                                                             saveRawReconstructedMesh, saveUntrimmedMesh);
+                                                             rawReconstructedMeshFile: saveRawReconstructedMesh,
+                                                             untrimmedMeshWithValueScaledNormals: saveUntrimmedMesh);
                     break;
                 }
                 default: throw new Exception("unsupported reconstruction method: " + options.ReconstructionMethod);
             }
+
             if (mesh == null || mesh.Faces.Count == 0)
             {
                 throw new Exception("failed to build mesh");
@@ -744,15 +771,30 @@ namespace OPS.Landform
 
             CleanMesh();
 
-            if (options.WriteDebug)
+            SaveDebugMesh(mesh, "reconstructed");
+        }
+
+        private void FilterMesh()
+        {
+            pipeline.LogInfo("filtering triangles further than {0}m from any input point", options.FilterTriangles);
+            //var kdTree = new VertexKDTree(pointCloud);
+            var rTree = new RTree<int>();
+            for (int i = 0; i < pointCloud.Vertices.Count; i++)
             {
-                SaveDebugMesh(mesh, "reconstructed");
-                var colored = new Mesh(mesh);
-                var red = new Vector3(1, 0, 0);
-                var green = new Vector3(0, 1, 0);
-                colored.ColorByNormalMagnitude(red, green);
-                SaveDebugMesh(colored, "confidence");
+                rTree.Add(pointCloud.Vertices[i].Position.ToRectangle(), i);
             }
+            mesh.FilterFaces(f => {
+                Vector3 barycenter = mesh.FaceToTriangle(f).Barycenter();
+                //Vector3 nn = kdTree.NearestNeighbor(barycenter).Position;
+                //return nn >= 0 && Vector3.Distance(barycenter, nn) <= options.FilterTriangles;
+                return rTree.Nearest(barycenter.ToRTreePoint(), (float)options.FilterTriangles).Count > 0;
+            });
+            if (mesh.Vertices.Count == 0 || mesh.Faces.Count == 0)
+            {
+                throw new MeshException("empty output after filtering");
+            }
+            pipeline.LogInfo("filtered mesh has {0} faces", Fmt.KMG(mesh.Faces.Count));
+            SaveDebugMesh(mesh, "filtered");
         }
 
         private void CleanMesh()
@@ -786,27 +828,6 @@ namespace OPS.Landform
             SaveDebugMesh(mesh, "clipped-surface");
         }
 
-        //currently "shrinkwrap" just really means
-        //(a) bin verts to grid cells in XY plane
-        //(b) organized mesh with a 2.5D assumption
-        //also, the shrinkwrap mesh is curently only used for creating the surface mask
-        //which is used for hole filling and orbital geometry below
-        //(BlendImages might also make and use a shrinkwrap mesh, but that now non-default legacy behavior)
-        private void CreateShrinkwrappedSurfaceMesh()
-        {
-            var bounds = mesh.Bounds();
-            Mesh grid = Shrinkwrap.BuildGrid(bounds,
-                                             (int)(bounds.Extent().X * options.ShrinkwrapPointsPerMeter),
-                                             (int)(bounds.Extent().Y * options.ShrinkwrapPointsPerMeter),
-                                             VertexProjection.ProjectionAxis.Z);
-            shrinkwrapMesh = Shrinkwrap.Wrap(grid, mesh, Shrinkwrap.ShrinkwrapMode.Project,
-                                             VertexProjection.ProjectionAxis.Z,
-                                             Shrinkwrap.ProjectionMissResponse.Clip);
-            shrinkwrapMesh.Clean();
-
-            SaveDebugMesh(shrinkwrapMesh, "shrinkwrap");
-        }
-
         //populates maskUVMeshOp so that later stages can trim meshes to an XY plane boundary
         //the boundary is non-convex but does not have holes
         //we make the mask by
@@ -823,6 +844,23 @@ namespace OPS.Landform
         {
             try
             {
+                //currently "shrinkwrap" just really means
+                //(a) bin verts to grid cells in XY plane
+                //(b) organized mesh with a 2.5D assumption
+                //also, the shrinkwrap mesh is curently only used for creating the surface mask
+                //which is used for hole filling and orbital geometry below
+                //(BlendImages might also make and use a shrinkwrap mesh, but that now non-default legacy behavior)
+                var bounds = mesh.Bounds();
+                Mesh grid = Shrinkwrap.BuildGrid(bounds,
+                                                 (int)(bounds.Extent().X * options.ShrinkwrapPointsPerMeter),
+                                                 (int)(bounds.Extent().Y * options.ShrinkwrapPointsPerMeter),
+                                                 VertexProjection.ProjectionAxis.Z);
+                Mesh shrinkwrapMesh = Shrinkwrap.Wrap(grid, mesh, Shrinkwrap.ShrinkwrapMode.Project,
+                                                      VertexProjection.ProjectionAxis.Z,
+                                                      Shrinkwrap.ProjectionMissResponse.Clip);
+                shrinkwrapMesh.Clean();
+                SaveDebugMesh(shrinkwrapMesh, "shrinkwrap");
+
                 //EdgeGraph edgeGraph = new EdgeGraph(mesh); //TODO causes too many failures
                 //https://github.jpl.nasa.gov/OnSight/Landform/issues/1145
                 EdgeGraph edgeGraph = new EdgeGraph(shrinkwrapMesh);
@@ -909,16 +947,24 @@ namespace OPS.Landform
             }
         }
 
-        //Replace mesh with a new Poisson reconstruction that
+        //Replace mesh with a new reconstruction that
         //(1) uses less picky trimming
         //(2) but that is clipped in the XY plane to the mask we already created
         //    from the outer boundary of the original reconstructed mesh.
         //This is done to fill holes and/or to prepare for orbital geometry to be added outside the mask.
         private void ReconstructSurfaceToMask()
         {
-            poissonOpts.TrimmerLevel = options.TrimmerLevelLenient;
-            mesh = PoissonReconstruction.Trim(untrimmedMesh, poissonOpts);
-            SaveDebugMesh(mesh, "trimmed-lenient");
+            mesh = untrimmedMesh;
+
+            if (options.ReconstructionMethod == MeshReconstructionMethod.Poisson &&
+                options.PoissonTrimmerLevelLenient < options.PoissonTrimmerLevel)
+            {
+                pipeline.LogInfo("retrimming Poisson mesh with lenient trimmer level {0} instead of {1}",
+                                 options.PoissonTrimmerLevelLenient, options.PoissonTrimmerLevel);
+                poissonOpts.TrimmerLevel = options.PoissonTrimmerLevelLenient;
+                mesh = PoissonReconstruction.Trim(mesh, poissonOpts);
+                SaveDebugMesh(mesh, "trimmed-lenient");
+            }
 
             mesh.Faces = mesh.Faces.Where(face =>
             {
@@ -1184,7 +1230,7 @@ namespace OPS.Landform
             SaveDebugMesh(mesh, "decimated");
         }
 
-        private void FilterMesh()
+        private void ReduceMesh()
         {
             pipeline.LogInfo("only keeping triangles visible in observations: {0}",
                              string.Join(", ", onlyForObs.Select(obs => obs.Name)));
@@ -1258,7 +1304,7 @@ namespace OPS.Landform
                 //uvatlas or heightmap atlas central portion consisting of surface + orbital blend mesh
                 //always heightmap atlas outer orbital periphery
                 //we clip and then re-merge those two parts here rather than atlassing them before they are merged
-                //in BlendOrbitalToSurface() to handle workflows involving DecimateMesh() and/or FilterMesh()
+                //in BlendOrbitalToSurface() to handle workflows involving DecimateMesh() and/or ReduceMesh()
 
                 ComputeTextureWarp(options.Extent, blendExtent, out srcSurfaceFrac, out dstSurfaceFrac);
 

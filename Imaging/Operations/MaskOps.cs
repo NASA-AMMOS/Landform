@@ -259,7 +259,7 @@ namespace OPS.Imaging
         }
 
         /// <summary>
-        /// flood fill mask from each invalid pixel on the border of this mask
+        /// flood fill mask from each invalid pixel on the border of this image
         /// </summary>
         public static Image AddOuterRegionsToMask(this Image img, Image mask, float invalid = 1)
         {

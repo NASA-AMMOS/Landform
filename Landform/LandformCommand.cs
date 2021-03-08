@@ -302,6 +302,10 @@ namespace OPS.Landform
         protected virtual void SaveMesh(Mesh mesh, string name, string texture = null,
                                         bool writeNormalLengthsAsValue = false)
         {
+            if (writeNormalLengthsAsValue && !meshExt.Equals(".ply", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new Exception("PLY format required to write normal lengths as vertex values");
+            }
             string meshFile = Path.Combine(localOutputPath, name + meshExt);
             PathHelper.EnsureExists(Path.GetDirectoryName(meshFile)); //name could have a subpath in it
             if (!lcopts.NoProgress)
@@ -310,8 +314,7 @@ namespace OPS.Landform
             }
             if (writeNormalLengthsAsValue)
             {
-                var plyWriter = new PLYMaximumCompatibilityWriter(writeXYZAsFloat: false,
-                                                                  writeNormalLengthsAsValue: true);
+                var plyWriter = new PLYMaximumCompatibilityWriter(writeNormalLengthsAsValue: true);
                 PLYSerializer.Write(mesh, meshFile, plyWriter, texture);
             }
             else
