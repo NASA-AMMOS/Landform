@@ -173,7 +173,7 @@ namespace OPS.Landform
         [Option(HelpText = "Don't remove islands after Poisson reconstruction but before surface trimming", Default = false)]
         public bool NoPoissonRemoveIslands { get; set; }
 
-        [Option(HelpText = "Scale observation point cloud normals by confidence and then apply this exponent in Poisson reconstruction (disabled if 0)", Default = PoissonReconstruction.DEF_CONFIDENCE_EXP)]
+        [Option(HelpText = "Scale observation point cloud normals by confidence and then apply this exponent in Poisson reconstruction (disabled if 0)", Default = PoissonReconstruction.DEF_CONFIDENCE_EXPONENT)]
         public double PoissonConfidenceExponent { get; set; }
 
         [Option(HelpText = "Min required samples per octree cell in Poisson reconstruction, higher for noiser data", Default = 15)]

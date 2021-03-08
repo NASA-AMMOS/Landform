@@ -34,7 +34,7 @@ namespace OPS.Geometry
         public const double DEF_MIN_OCTREE_CELL_WIDTH_METERS = 0.05;
         public const int DEF_MIN_OCTREE_SAMPLES_PER_CELL = 15;
         public const int DEF_BSPLINE_DEGREE = 2;
-        public const double DEF_CONFIDENCE_EXP = 0.001;
+        public const double DEF_CONFIDENCE_EXPONENT = 1;
         public const double DEF_TRIMMER_LEVEL = 9;
         public const double DEF_TRIMMER_LEVEL_LENIENT = 8;
         public const bool DEF_PASS_ENVELOPE_TO_POISSON = false;
@@ -98,7 +98,7 @@ namespace OPS.Geometry
             }
 
             var opts = new Options();
-            opts.ConfidenceExponent = normalsAreScaledByConfidence ? DEF_CONFIDENCE_EXP : 0;
+            opts.ConfidenceExponent = normalsAreScaledByConfidence ? DEF_CONFIDENCE_EXPONENT : 0;
 
             return Reconstruct(OrganizedPointCloud.BuildPointCloudMesh(points, normals, mask), opts);
         }
@@ -264,11 +264,6 @@ namespace OPS.Geometry
                                                 reconstructExe + " " + arguments + ": " + ex.Message);
                     }
 
-                    if (untrimmedMeshWithValueScaledNormals != null)
-                    {
-                        untrimmedMeshWithValueScaledNormals(result);
-                    }
-
                     if (options != null && options.Envelope.HasValue && options.ClipToEnvelope)
                     {
                         logger.Info("clipping mesh to envelope bounds");
@@ -284,12 +279,17 @@ namespace OPS.Geometry
                     {
                         logger.InfoFormat("removing islands less than {0} of largest island diameter",
                                           options.MinIslandRatio);
-                        result.RemoveIslands(options.MinIslandRatio);
+                        int nr = result.RemoveIslands(options.MinIslandRatio);
                         if (result.Vertices.Count == 0 || result.Faces.Count == 0)
                         {
                             throw new MeshException("empty output after removing islands");
                         }
-                        logger.InfoFormat("island removed mesh has {0} faces", Fmt.KMG(result.Faces.Count));
+                        logger.InfoFormat("removed {0} islands, mesh has {1} faces", nr, Fmt.KMG(result.Faces.Count));
+                    }
+
+                    if (untrimmedMeshWithValueScaledNormals != null)
+                    {
+                        untrimmedMeshWithValueScaledNormals(result);
                     }
 
                     if (options != null && options.TrimmerLevel > 0)
