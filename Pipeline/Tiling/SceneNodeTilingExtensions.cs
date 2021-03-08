@@ -26,7 +26,7 @@ namespace OPS.Pipeline
         public const double SAMPLES_PER_FACE = 1.5; //tuned to try to avoid edge collapse in ResampleDecimation()
         public const double HAUSDORFF_RELATIVE_ACCURACY = 0.005; //0.5% of mesh bounds
         public const double PARENT_MESH_VERTEX_MERGE_EPSILON = 0.002;
-        public const int DEF_MAX_TILE_RESOLUTION = 256;
+        public const int DEF_MAX_TILE_RESOLUTION = 512;
         public const int MIN_TILE_RESOLUTION = 16;
 
         public static bool useTextureError;
@@ -162,9 +162,8 @@ namespace OPS.Pipeline
         public static bool BuildParentGeometry
             (this SceneNode node, SceneNode root,
              int maxFaceCountTarget, MeshReconstructionMethod reconstructionMethod, BoxAxis upAxis,
-             TextureMode textureMode, int maxTextureRes, double maxTextureStretch, 
-             //TODO when dev/tiling-updates is merged
-             //double maxTexelsPerMeter, bool powerOfTwoTextures,
+             TextureMode textureMode, int maxTextureRes, double maxTextureStretch, bool powerOfTwoTextures,
+             //TODO when dev/tiling-updates is merged double maxTexelsPerMeter,
              TextureProjector textureProjector = null, Image textureImage = null,
              Action<string> info = null, Action<string> error = null)
         {
@@ -278,8 +277,8 @@ namespace OPS.Pipeline
 
             node.GetComponent<NodeBounds>().Bounds = BoundingBoxExtensions.Union(parentBounds, parentMesh.Bounds());
 
-            int textureSize = GetTileResolution(parentMesh, maxTextureRes);
-                              //TODO when dev/tiling-updates is merged , maxTexelsPerMeter, powerOfTwoTextures);
+            int textureSize = GetTileResolution(parentMesh, maxTextureRes, powerOfTwoTextures: powerOfTwoTextures);
+                              //TODO when dev/tiling-updates is merged , maxTexelsPerMeter
 
             Image parentImg = null, parentIndex = null;
             if (textureMode != TextureMode.None && textureSize > 0)
@@ -324,8 +323,7 @@ namespace OPS.Pipeline
                         }
                     }
                     info($"clipping {textureSize}x{textureSize} parent tile texture");
-                    var tmc = new TexturedMeshClipper(logger: logger);
-                              //TODO when dev/tiling-updates is merged , powerOfTwoTextures: powerOfTwoTextures);
+                    var tmc = new TexturedMeshClipper(powerOfTwoTextures: powerOfTwoTextures, logger: logger);
                     var pair = tmc.RemapMeshClipImage(parentMesh, textureImage, parentIndex, textureSize);
                     parentMesh = pair.Mesh;
                     parentImg = pair.Image;
@@ -344,7 +342,7 @@ namespace OPS.Pipeline
                     //but a parent tile can only get UVs usable for clipping by texture projection
                 }
 
-                if (maxTextureStretch < 1 /* TODO && !powerOfTwoTextures */)
+                if (maxTextureStretch < 1 && !powerOfTwoTextures)
                 {
                     parentImg = parentMesh.ClipImageAndRemapUVs(parentImg, ref parentIndex);
                 }

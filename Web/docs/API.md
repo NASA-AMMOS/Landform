@@ -14,8 +14,9 @@ Accepts the following arugments:
 * *skirtmode*: skirt mode; one of `X`, `Y`, `Z`, `None`, `Normal`; default `Normal`
 * *reconstructionmethod*: mesh reconstruction method; one of `Poisson`, `FSSR`; default `FSSR`
 * *facespertile*: target maximum faces per tile; default 2000
-* *textureresolution*: (max) image resolution per tile, if negative and texturemode=Clip then unlimited; default 256
+* *maxtextureresolution*: max resolution per tile, 0 disables texturing, negative for unlimited/default; default 512
 * *maxtexturestretch*: max texture atlas stretch, 0 = no stretch, 1 = unlimited; default 1
+* *poweroftwotextures*: use power of two textures; default false
 * *texturemode*: texture generation method; one of `None`, `Clip`, `Bake`; default `Bake`
 * *projecttype*: project type; currently only `GenericTiling` is supported
 * *convertlinearrgbtosrgb*: convert from linear to sRGB colorspace before saving tileset and export images; default true

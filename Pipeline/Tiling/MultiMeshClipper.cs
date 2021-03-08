@@ -23,7 +23,13 @@ namespace OPS.Pipeline
 
         private List<MeshImagePair> inputs = new List<MeshImagePair>();
         private TextureBaker textureBaker;
-        private TexturedMeshClipper texturedMeshClipper = new TexturedMeshClipper();
+        private TexturedMeshClipper texturedMeshClipper;
+
+        public MultiMeshClipper(int borderSize = TexturedMeshClipper.DEF_BORDER_SIZE, bool powerOfTwoTextures = false,
+                                bool allowRotation = false, ILogger logger = null)
+        {
+            texturedMeshClipper = new TexturedMeshClipper(borderSize, powerOfTwoTextures, allowRotation, logger);
+        }
 
         /// <summary>
         /// Adds a new input dataset

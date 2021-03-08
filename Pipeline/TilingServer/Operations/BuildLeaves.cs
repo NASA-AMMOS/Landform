@@ -23,8 +23,6 @@ namespace OPS.Pipeline.TilingServer
 
     public class BuildLeaves : PipelineOperation
     {
-        public const int DEF_MAX_TEXTURE_RESOLUTION = 256;
-
         private readonly BuildLeavesMessage message;
 
         public BuildLeaves(PipelineCore pipeline, BuildLeavesMessage message) : base(pipeline, message)
@@ -111,7 +109,7 @@ namespace OPS.Pipeline.TilingServer
             LogLess("building acceleration datastructures");
             bool inputHasImages = false;
             bool inputHasUVs = true;
-            var clipper = new MultiMeshClipper();
+            var clipper = new MultiMeshClipper(powerOfTwoTextures: project.PowerOfTwoTextures, logger: pipeline);
             foreach (var group in inputGroups)
             {
                 var meshes = group.Chunks.Select(c => Mesh.Load(pipeline.GetFileCached(c.MeshUrl, "meshes"))).ToArray();
@@ -136,7 +134,7 @@ namespace OPS.Pipeline.TilingServer
                 clipper.AddInput(new MeshImagePair(mergedMesh, image));
             }
 
-            int maxTexRes = project.TextureResolution;
+            int maxTexRes = project.MaxTextureResolution;
 
             if (inputNeedsUVs && !inputHasUVs)
             {
@@ -153,7 +151,7 @@ namespace OPS.Pipeline.TilingServer
                     {
                         if (maxTexRes < 0)
                         {
-                            maxTexRes = DEF_MAX_TEXTURE_RESOLUTION;
+                            maxTexRes = SceneNodeTilingExtensions.DEF_MAX_TILE_RESOLUTION;
                         }
                         clipper.InitTextureBaker();
                         break;
@@ -197,7 +195,8 @@ namespace OPS.Pipeline.TilingServer
                         LogLess("clipping leaf texture");
                         pair = clipper.ClipWithTexture(bounds, maxTexRes);
                     }
-                    if (pair.Mesh != null && pair.Image != null && project.MaxTextureStretch < 1)
+                    if (pair.Mesh != null && pair.Image != null &&
+                        project.MaxTextureStretch < 1 && !project.PowerOfTwoTextures)
                     {
                         pair.Image = pair.Mesh.ClipImageAndRemapUVs(pair.Image, ref pair.Index);
                     }

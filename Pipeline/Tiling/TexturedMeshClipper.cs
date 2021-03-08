@@ -12,6 +12,7 @@ namespace OPS.Pipeline
 {
     public class TexturedMeshClipper
     {
+        public const int DEF_BORDER_SIZE = 5;
         public const double NON_POWER_OF_TWO_BIN_GROW_FACTOR = 1.1;
 
         private List<MeshImagePair> inputs = new List<MeshImagePair>();
@@ -26,8 +27,8 @@ namespace OPS.Pipeline
         /// If rotation is allowed in packing, small pixel texture may be introduced.
         /// rotation is potentially unstable and may result in half pixel texture offsets
         /// </summary>
-        public TexturedMeshClipper(int borderSize = 5, bool powerOfTwoTextures = false, bool allowRotation = false,
-                                   ILogger logger = null, string logPrefix = null)
+        public TexturedMeshClipper(int borderSize = DEF_BORDER_SIZE, bool powerOfTwoTextures = false,
+                                   bool allowRotation = false, ILogger logger = null, string logPrefix = null)
         {
             this.borderSize = borderSize;
             this.powerOfTwoTextures = powerOfTwoTextures;

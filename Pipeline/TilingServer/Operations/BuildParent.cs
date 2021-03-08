@@ -80,7 +80,7 @@ namespace OPS.Pipeline.TilingServer
                 LogLess("generating parent {0} mesh and geometric error from {1} tiles",
                         message.TileId, parent.DependsOn.Count);
 
-                int maxTextureSize = project.TextureMode == TextureMode.None ? 0 : project.TextureResolution;
+                int maxTextureSize = project.TextureMode == TextureMode.None ? 0 : project.MaxTextureResolution;
 
                 TextureProjector textureProjector = null;
                 Image textureImage = null;
@@ -103,7 +103,8 @@ namespace OPS.Pipeline.TilingServer
 
                 if (!parentSceneNode.BuildParentGeometry(parentSceneNode, project.FacesPerTile,
                                                          project.ReconstructionMethod, upAxis,
-                                                         project.TextureMode, maxTextureSize, project.MaxTextureStretch,
+                                                         project.TextureMode, maxTextureSize,
+                                                         project.MaxTextureStretch, project.PowerOfTwoTextures,
                                                          textureProjector, textureImage,
                                                          info: msg => LogLess(msg),
                                                          error: msg => { throw new Exception(msg); }))

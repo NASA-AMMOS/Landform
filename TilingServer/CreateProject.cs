@@ -30,8 +30,11 @@ namespace OPS.TilingServer
         [Option(Default = 2000, HelpText = "target maximum faces per tile")]
         public int FacesPerTile { get; set; }
 
-        [Option(Default = 256, HelpText = "maximum image resolution per tile, 0 disables texturing, negative for unlimited/default")]
-        public int TextureResolution { get; set; }
+        [Option(Default = SceneNodeTilingExtensions.DEF_MAX_TILE_RESOLUTION, HelpText = "maximum image resolution per tile, 0 disables texturing, negative for unlimited/default")]
+        public int MaxTextureResolution { get; set; }
+
+        [Option(HelpText = "Require power of two textures", Default = false)]
+        public bool PowerOfTwoTextures { get; set; }
 
         [Option(Default = UVAtlas.DEF_MAX_STRETCH, HelpText = "Max texture atlas stretch (0 = no stretch, 1 = unlimited)")]
         public double MaxTextureStretch { get; set; }
@@ -155,7 +158,8 @@ namespace OPS.TilingServer
                                          ReconstructionMethod = options.ReconstructionMethod,
                                          FacesPerTile = options.FacesPerTile,
                                          ProjectType = options.ProjectType,
-                                         TextureResolution = options.TextureResolution,
+                                         MaxTextureResolution = options.MaxTextureResolution,
+                                         PowerOfTwoTextures = options.PowerOfTwoTextures,
                                          MaxTextureStretch = options.MaxTextureStretch,
                                          TextureMode = options.TextureMode,
                                          ConvertLinearRGBToSRGB = !options.NoConvertLinerRGBToSRGB,

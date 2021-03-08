@@ -21,8 +21,11 @@ namespace OPS.Landform
 {
     public class TilingCommandOptions : TextureCommandOptions
     {
-        [Option(HelpText = "Image resolution for output texture for each tile, 0 to disable texturing, -1 for unlimited (only when clipping textures)", Default = 256)]
-        public virtual int TileResolution { get; set; }
+        [Option(HelpText = "Max resolution per tile, 0 disables texturing, negative for unlimited (only when clipping textures) or default", Default = SceneNodeTilingExtensions.DEF_MAX_TILE_RESOLUTION)]
+        public virtual int MaxTileResolution { get; set; }
+
+        [Option(HelpText = "Require power of two textures", Default = false)]
+        public bool PowerOfTwoTextures { get; set; }
 
         [Option(HelpText = "Disable texturing", Default = false)]
         public virtual bool NoTextures { get; set; }
@@ -83,7 +86,7 @@ namespace OPS.Landform
 
         protected TilingCommandOptions tilingOpts;
 
-        protected int tileResolution;
+        protected int maxTileResolution;
         protected bool withTextures;
         protected bool localSave;
         protected bool cloudSave;
@@ -187,18 +190,20 @@ namespace OPS.Landform
                 return false; //help or invalid
             }
 
-            tileResolution = tilingOpts.TileResolution;
-            if (tileResolution > 0 && !NumberHelper.IsPowerOfTwo(tileResolution))
+            maxTileResolution = tilingOpts.MaxTileResolution;
+
+            if (maxTileResolution > 0 && !NumberHelper.IsPowerOfTwo(maxTileResolution) && tilingOpts.PowerOfTwoTextures)
             {
-                pipeline.LogWarn("tile texture resolution {0} not a power of two", tileResolution);
+                pipeline.LogWarn("tile texture resolution {0} not a power of two", maxTileResolution);
             }
 
-            if (tileResolution < 0 && !AllowUnlimitedTileResolution())
+            if (maxTileResolution < 0 && !AllowUnlimitedTileResolution())
             {
                 throw new Exception("tile resolution must be nonnegative");
             }
 
-            withTextures = !tilingOpts.NoTextures && tileResolution != 0;
+            withTextures = !tilingOpts.NoTextures && maxTileResolution != 0;
+
             localSave = tilingOpts.WriteDebug || (!tilingOpts.NoSave && pipeline is LocalPipeline);
             cloudSave = !tilingOpts.NoSave && pipeline is CloudPipeline;
 
@@ -464,7 +469,8 @@ namespace OPS.Landform
 
                 tilingProject = TilingProject.Create(pipeline, project.Name, tilingScheme, tilingOpts.SkirtMode,
                                                      tilingOpts.ReconstructionMethod, tilingOpts.FacesPerTile,
-                                                     tileResolution, maxTextureStretch, texMode, projectType,
+                                                     maxTileResolution, maxTextureStretch,
+                                                     tilingOpts.PowerOfTwoTextures, texMode, projectType,
                                                      !tilingOpts.NoConvertLinearRGBToSRGB, tilingOpts.ExportMeshFormat,
                                                      tilingOpts.ExportImageFormat, maxTileGroupSize,
                                                      project.ProductPath);
@@ -602,7 +608,7 @@ namespace OPS.Landform
             try
             {
                 bool quiet = !(pipeline.Verbose || pipeline.Debug || tilingOpts.VerboseBackproject);
-                var results = BackprojectObservations(mip.Mesh, tileResolution, meshCaster, occlusionScene,
+                var results = BackprojectObservations(mip.Mesh, maxTileResolution, meshCaster, occlusionScene,
                                                       out Backproject.Stats stats, strategy, tileName, quiet);
                 
                 Interlocked.Add(ref numBackprojectedSurfacePixels, stats.BackprojectedSurfacePixels);
@@ -610,7 +616,7 @@ namespace OPS.Landform
                 Interlocked.Add(ref numBackprojectFailedPixels, stats.BackprojectMissingPixels);
                 NumberHelper.InterlockedExchangeIfGreaterThan(ref numBackprojectFallbacks, stats.NumFallbacks);
 
-                mip.Image = new Image(3, tileResolution, tileResolution);
+                mip.Image = new Image(3, maxTileResolution, maxTileResolution);
                 Backproject.FillOutputTexture(pipeline, project, results, mip.Image, tilingOpts.TextureVariant,
                                               tilingOpts.BackprojectInpaintMissing, tilingOpts.BackprojectInpaintGutter,
                                               fallbackToOriginal: true, orbitalTexture: orbitalTexture,
@@ -618,7 +624,7 @@ namespace OPS.Landform
 
                 if (!tilingOpts.NoIndexImages)
                 {
-                    mip.Index = new Image(3, tileResolution, tileResolution);
+                    mip.Index = new Image(3, maxTileResolution, maxTileResolution);
                     Backproject.FillIndexImage(results, mip.Index);
                 }
 

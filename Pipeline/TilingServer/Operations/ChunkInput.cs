@@ -79,8 +79,9 @@ namespace OPS.Pipeline.TilingServer
                 input.ImageWidth = sparseImage.Width;
                 input.ImageHeight = sparseImage.Height;
             }
+
             LogLess("building acceleration structures to chunk input {0}", message.InputName);
-            var multiClipper = new MultiMeshClipper();
+            var multiClipper = new MultiMeshClipper(powerOfTwoTextures: project.PowerOfTwoTextures, logger: pipeline);
             multiClipper.AddInput(new MeshImagePair(mesh, sparseImage));
 
             LogLess("building bounds tree to chunk input {0}", message.InputName);

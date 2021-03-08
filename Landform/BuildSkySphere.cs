@@ -134,8 +134,8 @@ namespace OPS.Landform
         [Option(HelpText = "Option disabled for this command", Default = ObsSelectionStrategyName.Spatial)]
         public override ObsSelectionStrategyName ObsSelectionStrategy { get; set; }
 
-        [Option(HelpText = "Image resolution for output texture for each tile, should be power of 2", Default = 512)]
-        public override int TileResolution { get; set; }
+        [Option(HelpText = "Tile image resolution, should be power of 2", Default = 512)]
+        public override int MaxTileResolution { get; set; }
 
         [Option(HelpText = "Prefer color images (Never, Always, EquivalentScores, auto)", Default = "auto")]
         public string SkyPreferColor { get; set; }
@@ -448,7 +448,7 @@ namespace OPS.Landform
                              numTiles, options.SphereResolutionDegrees, sphereTileRows, sphereTileCols,
                              MathHelper.ToDegrees(angleBelowHorizon), MathHelper.ToDegrees(angleAboveHorizon));
 
-            int totalWidth = sphereTileCols * tileResolution;
+            int totalWidth = sphereTileCols * maxTileResolution;
             if (!MathHelper.IsPowerOfTwo(totalWidth))
             {
                 pipeline.LogWarn("total width {0} pixels not a power of two, LimberDMG wrap mode disabled", totalWidth);
@@ -778,7 +778,7 @@ namespace OPS.Landform
 
             pipeline.LogInfo("backprojecting {0} tiles, texture resolution {1}, quality {2}, prefer color {3}, " +
                              "texture far clip {4:f3}",
-                             leaves.Count, tileResolution, options.BackprojectQuality, options.PreferColor,
+                             leaves.Count, maxTileResolution, options.BackprojectQuality, options.PreferColor,
                              options.TextureFarClip);
 
             int np = 0, curTileNum = 0, numFailed = 0, numSucceded = 0;
@@ -834,14 +834,14 @@ namespace OPS.Landform
 
         private void BlendTileTextures()
         {
-            int tileRes = tileResolution;
+            int tileRes = maxTileResolution;
             int tileDecimation = 1;
             int bigImgWidth = sphereTileCols * tileRes, bigImgHeight = sphereTileRows * tileRes;
 
             while (Math.Max(bigImgWidth, bigImgHeight) > MAX_BLEND_SIZE)
             {
                 tileDecimation++;
-                tileRes = tileResolution / tileDecimation; //integer math
+                tileRes = maxTileResolution / tileDecimation; //integer math
                 bigImgWidth = sphereTileCols * tileRes;
                 bigImgHeight = sphereTileRows * tileRes;
             }

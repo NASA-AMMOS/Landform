@@ -112,7 +112,7 @@ namespace PipelineTest
                 pctPixelsToTest = 0.5,
                 pctSampledPixelsSatisfied = 0.75,
                 splitPixelTexelRatio = 2.0,
-                tileResolution = destTextureResolution,
+                maxTileResolution = destTextureResolution,
                 cameraInstances = cameraInstances,
                 scInMesh = sc
             };
