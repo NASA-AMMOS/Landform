@@ -194,6 +194,9 @@ namespace OPS.Landform
         [Option(HelpText = "Filter out triangles whose barycenter is further than this from any input point", Default = 0)]
         public double FilterTriangles { get; set; }
 
+        [Option(HelpText = "Flip downward facing normals", Default = false)]
+        public bool FlipDownwardFacingNormals { get; set; }
+
         [Option(HelpText = "Generate full-mesh UVs", Default = false)]
         public bool GenerateUVs { get; set; }
     }
@@ -620,6 +623,26 @@ namespace OPS.Landform
                 pc.MergeWith(obsClouds, normalize: false, removeDuplicateVerts: false);
                 return pc;
             }).ToArray();
+            int numDownward = 0;
+            foreach (Mesh cloud in clouds)
+            {
+                foreach (Vertex v in cloud.Vertices)
+                {
+                    Vector3 n = v.Normal;
+                    if (n.Z > 0)
+                    {
+                        if (options.FlipDownwardFacingNormals)
+                        {
+                            n.Z *= -1;
+                            v.Normal = n;
+                        }
+                        numDownward++;
+                    }
+                }
+            }
+            pipeline.LogInfo("{0} downward facing normals{1}", Fmt.KMG(numDownward),
+                             options.FlipDownwardFacingNormals ? " (flipped)" : "");
+        
 
             if (options.WriteDebug && clouds.Length > 1 &&
                 options.ReconstructionMethod == MeshReconstructionMethod.Poisson)
