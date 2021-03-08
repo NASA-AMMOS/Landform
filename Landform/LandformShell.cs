@@ -544,12 +544,6 @@ namespace OPS.Landform
             }
         }
 
-        protected string GetTilesetDir(string venue, string meshFrame, string project, string tilesetDir = null)
-        {
-            tilesetDir = tilesetDir ?? TilingCommand.TILESET_DIR;
-            return string.Format("{0}/{1}/{2}/{3}Frame/best/{4}", storageDir, venue, tilesetDir, meshFrame, project);
-        }
-
         protected string GetDestDir(string inputFolder)
         {
             if (!string.IsNullOrEmpty(outputFolder))

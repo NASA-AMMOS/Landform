@@ -833,7 +833,7 @@ namespace OPS.Landform
             string solDir = StringHelper.ReplaceIntWildcards(rdrDir, primarySol);
             string ingestDir = solDir;
             string fetchDir = !string.IsNullOrEmpty(options.FetchDir) ? options.FetchDir : storageDir + "/" + FETCH_DIR;
-            string tilesetDir = GetTilesetDir(venue, sdStr, project);
+            string tilesetDir = venueDir + "/" + TilingCommand.TILESET_DIR + "/" + project;
             string destDir = GetDestDir(solDir);
 
             var orbitalCfg = OrbitalConfig.Instance;
@@ -956,7 +956,7 @@ namespace OPS.Landform
                         RunCommand("build-sky-sphere", project, "--skymode", options.SkyMode.ToString(), allowUnmasked,
                                    "--sphereradius", options.SkySphereRadius,
                                    "--minbackprojectradius", options.SkyMinBackprojectRadius);
-                        string skyTilesetDir = GetTilesetDir(venue, sdStr, project, BuildSkySphere.SKY_TILESET_DIR);
+                        string skyTilesetDir = venueDir + "/" + BuildSkySphere.SKY_TILESET_DIR + "/" + project;
                         SaveTileset(skyTilesetDir, project, destDir, "_sky");
                     }
                 }

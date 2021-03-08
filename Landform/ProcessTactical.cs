@@ -973,7 +973,7 @@ namespace OPS.Landform
             string project = !string.IsNullOrEmpty(options.ProjectName) ? options.ProjectName : mip.id;
             string venue = string.Format("tactical_{0}_{1}", missionStr, project);
             string venueDir = storageDir + "/" + venue;
-            string tilesetDir = GetTilesetDir(venue, "passthrough", project);
+            string tilesetDir = venueDir + "/" + TilingCommand.TILESET_DIR + "/" + project;
             string destDir = TILESET_SUBDIR; //default output to ./TILESET_SUBDIR (e.g. if input is a filename)
             string loadLODs = !options.NoLoadExistingLODs ? "--loadlods" : "";
             string fixupLODs = options.FixupLODs;
