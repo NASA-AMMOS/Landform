@@ -421,8 +421,8 @@ namespace OPS.Pipeline
             Matrix xform = GetDataToRoverFrameTransform(Parser);
             Image src = this.Image;
             Image ret = new Image(1, src.Width, src.Height);
+            AddMaskForMissingConstant(ret);
             bool hasMissingConstant = Parser.HasMissingConstant;
-            
             for (int row = 0; row < src.Height; row++)
             {
                 for (int col = 0; col < src.Width; col++)
@@ -572,6 +572,10 @@ namespace OPS.Pipeline
                             {
                                 n = Vector3.TransformNormal(n, xform);
                             }
+                            if (confidence != null)
+                            {
+                                n *= confidence[0, row, col];
+                            }
                             ret.SetBandValues(row, col, n.ToFloatArray());
                             if (Vector3.Dot(n, src.CameraModel.Unproject(new Vector2(col, row)).Direction) >= 0)
                             {
@@ -580,10 +584,6 @@ namespace OPS.Pipeline
                             else
                             {
                                 anyValid = true;
-                                if (confidence != null)
-                                {
-                                    ret[0, row, col] *= confidence[0, row, col];
-                                }
                             }
                         }
                     }
