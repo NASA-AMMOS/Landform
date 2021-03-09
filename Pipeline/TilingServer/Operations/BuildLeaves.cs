@@ -149,10 +149,6 @@ namespace OPS.Pipeline.TilingServer
                     case TextureMode.None: maxTexRes = 0; break;
                     case TextureMode.Bake: 
                     {
-                        if (maxTexRes < 0)
-                        {
-                            maxTexRes = SceneNodeTilingExtensions.DEF_MAX_TILE_RESOLUTION;
-                        }
                         clipper.InitTextureBaker();
                         break;
                     }
@@ -181,19 +177,22 @@ namespace OPS.Pipeline.TilingServer
                     if (project.TextureMode == TextureMode.Bake)
                     {
                         var mesh = clipper.Clip(bounds);
-                        LogLess("baking {0}x{0} leaf texture, {1}", maxTexRes, maxTexRes,
+                        var res = SceneNodeTilingExtensions.GetTileResolution(mesh, maxTexRes,
+                                                                              project.MaxTexelsPerMeter,
+                                                                              project.PowerOfTwoTextures);
+                        LogLess("baking {0}x{0} leaf texture, {1}", res, res,
                                 mesh.HasUVs ? "using exising UVs" : "assigning new UVs with UVAtlas");
                         if (mesh.HasUVs)
                         {
-                            mesh.RescaleUVsForTexture(maxTexRes, maxTexRes, project.MaxTextureStretch);
+                            mesh.RescaleUVsForTexture(res, res, project.MaxTextureStretch);
                         }
                         //BakeTexture() will call UVAtlas if necessary
-                        pair = clipper.BakeTexture(mesh, maxTexRes, project.MaxTextureStretch, msg => LogLess(msg));
+                        pair = clipper.BakeTexture(mesh, res, project.MaxTextureStretch, msg => LogLess(msg));
                     }
                     else if (project.TextureMode == TextureMode.Clip)
                     {
                         LogLess("clipping leaf texture");
-                        pair = clipper.ClipWithTexture(bounds, maxTexRes);
+                        pair = clipper.ClipWithTexture(bounds, maxTexRes, project.MaxTexelsPerMeter);
                     }
                     if (pair.Mesh != null && pair.Image != null &&
                         project.MaxTextureStretch < 1 && !project.PowerOfTwoTextures)

@@ -10,19 +10,20 @@ Create the named project.  Implements the [task API](#task-api).
 
 Accepts the following arugments:
 
+* *projecttype*: project type; currently only `GenericTiling` is supported
 * *tilingscheme*: tiling scheme; one of `Bin`, `QuadX`, `QuadY`, `QuadZ`, `QuadAuto`, `Oct`, `UserDefined`, `Flat`; default `QuadAuto`
-* *skirtmode*: skirt mode; one of `X`, `Y`, `Z`, `None`, `Normal`; default `Normal`
-* *reconstructionmethod*: mesh reconstruction method; one of `Poisson`, `FSSR`; default `FSSR`
-* *facespertile*: target maximum faces per tile; default 2000
+* *maxfacespertile*: target maximum faces per tile; default 2000
+* *parentreconstructionmethod*: parent tile mesh reconstruction method; one of `Poisson`, `FSSR`; default `FSSR`
+* *texturemode*: texture generation method; one of `None`, `Clip`, `Bake`; default `Bake`
 * *maxtextureresolution*: max resolution per tile, 0 disables texturing, negative for unlimited/default; default 512
+* *maxtexelspermeter*: max texels per meter (lineal not areal), 0 or negative for unlimited; default 1024
 * *maxtexturestretch*: max texture atlas stretch, 0 = no stretch, 1 = unlimited; default 1
 * *poweroftwotextures*: use power of two textures; default false
-* *texturemode*: texture generation method; one of `None`, `Clip`, `Bake`; default `Bake`
-* *projecttype*: project type; currently only `GenericTiling` is supported
 * *convertlinearrgbtosrgb*: convert from linear to sRGB colorspace before saving tileset and export images; default true
+* *embedindeximages*: convert from linear to sRGB colorspace before saving tileset and export images; default false
+* *skirtmode*: skirt mode; one of `X`, `Y`, `Z`, `None`, `Normal`; default `Normal`
 * *exportmeshformat*: additional mesh format to write, one of `obj`, `ply`, `stl`, or none; default none
 * *exportimageformat*: additional image format to write, one of `tif`, `png`, `jpg`, or none; default none
-* *maxleafgroupsize*: maximum number of leaves to process as a group; default 32
 
 Fails with HTTP status 400 (bad request) if a project with the same name already exists.
 

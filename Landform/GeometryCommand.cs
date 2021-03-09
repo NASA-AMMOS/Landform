@@ -21,10 +21,10 @@ namespace OPS.Landform
         public virtual int TextureResolution { get; set; }
 
         [Option(HelpText = "Max texture charts, 0 for unlimited", Default = UVAtlas.DEF_MAX_CHARTS)]
-        public int MaxTextureCharts { get; set; }
+        public virtual int MaxTextureCharts { get; set; }
 
         [Option(HelpText = "Max texture stretch, 0 for none, 1 for unlimited", Default = UVAtlas.DEF_MAX_STRETCH)]
-        public double MaxTextureStretch { get; set; }
+        public virtual double MaxTextureStretch { get; set; }
 
         [Option(HelpText = "Min fraction of texture space to use for surface data", Default = 0.5)]
         public double MinSurfaceTextureFraction { get; set; }

@@ -101,9 +101,9 @@ namespace OPS.Pipeline.TilingServer
                     case SkirtMode.Y: upAxis = BoxAxis.Y; break;
                 }
 
-                if (!parentSceneNode.BuildParentGeometry(parentSceneNode, project.FacesPerTile,
-                                                         project.ReconstructionMethod, upAxis,
-                                                         project.TextureMode, maxTextureSize,
+                if (!parentSceneNode.BuildParentGeometry(parentSceneNode, project.MaxFacesPerTile,
+                                                         project.ParentReconstructionMethod, upAxis,
+                                                         project.TextureMode, maxTextureSize, project.MaxTexelsPerMeter,
                                                          project.MaxTextureStretch, project.PowerOfTwoTextures,
                                                          textureProjector, textureImage,
                                                          info: msg => LogLess(msg),

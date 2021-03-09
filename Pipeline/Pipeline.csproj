@@ -281,6 +281,7 @@
     <Compile Include="Tiling\TextureSplitCriteria.cs" />
     <Compile Include="Tiling\Tile3DBuilder.cs" />
     <Compile Include="Tiling\TilesetSchema.cs" />
+    <Compile Include="Tiling\Tiling.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config" />

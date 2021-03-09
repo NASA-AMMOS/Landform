@@ -84,16 +84,16 @@ namespace OPS.Landform
         [Option(Default = false, HelpText = "Don't replace existing tile mesh texture coordinates with UVAtlas or texture projection")]
         public bool NoRedoTileMeshUVs { get; set; }
 
-        [Option(HelpText = "Percentage of pixels to test when deciding to split a tile based on resolution (speed vs quality), 0 disables texture based split", Default = 0.03)]
+        [Option(HelpText = "Percentage of pixels to test when deciding to split a tile based on resolution (speed vs quality), 0 disables texture based split", Default = TilingDefaults.TEX_SPLIT_PERCENT_TO_TEST)]
         public double SplitByTexturePctToTest { get; set; }
 
-        [Option(HelpText = "Percentage of pixels tested that should satisfy the requirement to avoid splitting a tile", Default = 0.5)]
+        [Option(HelpText = "Percentage of pixels tested that should satisfy the requirement to avoid splitting a tile", Default = TilingDefaults.TEX_SPLIT_PERCENT_SATISFIED)]
         public double SplitByTexturePctSatisfied { get; set; }
 
-        [Option(HelpText = "Ratio of source pixels to destination pixels that would trigger a split", Default = 16)]
-        public double SplitByTextureSamplingRatio { get; set; }
+        [Option(HelpText = "Ratio of observation pixels to tile texels that would trigger a split", Default = TilingDefaults.TEX_SPLIT_MAX_PIXELS_PER_TEXEL)]
+        public double SplitByTextureMaxPixelsPerTexel { get; set; }
 
-        [Option(HelpText = "Tiling scheme (Bin, QuadX, QuadY, QuadZ, QuadAuto, Oct)", Default = TilingScheme.QuadAuto)]
+        [Option(HelpText = "Tiling scheme (Bin, QuadX, QuadY, QuadZ, QuadAuto, Oct)", Default = TilingDefaults.TILING_SCHEME)]
         public TilingScheme TilingScheme { get; set; }
 
         [Option(Default = "auto", HelpText = "Texture mode (None, Clip, Bake, Backproject, auto)")]
@@ -116,6 +116,12 @@ namespace OPS.Landform
 
         [Option(HelpText = "Max input texture resolution, should be power of two, negative for unlimited", Default = -1)]
         public override int TextureResolution { get; set; }
+
+        [Option(HelpText = "Max texture charts, 0 for unlimited", Default = TilingDefaults.MAX_TEXTURE_CHARTS)]
+        public override int MaxTextureCharts { get; set; }
+
+        [Option(HelpText = "Max texture stretch, 0 for none, 1 for unlimited", Default = TilingDefaults.MAX_TEXTURE_STRETCH)]
+        public override double MaxTextureStretch { get; set; }
     }
 
     public class BuildTilingInput : TilingCommand
@@ -653,7 +659,7 @@ namespace OPS.Landform
                 pipeline.LogInfo("building tile tree from {0} existing LODs, tiling scheme {1}",
                                  meshLOD.Count, options.TilingScheme);
                 tileTree = DefineTiles.BuildTileTreeFromLODs(pipeline, options.TilingScheme, meshOpForLOD,
-                                                             options.FacesPerTile,
+                                                             options.MaxFacesPerTile,
                                                              msg => pipeline.LogInfo(msg),
                                                              msg => pipeline.LogVerbose(msg));
             }
@@ -703,27 +709,28 @@ namespace OPS.Landform
                         texSplitOpts = new SplitByTextureOpts()
                         {
                             pctPixelsToTest = options.SplitByTexturePctToTest,
-                            pctSampledPixelsSatisfied = options.SplitByTexturePctSatisfied,
-                            splitPixelTexelRatio = options.SplitByTextureSamplingRatio,
-                            useApproximateTileSplit = !options.NoApproxTileSplit,
-                            maxTileResolution = maxTileResolution, //> 0 because otherwise texture split would be disabled
-                            scInMesh = sceneCaster,
-                            cameraInstances = cams,
-                            raycastTolerance = options.RaycastTolerance,
+                            pctPixelsSatisfied = options.SplitByTexturePctSatisfied,
+                            maxPixelsPerTexel = options.SplitByTextureMaxPixelsPerTexel,
+                            maxTileResolution = maxTileResolution, //> 0 otherwise texture split would be disabled
+                            maxTexelsPerMeter = options.MaxTexelsPerMeter,
                             maxTextureStretch = maxTextureStretch,
+                            powerOfTwoTextures = options.PowerOfTwoTextures,
+                            cameraInstances = cams,
+                            scInMesh = sceneCaster,
+                            raycastTolerance = options.RaycastTolerance,
                             redoUVs = !options.NoRedoTileMeshUVs,
                             warn = msg => pipeline.LogWarn(msg)
                         };
                     }
                 }
                 pipeline.LogInfo("building tile tree, tiling scheme {0}, max {1} faces/leaf{2}",
-                                 options.TilingScheme, options.FacesPerTile, texSplitOpts != null ?
+                                 options.TilingScheme, options.MaxFacesPerTile, texSplitOpts != null ?
                                  (", texture split enabled, max leaf texture resolution " + maxTileResolution) : "");
                 double surfaceExtent = sceneMesh != null ? sceneMesh.SurfaceExtent : -1;
-                tileTree = DefineTiles.BuildTileTreeFromInputs(pipeline, options.TilingScheme, options.FacesPerTile,
+                tileTree = DefineTiles.BuildTileTreeFromInputs(pipeline, options.TilingScheme, options.MaxFacesPerTile,
                                                                options.PowerOfTwoTextures,
                                                                new List<MeshImagePair>() { new MeshImagePair(mesh) },
-                                                               texSplitOpts, surfaceExtent,
+                                                               texSplitOpts, !options.NoApproxTileSplit, surfaceExtent,
                                                                info: msg => pipeline.LogInfo(msg),
                                                                verbose: msg => pipeline.LogVerbose(msg));
             }
@@ -934,19 +941,26 @@ namespace OPS.Landform
 
                 var mip = tile.GetComponent<MeshImagePair>();
 
-                if (!mip.Mesh.HasVertices)
+                int resolution = SceneNodeTilingExtensions
+                    .GetTileResolution(mip.Mesh, //empty or zero area ok
+                                       maxTileResolution, options.MaxTexelsPerMeter, options.PowerOfTwoTextures);
+                
+                if (!mip.Mesh.HasFaces)
                 {
-                    pipeline.LogWarn("creating blank texture for empty tile " + tile.Name);
-                    int minTileResolution = SceneNodeTilingExtensions.MIN_TILE_RESOLUTION;
-                    mip.Image = new Image(3, minTileResolution, minTileResolution);
-                    if (!options.NoIndexImages)
+                    if (textureMode != TextureMode.None)
                     {
-                        mip.Index = new Image(3, minTileResolution, minTileResolution);
+                        pipeline.LogWarn("creating blank texture for empty tile " + tile.Name);
+                        int minTileResolution = TilingDefaults.MIN_TILE_RESOLUTION;
+                        mip.Image = new Image(3, minTileResolution, minTileResolution);
+                        if (!options.NoIndexImages)
+                        {
+                            mip.Index = new Image(3, minTileResolution, minTileResolution);
+                        }
                     }
                 }
                 else if (textureMode == TextureMode.Bake)
                 {
-                    var tmp = bakeClipper.BakeTexture(mip.Mesh, maxTileResolution, maxTextureStretch,
+                    var tmp = bakeClipper.BakeTexture(mip.Mesh, resolution, maxTextureStretch,
                                                       msg => pipeline.LogVerbose(msg));
                     if (tmp != null)
                     {
@@ -957,19 +971,19 @@ namespace OPS.Landform
                 }
                 else if (textureMode == TextureMode.Backproject)
                 {                
-                    BackprojectTile(mip, tile.Name, sceneCaster, sceneCaster);
+                    BackprojectTile(mip, tile.Name, sceneCaster, sceneCaster, null, resolution);
                 }
                 else if (textureMode == TextureMode.Clip)
                 {
                     var texClipper = new TexturedMeshClipper(powerOfTwoTextures: options.PowerOfTwoTextures,
                                                              logger: pipeline, logPrefix: tile.Name);
-                    var tmp = texClipper.RemapMeshClipImage(mip.Mesh, sceneTexture, sceneIndex, maxTileResolution);
+                    var tmp = texClipper.RemapMeshClipImage(mip.Mesh, sceneTexture, sceneIndex, resolution);
                     mip.Mesh = tmp.Mesh; //may have been re-atlassed
                     mip.Image = tmp.Image;
                     mip.Index = tmp.Index;
                 }
 
-                if (mip.Mesh != null && mip.Mesh.HasVertices && mip.Image != null && maxTextureStretch < 1 &&
+                if (mip.Mesh != null && mip.Mesh.HasFaces && mip.Image != null && maxTextureStretch < 1 &&
                     !options.PowerOfTwoTextures)
                 {
                     mip.Image = mip.Mesh.ClipImageAndRemapUVs(mip.Image, ref mip.Index);
@@ -1075,14 +1089,17 @@ namespace OPS.Landform
                 return tileMesh;
             }
 
+            int resolution = SceneNodeTilingExtensions.
+                GetTileResolution(tileMesh, maxTileResolution, options.MaxTexelsPerMeter, options.PowerOfTwoTextures);
+
             if (textureMode == TextureMode.Bake || textureMode == TextureMode.Backproject)
             {
                 if (!tileMesh.HasUVs || !options.NoRedoTileMeshUVs)
                 {
-                    tileMesh = AtlasMesh(tileMesh, maxTileResolution, "tile " + tile.Name);
+                    tileMesh = AtlasMesh(tileMesh, resolution, "tile " + tile.Name);
                     if (tileMesh != null)
                     {
-                        tileMesh.RescaleUVsForTexture(maxTileResolution, maxTileResolution, maxTextureStretch);
+                        tileMesh.RescaleUVsForTexture(resolution, resolution, maxTextureStretch);
                     }
                     else
                     {
@@ -1093,7 +1110,7 @@ namespace OPS.Landform
                 else
                 {
                     pipeline.LogVerbose("using existing UVs on tile {0}", tile.Name);
-                    tileMesh.RescaleUVsForTexture(maxTileResolution, maxTileResolution, maxTextureStretch);
+                    tileMesh.RescaleUVsForTexture(resolution, resolution, maxTextureStretch);
                 }
             }
             else if (textureMode == TextureMode.Clip)

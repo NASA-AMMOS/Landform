@@ -161,7 +161,7 @@ namespace OPS.Landform
         [Option(HelpText = "Clever combine cell aspect (height relative to width)", Default = CleverCombine.DEF_CELL_ASPECT)]
         public double CleverCombineCellAspect { get; set; }
 
-        [Option(HelpText = "Expand poinnt bounds to envelope bounds", Default = SceneNodeTilingExtensions.CLIP_BOUNDS_EXPAND_HEIGHT)]
+        [Option(HelpText = "Expand poinnt bounds to envelope bounds", Default = TilingDefaults.PARENT_CLIP_BOUNDS_EXPAND_HEIGHT)]
         public double ExpandEnvelopeBounds { get; set; }
 
         [Option(HelpText = "Poisson cell size (meters), mutually exclusive with PoissonTreeDepth, 0 to disable", Default = PoissonReconstruction.DEF_MIN_OCTREE_CELL_WIDTH_METERS)]

@@ -956,7 +956,7 @@ namespace OPS.Landform
 
         protected override void SaveTileset()
         {
-            string tsMeshExt = TilingProject.ToExt(TilingProject.DEF_TILESET_MESH_FORMAT);
+            string tsMeshExt = TilingProject.ToExt(TilingDefaults.TILESET_MESH_FORMAT);
             Func<SceneNode, string> nodeToUrl = node => node.Name + tsMeshExt;
             if (options.HackRoot)
             {

@@ -17,18 +17,6 @@ namespace OPS.Pipeline
 {
     public static class SceneNodeTilingExtensions
     {
-        //TODO: move these to TilingDefaults when dev/tiling-updates is merged
-        public const double CHILD_BOUNDS_SEARCH_RATIO = 1.1;
-        public const double DECIMATE_BOUNDS_RATIO = 1.5;
-        public const double CLIP_BOUNDS_EXPAND_HEIGHT = 0.1;
-        public const double TEXTURE_ERROR_MULTIPLIER = 4;
-        public const double FACE_COUNT_RATIO = DECIMATE_BOUNDS_RATIO * 1.1;
-        public const double SAMPLES_PER_FACE = 1.5; //tuned to try to avoid edge collapse in ResampleDecimation()
-        public const double HAUSDORFF_RELATIVE_ACCURACY = 0.005; //0.5% of mesh bounds
-        public const double PARENT_MESH_VERTEX_MERGE_EPSILON = 0.002;
-        public const int DEF_MAX_TILE_RESOLUTION = 512;
-        public const int MIN_TILE_RESOLUTION = 16;
-
         public static bool useTextureError;
 
         public static void SaveMesh(this SceneNode node, string directory, string meshExtension = "ply",
@@ -61,22 +49,29 @@ namespace OPS.Pipeline
             {
                 return 0;
             }
+
             if (maxRes < 0)
             {
-                maxRes = DEF_MAX_TILE_RESOLUTION;
+                maxRes = TilingDefaults.MAX_TILE_RESOLUTION;
             }
+
             int res = maxRes;
+
             if (maxTexelsPerMeter > 0)
             {
                 double squareTexelsPerSquareMeter = maxTexelsPerMeter * maxTexelsPerMeter;
                 double texelArea = meshArea * squareTexelsPerSquareMeter;
-                res = Math.Max(MIN_TILE_RESOLUTION, (int)Math.Sqrt(texelArea));
+
+                res = Math.Max(TilingDefaults.MIN_TILE_RESOLUTION, (int)Math.Sqrt(texelArea));
+
                 if (powerOfTwoTextures)
                 {
                     res = MathE.CeilPowerOf2(res);
                 }
+
                 res = Math.Min(maxRes, (int)res);
             }
+
             return res;
         }
 
@@ -94,8 +89,7 @@ namespace OPS.Pipeline
         ///
         /// NOTE: as in all the tiling code bounds are all in same coordinate frame (all node Transforms are identity)
         /// </summary>
-        public static List<SceneNode>
-            FindNodesRequiredForParent(this SceneNode node, SceneNode root)
+        public static List<SceneNode> FindNodesRequiredForParent(this SceneNode node, SceneNode root)
         {
             var result = new List<SceneNode>();
 
@@ -110,7 +104,7 @@ namespace OPS.Pipeline
                 .Union(node.Children
                        .Where(c => node.IsActualChild(c))
                        .Select(c => c.GetComponent<NodeBounds>().Bounds).ToArray())
-                .CreateScaled(CHILD_BOUNDS_SEARCH_RATIO);
+                .CreateScaled(TilingDefaults.CHILD_BOUNDS_SEARCH_RATIO);
 
             var stack = new Stack<SceneNode>();
 
@@ -162,9 +156,8 @@ namespace OPS.Pipeline
         public static bool BuildParentGeometry
             (this SceneNode node, SceneNode root,
              int maxFaceCountTarget, MeshReconstructionMethod reconstructionMethod, BoxAxis upAxis,
-             TextureMode textureMode, int maxTextureRes, double maxTextureStretch, bool powerOfTwoTextures,
-             //TODO when dev/tiling-updates is merged double maxTexelsPerMeter,
-             TextureProjector textureProjector = null, Image textureImage = null,
+             TextureMode textureMode, int maxTextureRes, double maxTexelsPerMeter, double maxTextureStretch,
+             bool powerOfTwoTextures, TextureProjector textureProjector = null, Image textureImage = null,
              Action<string> info = null, Action<string> error = null)
         {
             info = info ?? (msg => {});
@@ -227,8 +220,8 @@ namespace OPS.Pipeline
             if (minDim < 0.5 * otherDim)
             {
                 var minDir = BoundingBoxExtensions.GetBoxAxisDirection(minAxis);
-                clippingBounds.Max += minDir * CLIP_BOUNDS_EXPAND_HEIGHT * otherDim;
-                clippingBounds.Min -= minDir * CLIP_BOUNDS_EXPAND_HEIGHT * otherDim;
+                clippingBounds.Max += minDir * TilingDefaults.PARENT_CLIP_BOUNDS_EXPAND_HEIGHT * otherDim;
+                clippingBounds.Min -= minDir * TilingDefaults.PARENT_CLIP_BOUNDS_EXPAND_HEIGHT * otherDim;
             }
 
             //create a copy of the combined child meshes clipped to the actual node bounds
@@ -239,9 +232,9 @@ namespace OPS.Pipeline
             //note: Mesh.Clip() calls Mesh.Clean() which calls Mesh.NormalizeNormals()
             var combinedClipped = combinedMesh.Clipped(clippingBounds);
 
-            if (PARENT_MESH_VERTEX_MERGE_EPSILON > 0)
+            if (TilingDefaults.PARENT_MESH_VERTEX_MERGE_EPSILON > 0)
             {
-                combinedClipped.MergeNearbyVertices(PARENT_MESH_VERTEX_MERGE_EPSILON);
+                combinedClipped.MergeNearbyVertices(TilingDefaults.PARENT_MESH_VERTEX_MERGE_EPSILON);
             }
 
             if (combinedClipped.Faces.Count == 0)
@@ -257,14 +250,16 @@ namespace OPS.Pipeline
             {
                 info($"decimating parent from {Fmt.KMG(parentMesh.Faces.Count)} to {Fmt.KMG(maxFaceCountTarget)} tris");
 
-                var srcBounds = BoundingBoxExtensions.CreateScaled(clippingBounds, DECIMATE_BOUNDS_RATIO);
+                var srcBounds =
+                    BoundingBoxExtensions.CreateScaled(clippingBounds, TilingDefaults.PARENT_DECIMATE_BOUNDS_RATIO);
                 var decimateSrc = combinedMesh.Clipped(srcBounds);
 
                 //note: ResampleDecimation() calls Mesh.Clean() and Mesh.GenerateVertexNormals()
-                parentMesh = decimateSrc.ResampleDecimation((int)(maxFaceCountTarget * FACE_COUNT_RATIO),
-                                                            reconstructionMethod, clippingBounds: clippingBounds,
-                                                            upAxis: BoundingBoxExtensions.GetBoxAxisDirection(upAxis),
-                                                            samplesPerFace: SAMPLES_PER_FACE);
+                parentMesh =
+                    decimateSrc.ResampleDecimation((int)(maxFaceCountTarget * TilingDefaults.PARENT_FACE_COUNT_RATIO),
+                                                   reconstructionMethod, clippingBounds: clippingBounds,
+                                                   upAxis: BoundingBoxExtensions.GetBoxAxisDirection(upAxis),
+                                                   samplesPerFace: TilingDefaults.PARENT_SAMPLES_PER_FACE);
             }
             else
             {
@@ -273,12 +268,15 @@ namespace OPS.Pipeline
                 {
                     parentMesh.GenerateVertexNormals();
                 }
-            }
+            } 
 
             node.GetComponent<NodeBounds>().Bounds = BoundingBoxExtensions.Union(parentBounds, parentMesh.Bounds());
 
-            int textureSize = GetTileResolution(parentMesh, maxTextureRes, powerOfTwoTextures: powerOfTwoTextures);
-                              //TODO when dev/tiling-updates is merged , maxTexelsPerMeter
+            int textureSize = 0;
+            if (textureMode != TextureMode.None)
+            {
+                textureSize = GetTileResolution(parentMesh, maxTextureRes, maxTexelsPerMeter, powerOfTwoTextures);
+            }
 
             Image parentImg = null, parentIndex = null;
             if (textureMode != TextureMode.None && textureSize > 0)
@@ -488,9 +486,9 @@ namespace OPS.Pipeline
         /// currently displayed geometry can move things more than 0.05m  * 320px/m = 16 px from  where they should be.
         ///   
         /// Now consider the case where the tile texture error dominates, say 0.05, meaning the actual tile texture
-        /// resolution is 0.0125 lineal meters per texel if TEXTURE_ERROR_MULTIPLIER=4.  Then one lineal texel maps to
-        /// 0.0125*320 = 4 lineal pixels (16 square pixels) on screen, a relatively large amount of texture
-        /// magnification.  The next finer LOD will be triggered because of the texture magnification.
+        /// resolution is 0.0125 lineal meters per texel if TilingDefaults.TEXTURE_ERROR_MULTIPLIER=4.  Then one lineal
+        /// texel maps to 0.0125*320 = 4 lineal pixels (16 square pixels) on screen, a relatively large amount of
+        /// texture magnification.  The next finer LOD will be triggered because of the texture magnification.
         /// </summary>
         public static double UpdateGeometricError(this SceneNode node,
                                                   List<SceneNode> dependencies,
@@ -541,7 +539,7 @@ namespace OPS.Pipeline
                 var bounds = node.GetComponent<NodeBounds>();
                 if (bounds != null)
                 {
-                    accuracy = bounds.Bounds.MaxDimension() * HAUSDORFF_RELATIVE_ACCURACY;
+                    accuracy = bounds.Bounds.MaxDimension() * TilingDefaults.PARENT_HAUSDORFF_RELATIVE_ACCURACY;
                 }
                 //the merged dependency meshes can be a significant superset of this node's mesh
                 //just compute the unidirectional Hausdorff distance from this node's mesh to the merged dep meshes
@@ -554,7 +552,7 @@ namespace OPS.Pipeline
             double textureError = 0; //lineal meters per texel
             if (useTextureError && mip.Image != null)
             {
-                double mult = TEXTURE_ERROR_MULTIPLIER;
+                double mult = TilingDefaults.TEXTURE_ERROR_MULTIPLIER;
                 double pixelArea = mip.Mesh.ComputePixelArea(mip.Image);
                 double surfaceArea = -1;
                 if (pixelArea > 0)

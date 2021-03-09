@@ -21,34 +21,43 @@ namespace OPS.Landform
 {
     public class TilingCommandOptions : TextureCommandOptions
     {
-        [Option(HelpText = "Max resolution per tile, 0 disables texturing, negative for unlimited (only when clipping textures) or default", Default = SceneNodeTilingExtensions.DEF_MAX_TILE_RESOLUTION)]
+        [Option(HelpText = "Target maximum faces per tile", Default = TilingDefaults.MAX_FACES_PER_TILE)]
+        public int MaxFacesPerTile { get; set; }
+
+        [Option(HelpText = "Max resolution per tile, 0 disables texturing, negative for unlimited (only when clipping textures) or default", Default = TilingDefaults.MAX_TILE_RESOLUTION)]
         public virtual int MaxTileResolution { get; set; }
 
-        [Option(HelpText = "Require power of two textures", Default = false)]
+        [Option(HelpText = "Max texels per meter (lineal not areal), 0 or negative for unlimited", Default = TilingDefaults.MAX_TEXELS_PER_METER)]
+        public double MaxTexelsPerMeter { get; set; }
+
+        [Option(HelpText = "Max tile texture atlas stretch (0 = no stretch, 1 = unlimited)", Default = TilingDefaults.MAX_TEXTURE_STRETCH)]
+        public override double MaxTextureStretch { get; set; }
+
+        [Option(HelpText = "Require power of two tile textures", Default = TilingDefaults.POWER_OF_TWO_TEXTURES)]
         public bool PowerOfTwoTextures { get; set; }
 
         [Option(HelpText = "Disable texturing", Default = false)]
         public virtual bool NoTextures { get; set; }
 
-        [Option(HelpText = "Target maximum faces per tile", Default = 2000)]
-        public int FacesPerTile { get; set; }
-
         [Option(HelpText = "Don't delete tiling project if it already exists", Default = false)]
         public bool UseExistingTilingProject { get; set; }
 
-        [Option(Default = SkirtMode.Normal, HelpText = "Skirt up direction (X, Y, Z, None, Normal)")]
+        [Option(HelpText = "Skirt up direction (X, Y, Z, None, Normal)", Default = TilingDefaults.SKIRT_MODE)]
         public SkirtMode SkirtMode { get; set; }
 
-        [Option(Default = MeshReconstructionMethod.FSSR, HelpText = "Mesh reconstruction method (FSSR, Poisson)")]
-        public MeshReconstructionMethod ReconstructionMethod { get; set; }
+        [Option(HelpText = "Parent mesh reconstruction method (FSSR, Poisson)", Default = TilingDefaults.PARENT_RECONSTRUCTION_METHOD)]
+        public MeshReconstructionMethod ParentReconstructionMethod { get; set; }
 
-        [Option(HelpText = "Don't convert tileset images from linear RGB to sRGB", Default = false)]
+        [Option(HelpText = "Don't convert tileset images from linear RGB to sRGB", Default = !TilingDefaults.CONVERT_LINEAR_RGB_TO_SRGB)]
         public bool NoConvertLinearRGBToSRGB { get; set; }
 
-        [Option(HelpText = "Tile image format, e.g. jpg, png.  Empty or \"default\" to use default (" + TilingProject.DEF_TILESET_IMAGE_FORMAT + ")", Default = null)]
+        [Option(HelpText = "Tile mesh format, e.g. .b3dm.  Empty or \"default\" to use default (" + TilingDefaults.TILESET_MESH_FORMAT + ")", Default = null)]
+        public string TilesetMeshFormat { get; set; }
+
+        [Option(HelpText = "Tile image format, e.g. jpg, png.  Empty or \"default\" to use default (" + TilingDefaults.TILESET_IMAGE_FORMAT + ")", Default = null)]
         public string TilesetImageFormat { get; set; }
 
-        [Option(HelpText = "Tile index format, e.g. ppm, ppmz, tiff, png.  Empty or \"default\" to use default (" + TilingProject.DEF_TILESET_INDEX_FORMAT + ")", Default = null)]
+        [Option(HelpText = "Tile index format, e.g. ppm, ppmz, tiff, png.  Empty or \"default\" to use default (" + TilingDefaults.TILESET_INDEX_FORMAT + ")", Default = null)]
         public string TilesetIndexFormat { get; set; }
 
         [Option(HelpText = "Extra export mesh format, e.g. ply, obj, help for list", Default = null)]
@@ -63,7 +72,7 @@ namespace OPS.Landform
         [Option(HelpText = "Don't publish index images with tileset", Default = false)]
         public bool NoPublishIndexImages { get; set; }
 
-        [Option(HelpText = "Write out index images as seperate files", Default = false)]
+        [Option(HelpText = "Write out index images as seperate files", Default = TilingDefaults.EMBED_INDEX_IMAGES)]
         public bool EmbedIndexImages { get; set; }
 
         [Option(HelpText = "Maximum runtime in seconds", Default = 60 * 60 * 10)] //10h
@@ -108,7 +117,7 @@ namespace OPS.Landform
             }
         }
 
-        public static bool CheckTilesetFormats(PipelineCore pipeline,
+        public static bool CheckTilesetFormats(PipelineCore pipeline, string tilesetMeshFormat,
                                                string tilesetImageFormat, string tilesetIndexFormat,
                                                string exportMeshFormat = null, string exportImageFormat = null,
                                                bool spew = false, bool noPublishIndexImages = false,
@@ -141,9 +150,13 @@ namespace OPS.Landform
                 return false; //help or invalid
             }
 
+            if (embedIndexImages && !tilesetMeshFormat.EndsWith(".b3dm", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new Exception("tileset mesh format must be b3dm to embed index images, got " + tilesetMeshFormat);
+            }
             if (spew)
             {
-                pipeline.LogInfo("tile image format: {0}", tilesetImageFormat);
+                pipeline.LogInfo("tile mesh format {0}, image format {1}", tilesetMeshFormat, tilesetImageFormat);
                 if (!noPublishIndexImages) {
                     pipeline.LogInfo("tile index format: {0} ({1}embedded)",
                                      tilesetIndexFormat, embedIndexImages ? "" : "not ");
@@ -173,18 +186,24 @@ namespace OPS.Landform
                 return false; //help
             }
 
+            if (string.IsNullOrEmpty(tilingOpts.TilesetMeshFormat) ||
+                tilingOpts.TilesetMeshFormat.ToLower() == "default")
+            {
+                tilingOpts.TilesetMeshFormat = TilingDefaults.TILESET_MESH_FORMAT;
+            }
             if (string.IsNullOrEmpty(tilingOpts.TilesetImageFormat) ||
                 tilingOpts.TilesetImageFormat.ToLower() == "default")
             {
-                tilingOpts.TilesetImageFormat = TilingProject.DEF_TILESET_IMAGE_FORMAT;
+                tilingOpts.TilesetImageFormat = TilingDefaults.TILESET_IMAGE_FORMAT;
             }
             if (string.IsNullOrEmpty(tilingOpts.TilesetIndexFormat) ||
                 tilingOpts.TilesetIndexFormat.ToLower() == "default")
             {
-                tilingOpts.TilesetIndexFormat = TilingProject.DEF_TILESET_INDEX_FORMAT;
+                tilingOpts.TilesetIndexFormat = TilingDefaults.TILESET_INDEX_FORMAT;
             }
-            if (!CheckTilesetFormats(pipeline, tilingOpts.TilesetImageFormat, tilingOpts.TilesetIndexFormat,
-                                     tilingOpts.ExportMeshFormat, tilingOpts.ExportImageFormat, SpewTilesetFormats(),
+            if (!CheckTilesetFormats(pipeline, tilingOpts.TilesetMeshFormat, tilingOpts.TilesetImageFormat,
+                                     tilingOpts.TilesetIndexFormat, tilingOpts.ExportMeshFormat,
+                                     tilingOpts.ExportImageFormat, SpewTilesetFormats(),
                                      tilingOpts.NoPublishIndexImages, tilingOpts.EmbedIndexImages))
             {
                 return false; //help or invalid
@@ -395,9 +414,9 @@ namespace OPS.Landform
             string inImgExt = TilingProject.ToExt(tileList?.ImageExt ?? imageExt); //e.g. .png
             string inIdxExt = TilingProject.ToExt(TileList.INDEX_FILE_EXT); //e.g. .tiff
 
-            string tsMeshExt = TilingProject.ToExt(TilingProject.DEF_TILESET_MESH_FORMAT); //e.g. .b3dm
-            string tsImgExt = TilingProject.ToExt(tilingOpts.TilesetImageFormat); //e.g. .jpg
-            string tsIdxExt = TilingProject.ToExt(tilingOpts.TilesetIndexFormat); //e.g. .ppmz
+            string tsMeshExt = TilingProject.ToExt(tilingOpts.TilesetMeshFormat); //e.g. .b3dm
+            string tsImgExt = TilingProject.ToExt(tilingOpts.TilesetImageFormat); //e.g. .png
+            string tsIdxExt = TilingProject.ToExt(tilingOpts.TilesetIndexFormat); //e.g. .png
 
             bool withIdx = withTextures && !tilingOpts.NoPublishIndexImages && (tileList?.HasIndexImages ?? false);
             bool embedIdx = tilingOpts.EmbedIndexImages;
@@ -436,46 +455,45 @@ namespace OPS.Landform
                     throw new Exception("tileset folder not set");
                 }
 
-                //in a user defined tiling scheme the inputs give a subset of all the tiles
-                //including at least all the leaves
+                //in user provided tiling the inputs give a subset of all the tiles, at least including all the leaves
                 //the tree topology is encoded in the names of the given tiles
                 //such that all tiles with the same name prefix XXXX are parented to a tile named XXXX
-                //we'll automatically create any and all parent tiles which were not provided as input
-                //in practice for the local-build-leaves -> local-build-tileset workflow
-                //all and only the leaves of the tree are supplied as user defined tiles here
                 if (!TilingSchemeBase.IsUserProvided(tilingScheme))
                 {
                     throw new NotImplementedException("only expecting user defined or flat schemes in this function");
                 }
 
-                var projectType = PipelineStateMachine.ProjectType.ParentTiling;
-
-                int maxTileGroupSize = MAX_LEAF_GROUP_SIZE;
-
-                var texMode = TextureMode.None;
+                var parentTileTextureMode = TextureMode.None;
                 if (withTextures)
                 {
+                    parentTileTextureMode = TextureMode.Bake;
                     if (tileList.TextureMode == TextureMode.Clip && sceneMesh.TextureProjectorGuid != Guid.Empty &&
                         pipeline.GetDataProduct<TextureProjector>(project, sceneMesh.TextureProjectorGuid).TextureGuid
                         != Guid.Empty)
                     {
-                        texMode = TextureMode.Clip;
-                    }
-                    else
-                    {
-                        texMode = TextureMode.Bake;
+                        parentTileTextureMode = TextureMode.Clip;
                     }
                 }
 
-                tilingProject = TilingProject.Create(pipeline, project.Name, tilingScheme, tilingOpts.SkirtMode,
-                                                     tilingOpts.ReconstructionMethod, tilingOpts.FacesPerTile,
-                                                     maxTileResolution, maxTextureStretch,
-                                                     tilingOpts.PowerOfTwoTextures, texMode, projectType,
-                                                     !tilingOpts.NoConvertLinearRGBToSRGB, tilingOpts.ExportMeshFormat,
-                                                     tilingOpts.ExportImageFormat, maxTileGroupSize,
-                                                     project.ProductPath);
+                tilingProject =
+                    TilingProject.Create(pipeline, project.Name, ProjectType.ParentTiling, project.ProductPath);
 
+                tilingProject.TilingScheme = tilingScheme;
+                tilingProject.MaxFacesPerTile = tilingOpts.MaxFacesPerTile;
+                tilingProject.ParentReconstructionMethod = tilingOpts.ParentReconstructionMethod;
+                tilingProject.SkirtMode = tilingOpts.SkirtMode;
+
+                tilingProject.TextureMode = parentTileTextureMode;
+                tilingProject.MaxTextureResolution = maxTileResolution;
+                tilingProject.MaxTexelsPerMeter = tilingOpts.MaxTexelsPerMeter;
+                tilingProject.MaxTextureStretch = tilingOpts.MaxTextureStretch;
+                tilingProject.PowerOfTwoTextures = tilingOpts.PowerOfTwoTextures;
+                tilingProject.ConvertLinearRGBToSRGB = !tilingOpts.NoConvertLinearRGBToSRGB;
+
+                tilingProject.ExportMeshFormat = tilingOpts.ExportMeshFormat;
+                tilingProject.ExportImageFormat = tilingOpts.ExportImageFormat;
                 tilingProject.ExportDir = null;
+
                 if (!string.IsNullOrEmpty(tilingOpts.ExportMeshFormat) ||
                     !string.IsNullOrEmpty(tilingOpts.ExportImageFormat))
                 {
@@ -498,13 +516,10 @@ namespace OPS.Landform
 
                 tilingProject.TextureProjectorGuid = sceneMesh.TextureProjectorGuid;
 
-                tilingProject.StartedRunning = false;
-                tilingProject.FinishedRunning = false;
+                tilingProject.EmbedIndexImages = tilingOpts.EmbedIndexImages;
 
                 tilingProject.Save(pipeline);
             }
-
-            tilingProject.EmbedIndexes = tilingOpts.EmbedIndexImages;
 
             pipeline.LogInfo("texture projection {0}",
                              tilingProject.TextureProjectorGuid != Guid.Empty ? "enabled" : "disabled");
@@ -603,12 +618,15 @@ namespace OPS.Landform
         }
 
         protected bool BackprojectTile(MeshImagePair mip, string tileName, SceneCaster meshCaster,
-                                       SceneCaster occlusionScene, ObsSelectionStrategy strategy = null)
+                                       SceneCaster occlusionScene, ObsSelectionStrategy strategy = null,
+                                       int resolution = -1)
         {
             try
             {
+                resolution = resolution >= 0 ? resolution : maxTileResolution;
+
                 bool quiet = !(pipeline.Verbose || pipeline.Debug || tilingOpts.VerboseBackproject);
-                var results = BackprojectObservations(mip.Mesh, maxTileResolution, meshCaster, occlusionScene,
+                var results = BackprojectObservations(mip.Mesh, resolution, meshCaster, occlusionScene,
                                                       out Backproject.Stats stats, strategy, tileName, quiet);
                 
                 Interlocked.Add(ref numBackprojectedSurfacePixels, stats.BackprojectedSurfacePixels);
@@ -616,7 +634,7 @@ namespace OPS.Landform
                 Interlocked.Add(ref numBackprojectFailedPixels, stats.BackprojectMissingPixels);
                 NumberHelper.InterlockedExchangeIfGreaterThan(ref numBackprojectFallbacks, stats.NumFallbacks);
 
-                mip.Image = new Image(3, maxTileResolution, maxTileResolution);
+                mip.Image = new Image(3, resolution, resolution);
                 Backproject.FillOutputTexture(pipeline, project, results, mip.Image, tilingOpts.TextureVariant,
                                               tilingOpts.BackprojectInpaintMissing, tilingOpts.BackprojectInpaintGutter,
                                               fallbackToOriginal: true, orbitalTexture: orbitalTexture,
@@ -624,7 +642,7 @@ namespace OPS.Landform
 
                 if (!tilingOpts.NoIndexImages)
                 {
-                    mip.Index = new Image(3, maxTileResolution, maxTileResolution);
+                    mip.Index = new Image(3, resolution, resolution);
                     Backproject.FillIndexImage(results, mip.Index);
                 }
 

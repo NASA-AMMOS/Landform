@@ -55,10 +55,13 @@ namespace OPS.Landform
         [Option(HelpText = "Credential refresh period in seconds, -1 for mission default, 0 to disable", Default = -1)]
         public int CredentialRefreshSec { get; set; }
 
-        [Option(HelpText = "Tile image format, e.g. jpg, png.  Empty or \"default\" to use default (" + TilingProject.DEF_TILESET_IMAGE_FORMAT + ")", Default = null)]
+        [Option(HelpText = "Tile mesh format, e.g. b3dm.  Empty or \"default\" to use default (" + TilingDefaults.TILESET_MESH_FORMAT + ")", Default = null)]
+        public string TilesetMeshFormat { get; set; }
+
+        [Option(HelpText = "Tile image format, e.g. jpg, png.  Empty or \"default\" to use default (" + TilingDefaults.TILESET_IMAGE_FORMAT + ")", Default = null)]
         public string TilesetImageFormat { get; set; }
 
-        [Option(HelpText = "Tile index format, e.g. ppm, ppmz, tiff, png.  Empty or \"default\" to use default (" + TilingProject.DEF_TILESET_INDEX_FORMAT + ")", Default = null)]
+        [Option(HelpText = "Tile index format, e.g. ppm, ppmz, tiff, png.  Empty or \"default\" to use default (" + TilingDefaults.TILESET_INDEX_FORMAT + ")", Default = null)]
         public string TilesetIndexFormat { get; set; }
 
         [Option(HelpText = "Extra export mesh format, e.g. ply, obj, help for list", Default = null)]
@@ -70,7 +73,7 @@ namespace OPS.Landform
         [Option(HelpText = "Don't publish index images with tileset", Default = false)]
         public bool NoPublishIndexImages { get; set; }
 
-        [Option(HelpText = "Embed index images images in tileset .b3dm tiles", Default = false)]
+        [Option(HelpText = "Embed index images images in tileset .b3dm tiles", Default = TilingDefaults.EMBED_INDEX_IMAGES)]
         public bool EmbedIndexImages { get; set; }
 
         [Option(HelpText = "Only use specific cameras, comma separated (e.g. Hazcam, Mastcam, Navcam, FrontHazcam, FrontHazcamLeft, etc)", Default = null)]
@@ -128,15 +131,19 @@ namespace OPS.Landform
 
         protected virtual bool ParseArguments()
         {
+            if (string.IsNullOrEmpty(lsopts.TilesetMeshFormat) || lsopts.TilesetMeshFormat.ToLower() == "default")
+            {
+                lsopts.TilesetMeshFormat = TilingDefaults.TILESET_MESH_FORMAT;
+            }
             if (string.IsNullOrEmpty(lsopts.TilesetImageFormat) || lsopts.TilesetImageFormat.ToLower() == "default")
             {
-                lsopts.TilesetImageFormat = TilingProject.DEF_TILESET_IMAGE_FORMAT;
+                lsopts.TilesetImageFormat = TilingDefaults.TILESET_IMAGE_FORMAT;
             }
             if (string.IsNullOrEmpty(lsopts.TilesetIndexFormat) || lsopts.TilesetIndexFormat.ToLower() == "default")
             {
-                lsopts.TilesetIndexFormat = TilingProject.DEF_TILESET_INDEX_FORMAT;
+                lsopts.TilesetIndexFormat = TilingDefaults.TILESET_INDEX_FORMAT;
             }
-            if (!TilingCommand.CheckTilesetFormats(pipeline,
+            if (!TilingCommand.CheckTilesetFormats(pipeline, lsopts.TilesetMeshFormat,
                                                    lsopts.TilesetImageFormat, lsopts.TilesetIndexFormat,
                                                    lsopts.ExportMeshFormat, lsopts.ExportImageFormat,
                                                    spew: true, noPublishIndexImages: lsopts.NoPublishIndexImages,

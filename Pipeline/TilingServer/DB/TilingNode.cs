@@ -505,7 +505,7 @@ namespace OPS.Pipeline.TilingServer
                         
                         if (tmpIndex != null)
                         {
-                            if (!project.EmbedIndexes)
+                            if (!project.EmbedIndexImages)
                             {
                                 IndexUrl =
                                 StringHelper.StripUrlExtension(tileUrl) + TileList.INDEX_FILE_SUFFIX + tileIndexExt;

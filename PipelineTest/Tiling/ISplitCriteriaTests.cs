@@ -110,8 +110,8 @@ namespace PipelineTest
             SplitByTextureOpts opts = new SplitByTextureOpts()
             {
                 pctPixelsToTest = 0.5,
-                pctSampledPixelsSatisfied = 0.75,
-                splitPixelTexelRatio = 2.0,
+                pctPixelsSatisfied = 0.75,
+                maxPixelsPerTexel = 2.0,
                 maxTileResolution = destTextureResolution,
                 cameraInstances = cameraInstances,
                 scInMesh = sc
