@@ -618,14 +618,14 @@ namespace OPS.Pipeline
             {
                 if (TextureImage != null)
                 {
-                    mesh.ProjectTexture(TextureImage, opts.RemoveVertsOutsideView);
+                    mesh.ProjectTexture(TextureImage, removeVertsOutsideView: opts.RemoveVertsOutsideView);
                 }
                 else if (PointsImage != null && PointsImage.CameraModel != null)
                 {
                     //PointsImage.CameraModel is null when the PointsImage was decimated
                     pipeline.LogWarn("no texture image for {0}, using points image to project texture coordinates",
                                      refObs.Name);
-                    mesh.ProjectTexture(PointsImage, opts.RemoveVertsOutsideView);
+                    mesh.ProjectTexture(PointsImage, removeVertsOutsideView: opts.RemoveVertsOutsideView);
                 }
                 else
                 {

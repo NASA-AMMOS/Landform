@@ -14,62 +14,68 @@ namespace OPS.Pipeline
 {
     public class CameraInstance
     {
-        public Matrix cameraToMesh;
-        public Matrix meshToCamera;
-        public CameraModel cameraModel;
-        public ConvexHull hullInMesh;
-        public int widthPixels;
-        public int heightPixels;
+        public Matrix CameraToMesh;
+        public Matrix MeshToCamera;
+        public CameraModel CameraModel;
+        public ConvexHull HullInMesh;
+        public int WidthPixels;
+        public int HeightPixels;
     };
 
-    public class SplitByTextureOpts
+    public class TextureSplitOptions
     {
+        // if the tile texture already would max out MaxTileResolution to reach MaxTexelsPerMeter then don't split
+        public bool RespectMaxTexelsPerMeter;
+
         // how densely should the destination texels be sampled
-        public double pctPixelsToTest = TilingDefaults.TEX_SPLIT_PERCENT_TO_TEST;
+        public double PercentPixelsToTest = TilingDefaults.TEX_SPLIT_PERCENT_TO_TEST;
 
         // of all the pixels sampled for a given source texture, what percentage of them need to suggest a split
-        public double pctPixelsSatisfied = TilingDefaults.TEX_SPLIT_PERCENT_SATISFIED;
+        public double PercentPixelsSatisfied = TilingDefaults.TEX_SPLIT_PERCENT_SATISFIED;
 
         // valid values >= 1; 2 would mean if > 2 source pixels are squeezed into a single output texel then split
-        public double maxPixelsPerTexel = TilingDefaults.TEX_SPLIT_MAX_PIXELS_PER_TEXEL;
+        public double MaxPixelsPerTexel = TilingDefaults.TEX_SPLIT_MAX_PIXELS_PER_TEXEL;
 
-        public int maxTileResolution = TilingDefaults.MAX_TILE_RESOLUTION;
-        public double maxTexelsPerMeter = TilingDefaults.MAX_TEXELS_PER_METER;
-        public double maxTextureStretch = TilingDefaults.MAX_TEXTURE_STRETCH;
-        public bool powerOfTwoTextures = TilingDefaults.POWER_OF_TWO_TEXTURES;
+        public int MaxTileResolution = TilingDefaults.MAX_TILE_RESOLUTION;
+        public double MaxTexelsPerMeter = TilingDefaults.MAX_TEXELS_PER_METER;
+        public double MaxTextureStretch = TilingDefaults.MAX_TEXTURE_STRETCH;
+        public bool PowerOfTwoTextures = TilingDefaults.POWER_OF_TWO_TEXTURES;
 
-        public CameraInstance[] cameraInstances;
+        public TextureMode TextureMode = TilingDefaults.TEXTURE_MODE;
 
-        public SceneCaster scInMesh;
-        public double raycastTolerance;
+        public CameraInstance[] CameraInstances;
 
-        public bool redoUVs;
+        public SceneCaster SceneCaster;
 
-        public Action<string> warn;
+        public double RaycastTolerance;
+
+        public bool RedoUVs;
+
+        public Action<string> Warn;
     }
 
     abstract public class TextureSplitCriteria : ITileSplitCriteria
     {
-        protected SplitByTextureOpts options;
+        protected TextureSplitOptions options;
         protected bool spewProgress;
 
-        public TextureSplitCriteria(SplitByTextureOpts opts)
+        public TextureSplitCriteria(TextureSplitOptions opts)
         {
             options = opts;
 
-            if (opts.pctPixelsToTest <= 0 || opts.pctPixelsToTest > 1)
+            if (opts.PercentPixelsToTest <= 0 || opts.PercentPixelsToTest > 1)
             {
-                throw new Exception("invalid pctPixelsToTest option");
+                throw new Exception("invalid PercentPixelsToTest option");
             }
 
-            if (opts.pctPixelsSatisfied <= 0 || opts.pctPixelsSatisfied > 1)
+            if (opts.PercentPixelsSatisfied <= 0 || opts.PercentPixelsSatisfied > 1)
             {
-                throw new Exception("invalid pctPixelsSatisfied option");
+                throw new Exception("invalid PercentPixelsSatisfied option");
             }
 
-            if (opts.maxPixelsPerTexel < 1)
+            if (opts.MaxPixelsPerTexel < 1)
             {
-                throw new Exception("invalid maxPixelsPerTexel option");
+                throw new Exception("invalid MaxPixelsPerTexel option");
             }
         }
 
@@ -84,8 +90,8 @@ namespace OPS.Pipeline
             var meshOperator = meshOps[0];
 
             // coarse frustum test against the bounding box
-            var intersectingCameras = options.cameraInstances
-                .Where(ci => ci.hullInMesh != null && ci.hullInMesh.Intersects(bounds))
+            var intersectingCameras = options.CameraInstances
+                .Where(ci => ci.HullInMesh != null && ci.HullInMesh.Intersects(bounds))
                 .ToList();
             if (intersectingCameras.Count == 0)
             {
@@ -100,7 +106,7 @@ namespace OPS.Pipeline
 
             // finer frustum test: get all observations that intersect mesh hull
             ConvexHull clippedHull = ConvexHull.CreateWithFallback(clippedMesh);
-            intersectingCameras = intersectingCameras.Where(ci => clippedHull.Intersects(ci.hullInMesh)).ToList();
+            intersectingCameras = intersectingCameras.Where(ci => clippedHull.Intersects(ci.HullInMesh)).ToList();
 
             //no textures would be used on this mesh, no need to split
             if (intersectingCameras.Count == 0)
@@ -110,10 +116,10 @@ namespace OPS.Pipeline
 
             double meshArea = clippedMesh.SurfaceArea();
             int texRes = SceneNodeTilingExtensions.
-                GetTileResolution(meshArea, options.maxTileResolution, options.maxTexelsPerMeter,
-                                  options.powerOfTwoTextures);
+                GetTileResolution(meshArea, options.MaxTileResolution, options.MaxTexelsPerMeter,
+                                  options.PowerOfTwoTextures);
 
-            if (texRes < options.maxTileResolution)
+            if (options.RespectMaxTexelsPerMeter && texRes < options.MaxTileResolution)
             {
                 return false;
             }
@@ -131,7 +137,7 @@ namespace OPS.Pipeline
                 return false;
             }
 
-            return (pixels / texels) > options.maxPixelsPerTexel;
+            return (pixels / texels) > options.MaxPixelsPerTexel;
         }
 
         protected abstract bool GetObservationPixelsPerArea(Mesh clippedMesh, int texRes, ConvexHull clippedHull,
@@ -145,7 +151,7 @@ namespace OPS.Pipeline
     {
         const double MESH_HULL_TEST_EPSILON = 0.00001;
 
-        public TextureSplitCriteriaBackproject(SplitByTextureOpts opts) : base(opts)
+        public TextureSplitCriteriaBackproject(TextureSplitOptions opts) : base(opts)
         {
             spewProgress = true;
         }
@@ -162,36 +168,39 @@ namespace OPS.Pipeline
         {
             pixels = 0;
 
-            //generate an atlas for the mesh if needed
-            if (!clippedMesh.HasUVs || options.redoUVs)
+            if (!clippedMesh.HasUVs || options.RedoUVs)
             {
-                try
+                if (options.CameraInstances.Length == 1)
                 {
-                    if (!UVAtlas.Atlas(clippedMesh, texRes, texRes, maxStretch: options.maxTextureStretch,
-                                       logger: new ThunkLogger() { Warn = options.warn }))
+                    var ci = options.CameraInstances[0];
+                    clippedMesh.ProjectTexture(ci.WidthPixels, ci.HeightPixels, ci.CameraModel, ci.MeshToCamera);
+                    if (!clippedMesh.HasFaces)
                     {
                         return false;
                     }
+                    if (options.TextureMode != TextureMode.Clip)
+                    {
+                        clippedMesh.RescaleUVsForTexture(texRes, texRes, options.MaxTextureStretch);
+                    }
                 }
-                catch {}
-                if (clippedMesh == null)
+                else
                 {
-                    //TODO: not being able to atlas can be caused by mesh complexity, which might be helped by a split 
-                    // https://github.jpl.nasa.gov/OnSight/Landform/issues/826
-                    //returning false in case there's a mesh that wont atlas (degenerate triangles?)
-                    //this would recurse down to single triangle tiles
-                    return false;
+                    if (!UVAtlas.Atlas(clippedMesh, texRes, texRes, maxStretch: options.MaxTextureStretch,
+                                       logger: new ThunkLogger() { Warn = options.Warn }))
+                    {
+                        //TODO: atlas fail can be caused by mesh complexity, which might be helped by a split 
+                        //https://github.jpl.nasa.gov/OnSight/Landform/issues/826
+                        //returning false in case there's a mesh that wont atlas (degenerate triangles?)
+                        //this would recurse down to single triangle tiles
+                        return false;
+                    }
                 }
-            }
-            else
-            {
-                clippedMesh.RescaleUVsForTexture(texRes, texRes, options.maxTextureStretch);
             }
 
             //choose a sub-set of points (for perf) from the output atlas texture to test
             MeshOperator clippedOp =
                 new MeshOperator(clippedMesh, buildFaceTree: false, buildVertexTree: false, buildUVFaceTree: true);
-            List<PixelPoint> ptsToTest = clippedOp.SubsampleUVSpace(options.pctPixelsToTest, texRes, texRes);
+            List<PixelPoint> ptsToTest = clippedOp.SubsampleUVSpace(options.PercentPixelsToTest, texRes, texRes);
 
             var clippedCaster = new SceneCaster();
             clippedCaster.AddMesh(clippedMesh, null, Matrix.Identity);
@@ -202,8 +211,8 @@ namespace OPS.Pipeline
             foreach (var destPixelPt in ptsToTest)
             { 
                 //if the points are spilling onto other tiles, they aren't great candidates for testing.
-                // In addition to handling cases where you are peeking through a valley or keyhole in the terrain
-                // and all points are landing on other mesh tiles, this is a performance optimization.
+                //In addition to handling cases where you are peeking through a valley or keyhole in the terrain
+                //and all points are landing on other mesh tiles, this is a performance optimization.
                 if (!clippedHull.Contains(destPixelPt.Point, MESH_HULL_TEST_EPSILON))
                 {
                     continue;
@@ -228,10 +237,10 @@ namespace OPS.Pipeline
                 var srcPixels =
                     destPixelMeshPositions
                     .Select(meshPos => ProjectedPixelDistances.
-                            GetCameraPixelForMeshPosition(options.scInMesh, bestCamera.cameraModel,
-                                                          bestCamera.cameraToMesh, bestCamera.meshToCamera,
-                                                          bestCamera.hullInMesh, meshPos,
-                                                          bestCamera.widthPixels, bestCamera.heightPixels))
+                            GetCameraPixelForMeshPosition(options.SceneCaster, bestCamera.CameraModel,
+                                                          bestCamera.CameraToMesh, bestCamera.MeshToCamera,
+                                                          bestCamera.HullInMesh, meshPos,
+                                                          bestCamera.WidthPixels, bestCamera.HeightPixels))
                     .Where(x => x.HasValue);
 
                 // if enough pixels landed in the source image, find their area in pixels
@@ -279,7 +288,7 @@ namespace OPS.Pipeline
 
                 //the option specifies the percentage of pixels that need to be satisfied to avoid a split           
                 srcPixelAreas.Sort();
-                int idxToTest = (int)((srcPixelAreas.Count - 1) * options.pctPixelsSatisfied);
+                int idxToTest = (int)((srcPixelAreas.Count - 1) * options.PercentPixelsSatisfied);
 
                 if (srcPixelAreas[idxToTest] > maxSrcPixelArea)
                 {
@@ -302,9 +311,9 @@ namespace OPS.Pipeline
             foreach (var camInst in candidateCameras)
             {
                 var srcPixel = ProjectedPixelDistances.
-                    GetCameraPixelForMeshPosition(options.scInMesh, camInst.cameraModel, camInst.cameraToMesh,
-                                                  camInst.meshToCamera, camInst.hullInMesh,
-                                                  pxlPt.Point, camInst.widthPixels, camInst.heightPixels);
+                    GetCameraPixelForMeshPosition(options.SceneCaster, camInst.CameraModel, camInst.CameraToMesh,
+                                                  camInst.MeshToCamera, camInst.HullInMesh,
+                                                  pxlPt.Point, camInst.WidthPixels, camInst.HeightPixels);
 
                 if (!srcPixel.HasValue)
                 {
@@ -314,9 +323,9 @@ namespace OPS.Pipeline
                 //Issue #523: want median or average in case glancing angle?
                 //want a term that looks for consistancy in spacing? implies dead on?
                 double curSpread = ProjectedPixelDistances.
-                    GetMinPixelSpreadInMeters(meshBounds, meshCaster, options.scInMesh, camInst.cameraModel,
-                                              camInst.cameraToMesh, srcPixel.Value, pxlPt.Point,
-                                              camInst.widthPixels, camInst.heightPixels, options.raycastTolerance);
+                    GetMinPixelSpreadInMeters(meshBounds, meshCaster, options.SceneCaster, camInst.CameraModel,
+                                              camInst.CameraToMesh, srcPixel.Value, pxlPt.Point,
+                                              camInst.WidthPixels, camInst.HeightPixels, options.RaycastTolerance);
                 if (curSpread < minSpread)
                 {
                     minSpread = curSpread;
@@ -332,7 +341,7 @@ namespace OPS.Pipeline
     {
         public const double APPROX_TEXTURE_UTILIZATION = 0.5;
 
-        public TextureSplitCriteriaApproximate(SplitByTextureOpts opts) : base(opts) {}
+        public TextureSplitCriteriaApproximate(TextureSplitOptions opts) : base(opts) {}
 
         protected override bool GetTileTexelsPerArea(Mesh clippedMesh, int texRes, double meshArea, out double texels)
         {
@@ -363,43 +372,46 @@ namespace OPS.Pipeline
             {
                 // project grid of 25 central rays from camera to estimate closest distance to mesh
                 var samples = new List<Vector2>(25);
-                int rowSkip = camInst.heightPixels / 6;
-                int colSkip = camInst.widthPixels / 6;
-                for (int r = rowSkip; r < camInst.heightPixels; r += rowSkip)
+                int rowSkip = camInst.HeightPixels / 6;
+                int colSkip = camInst.WidthPixels / 6;
+                for (int r = rowSkip; r < camInst.HeightPixels; r += rowSkip)
                 {
-                    for (int c = colSkip; c < camInst.heightPixels; c += colSkip)
+                    for (int c = colSkip; c < camInst.HeightPixels; c += colSkip)
                     {
                         samples.Add(new Vector2(c, r));
                     }
                 }
 
-                var pts = ProjectedPixelDistances.GetMeshPositionsForCameraPixels(clippedMesh.Bounds(),
-                                                                                  options.scInMesh, options.scInMesh,
-                                                                                  camInst.cameraModel,
-                                                                                  camInst.cameraToMesh, samples,
-                                                                                  options.raycastTolerance);
+                var pts = ProjectedPixelDistances
+                    .GetMeshPositionsForCameraPixels(clippedMesh.Bounds(), options.SceneCaster, options.SceneCaster,
+                                                     camInst.CameraModel, camInst.CameraToMesh, samples,
+                                                     options.RaycastTolerance);
                 if (pts.Count < 1)
                 {
                     continue;
                 }
 
-                Vector3 camInMesh = Vector3.Transform(((CAHV)camInst.cameraModel).C, camInst.cameraToMesh);
+                Vector3 camInMesh = Vector3.Transform(((CAHV)camInst.CameraModel).C, camInst.CameraToMesh);
                 double minDist = pts.Min(pt => Vector3.Distance(camInMesh, pt));
 
                 // use a square pixel approximation
-                Vector2 []corners = Image.GetPixelCorners(new Vector2(camInst.widthPixels / 2.0,
-                                                                      camInst.heightPixels / 2.0));
-                Vector3 ptUpperLeftCorner = camInst.cameraModel.Unproject(corners[0], minDist);
-                Vector3 ptUpperRightCorner = camInst.cameraModel.Unproject(corners[1], minDist);
-                Vector3 ptLowerRightCorner = camInst.cameraModel.Unproject(corners[2], minDist);
-                Vector3 ptLowerLeftCorner = camInst.cameraModel.Unproject(corners[3], minDist);
-                double projectedWidth = Vector3.Distance(ptUpperLeftCorner, ptUpperRightCorner);
-                double projectedHeight = Vector3.Distance(ptUpperLeftCorner, ptLowerLeftCorner);
-                double curAreaPerPixelInMeters = projectedWidth * projectedHeight;
-                if (curAreaPerPixelInMeters < minMetersPerPixel)
+                Vector2 []corners = Image.GetPixelCorners(new Vector2(camInst.WidthPixels / 2.0,
+                                                                      camInst.HeightPixels / 2.0));
+                try
                 {
-                    minMetersPerPixel = curAreaPerPixelInMeters;
+                    Vector3 ptUpperLeftCorner = camInst.CameraModel.Unproject(corners[0], minDist);
+                    Vector3 ptUpperRightCorner = camInst.CameraModel.Unproject(corners[1], minDist);
+                    Vector3 ptLowerRightCorner = camInst.CameraModel.Unproject(corners[2], minDist);
+                    Vector3 ptLowerLeftCorner = camInst.CameraModel.Unproject(corners[3], minDist);
+                    double projectedWidth = Vector3.Distance(ptUpperLeftCorner, ptUpperRightCorner);
+                    double projectedHeight = Vector3.Distance(ptUpperLeftCorner, ptLowerLeftCorner);
+                    double curAreaPerPixelInMeters = projectedWidth * projectedHeight;
+                    if (curAreaPerPixelInMeters < minMetersPerPixel)
+                    {
+                        minMetersPerPixel = curAreaPerPixelInMeters;
+                    }
                 }
+                catch (CameraModelException) {}
             }
 
             //convert area in m^2 of 1 pixel to number of pixels in 1 m^2

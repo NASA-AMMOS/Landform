@@ -132,7 +132,7 @@ namespace OPS.Geometry
         }
 
         /// <summary>
-        /// computes target bounds from image pixels
+        /// rewrite UVs, if necessary, to fill available texture resolution
         /// </summary>
         public static void RescaleUVsForTexture(this Mesh mesh, int texWidth, int texHeight, double borderPixels = 2,
                                                 double maxStretch = 1, double growThreshold = 0.1)
@@ -354,20 +354,20 @@ namespace OPS.Geometry
         /// add texture coordinates to a mesh by projecting vertices onto an image
         /// also optionally removes any vertices of the mesh that aren't visible in the image
         /// </summary>
-        public static void ProjectTexture(this Mesh mesh, Image img, bool removeVertsOutsideView = true,
-                                          bool processVertsInParallel = false, Matrix? meshToImage = null)
+        public static void ProjectTexture(this Mesh mesh, Image image, Matrix? meshToImage = null,
+                                          bool removeVertsOutsideView = true, bool processVertsInParallel = false)
         {
-            if (img.CameraModel == null)
+            if (image.CameraModel == null)
             {
                 throw new ArgumentException("image camera model required to project texture");
             }
-            mesh.ProjectTexture(img.Width, img.Height, img.CameraModel, removeVertsOutsideView, processVertsInParallel,
-                                meshToImage);
+            mesh.ProjectTexture(image.Width, image.Height, image.CameraModel, meshToImage,
+                                removeVertsOutsideView, processVertsInParallel);
         }
 
         public static void ProjectTexture(this Mesh mesh, int imgWidth, int imgHeight, CameraModel cameraModel,
-                                          bool removeVertsOutsideView = true, bool processVertsInParallel = false,
-                                          Matrix? meshToImage = null)
+                                          Matrix? meshToImage = null, bool removeVertsOutsideView = true,
+                                          bool processVertsInParallel = false)
         {
             Matrix xform = meshToImage ?? Matrix.Identity;
             ConcurrentBag<Vertex> verticesToRemove = new ConcurrentBag<Vertex>();

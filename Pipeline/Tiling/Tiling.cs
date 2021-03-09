@@ -25,13 +25,14 @@ namespace OPS.Pipeline
         public const int MIN_TILE_RESOLUTION = 16;
 
         public const double MAX_TEXELS_PER_METER = 1024;
+        public const bool TEXTURE_SPLIT_RESPECT_MAX_TEXELS_PER_METER = true; //requires refactoring command line options
 
         public const int MAX_TEXTURE_CHARTS = UVAtlas.DEF_MAX_CHARTS; //0 = unlimited
         public const double MAX_TEXTURE_STRETCH = UVAtlas.DEF_MAX_STRETCH; //0 = none, 1 = unlimited
 
-        public const bool POWER_OF_TWO_TEXTURES = false; //true requires refactoring comand line options
+        public const bool POWER_OF_TWO_TEXTURES = false; //requires refactoring comand line options
 
-        public const bool CONVERT_LINEAR_RGB_TO_SRGB = true; //true requires refactoring command line options
+        public const bool CONVERT_LINEAR_RGB_TO_SRGB = true; //requires refactoring command line options
 
         public const string EXPORT_DIR = "www";
         public const string TILESET_DIR = "www";
@@ -45,7 +46,7 @@ namespace OPS.Pipeline
         public const string TILESET_IMAGE_FORMAT = "png";
         public const string TILESET_INDEX_FORMAT = "png";
 
-        public const bool EMBED_INDEX_IMAGES = false; //true requires refactoring command line options
+        public const bool EMBED_INDEX_IMAGES = false; //requires refactoring command line options
 
         public const int MAX_LEAF_GROUP = 32;
 

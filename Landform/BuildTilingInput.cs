@@ -85,10 +85,10 @@ namespace OPS.Landform
         public bool NoRedoTileMeshUVs { get; set; }
 
         [Option(HelpText = "Percentage of pixels to test when deciding to split a tile based on resolution (speed vs quality), 0 disables texture based split", Default = TilingDefaults.TEX_SPLIT_PERCENT_TO_TEST)]
-        public double SplitByTexturePctToTest { get; set; }
+        public double SplitByTexturePercentToTest { get; set; }
 
         [Option(HelpText = "Percentage of pixels tested that should satisfy the requirement to avoid splitting a tile", Default = TilingDefaults.TEX_SPLIT_PERCENT_SATISFIED)]
-        public double SplitByTexturePctSatisfied { get; set; }
+        public double SplitByTexturePercentSatisfied { get; set; }
 
         [Option(HelpText = "Ratio of observation pixels to tile texels that would trigger a split", Default = TilingDefaults.TEX_SPLIT_MAX_PIXELS_PER_TEXEL)]
         public double SplitByTextureMaxPixelsPerTexel { get; set; }
@@ -584,8 +584,7 @@ namespace OPS.Landform
             {
                 throw new Exception("cannot project texture coordinates, no mesh-to-image transform");
             }
-            mesh.ProjectTexture(sceneTexture, removeVertsOutsideView: true, processVertsInParallel: false,
-                                meshToImage: meshToImage.Value);
+            mesh.ProjectTexture(sceneTexture, meshToImage.Value);
         }
 
         protected override Mesh AtlasMesh(Mesh mesh, int resolution, string name = null)
@@ -665,9 +664,9 @@ namespace OPS.Landform
             }
             else
             {
-                SplitByTextureOpts texSplitOpts = null;
+                TextureSplitOptions texSplitOpts = null;
                 bool pdsSceneCam = sceneTexture != null && sceneTexture.Metadata is PDSMetadata && meshToImage.HasValue;
-                if (withTextures && maxTileResolution > 0 && options.SplitByTexturePctToTest > 0 &&
+                if (withTextures && maxTileResolution > 0 && options.SplitByTexturePercentToTest > 0 &&
                     (textureMode == TextureMode.Backproject || pdsSceneCam))
                 {
                     CameraInstance[] cams = null;
@@ -681,12 +680,12 @@ namespace OPS.Landform
                                 return null;
                             }
                             CameraInstance cam = new CameraInstance();
-                            cam.cameraToMesh = xform.Mean;
-                            cam.meshToCamera = Matrix.Invert(xform.Mean);
-                            cam.cameraModel = obs.CameraModel;
-                            cam.hullInMesh = obsToHull[obs.Name];
-                            cam.widthPixels = obs.Width;
-                            cam.heightPixels = obs.Height;
+                            cam.CameraToMesh = xform.Mean;
+                            cam.MeshToCamera = Matrix.Invert(xform.Mean);
+                            cam.CameraModel = obs.CameraModel;
+                            cam.HullInMesh = obsToHull[obs.Name];
+                            cam.WidthPixels = obs.Width;
+                            cam.HeightPixels = obs.Height;
                             return cam;
                         }
                         cams = roverImages.Select(obsToCam).ToArray();
@@ -696,30 +695,32 @@ namespace OPS.Landform
                         var md = sceneTexture.Metadata as PDSMetadata;
                         var hullInCam = ConvexHull.FromParams(md.CameraModel, md.Width, md.Height);
                         var cam = new CameraInstance();
-                        cam.cameraToMesh = Matrix.Invert(meshToImage.Value);
-                        cam.meshToCamera = meshToImage.Value;
-                        cam.cameraModel = md.CameraModel;
-                        cam.hullInMesh = ConvexHull.Transformed(hullInCam, cam.cameraToMesh);
-                        cam.widthPixels = md.Width;
-                        cam.heightPixels = md.Height;
+                        cam.CameraToMesh = Matrix.Invert(meshToImage.Value);
+                        cam.MeshToCamera = meshToImage.Value;
+                        cam.CameraModel = md.CameraModel;
+                        cam.HullInMesh = ConvexHull.Transformed(hullInCam, cam.CameraToMesh);
+                        cam.WidthPixels = md.Width;
+                        cam.HeightPixels = md.Height;
                         cams = new CameraInstance[] { cam };
                     }
                     if (cams != null && cams.Length > 0 && sceneCaster != null)
                     {
-                        texSplitOpts = new SplitByTextureOpts()
+                        texSplitOpts = new TextureSplitOptions()
                         {
-                            pctPixelsToTest = options.SplitByTexturePctToTest,
-                            pctPixelsSatisfied = options.SplitByTexturePctSatisfied,
-                            maxPixelsPerTexel = options.SplitByTextureMaxPixelsPerTexel,
-                            maxTileResolution = maxTileResolution, //> 0 otherwise texture split would be disabled
-                            maxTexelsPerMeter = options.MaxTexelsPerMeter,
-                            maxTextureStretch = maxTextureStretch,
-                            powerOfTwoTextures = options.PowerOfTwoTextures,
-                            cameraInstances = cams,
-                            scInMesh = sceneCaster,
-                            raycastTolerance = options.RaycastTolerance,
-                            redoUVs = !options.NoRedoTileMeshUVs,
-                            warn = msg => pipeline.LogWarn(msg)
+                            RespectMaxTexelsPerMeter = !options.NoTextureSplitRespectMaxTexelsPerMeter,
+                            PercentPixelsToTest = options.SplitByTexturePercentToTest,
+                            PercentPixelsSatisfied = options.SplitByTexturePercentSatisfied,
+                            MaxPixelsPerTexel = options.SplitByTextureMaxPixelsPerTexel,
+                            MaxTileResolution = maxTileResolution, //> 0 otherwise texture split would be disabled
+                            MaxTexelsPerMeter = options.MaxTexelsPerMeter,
+                            MaxTextureStretch = maxTextureStretch,
+                            PowerOfTwoTextures = options.PowerOfTwoTextures,
+                            TextureMode = textureMode,
+                            CameraInstances = cams,
+                            SceneCaster = sceneCaster,
+                            RaycastTolerance = options.RaycastTolerance,
+                            RedoUVs = !options.NoRedoTileMeshUVs,
+                            Warn = msg => pipeline.LogWarn(msg)
                         };
                     }
                 }
@@ -728,13 +729,12 @@ namespace OPS.Landform
                                  texSplitOpts != null ?
                                  (", texture split enabled, max leaf texture resolution " + maxTileResolution) : "");
                 double surfaceExtent = sceneMesh != null ? sceneMesh.SurfaceExtent : -1;
-                tileTree = DefineTiles.BuildTileTreeFromInputs(pipeline,
-                                                               new List<MeshImagePair>() { new MeshImagePair(mesh) },
-                                                               options.TilingScheme, options.MaxFacesPerTile,
-                                                               options.MinTileExtent, surfaceExtent,
-                                                               texSplitOpts, !options.NoApproxTileSplit,
-                                                               info: msg => pipeline.LogInfo(msg),
-                                                               verbose: msg => pipeline.LogVerbose(msg));
+                tileTree = DefineTiles
+                    .BuildTileTreeFromInputs(pipeline, new List<MeshImagePair>() { new MeshImagePair(mesh) },
+                                             options.TilingScheme, options.MaxFacesPerTile, options.MinTileExtent,
+                                             surfaceExtent, texSplitOpts, !options.NoApproxTileSplit,
+                                             info: msg => pipeline.LogInfo(msg),
+                                             verbose: msg => pipeline.LogVerbose(msg));
             }
 
             tileTree.DumpStats(msg => pipeline.LogInfo(msg));

@@ -13,7 +13,7 @@ using OPS.RayTrace;
 namespace PipelineTest
 {
     [TestClass()]
-    public class ISplitCriteriaTests
+    public class SplitCriteriaTests
     {
         [TestMethod()]
         public void FaceShouldSplitTest()
@@ -98,23 +98,23 @@ namespace PipelineTest
             {
                 new CameraInstance()
                 {
-                    cameraToMesh = Matrix.Identity,
-                    meshToCamera = Matrix.Identity,
-                    cameraModel = cahv,
-                    hullInMesh = camHull,
-                    widthPixels = srcImageResolution,
-                    heightPixels = srcImageResolution
+                    CameraToMesh = Matrix.Identity,
+                    MeshToCamera = Matrix.Identity,
+                    CameraModel = cahv,
+                    HullInMesh = camHull,
+                    WidthPixels = srcImageResolution,
+                    HeightPixels = srcImageResolution
                 }
             };
 
-            SplitByTextureOpts opts = new SplitByTextureOpts()
+            TextureSplitOptions opts = new TextureSplitOptions()
             {
-                pctPixelsToTest = 0.5,
-                pctPixelsSatisfied = 0.75,
-                maxPixelsPerTexel = 2.0,
-                maxTileResolution = destTextureResolution,
-                cameraInstances = cameraInstances,
-                scInMesh = sc
+                PercentPixelsToTest = 0.5,
+                PercentPixelsSatisfied = 0.75,
+                MaxPixelsPerTexel = 2.0,
+                MaxTileResolution = destTextureResolution,
+                CameraInstances = cameraInstances,
+                SceneCaster = sc
             };
 
             ITileSplitCriteria split = new TextureSplitCriteriaBackproject(opts);

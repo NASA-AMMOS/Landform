@@ -287,7 +287,7 @@ namespace OPS.Pipeline
                 {
                     info("atlasing parent tile with texture projection");
                     parentMesh.ProjectTexture(textureProjector.ImageWidth, textureProjector.ImageHeight,
-                                              textureProjector.CameraModel, meshToImage: textureProjector.MeshToImage);
+                                              textureProjector.CameraModel, textureProjector.MeshToImage);
                     if (textureMode != TextureMode.Clip || textureImage == null)
                     {
                         parentMesh.RescaleUVsForTexture(textureSize, textureSize, maxTextureStretch);

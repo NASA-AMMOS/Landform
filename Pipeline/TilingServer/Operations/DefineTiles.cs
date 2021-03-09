@@ -382,7 +382,7 @@ namespace OPS.Pipeline.TilingServer
         public static SceneNode BuildTileTreeFromInputs(PipelineCore pipeline, List<MeshImagePair> pairs,
                                                         TilingScheme tilingScheme, int maxFacesPerTile,
                                                         double minTileExtent, double surfaceExtent = -1,
-                                                        SplitByTextureOpts texOpts = null,
+                                                        TextureSplitOptions texSplitOptions = null,
                                                         bool useTexSplitApprox = true,
                                                         Action<string> info = null, Action<string> verbose = null)
         {
@@ -400,15 +400,15 @@ namespace OPS.Pipeline.TilingServer
                 splitCriteria.Add(new FaceSplitCriteria(maxFacesPerTile));
             }
                 
-            if (texOpts != null)
+            if (texSplitOptions != null)
             {
                 if (useTexSplitApprox)
                 {
-                    splitCriteria.Add(new TextureSplitCriteriaApproximate(texOpts));
+                    splitCriteria.Add(new TextureSplitCriteriaApproximate(texSplitOptions));
                 }
                 else
                 {
-                    splitCriteria.Add(new TextureSplitCriteriaBackproject(texOpts));
+                    splitCriteria.Add(new TextureSplitCriteriaBackproject(texSplitOptions));
                 }
                
             }
