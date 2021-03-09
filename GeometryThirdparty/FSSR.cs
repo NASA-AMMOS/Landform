@@ -17,6 +17,8 @@ namespace OPS.Geometry
     /// </summary>
     public class FSSR
     {
+        public const double DEF_ENLARGE_PIXEL_SCALE = 2;
+
         private static readonly ILog logger = LogManager.GetLogger(typeof(FSSR));
 
         /// <summary>
@@ -55,7 +57,7 @@ namespace OPS.Geometry
             if (globalScale <= 0 && !useNormalLengthAsVertexScale)
             {
                 double maxDim = pointCloud.Bounds().MaxDimension();
-                globalScale = 2 * (maxDim / Math.Sqrt(pointCloud.Vertices.Count));
+                globalScale = DEF_ENLARGE_PIXEL_SCALE * (maxDim / Math.Sqrt(pointCloud.Vertices.Count));
                 if (!quiet)
                 {
                     logger.InfoFormat("computed global scale {0} for point cloud with max bound {1}m and {2} vertices",

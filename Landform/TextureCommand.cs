@@ -141,6 +141,11 @@ namespace OPS.Landform
 
         protected override bool ParseArgumentsAndLoadCaches(string outDir)
         {
+            if (tcopts.TextureFarClip > 0)
+            {
+                PDSImage.farLimit = tcopts.TextureFarClip;
+            }
+
             if (tcopts.DecimateWedgeImages < 0 || tcopts.DecimateWedgeImages > 1)
             {
                 throw new Exception("--decimatewedgeimages is not implemented for this command");

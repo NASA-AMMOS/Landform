@@ -17,6 +17,11 @@ namespace OPS.Pipeline
 {
     public class PDSImage
     {
+        public const int CROSS_NORMAL_RADIUS = 2;
+
+        public static double nearLimit = 1;
+        public static double farLimit = 100;
+
         public readonly Image Image;
         public readonly PDSMetadata Metadata;
         public readonly PDSParser Parser;
@@ -443,9 +448,9 @@ namespace OPS.Pipeline
             return ret;
         }
 
-        public double DistanceToConfidence(double distance, double minDist = 1, double maxDist = 100)
+        public double DistanceToConfidence(double distance)
         {
-            distance = Math.Max(Math.Min(distance, maxDist), minDist);
+            distance = Math.Max(Math.Min(distance, farLimit), nearLimit);
             return 1.0 / distance;
         }
 
@@ -518,26 +523,26 @@ namespace OPS.Pipeline
             return ret;
         }
 
-        public double DistanceToScale(int row, int col, double distance,
-                                      double minDist = 1, double maxDist = 100, double enlarge = 2)
+        public double DistanceToScale(int row, int col, double distance)
         {
             double def = 0.1;
             if (row < 0 || col < 0 || row >= Image.Height || col >= Image.Width ||
                 Image.Height == 0 || Image.Width == 0 || Image.CameraModel == null)
             {
-                return enlarge * def;
+                return FSSR.DEF_ENLARGE_PIXEL_SCALE * def;
             }
-            distance = Math.Max(Math.Min(distance, maxDist), minDist);
+            distance = Math.Max(Math.Min(distance, farLimit), nearLimit);
             int oRow = row > 0 ? row - 1 : row + 1;
             int oCol = col > 0 ? col - 1 : col + 1;
             try
             {
-                return enlarge * Vector3.Distance(Image.CameraModel.Unproject(new Vector2(col, row), distance),
-                                                  Image.CameraModel.Unproject(new Vector2(oCol, oRow), distance));
+                return FSSR.DEF_ENLARGE_PIXEL_SCALE *
+                    Vector3.Distance(Image.CameraModel.Unproject(new Vector2(col, row), distance),
+                                     Image.CameraModel.Unproject(new Vector2(oCol, oRow), distance));
             }
             catch (CameraModelException)
             {
-                return enlarge * def;
+                return FSSR.DEF_ENLARGE_PIXEL_SCALE * def;
             }
         }
 
@@ -580,7 +585,7 @@ namespace OPS.Pipeline
             var cns = new List<Vector3>(4);
             Vector3? crossNormal(int r, int c)
             {
-                int radius = 2;
+                int radius = CROSS_NORMAL_RADIUS;
                 if (points == null || !points.IsValid(r, c))
                 {
                     return null;
