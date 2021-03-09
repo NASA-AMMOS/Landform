@@ -122,7 +122,8 @@ namespace OPS.Pipeline.TilingServer
                     inputHasImages = true;
                     TilingInput ti = group.Input;
                     image = new SparsePipelineImage(pipeline, ti.ImageBands, ti.ImageWidth, ti.ImageHeight,
-                                                    chunkBaseUrl, ChunkInput.IMAGE_EXT, ChunkInput.CHUNK_RESOLUTION);
+                                                    chunkBaseUrl, ChunkInput.SPARSE_IMAGE_CHUNK_EXT,
+                                                    ChunkInput.SPARSE_IMAGE_CHUNK_RES);
                 }
                 if (!mergedMesh.HasUVs && inputNeedsUVs && textureProjector != null)
                 {

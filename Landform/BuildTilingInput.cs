@@ -656,10 +656,10 @@ namespace OPS.Landform
         {
             if (meshLOD.Count > 1)
             {
-                pipeline.LogInfo("building tile tree from {0} existing LODs, tiling scheme {1}",
-                                 meshLOD.Count, options.TilingScheme);
-                tileTree = DefineTiles.BuildTileTreeFromLODs(pipeline, options.TilingScheme, meshOpForLOD,
-                                                             options.MaxFacesPerTile,
+                pipeline.LogInfo("building tile tree from {0} existing LODs, tiling scheme {1}, min tile bounds {2}",
+                                 meshLOD.Count, options.TilingScheme, options.MinTileExtent);
+                tileTree = DefineTiles.BuildTileTreeFromLODs(pipeline, meshOpForLOD, options.TilingScheme,
+                                                             options.MaxFacesPerTile, options.MinTileExtent,
                                                              msg => pipeline.LogInfo(msg),
                                                              msg => pipeline.LogVerbose(msg));
             }
@@ -723,14 +723,16 @@ namespace OPS.Landform
                         };
                     }
                 }
-                pipeline.LogInfo("building tile tree, tiling scheme {0}, max {1} faces/leaf{2}",
-                                 options.TilingScheme, options.MaxFacesPerTile, texSplitOpts != null ?
+                pipeline.LogInfo("building tile tree, tiling scheme {0}, max {1} faces/leaf, min tile bounds {2}{3}",
+                                 options.TilingScheme, options.MaxFacesPerTile, options.MinTileExtent,
+                                 texSplitOpts != null ?
                                  (", texture split enabled, max leaf texture resolution " + maxTileResolution) : "");
                 double surfaceExtent = sceneMesh != null ? sceneMesh.SurfaceExtent : -1;
-                tileTree = DefineTiles.BuildTileTreeFromInputs(pipeline, options.TilingScheme, options.MaxFacesPerTile,
-                                                               options.PowerOfTwoTextures,
+                tileTree = DefineTiles.BuildTileTreeFromInputs(pipeline,
                                                                new List<MeshImagePair>() { new MeshImagePair(mesh) },
-                                                               texSplitOpts, !options.NoApproxTileSplit, surfaceExtent,
+                                                               options.TilingScheme, options.MaxFacesPerTile,
+                                                               options.MinTileExtent, surfaceExtent,
+                                                               texSplitOpts, !options.NoApproxTileSplit,
                                                                info: msg => pipeline.LogInfo(msg),
                                                                verbose: msg => pipeline.LogVerbose(msg));
             }

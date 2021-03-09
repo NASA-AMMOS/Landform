@@ -24,8 +24,11 @@ namespace OPS.TilingServer
         [Option(Default = TilingDefaults.TILING_SCHEME, HelpText = "tiling scheme (Bin, QuadX, QuadY, QuadZ, QuadAuto, Oct, UserDefined, Flat)")]
         public TilingScheme TilingScheme { get; set; }
 
-        [Option(Default = TilingDefaults.MAX_FACES_PER_TILE, HelpText = "target maximum faces per tile")]
+        [Option(Default = TilingDefaults.MAX_FACES_PER_TILE, HelpText = "maximum faces per tile")]
         public int MaxFacesPerTile { get; set; }
+
+        [Option(Default = TilingDefaults.MIN_TILE_EXTENT, HelpText = "minimum tile bounds extent")]
+        public double MinTileExtent { get; set; }
 
         [Option(Default = TilingDefaults.PARENT_RECONSTRUCTION_METHOD, HelpText = "parent tile mesh reconstruction method")]
         public MeshReconstructionMethod ParentReconstructionMethod { get; set; }
@@ -161,9 +164,10 @@ namespace OPS.TilingServer
 
                                          TilingScheme = options.TilingScheme,
                                          MaxFacesPerTile = options.MaxFacesPerTile,
+                                         MinTileExtent = options.MinTileExtent,
                                          ParentReconstructionMethod = options.ParentReconstructionMethod,
                                          SkirtMode = options.SkirtMode,
-
+                                             
                                          TextureMode = options.TextureMode,
                                          MaxTextureResolution = options.MaxTextureResolution,
                                          MaxTexelsPerMeter = options.MaxTexelsPerMeter,

@@ -29,6 +29,8 @@ namespace OPS.Pipeline.TilingServer
 
         public int MaxFacesPerTile = TilingDefaults.MAX_FACES_PER_TILE;
 
+        public double MinTileExtent = TilingDefaults.MIN_TILE_EXTENT;
+
         public MeshReconstructionMethod ParentReconstructionMethod = TilingDefaults.PARENT_RECONSTRUCTION_METHOD;
 
         public SkirtMode SkirtMode = TilingDefaults.SKIRT_MODE;

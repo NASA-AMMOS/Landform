@@ -232,8 +232,8 @@ namespace OPS.Pipeline.TilingServer
                     pairs.Add(DownloadInput(input));
                 }
                 LogInfo("loaded {0} input meshes, building tree", inputs.Count);
-                root = BuildTileTreeFromInputs(pipeline, tilingScheme, project.MaxFacesPerTile,
-                                               project.PowerOfTwoTextures, pairs,
+                root = BuildTileTreeFromInputs(pipeline, pairs, tilingScheme, project.MaxFacesPerTile,
+                                               project.MinTileExtent,
                                                info: msg => LogInfo(msg), verbose: msg => LogVerbose(msg));
             }
 
@@ -314,8 +314,9 @@ namespace OPS.Pipeline.TilingServer
         /// limited to a maximum height equal to the given number of LODs.  Otherwise the tree topology is determined
         /// entirely from the given number of LODs and the tiling scheme.</param>
         /// <returns></returns>
-        public static SceneNode BuildTileTreeFromLODs(PipelineCore pipeline, TilingScheme tilingScheme,
-                                                      List<MeshOperator> lodMeshOps, int maxFacesPerTile = -1,
+        public static SceneNode BuildTileTreeFromLODs(PipelineCore pipeline, List<MeshOperator> lodMeshOps,
+                                                      TilingScheme tilingScheme, int maxFacesPerTile = -1,
+                                                      double minTileExtent = 0,
                                                       Action<string> info = null, Action<string> verbose = null)
         {
             if (lodMeshOps.Count < 2)
@@ -329,22 +330,20 @@ namespace OPS.Pipeline.TilingServer
                                  lodMeshOps[0].CountVertices(), lodMeshOps[1].CountVertices());
             }
 
-            info($"building bounds tree from {lodMeshOps.Count} LOD meshes");
-
             if (maxFacesPerTile > 0)
             {
                 info($"building bounds tree using up to {lodMeshOps.Count} existing LODs with {tilingScheme} tiling, " +
-                     $"{Fmt.KMG(maxFacesPerTile)} max faces per tile");
+                     $"min tile extent {minTileExtent:F3}, {Fmt.KMG(maxFacesPerTile)} max faces per tile");
                 return BuildBoundsTree(new MeshOperator[] { lodMeshOps[0] }, tilingScheme, 
                                        new ITileSplitCriteria[] { new FaceSplitCriteria(maxFacesPerTile) },
-                                       maxHeight: lodMeshOps.Count, info: info, verbose: verbose);
+                                       minTileExtent, maxHeight: lodMeshOps.Count, info: info, verbose: verbose);
             }
             else
             {
                 info($"building bounds tree to fill {lodMeshOps.Count} existing LODs with {tilingScheme} tiling, " +
-                     "no tile split criteria");
+                     $"no tile split criteria, min tile extent {minTileExtent:F3}");
 
-                var scheme = TilingSchemeBase.Create(tilingScheme);
+                var scheme = TilingSchemeBase.Create(tilingScheme, minTileExtent);
                 
                 var lodBounds = lodMeshOps.Select(op => op.Bounds).ToArray();
                 
@@ -364,9 +363,13 @@ namespace OPS.Pipeline.TilingServer
                     {                    
                         var bounds = node.GetComponent<NodeBounds>().Bounds;
                         int counter = 0; //note this is always exactly one decimal digit
-                        foreach (var cb in scheme.Split(bounds).Where(b => !meshOp.Empty(b)))
+                        var cb = scheme.Split(bounds).Where(b => !meshOp.Empty(b)).ToArray();
+                        if (cb.Length > 1)
                         {
-                            currentLevelNodes.Add(CreateChildNode(node, cb, ref counter, meshOp));
+                            foreach (var b in cb)
+                            {
+                                currentLevelNodes.Add(CreateChildNode(node, b, ref counter, meshOp));
+                            }
                         }
                     }
                     previousLevelNodes = currentLevelNodes;
@@ -376,10 +379,11 @@ namespace OPS.Pipeline.TilingServer
             }
         }
 
-        public static SceneNode BuildTileTreeFromInputs(PipelineCore pipeline, TilingScheme tilingScheme,
-                                                        int maxFacesPerTile, bool powerOfTwoTextures,
-                                                        List<MeshImagePair> pairs, SplitByTextureOpts texOpts = null,
-                                                        bool useTexSplitApprox = true, double surfaceExtent = -1,
+        public static SceneNode BuildTileTreeFromInputs(PipelineCore pipeline, List<MeshImagePair> pairs,
+                                                        TilingScheme tilingScheme, int maxFacesPerTile,
+                                                        double minTileExtent, double surfaceExtent = -1,
+                                                        SplitByTextureOpts texOpts = null,
+                                                        bool useTexSplitApprox = true,
                                                         Action<string> info = null, Action<string> verbose = null)
         {
             var meshOps = pairs
@@ -389,8 +393,13 @@ namespace OPS.Pipeline.TilingServer
                 .ToArray();
 
             //lower cost split criteria come before higher cost
-            var splitCriteria = new List<ITileSplitCriteria> { new FaceSplitCriteria(maxFacesPerTile) };
+            var splitCriteria = new List<ITileSplitCriteria>();
 
+            if (maxFacesPerTile > 0)
+            {
+                splitCriteria.Add(new FaceSplitCriteria(maxFacesPerTile));
+            }
+                
             if (texOpts != null)
             {
                 if (useTexSplitApprox)
@@ -404,17 +413,17 @@ namespace OPS.Pipeline.TilingServer
                
             }
 
-            return BuildBoundsTree(meshOps, tilingScheme, splitCriteria.ToArray(), surfaceExtent,
+            return BuildBoundsTree(meshOps, tilingScheme, splitCriteria.ToArray(), minTileExtent, surfaceExtent,
                                    info: info, verbose: verbose);
         }
 
         public static SceneNode BuildBoundsTree(MultiMeshClipper multiClipper, TilingScheme tilingScheme,
-                                                ITileSplitCriteria[] splitCriteria, double surfaceExtent = -1,
-                                                int maxHeight = -1,
+                                                ITileSplitCriteria[] splitCriteria, double minTileExtent,
+                                                double surfaceExtent = -1, int maxHeight = -1,
                                                 Action<string> info = null, Action<string> verbose = null)
         {
-            return BuildBoundsTree(multiClipper.GetMeshOps(), tilingScheme, splitCriteria, surfaceExtent, maxHeight,
-                                   info, verbose);
+            return BuildBoundsTree(multiClipper.GetMeshOps(), tilingScheme, splitCriteria, minTileExtent,
+                                   surfaceExtent, maxHeight, info, verbose);
         }
 
         //build a tile tree based on the geometry of the finest LOD mesh, represented by one or more meshOps
@@ -425,8 +434,8 @@ namespace OPS.Pipeline.TilingServer
         //thus each node name encodes a full path from the root to the node
         //and the collection of all leaf names encodes the full tree topology
         public static SceneNode BuildBoundsTree(MeshOperator[] meshOps, TilingScheme tilingScheme,
-                                                ITileSplitCriteria[] splitCriteria, double surfaceExtent = -1,
-                                                int maxHeight = -1,
+                                                ITileSplitCriteria[] splitCriteria, double minTileExtent,
+                                                double surfaceExtent = -1, int maxHeight = -1,
                                                 Action<string> info = null, Action<string> verbose = null)
         {
             info = info ?? (msg => { });
@@ -439,8 +448,8 @@ namespace OPS.Pipeline.TilingServer
                 fsStatus = Fmt.KMG(fs.maxFaces);
             }
             string tsStatus = splitCriteria.Any(sc => sc is TextureSplitCriteria) ? "enabled" : "disabled";
-            info($"building bounds tree, {tilingScheme} tiling scheme, {splitCriteria.Length} split criteria: " +
-                 $"{fsStatus} max faces per tile, texture split {tsStatus}");
+            info($"building bounds tree, min tile extent {minTileExtent:F3}, {tilingScheme} tiling scheme, " +
+                 $"{splitCriteria.Length} split criteria: {fsStatus} max faces per tile, texture split {tsStatus}");
 
             var totalBounds = BoundingBoxExtensions.Union(meshOps.Select(mo => mo.Bounds).ToArray());
 
@@ -461,7 +470,7 @@ namespace OPS.Pipeline.TilingServer
 
             root.AddComponent(new NodeBounds(totalBounds));
 
-            var scheme = TilingSchemeBase.Create(tilingScheme);
+            var scheme = TilingSchemeBase.Create(tilingScheme, minTileExtent);
 
             int surfaceTiles = 0, orbitalTiles = 0, surfaceSplits = 0, orbitalSplits = 0;
             var previousLevelNodes = new ConcurrentBag<SceneNode> { root };
@@ -484,45 +493,45 @@ namespace OPS.Pipeline.TilingServer
                         Interlocked.Increment(ref surfaceTiles);
                     }
                     bool shouldSplit = false;
-                    foreach (var criteria in sc)
+                    foreach (var crit in sc)
                     {
-                        if (criteria.ShouldSplit(bounds, meshOps))
+                        if (crit.ShouldSplit(bounds, meshOps))
                         {
                             shouldSplit = true;
-                            verbose($"splitting tile {node.Name} due to {criteria.GetType().Name}");
+                            verbose($"attempting to split tile {node.Name} due to {crit.GetType().Name}");
                             break;
                         }
                     }
                     if (shouldSplit)
                     {
-                        if (sc == orbitalSplitCriteria)
+                        var childrenBounds = scheme.Split(bounds).Where(b => meshOps.Any(op => !op.Empty(b))).ToArray();
+                        if (childrenBounds.Length > 1)
                         {
-                            Interlocked.Increment(ref orbitalSplits);
+                            if (sc == orbitalSplitCriteria)
+                            {
+                                Interlocked.Increment(ref orbitalSplits);
+                            }
+                            else
+                            {
+                                Interlocked.Increment(ref surfaceSplits);
+                            }
+                            verbose($"split tile {node.Name} ({tilingScheme}, min axis {bounds.MinAxis()}): " +
+                                    bounds.Fmt() + " -> " + string.Join(", ", childrenBounds.Select(cb => cb.Fmt())));
+                            
+                            int counter = 0; //note this is always exactly one decimal digit
+                            foreach (var childBounds in childrenBounds)
+                            {
+                                var child = CreateChildNode(node, childBounds, ref counter, meshOps);
+                                currentLevelNodes.Add(child);
+                                verbose($"made child {child.Name} " +
+                                        $"({childBounds.Fmt()} -> {child.GetComponent<NodeBounds>().Bounds.Fmt()}) " +
+                                        $"of {node.Name} ({bounds.Fmt()})");
+                            }
                         }
                         else
                         {
-                            Interlocked.Increment(ref surfaceSplits);
+                            verbose($"did not split tile {node.Name}: split resulted in less than two children");
                         }
-
-                        var childrenBounds = scheme.Split(bounds);
-                        verbose($"split tile {node.Name} ({tilingScheme}, min axis {bounds.MinAxis()}): " +
-                                bounds.Fmt() + " -> " + string.Join(", ", childrenBounds.Select(cb => cb.Fmt())));
-                        childrenBounds = childrenBounds.Where(b => meshOps.Any(op => !op.Empty(b)));
-                        verbose($"filtered child bounds: " + string.Join(", ", childrenBounds.Select(cb => cb.Fmt())));
-
-                        int counter = 0; //note this is always exactly one decimal digit
-                        foreach (var childBounds in childrenBounds)
-                        {
-                            var child = CreateChildNode(node, childBounds, ref counter, meshOps);
-                            currentLevelNodes.Add(child);
-                            verbose($"made child {child.Name} " +
-                                    $"({childBounds.Fmt()} -> {child.GetComponent<NodeBounds>().Bounds.Fmt()}) " +
-                                    $"of {node.Name} ({bounds.Fmt()})");
-                        }
-                    }
-                    else
-                    {
-                        verbose($"not splitting {node.Name}");
                     }
                 });
                 previousLevelNodes = currentLevelNodes;
@@ -544,13 +553,14 @@ namespace OPS.Pipeline.TilingServer
             Image image = null;
             if (input.ImageUrl != null)
             {
-                if (input.ImageWidth < ChunkInput.CHUNK_RESOLUTION && input.ImageHeight < ChunkInput.CHUNK_RESOLUTION)
+                if (input.ImageWidth < ChunkInput.SPARSE_IMAGE_CHUNK_RES &&
+                    input.ImageHeight < ChunkInput.SPARSE_IMAGE_CHUNK_RES)
                 {
                     image = pipeline.LoadImage(input.ImageUrl);
                 }
                 else
                 {
-                    image = new SparsePipelineImage(pipeline, input.ImageUrl, ChunkInput.CHUNK_RESOLUTION);
+                    image = new SparsePipelineImage(pipeline, input.ImageUrl, ChunkInput.SPARSE_IMAGE_CHUNK_RES);
                 }
             }
             Mesh mesh = null;
