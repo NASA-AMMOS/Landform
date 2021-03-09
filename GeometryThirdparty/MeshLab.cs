@@ -16,7 +16,7 @@ namespace OPS.Geometry
     /// Exposes mesh operations that are implemented in MeshLab
     /// Filters are tested against MeshLab_2016
     /// </summary>
-    public class MeshLab
+    public static class MeshLab
     {
         private static readonly ILog logger = LogManager.GetLogger(typeof(MeshLab));
 
@@ -112,7 +112,7 @@ namespace OPS.Geometry
         /// <param name="m"></param>
         /// <param name="targetFaces"></param>
         /// <returns></returns>
-        public static Mesh Decimate(Mesh m, int targetFaces = 2000)
+        public static Mesh Decimated(Mesh m, int targetFaces = 2000)
         {
             if (m.Faces.Count == 0)
             {
@@ -146,7 +146,6 @@ namespace OPS.Geometry
             return result;
         }
 
-
         /// <summary>
         /// Decimate a mesh to the desired number of faces by sampling it's surface and remeshing the sampled point cloud
         /// Does not retain uvs or colors but will recompute normals if they exist in the input mesh
@@ -156,7 +155,7 @@ namespace OPS.Geometry
         /// <param name="numSamples"></param>
         /// <param name="targetFaces"></param>
         /// <returns></returns>
-        public static Mesh ResampleDecimation(Mesh m, int numSamples = 2000, int targetFaces = 2000)
+        public static Mesh ResampleDecimated(Mesh m, int numSamples = 2000, int targetFaces = 2000)
         {
             if (m.Faces.Count == 0)
             {

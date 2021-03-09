@@ -84,6 +84,9 @@ namespace OPS.Landform
         [Option(Default = false, HelpText = "Don't replace existing tile mesh texture coordinates with UVAtlas or texture projection")]
         public bool NoRedoTileMeshUVs { get; set; }
 
+        [Option(HelpText = "Don't respect --maxtexelspermeter when splitting tiles if more texture resolution is available from source images", Default = !TilingDefaults.TEXTURE_SPLIT_RESPECT_MAX_TEXELS_PER_METER)]
+        public bool NoTextureSplitRespectMaxTexelsPerMeter { get; set; }
+
         [Option(HelpText = "Percentage of pixels to test when deciding to split a tile based on resolution (speed vs quality), 0 disables texture based split", Default = TilingDefaults.TEX_SPLIT_PERCENT_TO_TEST)]
         public double SplitByTexturePercentToTest { get; set; }
 
@@ -126,12 +129,15 @@ namespace OPS.Landform
 
     public class BuildTilingInput : TilingCommand
     {
+        public const double SYNTHESIZE_RELATIVE_THRESHOLD = 0.5;
+
         private BuildTilingInputOptions options;
 
         private bool tacticalFrame;
         private string inputTexturePDS;
         private Matrix? meshToImage; //non-null iff texture projection enabled
         private TextureMode textureMode = TextureMode.None;
+        private TextureSplitOptions textureSplitOptions;
 
         public BuildTilingInput(BuildTilingInputOptions options) : base(options)
         {
@@ -161,15 +167,21 @@ namespace OPS.Landform
 
                 RunPhase("build acceleration datastructures", BuildMeshOperator);
 
-                if (withTextures && textureMode == TextureMode.Backproject)
+                if (withTextures)
                 {
-                    //most of this is needed for texture split criteria in addition to backproject
-                    //so needs to be set up before BuildTileTree()
-                    RunPhase("checking/generating observation image masks", BuildObservationImageMasks);
-                    RunPhase("build observation frustum hulls", BuildObsHulls);
                     RunPhase("build occlusion datastructures", BuildSceneCaster);
+                    bool canUseTextureSplit = CanUseTextureSplit();
+                    if (roverImages != null && (textureMode == TextureMode.Backproject || canUseTextureSplit))
+                    {
+                        RunPhase("checking/generating observation image masks", BuildObservationImageMasks);
+                        RunPhase("build observation frustum hulls", BuildObsHulls);
+                    }
+                    if (canUseTextureSplit)
+                    {
+                        RunPhase("configure texture split criteria", ConfigureTextureSplitCriteria);
+                    }
                 }
-
+                    
                 RunPhase("build tile tree", BuildTileTree);
 
                 if (meshLOD.Count > 1)
@@ -651,90 +663,115 @@ namespace OPS.Landform
             }
         }
 
+        private bool HasPDSSceneCamera()
+        {
+            return sceneTexture != null && sceneTexture.Metadata is PDSMetadata && meshToImage.HasValue;
+        }
+
+        private bool CanUseTextureSplit()
+        {
+            if (maxTileResolution < 0)
+            {
+                pipeline.LogInfo("texture split disabled, unlimited tile resolution");
+                return false;
+            }
+
+            if (options.SplitByTexturePercentToTest <= 0)
+            {
+                pipeline.LogInfo("texture split disabled, percent to test = 0");
+                return false;
+            }
+
+            if (!(textureMode == TextureMode.Backproject || HasPDSSceneCamera()))
+            {
+                pipeline.LogInfo("texture split disabled, texture mode is not backproject and no PDS scene camera");
+                return false;
+            }
+
+            return true;
+        }
+
+        private void ConfigureTextureSplitCriteria()
+        {
+            CameraInstance[] cams = null;
+            if (imageObservations != null && frameCache != null && obsToHull != null)
+            {
+                CameraInstance obsToCam(Observation obs)
+                {
+                    var xform = frameCache.GetObservationTransform(obs, meshFrame, options.UsePriors);
+                    if (xform == null)
+                    {
+                        return null;
+                    }
+                    CameraInstance cam = new CameraInstance();
+                    cam.CameraToMesh = xform.Mean;
+                    cam.MeshToCamera = Matrix.Invert(xform.Mean);
+                    cam.CameraModel = obs.CameraModel;
+                    cam.HullInMesh = obsToHull[obs.Name];
+                    cam.WidthPixels = obs.Width;
+                    cam.HeightPixels = obs.Height;
+                    return cam;
+                }
+                cams = roverImages.Select(obsToCam).ToArray();
+            }
+            else if (HasPDSSceneCamera())
+            {
+                var md = sceneTexture.Metadata as PDSMetadata;
+                var hullInCam = ConvexHull.FromParams(md.CameraModel, md.Width, md.Height);
+                var cam = new CameraInstance();
+                cam.CameraToMesh = Matrix.Invert(meshToImage.Value);
+                cam.MeshToCamera = meshToImage.Value;
+                cam.CameraModel = md.CameraModel;
+                cam.HullInMesh = ConvexHull.Transformed(hullInCam, cam.CameraToMesh);
+                cam.WidthPixels = md.Width;
+                cam.HeightPixels = md.Height;
+                cams = new CameraInstance[] { cam };
+            }
+
+            if (cams == null || cams.Length == 0)
+            {
+                pipeline.LogInfo("texture split disabled, no available cameras");
+                return;
+            }
+
+            pipeline.LogInfo("texture split enabled");
+
+            textureSplitOptions = new TextureSplitOptions()
+            {
+                RespectMaxTexelsPerMeter = !options.NoTextureSplitRespectMaxTexelsPerMeter,
+                PercentPixelsToTest = options.SplitByTexturePercentToTest,
+                PercentPixelsSatisfied = options.SplitByTexturePercentSatisfied,
+                MaxPixelsPerTexel = options.SplitByTextureMaxPixelsPerTexel,
+                MaxTileResolution = maxTileResolution, //> 0 otherwise texture split would be disabled
+                MaxTexelsPerMeter = options.MaxTexelsPerMeter,
+                MaxTextureStretch = maxTextureStretch,
+                PowerOfTwoTextures = options.PowerOfTwoTextures,
+                TextureMode = textureMode,
+                CameraInstances = cams,
+                SceneCaster = sceneCaster,
+                RaycastTolerance = options.RaycastTolerance,
+                RedoUVs = !options.NoRedoTileMeshUVs,
+                Warn = msg => pipeline.LogWarn(msg)
+            };
+        }
+
         private void BuildTileTree()
         {
             if (meshLOD.Count > 1)
             {
-                pipeline.LogInfo("building tile tree from {0} existing LODs, tiling scheme {1}, min tile bounds {2}",
-                                 meshLOD.Count, options.TilingScheme, options.MinTileExtent);
-                tileTree = DefineTiles.BuildTileTreeFromLODs(pipeline, meshOpForLOD, options.TilingScheme,
-                                                             options.MaxFacesPerTile, options.MinTileExtent,
-                                                             msg => pipeline.LogInfo(msg),
-                                                             msg => pipeline.LogVerbose(msg));
+                tileTree = DefineTiles
+                    .BuildTileTreeFromLODs(meshOpForLOD, options.TilingScheme, options.MaxFacesPerTile,
+                                           options.MinTileExtent, textureSplitOptions, !options.NoApproxTileSplit,
+                                           msg => pipeline.LogInfo(msg), msg => pipeline.LogVerbose(msg));
             }
             else
             {
-                TextureSplitOptions texSplitOpts = null;
-                bool pdsSceneCam = sceneTexture != null && sceneTexture.Metadata is PDSMetadata && meshToImage.HasValue;
-                if (withTextures && maxTileResolution > 0 && options.SplitByTexturePercentToTest > 0 &&
-                    (textureMode == TextureMode.Backproject || pdsSceneCam))
-                {
-                    CameraInstance[] cams = null;
-                    if (imageObservations != null && frameCache != null && obsToHull != null)
-                    {
-                        CameraInstance obsToCam(Observation obs)
-                        {
-                            var xform = frameCache.GetObservationTransform(obs, meshFrame, options.UsePriors);
-                            if (xform == null)
-                            {
-                                return null;
-                            }
-                            CameraInstance cam = new CameraInstance();
-                            cam.CameraToMesh = xform.Mean;
-                            cam.MeshToCamera = Matrix.Invert(xform.Mean);
-                            cam.CameraModel = obs.CameraModel;
-                            cam.HullInMesh = obsToHull[obs.Name];
-                            cam.WidthPixels = obs.Width;
-                            cam.HeightPixels = obs.Height;
-                            return cam;
-                        }
-                        cams = roverImages.Select(obsToCam).ToArray();
-                    }
-                    else if (pdsSceneCam)
-                    {
-                        var md = sceneTexture.Metadata as PDSMetadata;
-                        var hullInCam = ConvexHull.FromParams(md.CameraModel, md.Width, md.Height);
-                        var cam = new CameraInstance();
-                        cam.CameraToMesh = Matrix.Invert(meshToImage.Value);
-                        cam.MeshToCamera = meshToImage.Value;
-                        cam.CameraModel = md.CameraModel;
-                        cam.HullInMesh = ConvexHull.Transformed(hullInCam, cam.CameraToMesh);
-                        cam.WidthPixels = md.Width;
-                        cam.HeightPixels = md.Height;
-                        cams = new CameraInstance[] { cam };
-                    }
-                    if (cams != null && cams.Length > 0 && sceneCaster != null)
-                    {
-                        texSplitOpts = new TextureSplitOptions()
-                        {
-                            RespectMaxTexelsPerMeter = !options.NoTextureSplitRespectMaxTexelsPerMeter,
-                            PercentPixelsToTest = options.SplitByTexturePercentToTest,
-                            PercentPixelsSatisfied = options.SplitByTexturePercentSatisfied,
-                            MaxPixelsPerTexel = options.SplitByTextureMaxPixelsPerTexel,
-                            MaxTileResolution = maxTileResolution, //> 0 otherwise texture split would be disabled
-                            MaxTexelsPerMeter = options.MaxTexelsPerMeter,
-                            MaxTextureStretch = maxTextureStretch,
-                            PowerOfTwoTextures = options.PowerOfTwoTextures,
-                            TextureMode = textureMode,
-                            CameraInstances = cams,
-                            SceneCaster = sceneCaster,
-                            RaycastTolerance = options.RaycastTolerance,
-                            RedoUVs = !options.NoRedoTileMeshUVs,
-                            Warn = msg => pipeline.LogWarn(msg)
-                        };
-                    }
-                }
-                pipeline.LogInfo("building tile tree, tiling scheme {0}, max {1} faces/leaf, min tile bounds {2}{3}",
-                                 options.TilingScheme, options.MaxFacesPerTile, options.MinTileExtent,
-                                 texSplitOpts != null ?
-                                 (", texture split enabled, max leaf texture resolution " + maxTileResolution) : "");
-                double surfaceExtent = sceneMesh != null ? sceneMesh.SurfaceExtent : -1;
                 tileTree = DefineTiles
-                    .BuildTileTreeFromInputs(pipeline, new List<MeshImagePair>() { new MeshImagePair(mesh) },
+                    .BuildTileTreeFromInputs(new List<MeshImagePair>() { new MeshImagePair(mesh) },
                                              options.TilingScheme, options.MaxFacesPerTile, options.MinTileExtent,
-                                             surfaceExtent, texSplitOpts, !options.NoApproxTileSplit,
-                                             info: msg => pipeline.LogInfo(msg),
-                                             verbose: msg => pipeline.LogVerbose(msg));
+                                             sceneMesh != null ? sceneMesh.SurfaceExtent : -1, textureSplitOptions,
+                                             !options.NoApproxTileSplit,
+                                             msg => pipeline.LogInfo(msg), msg => pipeline.LogVerbose(msg));
             }
 
             tileTree.DumpStats(msg => pipeline.LogInfo(msg));
@@ -777,7 +814,17 @@ namespace OPS.Landform
 
             int rootLOD = assignLODsAndCollectNodes(tileTree);
 
-            pipeline.LogInfo("using {0}/{1} existing LODs", rootLOD + 1, meshLOD.Count);
+            if (rootLOD >= meshLOD.Count && !string.IsNullOrEmpty(options.FixupLODs))
+            {
+                SynthesizeExtraLODs(rootLOD + 1);
+            }
+
+            int nearestAvailableLOD(int lod)
+            {
+                return rootLOD < meshLOD.Count ? lod : (int)Math.Round(((double)lod / rootLOD) * (meshLOD.Count - 1));
+            }
+
+            pipeline.LogInfo("using {0}/{1} LODs", rootLOD + 1, meshLOD.Count);
 
             int numFailed = 0, curNode = 0, numNodes = nodes.Count, np = 0;
             CoreLimitedParallel.ForEach(nodes, node =>
@@ -791,7 +838,7 @@ namespace OPS.Landform
                                     curNode, numNodes, 100 * curNode / (float)numNodes,
                                     np > 1 ? ", processing " + np + " in parallel" : "", node.Name, lod);
 
-                Mesh tileMesh = MakeTileMesh(node, meshOpForLOD[lod]);
+                Mesh tileMesh = MakeTileMesh(node, meshOpForLOD[nearestAvailableLOD(lod)]);
 
                 if (tileMesh != null && (!withTextures || tileMesh.HasUVs))
                 {
@@ -809,6 +856,57 @@ namespace OPS.Landform
             {
                 pipeline.LogWarn("failed to generate meshes for {0} tiles", numFailed);
             }
+        }
+
+        private void SynthesizeExtraLODs(int newNumLODs)
+        {
+            while (newNumLODs > meshLOD.Count)
+            {
+                int maxDiff = 0;
+                int srcLOD = 0;
+                for (int i = 0; i < meshLOD.Count - 1; i++)
+                {
+                    int diff = meshLOD[i].Faces.Count - meshLOD[i + 1].Faces.Count;
+                    if (diff > maxDiff)
+                    {
+                        maxDiff = diff;
+                        srcLOD = i;
+                    }
+                }
+
+                Mesh srcMesh = meshLOD[srcLOD];
+                Mesh newMesh = srcMesh;
+                if (maxDiff > SYNTHESIZE_RELATIVE_THRESHOLD * srcMesh.Faces.Count)
+                {
+                    int target = srcMesh.Faces.Count - (int)(0.5 * maxDiff);
+                    pipeline.LogInfo("inserting new LOD by decimating LOD {0} ({1} tris) to {2} tris with {3}",
+                                     srcLOD, Fmt.KMG(srcMesh.Faces.Count), Fmt.KMG(target), options.MeshDecimator);
+                    newMesh = srcMesh.Decimated(target, options.MeshDecimator);
+                }
+
+                //insert newMesh at appropriate spot
+                //understanding that its actual face count might not be target
+                //LODs are kept in descending order from finest to coarsest
+                int newIdx = 0;
+                while (newIdx < meshLOD.Count && newMesh.Faces.Count <= meshLOD[newIdx].Faces.Count)
+                {
+                    newIdx++;
+                }
+                if (newMesh != srcMesh)
+                {
+                    pipeline.LogInfo("inserting new LOD with {0} tris " +
+                                     "between LODs {1} ({2} tris) and {3} ({4} tris)",
+                                     Fmt.KMG(newMesh.Faces.Count), newIdx - 1,
+                                     Fmt.KMG(newIdx - 1 >= 0 ? meshLOD[newIdx - 1].Faces.Count : 0), newIdx,
+                                     Fmt.KMG(newIdx < meshLOD.Count ? meshLOD[newIdx].Faces.Count : 0));
+                    
+                }
+                meshLOD.Insert(newIdx, newMesh); //inserts new item *before* existing item at specified index
+            }
+
+            mesh = meshLOD.First();
+
+            BuildMeshOperator();
         }
 
         private void BuildLeafMeshes()

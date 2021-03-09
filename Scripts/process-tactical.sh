@@ -91,6 +91,7 @@ USAGE: process-tactical.sh IN_DIR MISSION [OUT_DIR]
 [--suffix foo] [--dryrun] [--help] [--nocleanup] [--onlycleanup] [--redo]
 [--writedebug] [--debug] [--verbose] [--singlethreaded]
 [--meshregex mission,auto_iv,auto_obj[_lod_fn],...]
+[--meshgeometry mission,Linearized,Raw,Any]
 [--nolods] [--maxtileresolution N]
 [--exportmeshext ply] [--exportimgext png]
 [--searchargs \"--arg val\"] [--configargs \"--arg val\"]
@@ -134,6 +135,7 @@ export=
 
 tileres=512
 meshregex=mission
+meshgeom=mission
 searchargs=
 cfgargs=
 tilingargs=
@@ -167,6 +169,7 @@ while (( "$#" )); do
         "--nolods") lods=;;
         "--maxtileresolution") shift; expect $# "max tile resolution"; tileres=$1;;
         "--meshregex") shift; expect $# "mesh regex"; meshregex=$1;;
+        "--meshgeom") shift; expect $# "mesh geom"; meshgeom=$1;;
         "--searchargs") shift; expect $# "search args"; searchargs="$1";;
         "--configargs") shift; expect $# "config args"; cfgargs="$1";;
         "--tilingargs") shift; expect $# "tiling args"; tilingargs="$1";;
@@ -181,7 +184,7 @@ if [ -d "$indir" ] && [[ "$indir" != */ ]]; then indir="${indir}/"; fi
 
 if [ ! -d "$outdir" ]; then mkdir -p $outdir; fi
 
-echo "processing $mission $meshregex tactical meshes from $indir to $outdir"
+echo "processing $mission $meshregex $meshgeom tactical meshes from $indir to $outdir"
 
 while read -r line; do
 
@@ -280,4 +283,4 @@ while read -r line; do
         fi
         printf "\r\n" | tee -a $log
     fi
-done < <($landform process-tactical --mission $mission --inputpath $indir --recursivesearch --resolveinputs --quiet --meshregex $meshregex $searchargs)
+done < <($landform process-tactical --mission $mission --inputpath $indir --recursivesearch --resolveinputs --quiet --meshregex $meshregex --meshgeometry $meshgeom $searchargs)

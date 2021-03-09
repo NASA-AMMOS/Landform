@@ -15,10 +15,10 @@ namespace OPS.Geometry
     public enum MeshDecimationMethod
     {
         EdgeCollapse, //EdgeCollapse.QuadricEdgeCollapse()
-        ResampleFSSR, //MeshExtensions.ResampleDecimation(MeshReconstructionMethod.FSSR)
-        ResamplePoisson, //MeshExtensions.ResampleDecimation(MeshReconstructionMethod.Poisson)
-        MeshLab, //MeshLab.Decimate()
-        MeshLabResample //MeshLab.ResampleDecimation()
+        ResampleFSSR, //MeshExtensions.ResampleDecimated(MeshReconstructionMethod.FSSR)
+        ResamplePoisson, //MeshExtensions.ResampleDecimated(MeshReconstructionMethod.Poisson)
+        MeshLab, //MeshLab.Decimated()
+        MeshLabResample //MeshLab.ResampleDecimated()
     }
 
     public static class MeshExtensions
@@ -29,9 +29,9 @@ namespace OPS.Geometry
         /// <summary>
         /// preserves (or possibly adds) normals but loses colors and UVs
         /// </summary>
-        public static Mesh Decimate(this Mesh m, int targetFaces,
-                                    MeshDecimationMethod method = MeshDecimationMethod.ResampleFSSR,
-                                    BoundingBox? clippingBounds = null, Vector3? upAxis = null)
+        public static Mesh Decimated(this Mesh m, int targetFaces,
+                                     MeshDecimationMethod method = MeshDecimationMethod.ResampleFSSR,
+                                     BoundingBox? clippingBounds = null, Vector3? upAxis = null)
         {
             switch (method)
             {
@@ -59,15 +59,15 @@ namespace OPS.Geometry
                 }
                 case MeshDecimationMethod.ResampleFSSR:
                 {
-                    return ResampleDecimation(m, targetFaces, MeshReconstructionMethod.FSSR, clippingBounds, upAxis);
+                    return ResampleDecimated(m, targetFaces, MeshReconstructionMethod.FSSR, clippingBounds, upAxis);
                 }
                 case MeshDecimationMethod.ResamplePoisson:
                 {
-                    return ResampleDecimation(m, targetFaces, MeshReconstructionMethod.Poisson, clippingBounds, upAxis);
+                    return ResampleDecimated(m, targetFaces, MeshReconstructionMethod.Poisson, clippingBounds, upAxis);
                 }
                 case MeshDecimationMethod.MeshLab:
                 {
-                    m = MeshLab.Decimate(m, targetFaces);
+                    m = MeshLab.Decimated(m, targetFaces);
                     if (clippingBounds.HasValue)
                     {
                         m.Clip(clippingBounds.Value);
@@ -76,7 +76,7 @@ namespace OPS.Geometry
                 }
                 case MeshDecimationMethod.MeshLabResample:
                 {
-                    m = MeshLab.ResampleDecimation(m, (int)(DEF_SAMPLES_PER_FACE * targetFaces), targetFaces);
+                    m = MeshLab.ResampleDecimated(m, (int)(DEF_SAMPLES_PER_FACE * targetFaces), targetFaces);
                     if (clippingBounds.HasValue)
                     {
                         m.Clip(clippingBounds.Value);
@@ -93,10 +93,10 @@ namespace OPS.Geometry
         /// then run QuadricEdgeCollapse
         /// preserves or adds normals but loses colors and UVs
         /// </summary>
-        public static Mesh ResampleDecimation(this Mesh m, int targetFaces,
-                                              MeshReconstructionMethod method = MeshReconstructionMethod.FSSR,
-                                              BoundingBox? clippingBounds = null, Vector3? upAxis = null,
-                                              double samplesPerFace = DEF_SAMPLES_PER_FACE)
+        public static Mesh ResampleDecimated(this Mesh m, int targetFaces,
+                                             MeshReconstructionMethod method = MeshReconstructionMethod.FSSR,
+                                             BoundingBox? clippingBounds = null, Vector3? upAxis = null,
+                                             double samplesPerFace = DEF_SAMPLES_PER_FACE)
         {
             double area = m.SurfaceArea();
             if (area < 1e-10)

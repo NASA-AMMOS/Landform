@@ -227,8 +227,8 @@ namespace OPS.Pipeline
             //create a copy of the combined child meshes clipped to the actual node bounds
             //we'll use this for three purposes
             //(1) if it's empty, we early out
-            //(2) if it's already got few enough faces, we'll use it directly instead of calling ResampleDecimation()
-            //(3) if we do call ResampleDecimation() we'll use it to compute geometric error
+            //(2) if it's already got few enough faces, we'll use it directly instead of calling ResampleDecimated()
+            //(3) if we do call ResampleDecimated() we'll use it to compute geometric error
             //note: Mesh.Clip() calls Mesh.Clean() which calls Mesh.NormalizeNormals()
             var combinedClipped = combinedMesh.Clipped(clippingBounds);
 
@@ -243,8 +243,8 @@ namespace OPS.Pipeline
                 return false;
             }
 
-            // if the combined mesh is already less than the target face count we can skip the ResampleDecimation
-            // also has the benifit of avoiding ResampleDecimation on low face count meshes which can sometimes fail
+            // if the combined mesh is already less than the target face count we can skip the ResampleDecimated()
+            // also has the benifit of avoiding ResampleDecimated() on low face count meshes which can sometimes fail
             var parentMesh = combinedClipped;
             if (parentMesh.Faces.Count > maxFaceCountTarget)
             {
@@ -254,12 +254,12 @@ namespace OPS.Pipeline
                     BoundingBoxExtensions.CreateScaled(clippingBounds, TilingDefaults.PARENT_DECIMATE_BOUNDS_RATIO);
                 var decimateSrc = combinedMesh.Clipped(srcBounds);
 
-                //note: ResampleDecimation() calls Mesh.Clean() and Mesh.GenerateVertexNormals()
+                //note: ResampleDecimated() calls Mesh.Clean() and Mesh.GenerateVertexNormals()
                 parentMesh =
-                    decimateSrc.ResampleDecimation((int)(maxFaceCountTarget * TilingDefaults.PARENT_FACE_COUNT_RATIO),
-                                                   reconstructionMethod, clippingBounds: clippingBounds,
-                                                   upAxis: BoundingBoxExtensions.GetBoxAxisDirection(upAxis),
-                                                   samplesPerFace: TilingDefaults.PARENT_SAMPLES_PER_FACE);
+                    decimateSrc.ResampleDecimated((int)(maxFaceCountTarget * TilingDefaults.PARENT_FACE_COUNT_RATIO),
+                                                  reconstructionMethod, clippingBounds: clippingBounds,
+                                                  upAxis: BoundingBoxExtensions.GetBoxAxisDirection(upAxis),
+                                                  samplesPerFace: TilingDefaults.PARENT_SAMPLES_PER_FACE);
             }
             else
             {
@@ -456,7 +456,7 @@ namespace OPS.Pipeline
         /// <summary>
         /// Add or recompute NodeGeometricError.
         ///
-        /// Assumes the node's children are available and already have their errors computed.
+        /// Assumes the node's dependencies are available and already have their errors computed.
         ///
         /// https://github.com/CesiumGS/3d-tiles/blob/master/3d-tiles-overview.pdf
         /// discusses specifically what the geometric error is supposed to represent in section 5 - Geometric Error:
@@ -465,14 +465,14 @@ namespace OPS.Pipeline
         ///
         /// For a leaf node the error is always 0.
         ///
-        /// For a node with no mesh of its own the error is the max of its children's errors.
+        /// For a node with no mesh of its own the error is the max of its dependencies' errors.
         ///
         /// Otherwise, for a parent node we essentially compute the the Hausdorff distance between the decimated mesh,
-        /// if any, vs the child meshes.  We then add that to the maximum geometric error of any of the children.
-        /// Because none of that will account for situations where the parent geometry is good but its texture is less
-        /// good, we also estimate the effective parent mesh texture resolution in units of lineal meters per texel,
-        /// multiplied by an adjustment factor.  If that is larger than th Hausdorff distance it is used instead
-        /// (i.e. instead of the sum of the Hausdorff distance and the max child error).
+        /// if any, vs the dependency meshes.  We then add that to the maximum geometric error of any of the
+        /// dependencies.  Because none of that will account for situations where the parent geometry is good but its
+        /// texture is less good, we also estimate the effective parent mesh texture resolution in units of lineal
+        /// meters per texel, multiplied by an adjustment factor.  If that is larger than th Hausdorff distance it is
+        /// used instead (i.e. instead of the sum of the Hausdorff distance and the max dependency error).
         ///
         /// Yes, this is quite confusing.  Consider the effect in the viewer, where the maximum screenspace error
         /// threshold is set at say 16 pixels.

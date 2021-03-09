@@ -125,9 +125,6 @@ namespace OPS.Landform
 
         [Option(Default = TextureCommand.DEF_FIXUP_LODS, HelpText = "Create or fix LOD meshes, comma separated list of min-max ranges, finest to coarsest")]
         public string FixupLODs{ get; set; }
-
-        [Option(Default = 512, HelpText = "Max tile image resolution, negative for unlimited, 0 disables texturing")]
-        public int MaxTileResolution { get; set; }
     }
 
     public class ProcessTactical : LandformService
@@ -977,7 +974,6 @@ namespace OPS.Landform
             string destDir = TILESET_SUBDIR; //default output to ./TILESET_SUBDIR (e.g. if input is a filename)
             string loadLODs = !options.NoLoadExistingLODs ? "--loadlods" : "";
             string fixupLODs = options.FixupLODs;
-            string tileRes = options.MaxTileResolution.ToString();
 
             pipeline.LogInfo("building tileset {0} for {1}", project, mip.url);
 
@@ -1007,11 +1003,10 @@ namespace OPS.Landform
 
                 if (!options.NoTileset)
                 {
-                    RunCommand("build-tiling-input", project, "--mission", fullMissionStr, "--meshframe", "tactical",
-                               "--inputmesh", meshFile, "--inputtexture", imageFile, "--tileresolution", tileRes,
-                               loadLODs, "--fixuplods", fixupLODs);
-
-                    BuildTileset(project, "--tileresolution", tileRes);
+                    BuildTilingInput(project, "--mission", fullMissionStr, "--meshframe", "tactical", "--inputmesh",
+                                     meshFile, "--inputtexture", imageFile, loadLODs, "--fixuplods", fixupLODs);
+                    
+                    BuildTileset(project);
 
                     if (IsPDS(imageFile))
                     {

@@ -116,7 +116,8 @@ namespace OPS.Pipeline.TilingServer
             }
             else
             {
-                LogLess("generating parent {0} geometric error from {1} tiles", message.TileId, parent.DependsOn.Count);
+                LogLess("parent {0} already has mesh, generating geometric error from {1} tiles",
+                        message.TileId, parent.DependsOn.Count);
                 parentSceneNode.AddComponent<MeshImagePair>(parent.LoadMeshImagePair(pipeline));
                 parentSceneNode.UpdateGeometricError(dependencies.Select(d => idToNode[d.Id]).ToList(),
                                                      info: msg => LogLess(msg));

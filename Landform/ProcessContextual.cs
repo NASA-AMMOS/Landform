@@ -940,7 +940,7 @@ namespace OPS.Landform
                 
                 if (!options.NoTileset)
                 {
-                    RunCommand("build-tiling-input", project, allowUnmasked);
+                    BuildTilingInput(project, allowUnmasked);
                     
                     RunCommand("blend-images", project, allowUnmasked);
                     

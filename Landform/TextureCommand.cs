@@ -98,7 +98,7 @@ namespace OPS.Landform
 
     public class TextureCommand : GeometryCommand
     {
-        public const string DEF_FIXUP_LODS = "90000-300000,20000-90000,4000-20000,1000-4000,100-1000";
+        public const string DEF_FIXUP_LODS = "90000-300000,20000-100000,4000-30000,1000-5000,100-2000";
 
         protected TextureCommandOptions tcopts;
 
@@ -559,11 +559,22 @@ namespace OPS.Landform
         protected void FixupLODs(int[][] ranges)
         {
             var newLODs = new Mesh[ranges.Length];
+            var used = new bool[meshLOD.Count];
             for (int i = 0; i < ranges.Length; i++)
             {
-                int s = meshLOD.FindIndex(m => (ranges[i][0] <= m.Faces.Count && m.Faces.Count <= ranges[i][1]));
+                int s = -1;
+                for (int j = 0; j < meshLOD.Count; j++)
+                {
+                    int fc = meshLOD[j].Faces.Count; 
+                    if (!used[j] && (ranges[i][0] <= fc && fc <= ranges[i][1]))
+                    {
+                        s = j;
+                        break;
+                    }
+                }
                 if (s >= 0)
                 {
+                    used[s] = true;
                     Mesh src = meshLOD[s];
                     pipeline.LogInfo("using source LOD {0} with {1} tris for fixed up LOD {2} ({3}-{4})",
                                      s, Fmt.KMG(src.Faces.Count), i, Fmt.KMG(ranges[i][0]), Fmt.KMG(ranges[i][1]));
@@ -592,7 +603,7 @@ namespace OPS.Landform
                             pipeline.LogInfo("decimating {0} LOD {1} from {2} to {3} triangles for fixed up lod {4}",
                                              st, s, Fmt.KMG(src.Faces.Count), Fmt.KMG(target), i);
                         }
-                        newLODs[i] = src.Decimate(target, tcopts.MeshDecimator);
+                        newLODs[i] = src.Decimated(target, tcopts.MeshDecimator);
                         pipeline.LogInfo("decimated {0} tri {1} LOD {2} for fixed up LOD {3} ({4}-{5}) " +
                                          "to {6} (target {7}) tris with {8}", Fmt.KMG(src.Faces.Count), st, s, i,
                                          Fmt.KMG(ranges[i][0]), Fmt.KMG(ranges[i][1]),

@@ -722,7 +722,7 @@ namespace OPS.Pipeline
             }
             else
             {
-                mesh = lodMeshes.Last().Decimate(maxTris, opts.MeshDecimator);
+                mesh = lodMeshes.Last().Decimated(maxTris, opts.MeshDecimator);
                 pipeline.LogVerbose("{0}; decimated coarsest LOD {1} ({2} <= {3} tris) with {4} for wedge mesh {5}",
                                     msg, lodMeshes.Count - 1, Fmt.KMG(mesh.Faces.Count), Fmt.KMG(maxTris),
                                     opts.MeshDecimator, meshUrl);

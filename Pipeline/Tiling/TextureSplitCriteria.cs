@@ -56,7 +56,8 @@ namespace OPS.Pipeline
 
     abstract public class TextureSplitCriteria : ITileSplitCriteria
     {
-        protected TextureSplitOptions options;
+        public readonly TextureSplitOptions options;
+
         protected bool spewProgress;
 
         public TextureSplitCriteria(TextureSplitOptions opts)

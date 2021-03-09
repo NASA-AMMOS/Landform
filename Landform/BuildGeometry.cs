@@ -1308,7 +1308,7 @@ namespace OPS.Landform
             pipeline.LogInfo("decimating mesh with {0}, target {1} faces",
                              options.MeshDecimator, Fmt.KMG(options.TargetSceneMeshFaces));
 
-            mesh = mesh.Decimate(options.TargetSceneMeshFaces, options.MeshDecimator);
+            mesh = mesh.Decimated(options.TargetSceneMeshFaces, options.MeshDecimator);
 
             pipeline.LogInfo("decimated mesh to {0} faces", Fmt.KMG(mesh.Faces.Count));
 

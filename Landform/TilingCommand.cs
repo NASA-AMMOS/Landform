@@ -33,9 +33,6 @@ namespace OPS.Landform
         [Option(HelpText = "Max texels per meter (lineal not areal), 0 or negative for unlimited", Default = TilingDefaults.MAX_TEXELS_PER_METER)]
         public double MaxTexelsPerMeter { get; set; }
 
-        [Option(HelpText = "Don't respect --maxtexelspermeter when splitting tiles if more texture resolution is available from source images", Default = !TilingDefaults.TEXTURE_SPLIT_RESPECT_MAX_TEXELS_PER_METER)]
-        public bool NoTextureSplitRespectMaxTexelsPerMeter { get; set; }
-
         [Option(HelpText = "Max tile texture atlas stretch (0 = no stretch, 1 = unlimited)", Default = TilingDefaults.MAX_TEXTURE_STRETCH)]
         public override double MaxTextureStretch { get; set; }
 
