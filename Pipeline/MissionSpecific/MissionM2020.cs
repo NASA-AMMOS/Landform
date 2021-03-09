@@ -589,14 +589,14 @@ namespace OPS.Pipeline
                 "}";
         }
 
-        protected string GetPlacesConfigDefaults(string url)
+        protected string GetPlacesConfigDefaults(string url, string views = "best_interp")
         {
             //From RGD: this is basically the same as MSL, except some of the names have changed.
             //There are three views you  might care about (there are a few others you won't):
             //
             //telemetry
-            //best_tactical
-            //best_interp
+            //best_tactical (during early mission this view was borked)
+            //best_interp <- best and should fall back to others 
             //
             //Telemetry contains whatever the rover sent, period.
             //It has all frames we know anything about, but NO localization whatsoever.
@@ -616,8 +616,8 @@ namespace OPS.Pipeline
             //discontinuous drive path that way.
             return "{\n" +
                 $"\"Url\": \"{url}\",\n" +
-                "\"Views\": \"telemetry,best_tactical,best_interp\",\n" +
-                "\"AlwaysCheckRMC\": true,\n" +
+                "\"Views\": \"{views}\",\n" +
+                "\"AlwaysCheckRMC\": false,\n" +
                 "\"AuthCookieName\": \"ssosession\",\n" +
                 $"\"AuthCookieFile\": \"~/.cssotoken/{venue}/ssosession\"\n" +
                 "}";
@@ -714,7 +714,8 @@ namespace OPS.Pipeline
 
         public override string GetPlacesConfigDefaults()
         {
-            return GetPlacesConfigDefaults("https://places-external-roastt.m20-training.jpl.nasa.gov/m2020-places");
+            return GetPlacesConfigDefaults("https://places-external-roastt.m20-training.jpl.nasa.gov/m2020-places",
+                                           "telemetry");
         }
 
         public override RoverProductGeometry GetTacticalMeshGeometry()
@@ -768,7 +769,7 @@ namespace OPS.Pipeline
 
         public override string GetPlacesConfigDefaults()
         {
-            return GetPlacesConfigDefaults("https://places-sstage.m20.jpl.nasa.gov");
+            return GetPlacesConfigDefaults("https://places-sstage.m20.jpl.nasa.gov", "telemetry");
         }
 
         public override RoverProductGeometry GetTacticalMeshGeometry()
@@ -951,7 +952,7 @@ namespace OPS.Pipeline
             //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/725#issuecomment-267319
             //per Kevin Grimes on 3/18/20 ROASTT20 data will soon move to
             //https://places-roastt.dev.m20.jpl.nasa.gov
-            return GetPlacesConfigDefaults("https://places-rocs.{venue}.m20.jpl.nasa.gov");
+            return GetPlacesConfigDefaults("https://places-rocs.{venue}.m20.jpl.nasa.gov", "telemetry");
         }
 
         public override RoverProductGeometry GetTacticalMeshGeometry()
