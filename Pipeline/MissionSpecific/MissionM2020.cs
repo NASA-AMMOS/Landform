@@ -595,8 +595,8 @@ namespace OPS.Pipeline
             //There are three views you  might care about (there are a few others you won't):
             //
             //telemetry
-            //best_tactical (during early mission this view was borked)
-            //best_interp <- best and should fall back to others 
+            //best_tactical (NB: during early mission this view was borked)
+            //best_interp (NB: best and should fall back to others)
             //
             //Telemetry contains whatever the rover sent, period.
             //It has all frames we know anything about, but NO localization whatsoever.
@@ -616,7 +616,7 @@ namespace OPS.Pipeline
             //discontinuous drive path that way.
             return "{\n" +
                 $"\"Url\": \"{url}\",\n" +
-                "\"Views\": \"{views}\",\n" +
+                "\"View\": \"{views}\",\n" +
                 "\"AlwaysCheckRMC\": false,\n" +
                 "\"AuthCookieName\": \"ssosession\",\n" +
                 $"\"AuthCookieFile\": \"~/.cssotoken/{venue}/ssosession\"\n" +

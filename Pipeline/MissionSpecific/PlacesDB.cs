@@ -35,8 +35,8 @@ namespace OPS.Pipeline
         //null or empty disables PlacesDB
         //default may be overridden by MissionSpecific.GetPlacesConfigDefaults()
         //can be one or more comma separated views, in order of preference from worst to best (best last)
-        [ConfigEnvironmentVariable("LANDFORM_PLACES_VIEWS")]
-        public string Views { get; set; }
+        [ConfigEnvironmentVariable("LANDFORM_PLACES_VIEW")]
+        public string View { get; set; }
 
         //username for http basic auth
         //default is null whcih means disable basic auth
@@ -137,7 +137,7 @@ namespace OPS.Pipeline
                 throw new Exception("no PlacesDB URL");
             }
 
-            views = StringHelper.ParseList(config.Views);
+            views = StringHelper.ParseList(config.View);
             if (views.Length == 0)
             {
                 throw new Exception("no PlacesDB views");
@@ -758,6 +758,21 @@ namespace OPS.Pipeline
             return drive > 0 ? $"rover({site},{drive},{POSE_IDENTIFIER})" : $"site({site})";
         }
 
+        /// <summary>
+        /// Generally one single view is sufficient for a whole mission.  Typically an "interp" view which contains
+        /// interpolated poses between drive endpoints.  If the best view doesn't contain a solution for a particular
+        /// from/to query pair, then typically the query will then default to "parent" views up to the telemetry
+        /// view. (As per Kevin Grimes "deep=true" is implied for from/to queries.)
+        /// However, we have seen Things.
+        /// Such as the M20 SOPS PlacesDB hanging on from/to queries in the "best_tactical" view.
+        /// This is a bit of logic that attempts to find a view which should contain solutions for all the refs.
+        /// It is a bit flawed because even if the view/VIEW/rmc/REF query fails, the from/to query could still succeed.
+        /// Due to the implied deep=true on the from/to query (there is no deep option for the RMC query at the time of
+        /// this writing).
+        /// Basically the common cases are still
+        /// * only one view available, so that is always simply returned
+        /// * two refs and !config.AlwaysCheckRMC, so a (cached) from/to query is attempted for each view in order
+        /// </summary>
         private string GetBestView(params string[] refs)
         {
             string all = String.Join(",", refs);

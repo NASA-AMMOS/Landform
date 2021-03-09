@@ -329,7 +329,7 @@ namespace OPS.Pipeline
 
             return "{\n" +
                 $"\"Url\": \"https://places-msl.{venue}.m20.jpl.nasa.gov\",\n" +
-                "\"Views\": \"localized_interp\",\n" +
+                "\"View\": \"localized_interp\",\n" +
                 "\"AlwaysCheckRMC\": false,\n" +
                 "\"AuthCookieName\": \"ssosession\",\n" +
                 $"\"AuthCookieFile\": \"~/.cssotoken/{venue}/ssosession\"\n" +
