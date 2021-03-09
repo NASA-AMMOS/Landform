@@ -355,7 +355,7 @@ namespace OPS.Pipeline.TilingServer
                 root.AddComponent(new NodeBounds(BoundingBoxExtensions.Union(lodBounds)));
                 
                 var previousLevelNodes = new List<SceneNode> { root };
-                for (int lod = lodMeshOps.Count - 2; lod >= 0; lod--)
+                for (int lod = lodMeshOps.Count - 2; lod >= 0 && previousLevelNodes.Count > 0; lod--)
                 {
                     var meshOp = lodMeshOps[lod];
                     var currentLevelNodes = new List<SceneNode>();
