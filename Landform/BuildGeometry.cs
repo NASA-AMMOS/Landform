@@ -179,7 +179,7 @@ namespace OPS.Landform
         [Option(HelpText = "Don't remove islands after Poisson reconstruction but before surface trimming", Default = false)]
         public bool NoPoissonRemoveIslands { get; set; }
 
-        [Option(HelpText = "Scale observation point cloud normals by confidence and then apply this exponent in Poisson reconstruction (disabled if 0)", Default = PoissonReconstruction.DEF_CONFIDENCE_EXPONENT)]
+        [Option(HelpText = "Scale observation point cloud normals by confidence and then apply this exponent in Poisson reconstruction, 0 disables, negative for auto", Default = -1)]
         public double PoissonConfidenceExponent { get; set; }
 
         [Option(HelpText = "Min required samples per octree cell in Poisson reconstruction, higher for noiser data", Default = 15)]
@@ -398,6 +398,12 @@ namespace OPS.Landform
                 .Cast<RoverObservation>()
                 .ToArray();
 
+            double poissonConfidenceExponent = options.PoissonConfidenceExponent;
+            if (poissonConfidenceExponent < 0)
+            {
+                poissonConfidenceExponent = options.NoOrbital ? 0 : PoissonReconstruction.DEF_CONFIDENCE_EXPONENT;
+            }
+
             poissonOpts = new PoissonReconstruction.Options
             {
                 Boundary = PoissonReconstruction.DEF_BOUNDARY_TYPE,
@@ -405,7 +411,7 @@ namespace OPS.Landform
                 OctreeDepth = options.PoissonTreeDepth,
                 MinOctreeSamplesPerCell = options.PoissonMinSamplesPerCell,
                 BSplineDegree = options.PoissonBSplineDegree,
-                ConfidenceExponent = options.PoissonConfidenceExponent,
+                ConfidenceExponent = poissonConfidenceExponent,
                 TrimmerLevel = options.PoissonTrimmerLevel,
                 PassEnvelopeToPoisson = options.PassEnvelopeToPoisson,
                 ClipToEnvelope = !options.NoPoissonClipToEnvelope,
@@ -472,7 +478,7 @@ namespace OPS.Landform
             };
 
             if ((options.ReconstructionMethod == MeshReconstructionMethod.Poisson) &&
-                (options.PoissonConfidenceExponent != 0))
+                (poissonConfidenceExponent != 0))
             {
                 wedgeMeshOpts.NormalScale = NormalScale.Confidence;
             }

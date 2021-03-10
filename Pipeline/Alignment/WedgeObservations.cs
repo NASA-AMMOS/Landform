@@ -526,23 +526,23 @@ namespace OPS.Pipeline
             }
 
             NormalsImage = null;
+            Image normScale = null;
             if (Normals != null)
             {
                 pipeline.LogVerbose("loading normals {0}", Normals.Url);
-                Image scale = null;
                 if (pointsRaw != null && opts.NormalScale != NormalScale.None)
                 {
                     switch (opts.NormalScale)
                     {
-                        case NormalScale.Confidence: scale = (new PDSImage(pointsRaw)).GenerateConfidence(); break;
-                        case NormalScale.PointScale: scale = (new PDSImage(pointsRaw)).GenerateScale(); break;
+                        case NormalScale.Confidence: normScale = (new PDSImage(pointsRaw)).GenerateConfidence(); break;
+                        case NormalScale.PointScale: normScale = (new PDSImage(pointsRaw)).GenerateScale(); break;
                         default: throw new ArgumentException("unknown normal scaling mode " + opts.NormalScale);
                     }
                 }
                 try
                 {
                     NormalsImage = (new PDSImage(pipeline.LoadImage(Normals.Url)))
-                        .ConvertNormals(scale, PointsImage, opts.NormalFilter);
+                        .ConvertNormals(normScale, PointsImage, opts.NormalFilter);
                 }
                 catch (Exception ex)
                 {
@@ -553,7 +553,8 @@ namespace OPS.Pipeline
             MaskImage = null;
             if (masker != null)
             {
-                MaskImage = masker.LoadOrBuild(pipeline, Mask != null ? Mask.Url : null, pointsRaw.Metadata as PDSMetadata);
+                MaskImage =
+                    masker.LoadOrBuild(pipeline, Mask != null ? Mask.Url : null, pointsRaw.Metadata as PDSMetadata);
             }
 
             bool appliedMask = false;
@@ -568,7 +569,8 @@ namespace OPS.Pipeline
             if (opts.Decimate > 1 && NormalsImage != null)
             {
                 pipeline.LogVerbose("decimating normals {0}", Normals.Name);
-                NormalsImage = OrganizedPointCloud.MaskAndDecimateNormals(NormalsImage, opts.Decimate, MaskImage);
+                NormalsImage = OrganizedPointCloud.MaskAndDecimateNormals(NormalsImage, opts.Decimate, MaskImage,
+                                                                          normalize: normScale == null);
                 appliedMask = true;
             }
 

@@ -647,7 +647,7 @@ namespace OPS.Landform
         protected override void LoadInputMesh(bool requireUVs = true, bool requireNormals = true,
                                               bool onlyGenerateUVsWithTextureProjection = false)
         {
-            base.LoadInputMesh();
+            base.LoadInputMesh(requireUVs, requireNormals, onlyGenerateUVsWithTextureProjection);
             if (tilingTransform.HasValue)
             {
                 for (int i = 0; i < meshLOD.Count; i++)

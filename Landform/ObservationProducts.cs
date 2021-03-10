@@ -642,7 +642,8 @@ namespace OPS.Landform
                 normals = (new PDSImage(normals)).ConvertNormals(scale, points.ConvertPoints());
                 if (normals != null)
                 {
-                    normals = OrganizedPointCloud.MaskAndDecimateNormals(normals, mbs, mask);
+                    normals = OrganizedPointCloud.MaskAndDecimateNormals(normals, mbs, mask,
+                                                                         normalize: options.ConvertNormalsToTilts);
                     if (options.ConvertNormalsToTilts)
                     {
                         normals = OrganizedPointCloud.NormalsToTilt(normals, options.TiltMode);
@@ -677,7 +678,7 @@ namespace OPS.Landform
                 {
                     var normals = (new PDSImage(pipeline.LoadImage(obs.Normals.Url))).ConvertNormals();
                     points = OrganizedPointCloud.MaskAndDecimatePoints(points, mbs, mask);
-                    normals = OrganizedPointCloud.MaskAndDecimateNormals(normals, mbs, mask);
+                    normals = OrganizedPointCloud.MaskAndDecimateNormals(normals, mbs, mask, normalize: true);
                     curvatures = OrganizedPointCloud.Curvatures(points, normals, !options.StretchContrast,
                                                                 options.CurvatureNeighborhood);
                 }
