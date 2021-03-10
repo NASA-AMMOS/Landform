@@ -1314,7 +1314,7 @@ namespace OPS.Landform
             pipeline.LogInfo("decimating mesh with {0}, target {1} faces",
                              options.MeshDecimator, Fmt.KMG(options.TargetSceneMeshFaces));
 
-            mesh = mesh.Decimated(options.TargetSceneMeshFaces, options.MeshDecimator);
+            mesh = mesh.Decimated(options.TargetSceneMeshFaces, options.MeshDecimator); //preserves normals
 
             pipeline.LogInfo("decimated mesh to {0} faces", Fmt.KMG(mesh.Faces.Count));
 
@@ -1366,12 +1366,8 @@ namespace OPS.Landform
         {
             if (options.NoOrbital || blendExtent == options.Extent || orbitalTextureMetersPerPixel <= 0)
             {
-                pipeline.LogInfo("no peripheral orbital, {0} atlassing full scene mesh", options.SurfaceUVMode);
-                mesh = AtlasMesh(mesh, sceneTextureResolution);
-                if (mesh == null)
-                {
-                    throw new Exception("atlasing failed");
-                }
+                pipeline.LogInfo("no peripheral orbital, {0} atlassing full scene mesh", options.AtlasMode);
+                AtlasMesh(mesh, sceneTextureResolution);
                 SaveDebugMesh(mesh, "atlassed");
                 return;
             }
@@ -1407,7 +1403,7 @@ namespace OPS.Landform
                 int surfacePixels = (int)Math.Ceiling(dstSurfaceFrac * res);
 
                 pipeline.LogInfo("{0} atlassing {1}x{1}m central submesh, resolution {2}x{2}",
-                                 options.SurfaceUVMode, blendExtent, surfacePixels);
+                                 options.AtlasMode, blendExtent, surfacePixels);
 
                 centralBounds = BoundsFromXYExtent(Vector3.Zero, blendExtent, meshBounds.Min.Z, meshBounds.Max.Z);
 
@@ -1415,16 +1411,11 @@ namespace OPS.Landform
 
                 SaveDebugMesh(centralMesh, "central");
 
-                switch (options.SurfaceUVMode)
+                switch (options.AtlasMode)
                 {
-                    case AtlasMode.UVAtlas: centralMesh = UVAtlasMesh(centralMesh, surfacePixels); break;
+                    case AtlasMode.UVAtlas: UVAtlasMesh(centralMesh, surfacePixels); break;
                     case AtlasMode.Heightmap: HeightmapAtlasMesh(centralMesh); break;
-                    default: throw new ArgumentException("unknown atlas mode: " + options.SurfaceUVMode);
-                }
-
-                if (centralMesh == null)
-                {
-                    throw new Exception("atlasing failed");
+                    default: throw new ArgumentException("unsupported atlas mode: " + options.AtlasMode);
                 }
 
                 SaveDebugMesh(centralMesh, "central-atlassed");

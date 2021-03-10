@@ -468,11 +468,13 @@ namespace OPS.Landform
                     throw new NotImplementedException("only expecting user defined or flat schemes in this function");
                 }
 
+                bool canProjectUVs = sceneMesh.TextureProjectorGuid != Guid.Empty;
+
                 var parentTileTextureMode = TextureMode.None;
                 if (withTextures)
                 {
                     parentTileTextureMode = TextureMode.Bake;
-                    if (tileList.TextureMode == TextureMode.Clip && sceneMesh.TextureProjectorGuid != Guid.Empty &&
+                    if (tileList.TextureMode == TextureMode.Clip && canProjectUVs &&
                         pipeline.GetDataProduct<TextureProjector>(project, sceneMesh.TextureProjectorGuid).TextureGuid
                         != Guid.Empty)
                     {
@@ -489,6 +491,7 @@ namespace OPS.Landform
                 tilingProject.ParentReconstructionMethod = tilingOpts.ParentReconstructionMethod;
                 tilingProject.SkirtMode = tilingOpts.SkirtMode;
 
+                tilingProject.AtlasMode = canProjectUVs ? AtlasMode.Project : TilingDefaults.ATLAS_MODE;
                 tilingProject.TextureMode = parentTileTextureMode;
                 tilingProject.MaxTextureResolution = maxTileResolution;
                 tilingProject.MaxTexelsPerMeter = tilingOpts.MaxTexelsPerMeter;
@@ -593,10 +596,11 @@ namespace OPS.Landform
 
         protected void BuildParentTilesAndSaveTileset()
         {
-            PipelineExecutive executive = null;
+            DeferredExecutive executive = null;
             if (pipeline is LocalPipeline)
             {
-                executive = PipelineExecutive.MakeExecutive(pipeline as LocalPipeline, ExecutionMode.Deferred);
+                executive = (DeferredExecutive)(PipelineExecutive.MakeExecutive(pipeline as LocalPipeline,
+                                                                                ExecutionMode.Deferred));
             }
 
             SceneNodeTilingExtensions.useTextureError = !tilingOpts.NoTextureError;
@@ -615,15 +619,34 @@ namespace OPS.Landform
 
                 //re-fetch project record to ensure database synchronization
                 tp = TilingProject.Find(pipeline, project.Name);
+
+                if (executive != null)
+                {
+                    if (executive.MasterError != null)
+                    {
+                        executive.Quit();
+                        throw executive.MasterError;
+                    }
+                    if (executive.WorkerError != null)
+                    {
+                        executive.Quit();
+                        throw executive.WorkerError;
+                    }
+                }
             }
             while (tp != null && !tp.FinishedRunning);
 
             if (executive != null)
             {
-                (executive as DeferredExecutive).Quit();
+                executive.Quit();
             }
 
             TilingNode.DumpLRUCacheStats(pipeline);
+
+            if (!string.IsNullOrEmpty(tp.ExecutionError))
+            {
+                throw new Exception("failed to build parent tiles and save tileset, " + tp.ExecutionError);
+            }
         }
 
         protected bool BackprojectTile(MeshImagePair mip, string tileName, SceneCaster meshCaster,

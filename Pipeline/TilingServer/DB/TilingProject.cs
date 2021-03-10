@@ -37,6 +37,8 @@ namespace OPS.Pipeline.TilingServer
 
         public SkirtMode SkirtMode = TilingDefaults.SKIRT_MODE;
 
+        public AtlasMode AtlasMode = TilingDefaults.ATLAS_MODE;
+
         public TextureMode TextureMode = TilingDefaults.TEXTURE_MODE;
 
         public int MaxTextureResolution = TilingDefaults.MAX_TILE_RESOLUTION;
@@ -52,6 +54,8 @@ namespace OPS.Pipeline.TilingServer
         public bool StartedRunning;
 
         public bool FinishedRunning;
+
+        public string ExecutionError;
 
         public string InputNamesUrl;
 

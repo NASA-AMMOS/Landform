@@ -148,20 +148,23 @@ namespace OPS.Pipeline
                 other.GetComponent<SceneNodeTilingNode>().TilingNode.ParentId == node.Name;
         }
 
+        //TilingServer.BuildParent.Process() builds a mini-scene graph with just this parent node as root
+        //and all its dependencies as first level descendants
+        public static void BuildParentGeometry(this SceneNode node, PipelineCore pipeline, TilingProject project,
+                                               Action<string> info = null)
+        {
+            node.BuildParentGeometry(pipeline, project, node, info);
+        }
+
         /// <summary>
         /// assumes all nodes below this node have been processed
         /// note that a parent node geometry may depend on more than just its own children
         /// see FindNodesRequiredForParent() for more info
         /// </summary>
-        public static bool BuildParentGeometry
-            (this SceneNode node, SceneNode root,
-             int maxFaceCountTarget, MeshReconstructionMethod reconstructionMethod, BoxAxis upAxis,
-             TextureMode textureMode, int maxTextureRes, double maxTexelsPerMeter, double maxTextureStretch,
-             bool powerOfTwoTextures, TextureProjector textureProjector = null, Image textureImage = null,
-             Action<string> info = null, Action<string> error = null)
+        public static void BuildParentGeometry(this SceneNode node, PipelineCore pipeline, TilingProject project,
+                                               SceneNode root, Action<string> info = null)
         {
             info = info ?? (msg => {});
-            error = error ?? (msg => {});
 
             var dependencies = FindNodesRequiredForParent(node, root);
 
@@ -199,22 +202,14 @@ namespace OPS.Pipeline
             //we want the combined mesh to have normals but not UVs or colors
             //because those attributes would not be compatible with FSSR
             //(and we will need to re-atlas the parent mesh in all cases anyway)
-            //var combinedMesh = MeshMerge.MergeWithCommonAttributes(depMeshes, clean: true, normalize: true);
             var combinedMesh = MeshMerge.Merge(hasNormals, false, false, depMeshes);
-
-            if (!combinedMesh.HasNormals)
-            {
-                info("generating normals for combined merged meshes to build parent");
-                combinedMesh.GenerateVertexNormals();
-            }
-
-            var clippingBounds = parentBounds;
 
             //the dependent meshes might have some noise due to decimation
             //and some tiles, particularly those that have only orbital geometry, can be extremely flat
             //leading to thin bounding boxes with faces largely parallel to and nearly coincident with the mesh
-            //if we have a defined upAxis then expand the clipping bounds in that direction
+            //expand the clipping bounds in the thinnest box direction
             //to avoid clipping highs and lows that might have gotten perturbed
+            var clippingBounds = parentBounds;
             var minAxis = clippingBounds.MinAxis(out double minDim);
             var otherDim = Math.Sqrt(clippingBounds.GetFaceAreaPerpendicularToAxis(minAxis));
             if (minDim < 0.5 * otherDim)
@@ -239,31 +234,38 @@ namespace OPS.Pipeline
 
             if (combinedClipped.Faces.Count == 0)
             {
-                error("parent tile mesh empty");
-                return false;
+                throw new Exception("parent tile mesh empty");
             }
+
+            Vector3? upAxis = MeshSkirt.SkirtAxis(project.SkirtMode);
 
             // if the combined mesh is already less than the target face count we can skip the ResampleDecimated()
             // also has the benifit of avoiding ResampleDecimated() on low face count meshes which can sometimes fail
             var parentMesh = combinedClipped;
-            if (parentMesh.Faces.Count > maxFaceCountTarget)
+            if (parentMesh.Faces.Count > project.MaxFacesPerTile)
             {
-                info($"decimating parent from {Fmt.KMG(parentMesh.Faces.Count)} to {Fmt.KMG(maxFaceCountTarget)} tris");
+                info($"decimating parent tile from {Fmt.KMG(parentMesh.Faces.Count)} " +
+                     $"to {Fmt.KMG(project.MaxFacesPerTile)} tris");
 
                 var srcBounds =
                     BoundingBoxExtensions.CreateScaled(clippingBounds, TilingDefaults.PARENT_DECIMATE_BOUNDS_RATIO);
                 var decimateSrc = combinedMesh.Clipped(srcBounds);
 
-                //note: ResampleDecimated() calls Mesh.Clean() and Mesh.GenerateVertexNormals()
-                parentMesh =
-                    decimateSrc.ResampleDecimated((int)(maxFaceCountTarget * TilingDefaults.PARENT_FACE_COUNT_RATIO),
-                                                  reconstructionMethod, clippingBounds: clippingBounds,
-                                                  upAxis: BoundingBoxExtensions.GetBoxAxisDirection(upAxis),
-                                                  samplesPerFace: TilingDefaults.PARENT_SAMPLES_PER_FACE);
+                if (!decimateSrc.HasNormals)
+                {
+                    decimateSrc.GenerateVertexNormals();
+                }
+
+                int targetTris = (int)(project.MaxFacesPerTile * TilingDefaults.PARENT_FACE_COUNT_RATIO);
+                double samplesPerFace = TilingDefaults.PARENT_SAMPLES_PER_FACE;
+                parentMesh = decimateSrc.ResampleDecimated(targetTris, project.ParentReconstructionMethod,
+                                                           clippingBounds, upAxis, samplesPerFace);
+                //note: ResampleDecimated() calls Mesh.Clean() and preserves normals
             }
             else
             {
-                info($"not decimating parent, {Fmt.KMG(parentMesh.Faces.Count)} < {Fmt.KMG(maxFaceCountTarget)} tris");
+                info($"not decimating parent tile, {Fmt.KMG(parentMesh.Faces.Count)} < " +
+                     $"{Fmt.KMG(project.MaxFacesPerTile)} tris");
                 if (!parentMesh.HasNormals)
                 {
                     parentMesh.GenerateVertexNormals();
@@ -273,39 +275,72 @@ namespace OPS.Pipeline
             node.GetComponent<NodeBounds>().Bounds = BoundingBoxExtensions.Union(parentBounds, parentMesh.Bounds());
 
             int textureSize = 0;
-            if (textureMode != TextureMode.None)
+            if (project.TextureMode != TextureMode.None)
             {
-                textureSize = GetTileResolution(parentMesh, maxTextureRes, maxTexelsPerMeter, powerOfTwoTextures);
+                textureSize = GetTileResolution(parentMesh, project.MaxTextureResolution, project.MaxTexelsPerMeter,
+                                                project.PowerOfTwoTextures);
             }
 
             Image parentImg = null, parentIndex = null;
-            if (textureMode != TextureMode.None && textureSize > 0)
+            if (project.TextureMode != TextureMode.None && project.AtlasMode != AtlasMode.None && textureSize > 0)
             {
-                var logger = new ThunkLogger() { Info = info, Warn = error, Error = error };
+                var logger = new ThunkLogger() { Info = info, Warn = info, Error = info };
 
-                if (textureProjector != null)
+                TextureProjector textureProjector = null;
+                Image textureImage = null;
+                if (project.TextureProjectorGuid != Guid.Empty &&
+                    (project.TextureMode == TextureMode.Clip || project.AtlasMode == AtlasMode.Project))
                 {
-                    info("atlasing parent tile with texture projection");
-                    parentMesh.ProjectTexture(textureProjector.ImageWidth, textureProjector.ImageHeight,
-                                              textureProjector.CameraModel, textureProjector.MeshToImage);
-                    if (textureMode != TextureMode.Clip || textureImage == null)
+                    textureProjector = pipeline.GetDataProduct<TextureProjector>(project, project.TextureProjectorGuid);
+                    var texGuid = textureProjector.TextureGuid;
+                    if (project.TextureMode == TextureMode.Clip && texGuid != Guid.Empty)
                     {
-                        parentMesh.RescaleUVsForTexture(textureSize, textureSize, maxTextureStretch);
-                    }
-                }
-                else
-                {
-                    info($"atlasing parent tile with UVAtlas, resolution {textureSize}x{textureSize}, " +
-                         $"max stretch {maxTextureStretch}");
-                    if (!UVAtlas.Atlas(parentMesh, textureSize, textureSize, maxStretch: maxTextureStretch,
-                                       logger: logger))
-                    {
-                        error("failed to atlas parent tile with UVAtlas");
-                        return false;
+                        textureImage = pipeline.GetDataProduct<PngDataProduct>(project, texGuid).Image;
                     }
                 }
 
-                if (textureMode == TextureMode.Clip && textureProjector != null && textureImage != null)
+                switch (project.AtlasMode)
+                {
+                    case AtlasMode.Project:
+                    {
+                        if (textureProjector == null)
+                        {
+                            throw new Exception("no texture projector to atlas parent tile with texture projection");
+                        }
+                        info("atlasing parent tile with texture projection");
+                        parentMesh.ProjectTexture(textureProjector.ImageWidth, textureProjector.ImageHeight,
+                                                  textureProjector.CameraModel, textureProjector.MeshToImage);
+                        if (project.TextureMode != TextureMode.Clip || textureImage == null)
+                        {
+                            parentMesh.RescaleUVsForTexture(textureSize, textureSize, project.MaxTextureStretch);
+                        }
+                        break;
+                    }
+                    case AtlasMode.UVAtlas:
+                    {
+                        info($"atlasing parent tile with UVAtlas, resolution {textureSize}x{textureSize}, " +
+                             $"max stretch {project.MaxTextureStretch}");
+                        if (!UVAtlas.Atlas(parentMesh, textureSize, textureSize, maxStretch: project.MaxTextureStretch,
+                                           logger: logger, fallbackToNaive: false))
+                        {
+                            info("failed to atlas parent tile with UVAtlas, falling back to heightmap atlas");
+                            parentMesh.HeightmapAtlas(upAxis ?? Vector3.UnitZ, swapUV: true);
+                        }
+                        break;
+                    }
+                    case AtlasMode.Heightmap:
+                    {
+                        info("atlasing parent tile with heightmap atlas");
+                        parentMesh.HeightmapAtlas(upAxis ?? Vector3.UnitZ, swapUV: true);
+                        //swap U and V because mission surface frames are typically X north, Y east
+                        //this doesn't really matter here except that texture images created to match these flipped UVs
+                        //will match the orientation of other debug images
+                        break;
+                    }
+                    default: throw new Exception("unsupported atlas mode for parent tile " + project.AtlasMode);
+                }
+
+                if (project.TextureMode == TextureMode.Clip && textureProjector != null && textureImage != null)
                 {
                     if (depMeshImagePairs.All(mip => mip.Index != null))
                     {
@@ -321,7 +356,7 @@ namespace OPS.Pipeline
                         }
                     }
                     info($"clipping {textureSize}x{textureSize} parent tile texture");
-                    var tmc = new TexturedMeshClipper(powerOfTwoTextures: powerOfTwoTextures, logger: logger);
+                    var tmc = new TexturedMeshClipper(powerOfTwoTextures: project.PowerOfTwoTextures, logger: logger);
                     var pair = tmc.RemapMeshClipImage(parentMesh, textureImage, parentIndex, textureSize);
                     parentMesh = pair.Mesh;
                     parentImg = pair.Image;
@@ -340,7 +375,7 @@ namespace OPS.Pipeline
                     //but a parent tile can only get UVs usable for clipping by texture projection
                 }
 
-                if (maxTextureStretch < 1 && !powerOfTwoTextures)
+                if (project.MaxTextureStretch < 1 && !project.PowerOfTwoTextures)
                 {
                     parentImg = parentMesh.ClipImageAndRemapUVs(parentImg, ref parentIndex);
                 }
@@ -356,8 +391,6 @@ namespace OPS.Pipeline
 
             info("computing parent tile geometric error");
             node.UpdateGeometricError(dependencies, depMeshes.ToList(), info);
-
-            return true;
         }
 
         /// <summary>

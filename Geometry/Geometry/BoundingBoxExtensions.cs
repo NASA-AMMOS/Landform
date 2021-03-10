@@ -80,6 +80,23 @@ namespace OPS.Geometry
             }
         }
 
+        public static BoxAxis GetBoxAxis(Vector3 dir)
+        {
+            if (dir == Vector3.UnitX)
+            {
+                return BoxAxis.X;
+            }
+            if (dir == Vector3.UnitY)
+            {
+                return BoxAxis.Y;
+            }
+            if (dir == Vector3.UnitZ)
+            {
+                return BoxAxis.Z;
+            }
+            throw new Exception("no box axis for direction " + dir);
+        }
+
         public static double GetExtentInAxis(this BoundingBox box, BoxAxis axis)
         {
             var sz = box.Extent();

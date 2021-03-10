@@ -50,17 +50,27 @@ namespace OPS.Geometry
                 indices[i * 3 + 2] = f.P2;
             }
 
-            float[] outU, outV;
-            int[] outVertexRemap;
+            float[] outU = null, outV = null;
+            int[] outVertexRemap = null;
             UVAtlasNET.UVAtlas.Quality quality = forceHighestQuality ? 
                 UVAtlasNET.UVAtlas.Quality.UVATLAS_GEODESIC_QUALITY : 
                 UVAtlasNET.UVAtlas.Quality.UVATLAS_DEFAULT;
 
-            UVAtlasNET.UVAtlas.ReturnCode rc =
-                UVAtlasNET.UVAtlas.Atlas(inX, inY, inZ, indices,
-                                         out outU, out outV, out indices, out outVertexRemap,
-                                         maxCharts, (float)maxStretch, (float)gutter, width, height, quality,
-                                         (float)adjacencyEpsilon);
+            UVAtlasNET.UVAtlas.ReturnCode rc = UVAtlasNET.UVAtlas.ReturnCode.UNKNOWN;
+            try
+            {
+                rc = UVAtlasNET.UVAtlas.Atlas(inX, inY, inZ, indices,
+                                              out outU, out outV, out indices, out outVertexRemap,
+                                              maxCharts, (float)maxStretch, (float)gutter, width, height, quality,
+                                              (float)adjacencyEpsilon);
+            }
+            catch (Exception ex)
+            {
+                if (logger != null)
+                {
+                    logger.LogWarn("UVAtlas error: " + ex.Message);
+                }
+            }
 
             if (rc != UVAtlasNET.UVAtlas.ReturnCode.SUCCESS)
             {
@@ -68,7 +78,7 @@ namespace OPS.Geometry
                 {
                     if (logger != null)
                     {
-                        logger.LogWarn("UVAtlas failed, falling back to naive atlasing");
+                        logger.LogWarn("UVAtlas failed, return code {0}, falling back to naive atlasing", rc);
                     }
                     if (!NaiveAtlas.ComputeAtlas(mesh, out outU, out outV, out indices, out outVertexRemap))
                     {

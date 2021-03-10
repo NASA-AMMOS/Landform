@@ -27,43 +27,37 @@ namespace OPS.Geometry
         public const double DEF_SAMPLES_PER_FACE = 4;
 
         /// <summary>
-        /// preserves (or possibly adds) normals but loses colors and UVs
+        /// preserves/regenerates normals but loses colors and UVs
         /// </summary>
         public static Mesh Decimated(this Mesh m, int targetFaces,
                                      MeshDecimationMethod method = MeshDecimationMethod.ResampleFSSR,
                                      BoundingBox? clippingBounds = null, Vector3? upAxis = null)
         {
+            bool hadNormals = m.HasNormals;
             switch (method)
             {
                 case MeshDecimationMethod.EdgeCollapse:
                 {
-                    bool hadNormals = m.HasNormals;
-                    List<Vertex> corners = null;
-                    if (upAxis.HasValue)
-                    {
-                        corners = m.Corners(upAxis.Value);
-                    }
+                    List<Vertex> corners = upAxis.HasValue ? m.Corners(upAxis.Value) : null;
                     m = EdgeCollapse.QuadricEdgeCollapse(m, targetFaces,
                                                          perimeterPenaltyFactor: EDGE_COLLAPSE_PERIMETER_FACTOR,
                                                          notTouched: corners);
                     m.Clean();
-                    if (hadNormals)
-                    {
-                        m.GenerateVertexNormals();
-                    }
                     if (clippingBounds.HasValue)
                     {
                         m.Clip(clippingBounds.Value);
                     }
-                    return m;
+                    break;
                 }
                 case MeshDecimationMethod.ResampleFSSR:
                 {
-                    return ResampleDecimated(m, targetFaces, MeshReconstructionMethod.FSSR, clippingBounds, upAxis);
+                    m = ResampleDecimated(m, targetFaces, MeshReconstructionMethod.FSSR, clippingBounds, upAxis);
+                    break;
                 }
                 case MeshDecimationMethod.ResamplePoisson:
                 {
-                    return ResampleDecimated(m, targetFaces, MeshReconstructionMethod.Poisson, clippingBounds, upAxis);
+                    m = ResampleDecimated(m, targetFaces, MeshReconstructionMethod.Poisson, clippingBounds, upAxis);
+                    break;
                 }
                 case MeshDecimationMethod.MeshLab:
                 {
@@ -72,7 +66,7 @@ namespace OPS.Geometry
                     {
                         m.Clip(clippingBounds.Value);
                     }
-                    return m;
+                    break;
                 }
                 case MeshDecimationMethod.MeshLabResample:
                 {
@@ -81,17 +75,26 @@ namespace OPS.Geometry
                     {
                         m.Clip(clippingBounds.Value);
                     }
-                    return m;
+                    break;
                 }
                 default: throw new Exception("unknown decimation method " + method);
             }
+            if (!hadNormals)
+            {
+                m.HasNormals = false;
+            }
+            else if (!m.HasNormals)
+            {
+                m.GenerateVertexNormals();
+            }
+            return m;
         }
 
         /// <summary>
         /// sample points on mesh proportional to targetFaces with SurfacePointSampler
         /// then reconstruct mesh from those using indicated algorithm
         /// then run QuadricEdgeCollapse
-        /// preserves or adds normals but loses colors and UVs
+        /// preserves/regenerates normals but loses colors and UVs
         /// </summary>
         public static Mesh ResampleDecimated(this Mesh m, int targetFaces,
                                              MeshReconstructionMethod method = MeshReconstructionMethod.FSSR,
@@ -107,6 +110,7 @@ namespace OPS.Geometry
             {
                 throw new ArgumentException("unsupported reconstruction method: " + method);
             }
+            bool hadNormals = m.HasNormals;
             m = new Mesh(m); //make copy
             m.Clean();
             if (!m.HasNormals || m.ContainsZeroLengthNormals())
@@ -141,10 +145,17 @@ namespace OPS.Geometry
                 m.Clean();
             }
             //else Console.WriteLine("skipping edge collapse {0} <= {1}", m.Faces.Count, targetFaces);
-            m.GenerateVertexNormals();
             if (clippingBounds.HasValue)
             {
                 m.Clip(clippingBounds.Value);
+            }
+            if (!hadNormals)
+            {
+                m.HasNormals = false;
+            }
+            else if (!m.HasNormals)
+            {
+                m.GenerateVertexNormals();
             }
             return m;
         }

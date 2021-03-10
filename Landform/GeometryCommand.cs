@@ -13,8 +13,6 @@ using OPS.Pipeline;
 
 namespace OPS.Landform
 {
-    public enum AtlasMode { UVAtlas, Heightmap };
-
     public class GeometryCommandOptions : WedgeCommandOptions
     {
         [Option(HelpText = "Scene mesh texture resolution, should be power of two", Default = 8192)]
@@ -41,8 +39,8 @@ namespace OPS.Landform
         [Option(HelpText = "Orbital sampling rate, non-positive to use DEM resolution", Default = -1)]
         public double OrbitalPointsPerMeter { get; set; }
 
-        [Option(HelpText = "UV generation mode for surface meshes (UVAtlas, Heightmap)", Default = AtlasMode.UVAtlas)]
-        public AtlasMode SurfaceUVMode { get; set; }
+        [Option(HelpText = "UV generation mode for surface meshes (None, UVAtlas, Heightmap, Projection)", Default = AtlasMode.UVAtlas)]
+        public virtual AtlasMode AtlasMode { get; set; }
     }
 
     public class GeometryCommand : WedgeCommand
@@ -87,11 +85,12 @@ namespace OPS.Landform
             return true;
         }
 
-        protected virtual Mesh UVAtlasMesh(Mesh mesh, int resolution, string name = null) 
+        protected virtual void UVAtlasMesh(Mesh mesh, int resolution, string name = null) 
         {
             name = !string.IsNullOrEmpty(name) ? (name + " ") : "";
             string msg = string.Format("atlasing {0}mesh ({1} triangles) with UVAtlas, texture resolution {2}",
                                        name, Fmt.KMG(mesh.Faces.Count), resolution);
+
             if (mesh.Faces.Count > 20000)
             {
                 pipeline.LogInfo(msg);
@@ -107,26 +106,19 @@ namespace OPS.Landform
                 pipeline.LogWarn("UVAtlas may not work well on large meshes");
             }
 
-            try
+            if (!UVAtlas.Atlas(mesh, resolution, resolution, gcopts.MaxTextureCharts,
+                               maxTextureStretch, logger: pipeline, fallbackToNaive: false))
             {
-                if (!UVAtlas.Atlas(mesh, resolution, resolution, gcopts.MaxTextureCharts,
-                                   maxTextureStretch, logger: pipeline))
-                {
-                    throw new Exception("failed to atlas mesh with UVAtlas");
-                }
-                return mesh;
-            }
-            catch (Exception ex)
-            {
-                pipeline.LogError("error atlasing {0} mesh with UVAtlas: {1}", name, ex.Message);
-                return null;
+                pipeline.LogWarn("failed to atlas mesh with UVAtlas, falling back to heightmap atlas");
+                HeightmapAtlasMesh(mesh, name);
             }
         }
 
-        protected virtual Mesh HeightmapAtlasMesh(Mesh mesh, string name = null)
+        protected virtual void HeightmapAtlasMesh(Mesh mesh, string name = null)
         {
             name = !string.IsNullOrEmpty(name) ? (name + " ") : "";
             string msg = string.Format("heightmap atlasing {0}mesh ({1} triangles)", name, Fmt.KMG(mesh.Faces.Count));
+
             if (mesh.Faces.Count > 20000)
             {
                 pipeline.LogInfo(msg);
@@ -137,26 +129,22 @@ namespace OPS.Landform
             }
 
             //swap U and V because mission surface frames are typically X north, Y east
-            //this doesn't really matter here except that backproject texture images created to match these flipped UVs
+            //this doesn't really matter here except that texture images created to match these flipped UVs
             //will have north up and east right in image viewers, matching the orientation of other debug images
             mesh.HeightmapAtlas(BoxAxis.Z, swapUV: true);
-
-            return mesh;
         }
 
-        protected virtual Mesh AtlasMesh(Mesh mesh, int resolution, string name = null)
+        protected virtual void AtlasMesh(Mesh mesh, int resolution, string name = null)
         {
-            switch (gcopts.SurfaceUVMode)
+            name = !string.IsNullOrEmpty(name) ? (name + " ") : "";
+            switch (gcopts.AtlasMode)
             {
-                case AtlasMode.UVAtlas: return UVAtlasMesh(mesh, resolution, name);
-                case AtlasMode.Heightmap: return HeightmapAtlasMesh(mesh, name);
-                default: throw new ArgumentException("unknown atlas mode: " + gcopts.SurfaceUVMode);
+                case AtlasMode.None: throw new Exception($"cannot atlas {name}mesh, atlassing disabled");
+                case AtlasMode.UVAtlas: UVAtlasMesh(mesh, resolution, name); break;
+                case AtlasMode.Heightmap: HeightmapAtlasMesh(mesh, name); break;
+                case AtlasMode.Project: //fallthrough here, see TextureCommand.AtlasMesh()
+                default: throw new ArgumentException("unsupported atlas mode: " + gcopts.AtlasMode);
             }
-        }
-
-        protected virtual bool TextureProjectionEnabled()
-        {
-            return false;
         }
 
         protected Vector2 PointToUV(BoundingBox meshBounds, Vector3 pt)

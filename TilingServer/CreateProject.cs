@@ -8,6 +8,7 @@ using System.Diagnostics;
 using Amazon.DynamoDBv2.Model;
 using CommandLine;
 using log4net;
+using OPS.Util;
 using OPS.Geometry;
 using OPS.Imaging;
 using OPS.Pipeline;
@@ -86,121 +87,128 @@ namespace OPS.TilingServer
 
         public int Run()
         {
-
-            if (options.ProjectType != ProjectType.GenericTiling)
+            try
             {
-                pipeline.LogError("unsupported project type: {0}, currently only {1} is supported",
-                                  options.ProjectType, ProjectType.GenericTiling);
+                if (options.ProjectType != ProjectType.GenericTiling)
+                {
+                    pipeline.LogError("unsupported project type: {0}, currently only {1} is supported",
+                                      options.ProjectType, ProjectType.GenericTiling);
+                    return 1;
+                }
+
+                string exMeshFmt = null;
+                if (!string.IsNullOrEmpty(options.ExportMeshFormat))
+                {
+                    exMeshFmt = options.ExportMeshFormat.ToLower();
+
+                    if (exMeshFmt == "help")
+                    {
+                        //print as error so that this will get forwarded back to REST API response
+                        pipeline.LogError("valid mesh export formats: {0}",
+                                          String.Join(", ", MeshSerializers.Instance.SupportedFormats()));
+                        return 1; //not really an error, but can't return success status either
+                    }
+
+                    if (!MeshSerializers.Instance.SupportsFormat(exMeshFmt))
+                    {
+                        pipeline.LogError("cannot create project \"{0}\", invalid mesh export format \"{1}\", " +
+                                          "valid formats: {2}", options.ProjectName, options.ExportMeshFormat,
+                                          String.Join(", ", MeshSerializers.Instance.SupportedFormats()));
+                        return 1; //argument error
+                    }
+                }
+
+                string exImageFmt = null;
+                if (!string.IsNullOrEmpty(options.ExportImageFormat))
+                {
+                    exImageFmt = options.ExportImageFormat.ToLower();
+
+                    //TODO this is a workaround for
+                    //https://github.jpl.nasa.gov/OnSight/Landform/issues/347
+                    string[] fmts = new string[]
+                    {
+                        "img", "vic", "lbl", "dds", "crn",
+                        "tif", "tiff", "jpg", "bmp", "png",
+                        "jp2", "j2k", "fit", "fits", "rgb"
+                    };
+
+                    if (exImageFmt == "help")
+                    {
+                        //print as error so that this will get forwarded back to REST API response
+                        pipeline.LogError("valid image export formats: {0}",
+                                          String.Join(", ", fmts /* ImageSerializers.Instance.SupportedFormats() */));
+                        return 1; //not really an error, but can't return success status either
+                    }
+
+                    if (Array.IndexOf(fmts, exImageFmt) < 0 /* !ImageSerializers.Instance.SupportsFormat(exImageFmt) */)
+                    {
+                        pipeline.LogError("cannot create project \"{0}\", invalid image export format \"{1}\", " +
+                                          "valid formats: {2}", options.ProjectName, options.ExportImageFormat,
+                                          String.Join(", ", fmts /* ImageSerializers.Instance.SupportedFormats() */));
+                        return 1; //argument error
+                    }
+                }
+
+                var project = TilingProject.Find(pipeline, options.ProjectName);
+                if (project != null)
+                {
+                    pipeline.LogError("project \"{0}\" already exists", options.ProjectName);
+                    return 1; //argument error
+                }
+
+                string productUrl =
+                    pipeline.GetStorageUrl(InitializeAlignmentProject.DATA_PRODUCT_DIR, options.ProjectName);
+
+                pipeline.EnqueueToMaster(new CreateProjectMessage(options.ProjectName)
+                {
+                    ProjectType = options.ProjectType,
+                        ProductPath = productUrl,
+
+                        TilingScheme = options.TilingScheme,
+                        MaxFacesPerTile = options.MaxFacesPerTile,
+                        MinTileExtent = options.MinTileExtent,
+                        ParentReconstructionMethod = options.ParentReconstructionMethod,
+                        SkirtMode = options.SkirtMode,
+                                             
+                        TextureMode = options.TextureMode,
+                        MaxTextureResolution = options.MaxTextureResolution,
+                        MaxTexelsPerMeter = options.MaxTexelsPerMeter,
+                        MaxTextureStretch = options.MaxTextureStretch,
+                        PowerOfTwoTextures = options.PowerOfTwoTextures,
+                        ConvertLinearRGBToSRGB = !options.NoConvertLinerRGBToSRGB,
+
+                        EmbedIndexImages = options.EmbedIndexImages,
+
+                        ExportMeshFormat = exMeshFmt,
+                        ExportImageFormat = exImageFmt
+                        });
+
+                if (!options.NoWait)
+                {
+                    pipeline.LogInfo("waiting for project \"{0}\" to be created", options.ProjectName);
+                    var sw = new Stopwatch();
+                    sw.Start();
+                    do
+                    {
+                        if (sw.ElapsedMilliseconds > MAX_WAIT_MS)
+                        {
+                            pipeline.LogError("project \"{0}\" not created in {1}",
+                                              options.ProjectName, Fmt.HMS(MAX_WAIT_MS));
+                            return 2; //internal error
+                        }
+                        Thread.Sleep(SLEEP_MS);
+                        project = TilingProject.Find(pipeline, options.ProjectName);
+                    }
+                    while (project == null);
+
+                    pipeline.LogInfo("project \"{0}\" created", options.ProjectName);
+                }
+            }
+            catch (Exception ex)
+            {
+                pipeline.LogException(ex);
                 return 1;
             }
-
-            string exMeshFmt = null;
-            if (!string.IsNullOrEmpty(options.ExportMeshFormat))
-            {
-                exMeshFmt = options.ExportMeshFormat.ToLower();
-
-                if (exMeshFmt == "help")
-                {
-                    //print as error so that this will get forwarded back to REST API response
-                    pipeline.LogError("valid mesh export formats: {0}",
-                                      String.Join(", ", MeshSerializers.Instance.SupportedFormats()));
-                    return 1; //not really an error, but can't return success status either
-                }
-
-                if (!MeshSerializers.Instance.SupportsFormat(exMeshFmt))
-                {
-                    pipeline.LogError("cannot create project \"{0}\", invalid mesh export format \"{1}\", " +
-                                      "valid formats: {2}", options.ProjectName, options.ExportMeshFormat,
-                                      String.Join(", ", MeshSerializers.Instance.SupportedFormats()));
-                    return 1; //argument error
-                }
-            }
-
-            string exImageFmt = null;
-            if (!string.IsNullOrEmpty(options.ExportImageFormat))
-            {
-                exImageFmt = options.ExportImageFormat.ToLower();
-
-                //TODO this is a workaround for
-                //https://github.jpl.nasa.gov/OnSight/Landform/issues/347
-                string[] fmts = new string[]
-                {
-                    "img", "vic", "lbl", "dds", "crn",
-                    "tif", "tiff", "jpg", "bmp", "png",
-                    "jp2", "j2k", "fit", "fits", "rgb"
-                };
-
-                if (exImageFmt == "help")
-                {
-                    //print as error so that this will get forwarded back to REST API response
-                    pipeline.LogError("valid image export formats: {0}",
-                                      String.Join(", ", fmts /* ImageSerializers.Instance.SupportedFormats() */));
-                    return 1; //not really an error, but can't return success status either
-                }
-
-                if (Array.IndexOf(fmts, exImageFmt) < 0 /* !ImageSerializers.Instance.SupportsFormat(exImageFmt) */)
-                {
-                    pipeline.LogError("cannot create project \"{0}\", invalid image export format \"{1}\", " +
-                                      "valid formats: {2}", options.ProjectName, options.ExportImageFormat,
-                                      String.Join(", ", fmts /* ImageSerializers.Instance.SupportedFormats() */));
-                    return 1; //argument error
-                }
-            }
-
-            var project = TilingProject.Find(pipeline, options.ProjectName);
-            if (project != null)
-            {
-                pipeline.LogError("project \"{0}\" already exists", options.ProjectName);
-                return 1; //argument error
-            }
-
-            string productUrl =
-                pipeline.GetStorageUrl(InitializeAlignmentProject.DATA_PRODUCT_DIR, options.ProjectName);
-
-            pipeline.EnqueueToMaster(new CreateProjectMessage(options.ProjectName)
-                                     {
-                                         ProjectType = options.ProjectType,
-                                         ProductPath = productUrl,
-
-                                         TilingScheme = options.TilingScheme,
-                                         MaxFacesPerTile = options.MaxFacesPerTile,
-                                         MinTileExtent = options.MinTileExtent,
-                                         ParentReconstructionMethod = options.ParentReconstructionMethod,
-                                         SkirtMode = options.SkirtMode,
-                                             
-                                         TextureMode = options.TextureMode,
-                                         MaxTextureResolution = options.MaxTextureResolution,
-                                         MaxTexelsPerMeter = options.MaxTexelsPerMeter,
-                                         MaxTextureStretch = options.MaxTextureStretch,
-                                         PowerOfTwoTextures = options.PowerOfTwoTextures,
-                                         ConvertLinearRGBToSRGB = !options.NoConvertLinerRGBToSRGB,
-
-                                         EmbedIndexImages = options.EmbedIndexImages,
-
-                                         ExportMeshFormat = exMeshFmt,
-                                         ExportImageFormat = exImageFmt
-                                     });
-
-            if (!options.NoWait)
-            {
-                pipeline.LogInfo("waiting for project \"{0}\" to be created", options.ProjectName);
-                var sw = new Stopwatch();
-                sw.Start();
-                do
-                {
-                    if (sw.ElapsedMilliseconds > MAX_WAIT_MS)
-                    {
-                        pipeline.LogError("project \"{0}\" not created in {1}ms", options.ProjectName, MAX_WAIT_MS);
-                        return 2; //internal error
-                    }
-                    Thread.Sleep(SLEEP_MS);
-                    project = TilingProject.Find(pipeline, options.ProjectName);
-                }
-                while (project == null);
-
-                pipeline.LogInfo("project \"{0}\" created", options.ProjectName);
-            }
-
             return 0;
         }
 

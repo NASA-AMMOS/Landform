@@ -1109,7 +1109,7 @@ namespace OPS.Pipeline
                     if (variances != null && variances.Length > 0)
                     {
                         variance(new Exception
-                                 ($"PlacesDB orbital(placesIndex) variances: " + string.Join("; ", variances)));
+                                 ($"PlacesDB orbital({placesIndex}) variances: " + string.Join("; ", variances)));
                     }
 
                     bestView = null;

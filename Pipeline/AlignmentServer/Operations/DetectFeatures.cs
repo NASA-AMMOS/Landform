@@ -52,7 +52,8 @@ namespace OPS.Pipeline.AlignmentServer
             }
             else
             {
-                LogError("failed to detect features for image {0} in project {1}", shortUrl, project.Name);
+                LogWarn("failed to detect features for image {0} in project {1}", shortUrl, project.Name);
+                //not fatal to fail on one image
             }
         }
     }

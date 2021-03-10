@@ -94,6 +94,9 @@ namespace OPS.Landform
 
         [Option(HelpText = "Override median hue [0-360], negative disables (e.g. 33)", Default = -1)]
         public double OverrideMedianHue { get; set; }
+
+        [Option(HelpText = "Disable generating UVs by texture projection", Default = false)]
+        public bool NoTextureProjection { get; set; }
     }
 
     public class TextureCommand : GeometryCommand
@@ -120,6 +123,7 @@ namespace OPS.Landform
 
         protected SceneMesh sceneMesh;
         protected Image sceneTexture;
+        protected Matrix? meshToCamera; //non-null iff texture projection enabled
 
         protected Mesh mesh; //finest LOD
         protected List<Mesh> meshLOD; //meshLOD[0] = mesh, coarser LODs populated iff --loadlods
@@ -431,8 +435,7 @@ namespace OPS.Landform
                              lumaMed, lumaMAD, hueMed, numColor, roverImages.Count);
         }
 
-        protected virtual void LoadInputMesh(bool requireUVs = true, bool requireNormals = true,
-                                             bool onlyGenerateUVsWithTextureProjection = false)
+        protected virtual void LoadInputMesh(bool requireUVs = false, bool requireNormals = false)
         {
             if (sceneMesh == null && project != null) //might have already been loaded in GetProject()
             {
@@ -512,9 +515,9 @@ namespace OPS.Landform
                                  lod, Fmt.KMG(meshLOD[lod].Vertices.Count), Fmt.KMG(meshLOD[lod].Faces.Count));
             }
 
-            bool genUVs = !onlyGenerateUVsWithTextureProjection || TextureProjectionEnabled();
+            bool canGenUVs = CanAtlasSceneMesh();
 
-            if (tcopts.LoadLODs && !string.IsNullOrEmpty(tcopts.FixupLODs) && (!requireUVs || genUVs))
+            if (tcopts.LoadLODs && !string.IsNullOrEmpty(tcopts.FixupLODs) && (!requireUVs || canGenUVs))
             {
                 int[][] ranges = null;
                 try
@@ -539,7 +542,7 @@ namespace OPS.Landform
             {
                 if (requireUVs && !meshLOD[i].HasUVs)
                 {
-                    if (genUVs)
+                    if (canGenUVs)
                     {
                         AtlasMesh(meshLOD[i], sceneTextureResolution, "LOD " + i);
                     }
@@ -631,6 +634,56 @@ namespace OPS.Landform
             {
                 pipeline.LogWarn("LOD fixup failed, using original {0} LODs", meshLOD.Count);
             }
+        }
+
+        //BuildTilingInput.SetupTextureProjection() is the only place that meshToCamera can get set
+        //to actually enable texture projection
+        protected bool TextureProjectionEnabled()
+        {
+            return (tcopts.AtlasMode != AtlasMode.None) && !tcopts.NoTextureProjection &&
+                sceneTexture != null && sceneTexture.CameraModel != null && meshToCamera.HasValue;
+        }
+
+        protected void ProjectTexture(Mesh mesh)
+        {
+            if (sceneTexture == null)
+            {
+                throw new Exception("cannot project texture coordinates, no scene texture");
+            }
+            if (sceneTexture.CameraModel == null)
+            {
+                throw new Exception("cannot project texture coordinates, scene texture has no camera model");
+            }
+            if (!meshToCamera.HasValue)
+            {
+                throw new Exception("cannot project texture coordinates, no mesh-to-image transform");
+            }
+            mesh.ProjectTexture(sceneTexture, meshToCamera.Value);
+        }
+
+        protected override void AtlasMesh(Mesh mesh, int resolution, string name = null)
+        {
+            name = !string.IsNullOrEmpty(name) ? (name + " ") : "";
+            if (tcopts.AtlasMode == AtlasMode.Project && TextureProjectionEnabled())
+            {
+                pipeline.LogInfo("atlassing {0}mesh ({1} triangles) with texture projection",
+                                 name, Fmt.KMG(mesh.Faces.Count));
+                ProjectTexture(mesh);
+            }
+            else if (tcopts.AtlasMode != AtlasMode.Project)
+            {
+                base.AtlasMesh(mesh, resolution, name);
+            }
+            else
+            {
+                throw new Exception($"cannot atlas {name}mesh, texture projection not available");
+            }
+        }
+
+        protected bool CanAtlasSceneMesh()
+        {
+            return tcopts.AtlasMode != AtlasMode.None &&
+                (tcopts.AtlasMode != AtlasMode.Project || TextureProjectionEnabled());
         }
 
         protected virtual void LoadTileList()

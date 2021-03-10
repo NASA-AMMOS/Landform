@@ -12,6 +12,8 @@ using OPS.Imaging;
 
 namespace OPS.Geometry
 {
+    public enum AtlasMode { None, UVAtlas, Heightmap, Project };
+
     public static class MeshUVs
     {
         /// <summary>
@@ -188,6 +190,12 @@ namespace OPS.Geometry
         {
             Image index = null;
             return mesh.ClipImageAndRemapUVs(image, ref index, borderPixels);
+        }
+
+        public static void HeightmapAtlas(this Mesh mesh, Vector3 verticalAxis, bool flipU = false, bool flipV = false,
+                                          bool swapUV = false)
+        {
+            mesh.HeightmapAtlas(BoundingBoxExtensions.GetBoxAxis(verticalAxis), flipU, flipV, swapUV);
         }
 
         /// <summary>

@@ -10,6 +10,81 @@ namespace OPS.Pipeline
 {
     public enum ProjectType { GenericTiling, ParentTiling };
 
+    public class CreateProjectMessage : PipelineMessage
+    {
+        public ProjectType ProjectType;
+        public string ProductPath;
+
+        public TilingScheme TilingScheme;
+        public int MaxFacesPerTile;
+        public double MinTileExtent;
+        public MeshReconstructionMethod ParentReconstructionMethod;
+        public SkirtMode SkirtMode;
+
+        public TextureMode TextureMode;
+        public int MaxTextureResolution;
+        public double MaxTexelsPerMeter;
+        public double MaxTextureStretch;
+        public bool PowerOfTwoTextures;
+        public bool ConvertLinearRGBToSRGB;
+
+        public bool EmbedIndexImages;
+
+        public string ExportMeshFormat;
+        public string ExportImageFormat;
+
+        public CreateProjectMessage() { }
+        public CreateProjectMessage(string projectName) : base(projectName) { }
+    }
+
+    public class DeleteProjectMessage : PipelineMessage
+    {
+        public DeleteProjectMessage() { }
+        public DeleteProjectMessage(string projectName) : base(projectName) { }
+    }
+
+    public class AddInputMessage : PipelineMessage
+    {
+        public string Name;
+        public string MeshUrl;
+        public string ImageUrl;
+        public string IndexUrl;
+        public string TileId;
+        public AddInputMessage() { }
+        public AddInputMessage(string projectName) : base(projectName) { }
+    }
+
+    public class RunProjectMessage : PipelineMessage
+    {
+        public RunProjectMessage() { }
+        public RunProjectMessage(string projectName) : base(projectName) { }
+    }
+
+    public class TileCompletedMessage : PipelineMessage
+    {
+        public string TileId;
+        public TileCompletedMessage(string projectName) : base(projectName) { }
+    }
+
+    public class StatusMessage : PipelineMessage
+    {
+        public string Operation;
+        public string TaskId;
+        public string Status;
+        public bool Done;
+        public bool Error;
+        public StatusMessage(string projectName, string taskId, string operation, string status, bool done = false,
+                             bool error = false)
+            : base(projectName)
+        {
+            this.TaskId = taskId;
+            this.Operation = operation;
+            this.Status = status;
+            this.Done = done;
+            this.Error = error;
+        }
+    }
+
     //TODO this needs to get refactored to be a generic base class for all Landform workflows, not just tiling
     //https://github.jpl.nasa.gov/OnSight/Landform/issues/399
     public abstract class PipelineStateMachine : ILogger
@@ -161,7 +236,7 @@ namespace OPS.Pipeline
                 {
                     status[id] = new Status(m);
                 }
-                else if (m.Done)
+                else if (m.Done || m.Error)
                 {
                     status.Remove(id);
                 }
@@ -171,6 +246,10 @@ namespace OPS.Pipeline
                     s.LatestOperation = m.Operation;
                     s.LatestStatus = m.Status;
                 }
+            }
+            if (m.Error)
+            {
+                TilesetCompleted(m.Status);
             }
         }
 
@@ -274,7 +353,8 @@ namespace OPS.Pipeline
                 {
                     //it's not an error to upload an input with the same name again - the last upload wins
                     LogLess("adding/updating input {0}", m.Name);
-                    var input = TilingInput.Create(pipeline, m.Name, project, m.MeshUrl, m.ImageUrl, m.IndexUrl, m.TileId);
+                    var input =
+                        TilingInput.Create(pipeline, m.Name, project, m.MeshUrl, m.ImageUrl, m.IndexUrl, m.TileId);
                     var inputs = project.LoadInputNames(pipeline);
                     if (!inputs.Contains(input.Name))
                     {
@@ -634,86 +714,15 @@ namespace OPS.Pipeline
             pipeline.EnqueueToWorkers(new BuildTilesetJsonMessage(projectName));
         }
 
-        virtual protected void TilesetCompleted()
+        virtual protected void TilesetCompleted(string error = null)
         {
             var project = TilingProject.Find(pipeline, projectName);
             project.FinishedRunning = true;
+            project.ExecutionError = error;
             project.Save(pipeline);
-            LogInfo("finished running");
+            LogInfo("finished running" + (!string.IsNullOrEmpty(error) ? (" with " + error) : ""));
             projectCache.Reset();
             pipeline.CleanupTempDir();
-        }
-    }
-
-    public class CreateProjectMessage : PipelineMessage
-    {
-        public ProjectType ProjectType;
-        public string ProductPath;
-
-        public TilingScheme TilingScheme;
-        public int MaxFacesPerTile;
-        public double MinTileExtent;
-        public MeshReconstructionMethod ParentReconstructionMethod;
-        public SkirtMode SkirtMode;
-
-        public TextureMode TextureMode;
-        public int MaxTextureResolution;
-        public double MaxTexelsPerMeter;
-        public double MaxTextureStretch;
-        public bool PowerOfTwoTextures;
-        public bool ConvertLinearRGBToSRGB;
-
-        public bool EmbedIndexImages;
-
-        public string ExportMeshFormat;
-        public string ExportImageFormat;
-
-        public CreateProjectMessage() { }
-        public CreateProjectMessage(string projectName) : base(projectName) { }
-    }
-
-    public class DeleteProjectMessage : PipelineMessage
-    {
-        public DeleteProjectMessage() { }
-        public DeleteProjectMessage(string projectName) : base(projectName) { }
-    }
-
-    public class AddInputMessage : PipelineMessage
-    {
-        public string Name;
-        public string MeshUrl;
-        public string ImageUrl;
-        public string IndexUrl;
-        public string TileId;
-        public AddInputMessage() { }
-        public AddInputMessage(string projectName) : base(projectName) { }
-    }
-
-    public class RunProjectMessage : PipelineMessage
-    {
-        public RunProjectMessage() { }
-        public RunProjectMessage(string projectName) : base(projectName) { }
-    }
-
-    public class TileCompletedMessage : PipelineMessage
-    {
-        public string TileId;
-        public TileCompletedMessage(string projectName) : base(projectName) { }
-    }
-
-    public class StatusMessage : PipelineMessage
-    {
-        public string Operation;
-        public string TaskId;
-        public string Status;
-        public bool Done;
-        public StatusMessage(string projectName, string taskId, string operation, string status, bool done = false)
-            : base(projectName)
-        {
-            this.TaskId = taskId;
-            this.Operation = operation;
-            this.Status = status;
-            this.Done = done;
         }
     }
 }

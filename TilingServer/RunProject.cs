@@ -8,6 +8,7 @@ using System.Diagnostics;
 using Microsoft.Xna.Framework;
 using CommandLine;
 using log4net;
+using OPS.Util;
 using OPS.Geometry;
 using OPS.Pipeline;
 using OPS.Pipeline.TilingServer;
@@ -40,46 +41,67 @@ namespace OPS.TilingServer
 
         public int Run()
         {
-            var project = TilingProject.Find(pipeline, options.ProjectName);
-            if (project == null)
+            try
             {
-                pipeline.LogError("project \"{0}\" not found", options.ProjectName);
-                return 1; //argument error
-            }
-
-            pipeline.LogInfo("running project \"{0}\"", options.ProjectName);
-            pipeline.EnqueueToMaster(new RunProjectMessage(options.ProjectName));
-
-            if (options.Wait)
-            {
-                pipeline.LogInfo("waiting for project \"{0}\" to finish running", options.ProjectName);
-                var sw = new Stopwatch();
-                sw.Start();
-                do
+                var project = TilingProject.Find(pipeline, options.ProjectName);
+                if (project == null)
                 {
-                    if (sw.ElapsedMilliseconds > MAX_WAIT_SEC * 1000)
+                    pipeline.LogError("project \"{0}\" not found", options.ProjectName);
+                    return 1; //argument error
+                }
+                
+                pipeline.LogInfo("running project \"{0}\"", options.ProjectName);
+                pipeline.EnqueueToMaster(new RunProjectMessage(options.ProjectName));
+                
+                if (options.Wait)
+                {
+                    pipeline.LogInfo("waiting for project \"{0}\" to finish running", options.ProjectName);
+                    var sw = new Stopwatch();
+                    sw.Start();
+                    do
                     {
-                        pipeline.LogError("project \"{0}\" not finished in {1}s", options.ProjectName, MAX_WAIT_SEC);
-                        return 2; //internal error
+                        if (sw.ElapsedMilliseconds > MAX_WAIT_SEC * 1000)
+                        {
+                            pipeline.LogError("project \"{0}\" not done in {1}",
+                                              options.ProjectName, Fmt.HMS(MAX_WAIT_SEC * 1000));
+                            return 2; //internal error
+                        }
+                        Thread.Sleep(SLEEP_MS);
+                        
+                        //re-fetch project record to ensure database synchronization
+                        project = TilingProject.Find(pipeline, options.ProjectName);
+
+                        if (executive != null)
+                        {
+                            if (executive.MasterError != null)
+                            {
+                                throw executive.MasterError;
+                            }
+                            if (executive.WorkerError != null)
+                            {
+                                throw executive.WorkerError;
+                            }
+                        }
                     }
-                    Thread.Sleep(SLEEP_MS);
-
-                    //re-fetch project record to ensure database synchronization
-                    project = TilingProject.Find(pipeline, options.ProjectName);
-                }
-                while (project != null && !project.FinishedRunning);
-
-                if (project != null)
-                {
-                    pipeline.LogInfo("project \"{0}\" finished running", options.ProjectName);
+                    while (project != null && !project.FinishedRunning);
+                    
+                    if (project != null)
+                    {
+                        pipeline.LogInfo("project \"{0}\" finished running{1}", options.ProjectName,
+                                         !string.IsNullOrEmpty(project.ExecutionError) ?
+                                         (" with " + project.ExecutionError) : "");
+                    }
                 }
             }
-
-            if (executive is DeferredExecutive)
+            catch (Exception ex)
             {
-                (executive as DeferredExecutive).Quit();
+                if (executive is DeferredExecutive)
+                {
+                    (executive as DeferredExecutive).Quit();
+                }
+                pipeline.LogException(ex);
+                return 1;
             }
-
             return 0;
         }
     }

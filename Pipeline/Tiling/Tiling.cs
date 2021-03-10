@@ -19,6 +19,7 @@ namespace OPS.Pipeline
         public const MeshReconstructionMethod PARENT_RECONSTRUCTION_METHOD = MeshReconstructionMethod.FSSR;
         public const SkirtMode SKIRT_MODE = SkirtMode.Normal;
 
+        public const AtlasMode ATLAS_MODE = AtlasMode.UVAtlas;
         public const TextureMode TEXTURE_MODE = TextureMode.Bake;
 
         public const int MAX_TILE_RESOLUTION = 512;

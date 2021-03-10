@@ -16,10 +16,14 @@ namespace OPS.Pipeline
         public const double STATUS_SPEW_SEC = 15;
         public const double LONG_TASK_WARN_SEC = 5 * 60;
 
+        public volatile Exception MasterError = null;
+        public volatile Exception WorkerError = null;
+
         protected PipelineCore pipeline;
 
         //project name -> state machine
-        protected Dictionary<string, PipelineStateMachine> stateMachines = new Dictionary<string, PipelineStateMachine>();
+        protected Dictionary<string, PipelineStateMachine> stateMachines =
+            new Dictionary<string, PipelineStateMachine>();
 
         protected PipelineExecutive(PipelineCore pipeline)
         {
@@ -66,6 +70,9 @@ namespace OPS.Pipeline
     //https://github.jpl.nasa.gov/OnSight/Landform/issues/699
     public class ImmediateExecutive : PipelineExecutive
     {
+        public bool ThrowOnMasterError = true;
+        public bool ThrowOnWorkerError = true;
+
         public ImmediateExecutive(PipelineCore pipeline, bool supportAlignment = false) : base(pipeline)
         {
             pipeline.EnqueuedToMaster += msg => {
@@ -81,6 +88,11 @@ namespace OPS.Pipeline
                     catch (Exception ex)
                     {
                         pipeline.LogException(ex, msg.Info() + ": master task error", stackTrace: true);
+                        MasterError = ex;
+                        if (ThrowOnMasterError)
+                        {
+                            throw;
+                        }
                     }
                 }
 
@@ -96,6 +108,11 @@ namespace OPS.Pipeline
                 catch (Exception ex)
                 {
                     pipeline.LogException(ex, msg.Info() + ": worker task error", stackTrace: true);
+                    WorkerError = ex;
+                    if (ThrowOnWorkerError)
+                    {
+                        throw;
+                    }
                 }
                 return false; //now discard message
             };
@@ -206,6 +223,7 @@ namespace OPS.Pipeline
                 catch (Exception ex)
                 {
                     pipeline.LogException(ex, msg.Info() + ": master task error", stackTrace: true);
+                    MasterError = ex;
                 }
             }
 
@@ -230,10 +248,10 @@ namespace OPS.Pipeline
         {
             void handler(PipelineMessage msg)
             {
-                void sendStatus(string status, bool done = false)
+                void sendStatus(string status, bool done = false, bool error = false)
                 {
                     pipeline.EnqueueToMaster(new StatusMessage(msg.ProjectName, msg.MessageId, msg.GetType().Name,
-                                                               status, done));
+                                                               status, done, error));
                 }
 
                 try
@@ -244,8 +262,9 @@ namespace OPS.Pipeline
                 }
                 catch (Exception ex)
                 {
-                    sendStatus("error: " + ex.Message, done: true);
+                    sendStatus("error: " + ex.Message, done: true, error: true);
                     pipeline.LogException(ex, msg.Info() + ": worker task error", stackTrace: true);
+                    WorkerError = ex;
                 }
             }
             

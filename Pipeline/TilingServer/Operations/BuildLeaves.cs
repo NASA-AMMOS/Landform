@@ -217,7 +217,7 @@ namespace OPS.Pipeline.TilingServer
                 }
                 else
                 {
-                    LogError("failed to build leaf");
+                    throw new Exception("failed to build leaf " + leaf.Id);
                 }
 
                 pipeline.EnqueueToMaster(new TileCompletedMessage(projectName) { TileId = leaf.Id });
