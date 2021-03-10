@@ -1059,7 +1059,7 @@ namespace OPS.Landform
                 string meshUrl = pipeline.GetStorageUrl(leafFolder, project.Name, leaf + tileList.MeshExt);
                 var leafMesh = Mesh.Load(pipeline.GetFileCached(meshUrl, "meshes"));
 
-                string indexName = leaf + TileList.INDEX_FILE_SUFFIX + TileList.INDEX_FILE_EXT;
+                string indexName = leaf + TilingDefaults.INDEX_FILE_SUFFIX + TilingDefaults.INDEX_FILE_EXT;
                 string indexUrl = pipeline.GetStorageUrl(leafFolder, project.Name, indexName);
                 var leafIndex = pipeline.LoadImage(indexUrl);
 
@@ -1147,7 +1147,7 @@ namespace OPS.Landform
                 Interlocked.Increment(ref curLeafNum);
                 pipeline.LogVerbose("building {0} leaf texture {1}/{2} ({3:F2}%): {4}",
                                     textureVariant, curLeafNum, leafCount, 100 * curLeafNum / (float)leafCount, leaf);
-                string indexName = leaf + TileList.INDEX_FILE_SUFFIX + TileList.INDEX_FILE_EXT;
+                string indexName = leaf + TilingDefaults.INDEX_FILE_SUFFIX + TilingDefaults.INDEX_FILE_EXT;
                 string indexUrl = pipeline.GetStorageUrl(leafFolder, project.Name, indexName);
                 var index = pipeline.LoadImage(indexUrl);
                 var results = Backproject.BuildResultsFromIndex(index, indexedImages, msg => pipeline.LogWarn(msg));

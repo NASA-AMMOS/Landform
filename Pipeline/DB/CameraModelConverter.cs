@@ -1,39 +1,40 @@
-﻿using System;
+using System;
 using Amazon.DynamoDBv2.DataModel;
 using Amazon.DynamoDBv2.DocumentModel;
-using MathNet.Numerics.LinearAlgebra;
+using Microsoft.Xna.Framework;
 using Newtonsoft.Json;
+using OPS.Imaging;
 
-namespace OPS.Pipeline.AlignmentServer
+namespace OPS.Pipeline
 {
-    public class VectorNConverter : JsonConverter, IPropertyConverter
+    public class CameraModelConverter : JsonConverter, IPropertyConverter
     {
         public override bool CanRead { get { return true; } } 
         public override bool CanWrite { get { return true; } } 
 
         public override bool CanConvert(Type objectType)
         {
-            return objectType == typeof(Vector<double>);
+            return objectType == typeof(CameraModel);
         }
 
         public override void WriteJson(JsonWriter writer, object value, JsonSerializer serializer)
         {
-            serializer.Serialize(writer, ((Vector<double>)value).ToArray());
+            serializer.Serialize(writer, ((CameraModel)value).Serialize());
         }
         
         public override object ReadJson(JsonReader reader, Type type, object existing, JsonSerializer serializer)
         {
-            return CreateVector.DenseOfArray(serializer.Deserialize<double[]>(reader));
+            return CameraModel.Deserialize(serializer.Deserialize<string>(reader));
         }
 
         public object FromEntry(DynamoDBEntry entry)
         {
-            return CreateVector.DenseOfArray(JsonConvert.DeserializeObject<double[]>(entry.AsString()));
+            return CameraModel.Deserialize(entry.AsString());
         }
 
         public DynamoDBEntry ToEntry(object value)
         {
-            return JsonConvert.SerializeObject(((Vector<double>)value).ToArray());
+            return ((CameraModel)value).Serialize();
         }
     }
 }

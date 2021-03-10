@@ -7,6 +7,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using CommandLine;
 using Microsoft.Xna.Framework;
+using OPS.MathExtensions;
 using OPS.Geometry;
 using OPS.Imaging;
 using OPS.Pipeline;
@@ -117,6 +118,9 @@ namespace OPS.Landform
         [Option(HelpText = "Disable generating UVs by texture projection", Default = false)]
         public bool NoTextureProjection { get; set; }
 
+        [Option(HelpText = "Disable aligning tile bounds to camera axis for improved texture utilization when using texture projection", Default = false)]
+        public bool NoAlignToCamera { get; set; }
+
         [Option(HelpText = "Max input texture resolution, should be power of two, negative for unlimited", Default = -1)]
         public override int TextureResolution { get; set; }
 
@@ -138,6 +142,8 @@ namespace OPS.Landform
         private Matrix? meshToImage; //non-null iff texture projection enabled
         private TextureMode textureMode = TextureMode.None;
         private TextureSplitOptions textureSplitOptions;
+
+        private Matrix? tilingTransform, inverseTilingTransform;
 
         public BuildTilingInput(BuildTilingInputOptions options) : base(options)
         {
@@ -579,6 +585,23 @@ namespace OPS.Landform
             if (meshToImage.HasValue)
             {
                 pipeline.LogInfo("enabled texture projection");
+
+                if (!options.NoAlignToCamera && texImg.CameraModel is CAHV)
+                {
+                    Vector3 a = Vector3.Normalize((texImg.CameraModel as CAHV).A);
+                    a = Vector3.TransformNormal(a, Matrix.Invert(meshToImage.Value));
+                    a.Z = 0;
+                    if (a.LengthSquared() > MathE.EPSILON)
+                    {
+                        a = Vector3.Normalize(a);
+                        double angle = Math.Atan2(a.Y, a.X);
+                        pipeline.LogInfo("rotating by {0:F1}deg in XY plane to align tiling frame with camera axis",
+                                         MathHelper.ToDegrees(angle));
+                        tilingTransform = Matrix.CreateRotationZ(angle);
+                        inverseTilingTransform = Matrix.Invert(tilingTransform.Value);
+                        meshToImage = inverseTilingTransform.Value * meshToImage.Value; //row mats compose left to right
+                    }
+                }
             }
         }
 
@@ -619,6 +642,19 @@ namespace OPS.Landform
         protected override bool TextureProjectionEnabled()
         {
             return sceneTexture != null && sceneTexture.CameraModel != null && meshToImage.HasValue;
+        }
+
+        protected override void LoadInputMesh(bool requireUVs = true, bool requireNormals = true,
+                                              bool onlyGenerateUVsWithTextureProjection = false)
+        {
+            base.LoadInputMesh();
+            if (tilingTransform.HasValue)
+            {
+                for (int i = 0; i < meshLOD.Count; i++)
+                {
+                    meshLOD[i].Transform(tilingTransform.Value);
+                }
+            }
         }
 
         private void LoadInputTexture()
@@ -962,8 +998,13 @@ namespace OPS.Landform
                 TilingScheme = options.TilingScheme,
                 TextureMode = textureMode,
                 LeafNames = new List<string>(),
-                ParentNames = new List<string>()
+                ParentNames = new List<string>(),
             };
+
+            if (inverseTilingTransform.HasValue)
+            {
+                tileList.RootTransform = inverseTilingTransform.Value;
+            }
 
             var tilesToTexture = tileTree.DepthFirstTraverse()
                 .Where(l => l.HasComponent<MeshImagePair>() && l.GetComponent<MeshImagePair>().Mesh != null)

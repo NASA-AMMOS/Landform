@@ -858,7 +858,7 @@ namespace OPS.Landform
             Image bigIndexMap = new Image(3, bigImgWidth, bigImgHeight);
             CoreLimitedParallel.ForEach(tileList.LeafNames, leafName =>
             {
-                string indexName = leafName + TileList.INDEX_FILE_SUFFIX + TileList.INDEX_FILE_EXT;
+                string indexName = leafName + TilingDefaults.INDEX_FILE_SUFFIX + TilingDefaults.INDEX_FILE_EXT;
                 string indexUrl = pipeline.GetStorageUrl(outputFolder, project.Name, indexName);
                 var leafIndex = MaskBackprojectIndex(pipeline.LoadImage(indexUrl));
 

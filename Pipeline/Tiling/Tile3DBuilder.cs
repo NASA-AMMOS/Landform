@@ -13,36 +13,34 @@ using OPS.Pipeline.AlignmentServer;
 
 namespace OPS.Pipeline
 {
-    /// <summary>
-    /// Given a scene node, build a Tile3D tileset using the node as the root
-    /// </summary>
-    public class Tile3DBuilder
+    public static class Tile3DBuilder
     {
         public static readonly string[] SUPPORTED_INDEX_FORMATS = new string[] { "tif", "tiff", "ppm", "ppmz", "png" };
 
-        public Tile3D.Tileset Tileset { get; private set; }
-
-        private SceneNode Root;
-        private Dictionary<SceneNode, Tile3D.Tile> nodesToTiles = new Dictionary<SceneNode, Tile3D.Tile>();
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="root">the root node to be used in the tileset</param>
-        public Tile3DBuilder(SceneNode root)
+        public static Matrix MakeCesiumHackRootTransform()
         {
-            this.Root = root;
+            // Put together a hack matrix for viewing in cesium
+            Matrix m = new Matrix(96.86356343768793, 24.848542777253734, 0, 0,
+                                  -15.986465724980844, 62.317780594908875, 76.5566922962899, 0,
+                                  19.02322243409411, -74.15554020821229, 64.3356267137516, 0,
+                                  1215107.7612304366, -4736682.902037748, 4081926.095098698, 1);
+            Vector3 scale;
+            Quaternion q;
+            Vector3 trans;
+            m.Decompose(out scale, out q, out trans);
+            scale = new Vector3(1, 1, 1);
+            Matrix rot = Matrix.CreateRotationX(MathHelper.ToRadians(90)) * Matrix.CreateFromQuaternion(q);
+            return Matrix.Transpose(Matrix.CreateScale(scale) * rot * Matrix.CreateTranslation(trans));
         }
 
-        /// <summary>
-        /// Build the tileset
-        /// </summary>
-        /// <param name="nodeToUrl">Method that returns the asset url to use for a given node</param>
-        public void BuildTileset(Func<SceneNode, string> nodeToUrl, bool useCesiumHackTransform = false)
+        public static Tile3D.Tileset BuildTileset(SceneNode root, Func<SceneNode, string> nodeToUrl,
+                                                  Matrix? rootTransform = null)
         {
-            foreach(SceneNode curNode in Root.DepthFirstTraverse())
+            Dictionary<SceneNode, Tile3D.Tile> nodesToTiles = new Dictionary<SceneNode, Tile3D.Tile>();
+
+            foreach (SceneNode curNode in root.DepthFirstTraverse())
             {
-                if(!nodesToTiles.ContainsKey(curNode))
+                if (!nodesToTiles.ContainsKey(curNode))
                 {
                     var tile = SceneNodeToTile(curNode, nodeToUrl);
                     nodesToTiles.Add(curNode, tile);
@@ -53,50 +51,34 @@ namespace OPS.Pipeline
                     }
                 }
             }
-            this.Tileset = new Tile3D.Tileset();
-            this.Tileset.Root = nodesToTiles[Root];
-            this.Tileset.GeometricError = this.Root.GetOrAddComponent<NodeBounds>().Bounds.MaxDimension(); //default 0
 
-            if (useCesiumHackTransform)
-            {
-                // Put together a hack matrix for viewing in cesium
-                Matrix m = new Matrix(96.86356343768793, 24.848542777253734, 0, 0,
-                 -15.986465724980844, 62.317780594908875, 76.5566922962899, 0,
-                 19.02322243409411, -74.15554020821229, 64.3356267137516, 0,
-                 1215107.7612304366, -4736682.902037748, 4081926.095098698, 1);
-                Vector3 scale;
-                Quaternion q;
-                Vector3 trans;
-                m.Decompose(out scale, out q, out trans);
-                scale = new Vector3(1, 1, 1);
-                Matrix rot = Matrix.CreateRotationX(MathHelper.ToRadians(90)) * Matrix.CreateFromQuaternion(q);
-                m = Matrix.CreateScale(scale) * rot * Matrix.CreateTranslation(trans);
-                m.Decompose(out scale, out q, out trans);
-                this.Tileset.Root.Transform = MatrixToList(m);
-            } else
-            {
-                this.Tileset.Root.Transform = MatrixToList(Matrix.Identity);
-            }
+            var tileset = new Tile3D.Tileset();
+
+            tileset.Root = nodesToTiles[root];
+            tileset.Root.Transform = MatrixToList(rootTransform.HasValue ? rootTransform.Value : Matrix.Identity);
+            tileset.GeometricError = root.GetOrAddComponent<NodeBounds>().Bounds.MaxDimension(); //default 0
 
             //https://github.jpl.nasa.gov/OnSight/Landform/issues/769
-            this.Tileset.Asset.GLTFUpAxis = "z";
+            tileset.Asset.GLTFUpAxis = "z";
+
+            return tileset;
         }
 
         public static void BuildAndSaveTileset(PipelineCore pipeline, SceneNode root, string tilesetDir,
                                                string tilesetName, Func<SceneNode, string> nodeToUrl,
-                                               bool useCesiumHackTransform = false, Action<string> info = null)
+                                               Matrix? rootTransform = null, Action<string> info = null)
         {
             info = info ?? (msg => pipeline.LogInfo(msg));
 
             info("building tileset json");
-            var builder = new Tile3DBuilder(root);
-            builder.BuildTileset(nodeToUrl, useCesiumHackTransform);
+            var tileset = BuildTileset(root, nodeToUrl, rootTransform);
 
             string tilesetUrl = pipeline.GetStorageUrl(tilesetDir, tilesetName, "tileset.json");
+
             info($"saving tileset json to {tilesetUrl}");
             TemporaryFile.GetAndDelete(".json", f =>
             {
-                File.WriteAllText(f, JsonConvert.SerializeObject(builder.Tileset, Formatting.None));
+                File.WriteAllText(f, JsonConvert.SerializeObject(tileset, Formatting.None));
                 pipeline.SaveFile(f, tilesetUrl);
             });
 
@@ -147,7 +129,7 @@ namespace OPS.Pipeline
 
             bool embedImgs = tsMeshExt == ".b3dm";
 
-            string idxSfx = TileList.INDEX_FILE_SUFFIX;
+            string idxSfx = TilingDefaults.INDEX_FILE_SUFFIX;
 
             var tsExts = new List<string>() { tsMeshExt, tsImgExt };
             if (withIndices)
@@ -310,21 +292,23 @@ namespace OPS.Pipeline
 
         public static List<double> MatrixToList(Matrix m)
         {            
+            m = Matrix.Transpose(m); //3DTiles stores matrices in column major order
             return new double[]
             {
-                m.M11, m.M12,m.M13,m.M14,
-                m.M21, m.M22,m.M23,m.M24,
-                m.M31, m.M32,m.M33,m.M34,
-                m.M41, m.M42,m.M43,m.M44
+                m.M11, m.M12, m.M13, m.M14,
+                m.M21, m.M22, m.M23, m.M24,
+                m.M31, m.M32, m.M33, m.M34,
+                m.M41, m.M42, m.M43, m.M44
             }.ToList();
         }
 
-        Matrix ListToMatrix(List<double> list)
+        public static Matrix ListToMatrix(List<double> list)
         {
-           return new Matrix(list[0], list[1], list[2], list[3],
-                             list[4], list[5], list[6], list[7],
-                             list[8], list[9], list[10], list[11],
-                             list[12], list[13], list[14], list[15]);
+           Matrix m = new Matrix(list[0], list[1], list[2], list[3],
+                                 list[4], list[5], list[6], list[7],
+                                 list[8], list[9], list[10], list[11],
+                                 list[12], list[13], list[14], list[15]);
+           return Matrix.Transpose(m); //3DTiles stores matrices in column major order
         }
 
         /// <summary>
@@ -332,7 +316,7 @@ namespace OPS.Pipeline
         /// </summary>
         /// <param name="b"></param>
         /// <returns></returns>
-        static public List<double> BoundsToBox(BoundingBox b)
+        public static List<double> BoundsToBox(BoundingBox b)
         {
             // "description" : "An array of 12 numbers that define an oriented bounding box.  
             // The first three elements define the x, y, and z values for the center of the box.  
@@ -344,11 +328,17 @@ namespace OPS.Pipeline
             Vector3 xaxis = new Vector3(halfExtent.X, 0, 0);
             Vector3 yaxis = new Vector3(0, halfExtent.Y, 0);
             Vector3 zaxis = new Vector3(0, 0, halfExtent.Z);
-            var box = new double[] { center.X, center.Y, center.Z, xaxis.X, xaxis.Y, xaxis.Z, yaxis.X, yaxis.Y, yaxis.Z, zaxis.X, zaxis.Y, zaxis.Z };
+            var box = new double[]
+            {
+                center.X, center.Y, center.Z,
+                xaxis.X, xaxis.Y, xaxis.Z,
+                yaxis.X, yaxis.Y, yaxis.Z,
+                zaxis.X, zaxis.Y, zaxis.Z
+            };
             return new List<double>(box);
         }
 
-        static public BoundingBox BoxToBounds(List<double> box)
+        public static BoundingBox BoxToBounds(List<double> box)
         {
             Vector3 center = new Vector3(box[0], box[1], box[2]);
             Vector3 halfX = new Vector3(box[3], box[4], box[5]);
@@ -358,13 +348,14 @@ namespace OPS.Pipeline
             Vector3 max = center + halfX + halfY + halfZ;
             return new BoundingBox(min, max);
         }
+
         /// <summary>
         /// Create a 3DTile for a node
         /// </summary>
         /// <param name="node"></param>
         /// <param name="nodeToUrl"></param>
         /// <returns></returns>
-        Tile3D.Tile SceneNodeToTile(SceneNode node, Func<SceneNode, string> nodeToUrl)
+        public static Tile3D.Tile SceneNodeToTile(SceneNode node, Func<SceneNode, string> nodeToUrl)
         {
             Tile3D.Tile tile = new Tile3D.Tile();
             tile.BoundingVolume.Box = BoundsToBox(node.GetOrAddComponent<NodeBounds>().Bounds);

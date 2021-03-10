@@ -778,7 +778,7 @@ namespace OPS.Landform
 
                         CoreLimitedParallel.ForEach(tileList.LeafNames, leaf =>
                         {
-                            string indexName = leaf + TileList.INDEX_FILE_SUFFIX + TileList.INDEX_FILE_EXT;
+                            string indexName = leaf + TilingDefaults.INDEX_FILE_SUFFIX + TilingDefaults.INDEX_FILE_EXT;
                             string indexUrl = pipeline.GetStorageUrl(leafFolder, project.Name, indexName);
                             var leafIndex = pipeline.LoadImage(indexUrl);
                             for (int r = 0; r < leafIndex.Height; r++)

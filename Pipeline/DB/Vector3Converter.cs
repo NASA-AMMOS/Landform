@@ -4,7 +4,7 @@ using Amazon.DynamoDBv2.DocumentModel;
 using Microsoft.Xna.Framework;
 using Newtonsoft.Json;
 
-namespace OPS.Pipeline.AlignmentServer
+namespace OPS.Pipeline
 {
     public class Vector3Converter : JsonConverter, IPropertyConverter
     {

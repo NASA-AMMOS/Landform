@@ -5,6 +5,8 @@ using System.Linq;
 using System.Threading;
 using Amazon.DynamoDBv2.DataModel;
 using log4net;
+using Microsoft.Xna.Framework;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using OPS.Util;
 using OPS.Cloud;
@@ -84,6 +86,10 @@ namespace OPS.Pipeline.TilingServer
         public bool EmbedIndexImages = TilingDefaults.EMBED_INDEX_IMAGES; //embed tileset indexes in b3dm
 
         public Guid TextureProjectorGuid;
+
+        [DynamoDBProperty("RootTransform", typeof(XNAMatrixConverter))]
+        [JsonConverter(typeof(XNAMatrixConverter))]
+        public Matrix RootTransform = Matrix.Identity;
 
         public static string ToExt(string fmt)
         {

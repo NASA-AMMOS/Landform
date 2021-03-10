@@ -165,13 +165,11 @@
   <ItemGroup>
     <Compile Include="AlignmentServer\DB\BirdsEyeView.cs" />
     <Compile Include="AlignmentServer\DB\BirdsEyeViewFeatures.cs" />
-    <Compile Include="AlignmentServer\DB\CameraModelConverter.cs" />
     <Compile Include="AlignmentServer\DB\FeatureMatches.cs" />
     <Compile Include="AlignmentServer\DB\Frame.cs" />
     <Compile Include="AlignmentServer\DB\FrameCache.cs" />
     <Compile Include="AlignmentServer\DB\FrameGeohash.cs" />
     <Compile Include="AlignmentServer\DB\FrameTransform.cs" />
-    <Compile Include="AlignmentServer\DB\XNAMatrixConverter.cs" />
     <Compile Include="AlignmentServer\DB\Observation.cs" />
     <Compile Include="AlignmentServer\DB\ObservationCache.cs" />
     <Compile Include="AlignmentServer\DB\Overlap.cs" />
@@ -182,9 +180,6 @@
     <Compile Include="AlignmentServer\DB\SceneMesh.cs" />
     <Compile Include="AlignmentServer\DB\SpatialIndex.cs" />
     <Compile Include="AlignmentServer\DB\SpatialMatches.cs" />
-    <Compile Include="AlignmentServer\DB\SquareMatrixConverter.cs" />
-    <Compile Include="AlignmentServer\DB\Vector3Converter.cs" />
-    <Compile Include="AlignmentServer\DB\VectorNConverter.cs" />
     <Compile Include="AlignmentServer\Operations\DetectFeatures.cs" />
     <Compile Include="AlignmentServer\Operations\MatchImages.cs" />
     <Compile Include="Alignment\BuildSceneGraph.cs" />
@@ -206,6 +201,11 @@
     <Compile Include="DataProducts\TextureProjector.cs" />
     <Compile Include="DataProducts\TileList.cs" />
     <Compile Include="DataProducts\PlyGZDataProduct.cs" />
+    <Compile Include="DB\CameraModelConverter.cs" />
+    <Compile Include="DB\SquareMatrixConverter.cs" />
+    <Compile Include="DB\Vector3Converter.cs" />
+    <Compile Include="DB\VectorNConverter.cs" />
+    <Compile Include="DB\XNAMatrixConverter.cs" />
     <Compile Include="MissionSpecific\M2020RoverProductId.cs" />
     <Compile Include="MissionSpecific\MSLRoverProductId.cs" />
     <Compile Include="MissionSpecific\SiteDriveList.cs" />

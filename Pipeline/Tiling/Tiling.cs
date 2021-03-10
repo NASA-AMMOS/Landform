@@ -46,6 +46,9 @@ namespace OPS.Pipeline
         public const string TILESET_IMAGE_FORMAT = "png";
         public const string TILESET_INDEX_FORMAT = "png";
 
+        public const string INDEX_FILE_SUFFIX = "_index";
+        public const string INDEX_FILE_EXT = ".tif";
+
         public const bool EMBED_INDEX_IMAGES = false; //requires refactoring command line options
 
         public const int MAX_LEAF_GROUP = 32;

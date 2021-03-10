@@ -431,8 +431,8 @@ namespace OPS.Landform
                              lumaMed, lumaMAD, hueMed, numColor, roverImages.Count);
         }
 
-        protected void LoadInputMesh(bool requireUVs = true, bool requireNormals = true,
-                                     bool onlyGenerateUVsWithTextureProjection = false)
+        protected virtual void LoadInputMesh(bool requireUVs = true, bool requireNormals = true,
+                                             bool onlyGenerateUVsWithTextureProjection = false)
         {
             if (sceneMesh == null && project != null) //might have already been loaded in GetProject()
             {

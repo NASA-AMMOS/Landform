@@ -125,6 +125,12 @@ namespace OPS.Landform
 
         [Option(Default = TextureCommand.DEF_FIXUP_LODS, HelpText = "Create or fix LOD meshes, comma separated list of min-max ranges, finest to coarsest")]
         public string FixupLODs{ get; set; }
+
+        [Option(HelpText = "Disable generating UVs by texture projection", Default = false)]
+        public bool NoTextureProjection { get; set; }
+
+        [Option(HelpText = "Disable aligning tile bounds to camera axis for improved texture utilization when using texture projection", Default = false)]
+        public bool NoAlignToCamera { get; set; }
     }
 
     public class ProcessTactical : LandformService
@@ -974,6 +980,8 @@ namespace OPS.Landform
             string destDir = TILESET_SUBDIR; //default output to ./TILESET_SUBDIR (e.g. if input is a filename)
             string loadLODs = !options.NoLoadExistingLODs ? "--loadlods" : "";
             string fixupLODs = options.FixupLODs;
+            string noTextureProjection = options.NoTextureProjection ? "--notextureprojection" : "";
+            string noAlignToCamera = options.NoAlignToCamera ? "--noaligntocamera" : "";
 
             pipeline.LogInfo("building tileset {0} for {1}", project, mip.url);
 
@@ -1004,7 +1012,8 @@ namespace OPS.Landform
                 if (!options.NoTileset)
                 {
                     BuildTilingInput(project, "--mission", fullMissionStr, "--meshframe", "tactical", "--inputmesh",
-                                     meshFile, "--inputtexture", imageFile, loadLODs, "--fixuplods", fixupLODs);
+                                     meshFile, "--inputtexture", imageFile, loadLODs, "--fixuplods", fixupLODs,
+                                     noTextureProjection, noAlignToCamera);
                     
                     BuildTileset(project);
 

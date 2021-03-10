@@ -325,8 +325,9 @@ namespace OPS.Landform
                 }
                 if (mip.Index != null)
                 {
-                    string path = Path.Combine(localOutputPath,
-                                               tileName + TileList.INDEX_FILE_SUFFIX + TileList.INDEX_FILE_EXT);
+                    string path =
+                        Path.Combine(localOutputPath,
+                                     tileName + TilingDefaults.INDEX_FILE_SUFFIX + TilingDefaults.INDEX_FILE_EXT);
                     Tile3DBuilder.SaveTileIndex(mip.Index, path,
                                                 msg => pipeline.LogVerbose($"{msg} for tile {tileName}"));
                 }
@@ -347,11 +348,11 @@ namespace OPS.Landform
 
                 if (mip.Index != null)
                 {
-                    TemporaryFile.GetAndDelete(TileList.INDEX_FILE_EXT, tmpFile =>
+                    TemporaryFile.GetAndDelete(TilingDefaults.INDEX_FILE_EXT, tmpFile =>
                     {
                         Tile3DBuilder.SaveTileIndex(mip.Index, tmpFile,
                                                     msg => pipeline.LogWarn($"{msg} for tile {tileName}"));
-                        string indexName = tileName + TileList.INDEX_FILE_SUFFIX + TileList.INDEX_FILE_EXT;
+                        string indexName = tileName + TilingDefaults.INDEX_FILE_SUFFIX + TilingDefaults.INDEX_FILE_EXT;
                         string indexUrl = pipeline.GetStorageUrl(outputFolder, project.Name, indexName);
                         pipeline.SaveFile(tmpFile, indexUrl);
                     });
@@ -415,7 +416,7 @@ namespace OPS.Landform
         {
             string inMeshExt = TilingProject.ToExt(tileList?.MeshExt ?? meshExt); //e.g. .ply
             string inImgExt = TilingProject.ToExt(tileList?.ImageExt ?? imageExt); //e.g. .png
-            string inIdxExt = TilingProject.ToExt(TileList.INDEX_FILE_EXT); //e.g. .tiff
+            string inIdxExt = TilingProject.ToExt(TilingDefaults.INDEX_FILE_EXT); //e.g. .tiff
 
             string tsMeshExt = TilingProject.ToExt(tilingOpts.TilesetMeshFormat); //e.g. .b3dm
             string tsImgExt = TilingProject.ToExt(tilingOpts.TilesetImageFormat); //e.g. .png
@@ -431,7 +432,8 @@ namespace OPS.Landform
                                        !tilingOpts.NoConvertLinearRGBToSRGB);
 
             Tile3DBuilder.BuildAndSaveTileset(pipeline, tileTree, tilesetFolder, tilesetName,
-                                              nodeToUrl = nodeToUrl ?? (node => node.Name + tsMeshExt));
+                                              nodeToUrl = nodeToUrl ?? (node => node.Name + tsMeshExt),
+                                              tileList != null ? tileList.RootTransform : Matrix.Identity);
         }
 
         protected virtual void SaveTileset()
@@ -522,6 +524,8 @@ namespace OPS.Landform
 
                 tilingProject.EmbedIndexImages = tilingOpts.EmbedIndexImages;
 
+                tilingProject.RootTransform = tileList.RootTransform;
+
                 tilingProject.Save(pipeline);
             }
 
@@ -568,7 +572,8 @@ namespace OPS.Landform
                 }
                 string meshUrl = inputUrl(tile, tileList.MeshExt);
                 string imgUrl = withTextures ? inputUrl(tile, tileList.ImageExt) : null;
-                string indexUrl = withIdx ? inputUrl(tile, TileList.INDEX_FILE_EXT, TileList.INDEX_FILE_SUFFIX) : null;
+                string indexUrl =
+                    withIdx ? inputUrl(tile, TilingDefaults.INDEX_FILE_EXT, TilingDefaults.INDEX_FILE_SUFFIX) : null;
                 var input = TilingInput.Create(pipeline, tile, tilingProject, meshUrl, imgUrl, indexUrl, tile);
                 inputs.Add(input.Name);
             }
