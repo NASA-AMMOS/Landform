@@ -23,6 +23,6 @@ namespace OPS.Pipeline
         public List<string> ParentNames;
 
         [JsonConverter(typeof(XNAMatrixJsonConverter))]
-        public Matrix RootTransform;
+        public Matrix RootTransform = Matrix.Identity;
     }
 }

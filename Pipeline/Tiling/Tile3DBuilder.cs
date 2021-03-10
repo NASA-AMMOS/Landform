@@ -44,8 +44,7 @@ namespace OPS.Pipeline
                 {
                     var tile = SceneNodeToTile(curNode, nodeToUrl);
                     nodesToTiles.Add(curNode, tile);
-                    // Should only be null for root node
-                    if(curNode.Transform.Parent != null)
+                    if (curNode.Transform.Parent != null) // should only be null for root node
                     {
                         nodesToTiles[curNode.Transform.Parent.Node].Children.Add(tile);
                     }

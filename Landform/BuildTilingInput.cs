@@ -1001,10 +1001,7 @@ namespace OPS.Landform
                 ParentNames = new List<string>(),
             };
 
-            if (inverseTilingTransform.HasValue)
-            {
-                tileList.RootTransform = inverseTilingTransform.Value;
-            }
+            tileList.RootTransform = inverseTilingTransform.HasValue ? inverseTilingTransform.Value : Matrix.Identity;
 
             var tilesToTexture = tileTree.DepthFirstTraverse()
                 .Where(l => l.HasComponent<MeshImagePair>() && l.GetComponent<MeshImagePair>().Mesh != null)
@@ -1032,8 +1029,7 @@ namespace OPS.Landform
                 pipeline.LogInfo("colorize: {0}", options.Colorize);
             }
 
-            if (meshLOD.Count == 1 && (textureMode == TextureMode.Backproject ||
-                                       (textureMode == TextureMode.Clip && !TextureProjectionEnabled())))
+            if (textureMode == TextureMode.Clip && meshLOD.Count == 1 && !TextureProjectionEnabled())
             {
                 pipeline.LogWarn("clipping leaf tile textures but baking parent tile textures");
             }

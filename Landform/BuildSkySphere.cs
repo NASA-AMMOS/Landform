@@ -761,15 +761,6 @@ namespace OPS.Landform
 
             root.AddComponent(new NodeBounds(rootBounds));
             tileTree = root;
-
-            if (!options.NoSave)
-            {
-                pipeline.LogInfo("saving sky tile list");
-                var skySceneMesh = SceneMesh.Create(pipeline, project, MeshVariant.Sky, mesh);
-                pipeline.SaveDataProduct(project, tileList);
-                skySceneMesh.TileListGuid = tileList.Guid;
-                skySceneMesh.Save(pipeline);
-            }
         }
 
         private void BuildTileTexturesAndSaveTiles()
@@ -830,6 +821,15 @@ namespace OPS.Landform
 
             pipeline.LogInfo("{0} tiles built successfully", numSucceded);
             tileTree.DumpStats(msg => pipeline.LogInfo(msg));
+
+            if (!options.NoSave)
+            {
+                pipeline.LogInfo("saving sky tile list");
+                var skySceneMesh = SceneMesh.Create(pipeline, project, MeshVariant.Sky, mesh);
+                pipeline.SaveDataProduct(project, tileList);
+                skySceneMesh.TileListGuid = tileList.Guid;
+                skySceneMesh.Save(pipeline);
+            }
         }
 
         private void BlendTileTextures()
