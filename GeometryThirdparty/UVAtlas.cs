@@ -80,7 +80,7 @@ namespace OPS.Geometry
                     {
                         logger.LogWarn("UVAtlas failed, return code {0}, falling back to naive atlasing", rc);
                     }
-                    if (!NaiveAtlas.ComputeAtlas(mesh, out outU, out outV, out indices, out outVertexRemap))
+                    if (!NaiveAtlas.Compute(mesh, out outU, out outV, out indices, out outVertexRemap))
                     {
                         if (logger != null)
                         {

@@ -126,9 +126,6 @@ namespace OPS.Landform
 
         [Option(HelpText = "Max texture stretch, 0 for none, 1 for unlimited", Default = TilingDefaults.MAX_TEXTURE_STRETCH)]
         public override double MaxTextureStretch { get; set; }
-
-        [Option(HelpText = "UV generation mode for surface meshes (None, UVAtlas, Heightmap, Projection)", Default = AtlasMode.Project)]
-        public override AtlasMode AtlasMode { get; set; }
     }
 
     public class BuildTilingInput : TilingCommand
@@ -276,6 +273,18 @@ namespace OPS.Landform
         private bool NeedSceneTexture()
         {
             return textureMode == TextureMode.Clip || textureMode == TextureMode.Bake;
+        }
+
+        protected override bool CanAtlasSceneMesh()
+        {
+            if (NeedSceneTexture() && (!TextureProjectionEnabled() || tcopts.AtlasMode != AtlasMode.Project))
+            {
+                //we cannot arbitrarily assign UVs to the scene mesh if we intend to clip or bake textures from it
+                //(we *can* arbitrarily assign UVs to it, e.g. with UVAtlas, HeightmapAtlas, or NaieveAtlas, if we
+                //intend to backproject textures from it)
+                return false;
+            }
+            return base.CanAtlasSceneMesh();
         }
 
         private bool AllowCreateProject()
@@ -593,6 +602,8 @@ namespace OPS.Landform
             if (meshToCamera.HasValue)
             {
                 pipeline.LogInfo("enabled texture projection");
+
+                options.AtlasMode = AtlasMode.Project;
 
                 if (!options.NoAlignToCamera && texImg.CameraModel is CAHV)
                 {

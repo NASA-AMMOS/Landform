@@ -39,8 +39,8 @@ namespace OPS.Landform
         [Option(HelpText = "Orbital sampling rate, non-positive to use DEM resolution", Default = -1)]
         public double OrbitalPointsPerMeter { get; set; }
 
-        [Option(HelpText = "UV generation mode for surface meshes (None, UVAtlas, Heightmap, Projection)", Default = AtlasMode.UVAtlas)]
-        public virtual AtlasMode AtlasMode { get; set; }
+        [Option(HelpText = "UV generation mode for meshes if texture projection is not available (None, UVAtlas, Heightmap, Naive)", Default = AtlasMode.UVAtlas)]
+        public AtlasMode AtlasMode { get; set; }
     }
 
     public class GeometryCommand : WedgeCommand
@@ -88,7 +88,7 @@ namespace OPS.Landform
         protected virtual void UVAtlasMesh(Mesh mesh, int resolution, string name = null) 
         {
             name = !string.IsNullOrEmpty(name) ? (name + " ") : "";
-            string msg = string.Format("atlasing {0}mesh ({1} triangles) with UVAtlas, texture resolution {2}",
+            string msg = string.Format("atlassing {0}mesh ({1} triangles) with UVAtlas, texture resolution {2}",
                                        name, Fmt.KMG(mesh.Faces.Count), resolution);
 
             if (mesh.Faces.Count > 20000)
@@ -117,7 +117,7 @@ namespace OPS.Landform
         protected virtual void HeightmapAtlasMesh(Mesh mesh, string name = null)
         {
             name = !string.IsNullOrEmpty(name) ? (name + " ") : "";
-            string msg = string.Format("heightmap atlasing {0}mesh ({1} triangles)", name, Fmt.KMG(mesh.Faces.Count));
+            string msg = string.Format("heightmap atlassing {0}mesh ({1} triangles)", name, Fmt.KMG(mesh.Faces.Count));
 
             if (mesh.Faces.Count > 20000)
             {
@@ -134,6 +134,23 @@ namespace OPS.Landform
             mesh.HeightmapAtlas(BoxAxis.Z, swapUV: true);
         }
 
+        protected virtual void NaiveAtlasMesh(Mesh mesh, string name = null)
+        {
+            name = !string.IsNullOrEmpty(name) ? (name + " ") : "";
+            string msg = string.Format("naive atlassing {0}mesh ({1} triangles)", name, Fmt.KMG(mesh.Faces.Count));
+
+            if (mesh.Faces.Count > 20000)
+            {
+                pipeline.LogInfo(msg);
+            }
+            else
+            {
+                pipeline.LogVerbose(msg);
+            }
+
+            mesh.NaiveAtlas();
+        }
+
         protected virtual void AtlasMesh(Mesh mesh, int resolution, string name = null)
         {
             name = !string.IsNullOrEmpty(name) ? (name + " ") : "";
@@ -143,6 +160,7 @@ namespace OPS.Landform
                 case AtlasMode.UVAtlas: UVAtlasMesh(mesh, resolution, name); break;
                 case AtlasMode.Heightmap: HeightmapAtlasMesh(mesh, name); break;
                 case AtlasMode.Project: //fallthrough here, see TextureCommand.AtlasMesh()
+                case AtlasMode.Naive: NaiveAtlasMesh(mesh, name); break;
                 default: throw new ArgumentException("unsupported atlas mode: " + gcopts.AtlasMode);
             }
         }

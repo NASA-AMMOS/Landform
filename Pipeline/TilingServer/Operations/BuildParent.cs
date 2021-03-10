@@ -95,6 +95,8 @@ namespace OPS.Pipeline.TilingServer
 
             parent.Save(pipeline);
 
+            //throw new Exception("TEST");
+
             pipeline.EnqueueToMaster(new TileCompletedMessage(projectName) { TileId = parent.Id });
         }
     }

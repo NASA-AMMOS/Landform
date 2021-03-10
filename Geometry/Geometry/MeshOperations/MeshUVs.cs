@@ -12,7 +12,7 @@ using OPS.Imaging;
 
 namespace OPS.Geometry
 {
-    public enum AtlasMode { None, UVAtlas, Heightmap, Project };
+    public enum AtlasMode { None, UVAtlas, Heightmap, Naive, Project };
 
     public static class MeshUVs
     {
@@ -237,6 +237,16 @@ namespace OPS.Geometry
                 v.UV.Y = MathE.Clamp01(v.UV.Y);
             }
             mesh.HasUVs = true;
+        }
+
+        public static void NaiveAtlas(this Mesh mesh)
+        {
+            if (!OPS.Geometry.NaiveAtlas.Compute(mesh, out float[] u, out float[] v, out int[] indices,
+                                                 out int[] vertexRemap))
+            {
+                throw new Exception("naive atlas failed");
+            }
+            mesh.ApplyAtlas(u, v, indices, vertexRemap);
         }
 
         /// <summary>

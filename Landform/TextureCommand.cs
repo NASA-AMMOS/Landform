@@ -640,7 +640,7 @@ namespace OPS.Landform
         //to actually enable texture projection
         protected bool TextureProjectionEnabled()
         {
-            return (tcopts.AtlasMode != AtlasMode.None) && !tcopts.NoTextureProjection &&
+            return !tcopts.NoTextureProjection &&
                 sceneTexture != null && sceneTexture.CameraModel != null && meshToCamera.HasValue;
         }
 
@@ -680,10 +680,17 @@ namespace OPS.Landform
             }
         }
 
-        protected bool CanAtlasSceneMesh()
+        protected virtual bool CanAtlasSceneMesh()
         {
-            return tcopts.AtlasMode != AtlasMode.None &&
-                (tcopts.AtlasMode != AtlasMode.Project || TextureProjectionEnabled());
+            if (tcopts.AtlasMode == AtlasMode.None)
+            {
+                return false;
+            }
+            if (tcopts.AtlasMode == AtlasMode.Project && !TextureProjectionEnabled())
+            {
+                return false;
+            }
+            return true;
         }
 
         protected virtual void LoadTileList()

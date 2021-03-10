@@ -550,7 +550,11 @@ namespace OPS.Pipeline
 
         public virtual string GetOrbitalS3Folder()
         {
-            return "s3://m20-ids-g-landform/M2020/orbital/";
+            if (venue == "dev")
+            {
+                return "s3://m20-ids-g-landform/M2020/orbital/";
+            }
+            return $"s3://m20-{venue}-ods/ods/surface/strategic/ids/orbital/";
         }
 
         public override string GetOrbitalConfigDefaults()
@@ -996,6 +1000,8 @@ namespace OPS.Pipeline
         }
     }
 
+    //this is mostly here for backwards compatibility
+    //please make the regular MissionM2020 impl do the right thing when venue=sops
     public class MissionM20SOPS : MissionM2020
     {
         public MissionM20SOPS(string venue = null) : base(venue ?? "sops") { }
@@ -1003,11 +1009,6 @@ namespace OPS.Pipeline
         public override Mission GetMission()
         {
             return Mission.M20SOPS;
-        }
-
-        public override string GetOrbitalS3Folder()
-        {
-            return $"s3://m20-{venue}-ods/ods/surface/strategic/ids/orbital/";
         }
     }
 }

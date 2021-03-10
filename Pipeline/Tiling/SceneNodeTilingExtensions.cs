@@ -307,7 +307,7 @@ namespace OPS.Pipeline
                         {
                             throw new Exception("no texture projector to atlas parent tile with texture projection");
                         }
-                        info("atlasing parent tile with texture projection");
+                        info("atlassing parent tile with texture projection");
                         parentMesh.ProjectTexture(textureProjector.ImageWidth, textureProjector.ImageHeight,
                                                   textureProjector.CameraModel, textureProjector.MeshToImage);
                         if (project.TextureMode != TextureMode.Clip || textureImage == null)
@@ -318,7 +318,7 @@ namespace OPS.Pipeline
                     }
                     case AtlasMode.UVAtlas:
                     {
-                        info($"atlasing parent tile with UVAtlas, resolution {textureSize}x{textureSize}, " +
+                        info($"atlassing parent tile with UVAtlas, resolution {textureSize}x{textureSize}, " +
                              $"max stretch {project.MaxTextureStretch}");
                         if (!UVAtlas.Atlas(parentMesh, textureSize, textureSize, maxStretch: project.MaxTextureStretch,
                                            logger: logger, fallbackToNaive: false))
@@ -330,11 +330,17 @@ namespace OPS.Pipeline
                     }
                     case AtlasMode.Heightmap:
                     {
-                        info("atlasing parent tile with heightmap atlas");
+                        info("atlassing parent tile with heightmap atlas");
                         parentMesh.HeightmapAtlas(upAxis ?? Vector3.UnitZ, swapUV: true);
                         //swap U and V because mission surface frames are typically X north, Y east
                         //this doesn't really matter here except that texture images created to match these flipped UVs
                         //will match the orientation of other debug images
+                        break;
+                    }
+                    case AtlasMode.Naive:
+                    {
+                        info("atlassing parent tile with naive atlas");
+                        parentMesh.NaiveAtlas();
                         break;
                     }
                     default: throw new Exception("unsupported atlas mode for parent tile " + project.AtlasMode);
