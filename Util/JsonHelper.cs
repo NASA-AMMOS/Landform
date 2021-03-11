@@ -44,7 +44,7 @@ namespace OPS.Util
             //this also improves readability of the local database
             //but at the expense of increased disk usage
             //(enums that were previously serialized as ints are still accepted)
-            settings.Converters = new List<JsonConverter> () { new StringEnumConverter() };
+            settings.Converters.Add(new StringEnumConverter());
 
             return settings;
         }

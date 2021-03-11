@@ -26,7 +26,9 @@ namespace OPS.Pipeline
         /// If rotation is allowed in packing, small pixel texture may be introduced.
         /// rotation is potentially unstable and may result in half pixel texture offsets
         /// </summary>
-        public TexturedMeshClipper(int borderSize = 5, bool powerOfTwoTextures = false, bool allowRotation = false,
+        public TexturedMeshClipper(int borderSize = TilingDefaults.TEXTURE_PATCH_BORDER_SIZE,
+                                   bool powerOfTwoTextures = TilingDefaults.POWER_OF_TWO_TEXTURES,
+                                   bool allowRotation = TilingDefaults.TEXTURE_PATCH_ALLOW_ROTATION,
                                    ILogger logger = null, string logPrefix = null)
         {
             this.borderSize = borderSize;
@@ -55,12 +57,23 @@ namespace OPS.Pipeline
         /// Creates new combined mesh merging all the clipped triangles.
         /// If maxTextureSize > 0 then the combined texture is resized if necessary before return.
         /// </summary>
-        public MeshImagePair Clip(BoundingBox box, int maxTextureSize = -1)
+        public MeshImagePair Clip(BoundingBox box, int maxTextureSize = -1, double maxTexelsPerMeter = -1)
         {
             var patches = new List<TexturePatch>();
+            double area = 0;
             foreach (var mip in inputs)
             {
-                patches.AddRange(ComputePatches(mip.MeshOp.Clipped(box), mip.Image, mip.Index));
+                Mesh mesh = mip.MeshOp.Clipped(box);
+                if (maxTextureSize > 0 && maxTexelsPerMeter > 0)
+                {
+                    area += mesh.SurfaceArea();
+                }
+                patches.AddRange(ComputePatches(mesh, mip.Image, mip.Index));
+            }
+            if (area > 0)
+            {
+                maxTextureSize = SceneNodeTilingExtensions.
+                    GetTileResolution(area, maxTextureSize, maxTexelsPerMeter, powerOfTwoTextures);
             }
             return ClipAndRemapPatches(patches, maxTextureSize);
         }
@@ -71,11 +84,16 @@ namespace OPS.Pipeline
         /// If maxTextureSize > 0 then the combined texture is resized if necessary before return.
         /// </summary>
         public MeshImagePair RemapMeshClipImage(Mesh clippedMesh, Image fullImage, Image fullImageIndex = null,
-                                                int maxTextureSize = -1)
+                                                int maxTextureSize = -1, double maxTexelsPerMeter = -1)
         {
             if (!clippedMesh.HasUVs)
             {
                 throw new ArgumentException("clipped mesh must have UVs");
+            }
+            if (maxTextureSize < 0 && maxTexelsPerMeter > 0)
+            {
+                maxTextureSize = SceneNodeTilingExtensions.
+                    GetTileResolution(clippedMesh, maxTextureSize, maxTexelsPerMeter, powerOfTwoTextures);
             }
             var patches = ComputePatches(clippedMesh, fullImage, fullImageIndex);
             return ClipAndRemapPatches(patches, maxTextureSize, clippedMesh);
@@ -113,7 +131,7 @@ namespace OPS.Pipeline
                 uvBounds.Min.Y = Math.Max(uvBounds.Min.Y - borderSize, 0);
                 uvBounds.Max.X = Math.Min(uvBounds.Max.X + borderSize, originalImage.Width - 1);
                 uvBounds.Max.Y = Math.Min(uvBounds.Max.Y + borderSize, originalImage.Height - 1);
-                uvBounds = originalImage.PixelToUv(uvBounds);
+                uvBounds = originalImage.PixelToUV(uvBounds);
                 if (this.triangles.Count == 0)
                 {
                     this.uvBounds = uvBounds;

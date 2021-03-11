@@ -161,5 +161,16 @@ namespace OPS.Geometry
                 }
             }
         }
+
+        public static Vector3? SkirtAxis(SkirtMode skirtMode)
+        {
+            switch (skirtMode)
+            {
+                case SkirtMode.X: return Vector3.UnitX; 
+                case SkirtMode.Y: return Vector3.UnitY;
+                case SkirtMode.Z: return Vector3.UnitZ;
+                case SkirtMode.Normal: case SkirtMode.None: default: return null;
+            }
+        }
     }
 }

@@ -26,14 +26,22 @@ namespace OPS.TilingServer
 
         public int Run()
         {
-            if (!options.Force)
+            try
             {
-                Console.WriteLine("delete download caches " + pipeline.DownloadCache + " (yes/no)?");
-                var response = Console.ReadLine();
-                if (response.ToLower() != "yes") return 1;
+                if (!options.Force)
+                {
+                    Console.WriteLine("delete download caches " + pipeline.DownloadCache + " (yes/no)?");
+                    var response = Console.ReadLine();
+                    if (response.ToLower() != "yes") return 1;
+                }
+                pipeline.LogInfo("deleting download cache: " + pipeline.DownloadCache);
+                pipeline.DeleteDownloadCache();
             }
-            pipeline.LogInfo("deleting download cache: " + pipeline.DownloadCache);
-            pipeline.DeleteDownloadCache();
+            catch (Exception ex)
+            {
+                pipeline.LogException(ex);
+                return 1;
+            }
             return 0;
         }
     }

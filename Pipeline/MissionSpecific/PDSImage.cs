@@ -17,6 +17,11 @@ namespace OPS.Pipeline
 {
     public class PDSImage
     {
+        public const int CROSS_NORMAL_RADIUS = 2;
+
+        public static double nearLimit = 1;
+        public static double farLimit = 100;
+
         public readonly Image Image;
         public readonly PDSMetadata Metadata;
         public readonly PDSParser Parser;
@@ -382,7 +387,7 @@ namespace OPS.Pipeline
         }
 
         /// <summary>
-        /// naive confidence: farther away the point is from the camera the lower the confidence
+        /// naive confidence: the farther away the point is from the camera the lower the confidence
         /// </summary>
         public Image GenerateConfidenceFromRNG()
         {
@@ -402,7 +407,7 @@ namespace OPS.Pipeline
                     }
                     else if (!hasMissingConstant || ret.IsValid(row, col))
                     {
-                        ret[0, row, col] = 1 / src[0, row, col];
+                        ret[0, row, col] = (float)DistanceToConfidence(src[0, row, col]);
                     }
                     //else AddMaskForMissingConstant() already masked ret[row, col]
                 }
@@ -412,7 +417,7 @@ namespace OPS.Pipeline
         }
 
         /// <summary>
-        /// naive confidence: farther away the point is from the camera the lower the confidence
+        /// naive confidence: the farther away the point is from the camera the lower the confidence
         /// </summary>
         public Image GenerateConfidenceFromXYZ()
         {
@@ -421,8 +426,8 @@ namespace OPS.Pipeline
             Matrix xform = GetDataToRoverFrameTransform(Parser);
             Image src = this.Image;
             Image ret = new Image(1, src.Width, src.Height);
+            AddMaskForMissingConstant(ret);
             bool hasMissingConstant = Parser.HasMissingConstant;
-            
             for (int row = 0; row < src.Height; row++)
             {
                 for (int col = 0; col < src.Width; col++)
@@ -434,7 +439,8 @@ namespace OPS.Pipeline
                     else if (!hasMissingConstant || ret.IsValid(row, col))
                     {
                         var p = new Vector3(src[0, row, col], src[1, row, col], src[2, row, col]);
-                        ret[0, row, col] = 1 / (float)Vector3.Distance(Vector3.Transform(p, xform), c);
+                        double d = Vector3.Distance(Vector3.Transform(p, xform), c);
+                        ret[0, row, col] = (float)DistanceToConfidence(d);
                     }
                     //else AddMaskForMissingConstant() already masked ret[row, col]
                 }
@@ -442,13 +448,112 @@ namespace OPS.Pipeline
             return ret;
         }
 
+        public double DistanceToConfidence(double distance)
+        {
+            distance = Math.Max(Math.Min(distance, farLimit), nearLimit);
+            return 1.0 / distance;
+        }
+
+        /// <summary>
+        /// generate per-point scale values for FSSR
+        /// </summary>
+        public Image GenerateScale()
+        {
+            switch (Parser.DerivedImageType)
+            {
+                case RoverProductType.Range: return GenerateScaleFromRNG();
+                case RoverProductType.Points: return GenerateScaleFromXYZ();
+                default: throw new NotImplementedException("synthetic confidence requires range or XYZ map"); ;
+            }
+        }
+
+        public Image GenerateScaleFromRNG()
+        {
+            CheckType(RoverProductType.Range, "GenerateScaleFromRNG");
+            Image src = this.Image;
+            Image ret = new Image(1, src.Width, src.Height);
+            AddMaskForMissingConstant(ret);
+            bool hasMissingConstant = Parser.HasMissingConstant;
+            for (int row = 0; row < src.Height; row++)
+            {
+                for (int col = 0; col < src.Width; col++)
+                {
+                    if (!src.IsValid(row, col) || //respect input image mask if it has one
+                        src[0, row, col] <= 0.0f) //non-positive range values are invalid
+                    {
+                        ret.SetMaskValue(row, col, true);
+                    }
+                    else if (!hasMissingConstant || ret.IsValid(row, col))
+                    {
+                        ret[0, row, col] = (float)DistanceToScale(row, col, src[0, row, col]);
+                    }
+                    //else AddMaskForMissingConstant() already masked ret[row, col]
+                }
+            }
+
+            return ret;
+        }
+
+        public Image GenerateScaleFromXYZ()
+        {
+            CheckType(RoverProductType.Points, "GenerateScaleFromXYZ");
+            Vector3 c = CheckCameraCenter("GenerateScaleFromXYZ", false);
+            Matrix xform = GetDataToRoverFrameTransform(Parser);
+            Image src = this.Image;
+            Image ret = new Image(1, src.Width, src.Height);
+            AddMaskForMissingConstant(ret);
+            bool hasMissingConstant = Parser.HasMissingConstant;
+            for (int row = 0; row < src.Height; row++)
+            {
+                for (int col = 0; col < src.Width; col++)
+                {
+                    if (!src.IsValid(row, col)) //respect input image mask if it has one
+                    {
+                        ret.SetMaskValue(row, col, true);
+                    }
+                    else if (!hasMissingConstant || ret.IsValid(row, col))
+                    {
+                        var p = new Vector3(src[0, row, col], src[1, row, col], src[2, row, col]);
+                        double d = Vector3.Distance(Vector3.Transform(p, xform), c);
+                        ret[0, row, col] = (float)DistanceToScale(row, col, d);
+                    }
+                    //else AddMaskForMissingConstant() already masked ret[row, col]
+                }
+            }
+            return ret;
+        }
+
+        public double DistanceToScale(int row, int col, double distance)
+        {
+            double def = 0.1;
+            if (row < 0 || col < 0 || row >= Image.Height || col >= Image.Width ||
+                Image.Height == 0 || Image.Width == 0 || Image.CameraModel == null)
+            {
+                return FSSR.DEF_ENLARGE_PIXEL_SCALE * def;
+            }
+            distance = Math.Max(Math.Min(distance, farLimit), nearLimit);
+            int oRow = row > 0 ? row - 1 : row + 1;
+            int oCol = col > 0 ? col - 1 : col + 1;
+            try
+            {
+                return FSSR.DEF_ENLARGE_PIXEL_SCALE *
+                    Vector3.Distance(Image.CameraModel.Unproject(new Vector2(col, row), distance),
+                                     Image.CameraModel.Unproject(new Vector2(oCol, oRow), distance));
+            }
+            catch (CameraModelException)
+            {
+                return FSSR.DEF_ENLARGE_PIXEL_SCALE * def;
+            }
+        }
+
         /// <summary>
         /// gnenerate normals in rover frame consistent to the UVW mission product
         ///
         /// filters out normals pointing away from camera or fewer than minValid8Neighbors valid neighbors
         ///
-        /// if a confidence map is also provided the returned normals are scaled by confidence
-        /// as Poisson reconstruction uses the magnitude of the normal to indicate confidence
+        /// if a scale map is also provided the returned normals are scaled
+        /// Poisson reconstruction can use the magnitude of the normal to indicate confidence
+        /// FSSR reconstruction can use the magnitude of the normal to indicate scale
         ///
         /// also sets mask of return image to be union of input mask, if any
         /// plus invalid values according to image header metadata
@@ -459,7 +564,7 @@ namespace OPS.Pipeline
         ///
         /// returns null if there were no valid normals
         /// </summary>
-        public Image ConvertNormals(Image confidence = null, Image points = null, int minValid8Neighbors = 8)
+        public Image ConvertNormals(Image scale = null, Image points = null, int minValid8Neighbors = 8)
         {
             CheckType(RoverProductType.Normals, "ConvertNormals");
             CheckCameraFrame("ConvertNormals");
@@ -475,37 +580,38 @@ namespace OPS.Pipeline
             {
                 return src.IsValid(r, c) &&
                     (!hasMissingConstant || !src.BandValuesEqual(r, c, missing)) &&
-                    (confidence == null || confidence.IsValid(r, c));
+                    (scale == null || scale.IsValid(r, c));
             }
             var cns = new List<Vector3>(4);
             Vector3? crossNormal(int r, int c)
             {
+                int radius = CROSS_NORMAL_RADIUS;
                 if (points == null || !points.IsValid(r, c))
                 {
                     return null;
                 }
                 Vector3 p = new Vector3(points[0, r, c], points[1, r, c], points[2, r, c]);
-                int up = Math.Max(0, r - 1);
                 Vector3? tu = null;
-                if (points.IsValid(up, c))
+                int up = r - radius;
+                if (up >= 0 && points.IsValid(up, c))
                 {
                     tu = new Vector3(points[0, up, c], points[1, up, c], points[2, up, c]) - p;
                 }
-                int down = Math.Min(r + 1, points.Height - 1);
                 Vector3? td = null;
-                if (points.IsValid(down, c))
+                int down = r + radius;
+                if (down < points.Height && points.IsValid(down, c))
                 {
                     td = new Vector3(points[0, down, c], points[1, down, c], points[2, down, c]) - p;
                 }
-                int left = Math.Max(0, c - 1);
                 Vector3? tl = null;
-                if (points.IsValid(r, left))
+                int left = c - radius;
+                if (left >= 0 && points.IsValid(r, left))
                 {
                     tl = new Vector3(points[0, r, left], points[1, r, left], points[2, r, left]) - p;
                 }
-                int right = Math.Min(c + 1, points.Width - 1);
                 Vector3? tr = null;
-                if (points.IsValid(r, right))
+                int right = c + radius;
+                if (right < points.Width && points.IsValid(r, right))
                 {
                     tr = new Vector3(points[0, r, right], points[1, r, right], points[2, r, right]) - p;
                 }
@@ -563,8 +669,9 @@ namespace OPS.Pipeline
                         {
                             var n = new Vector3(src[0, row, col], src[1, row, col], src[2, row, col]);
                             n.Normalize();
+                            var fromCam = src.CameraModel.Unproject(new Vector2(col, row)).Direction;
                             var cn = crossNormal(row, col);
-                            if (cn.HasValue && Vector3.Dot(cn.Value, n) < 0)
+                            if (cn.HasValue && Vector3.Dot(cn.Value, fromCam) < 0 && Vector3.Dot(cn.Value, n) < 0)
                             {
                                 n = cn.Value;
                             }
@@ -572,18 +679,24 @@ namespace OPS.Pipeline
                             {
                                 n = Vector3.TransformNormal(n, xform);
                             }
-                            ret.SetBandValues(row, col, n.ToFloatArray());
-                            if (Vector3.Dot(n, src.CameraModel.Unproject(new Vector2(col, row)).Direction) >= 0)
+                            if (scale != null)
                             {
-                                ret.SetMaskValue(row, col, true);
+                                n *= scale[0, row, col];
+                            }
+                            bool valid = false;
+                            try
+                            {
+                                valid = Vector3.Dot(n, fromCam) < 0;
+                            }
+                            catch (CameraModelException) { }
+                            if (valid)
+                            {
+                                ret.SetBandValues(row, col, n.ToFloatArray());
+                                anyValid = true;
                             }
                             else
                             {
-                                anyValid = true;
-                                if (confidence != null)
-                                {
-                                    ret[0, row, col] *= confidence[0, row, col];
-                                }
+                                ret.SetMaskValue(row, col, true);
                             }
                         }
                     }

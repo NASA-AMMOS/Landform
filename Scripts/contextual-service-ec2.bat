@@ -72,6 +72,45 @@ if not "%LANDFORM_CONTEXTUAL_TILESET_INDEX_FORMAT%"=="" (
    set tilesetindexformat=--tilesetindexformat=%LANDFORM_CONTEXTUAL_TILESET_INDEX_FORMAT%
 )
 
+set maxfacespertile=
+if not "%LANDFORM_CONTEXTUAL_MAX_FACES_PER_TILE%"=="" (
+   set maxfacespertile=--maxfacespertile=%LANDFORM_CONTEXTUAL_MAX_FACES_PER_TILE%
+)
+
+set maxtileresolution=
+if not "%LANDFORM_CONTEXTUAL_MAX_TILE_RESOLUTION%"=="" (
+   set maxtileresolution=--maxtileresolution=%LANDFORM_CONTEXTUAL_TILE_RESOLUTION%
+)
+
+set mintileextent=
+if not "%LANDFORM_CONTEXTUAL_MIN_TILE_EXTENT%"=="" (
+   set mintileextent=--mintileextent=%LANDFORM_CONTEXTUAL_MIN_TILE_EXTENT%
+)
+
+set notexturesplitrespectmaxtexelspermeter=
+if not "%LANDFORM_CONTEXTUAL_NO_TEXTURE_SPLIT_RESPECT_MAX_TEXELS_PER_METER%"=="" (
+   set notexturesplitrespectmaxtexelspermeter=--notexturesplitrespectmaxtexelspermeter
+)
+
+set maxtexelspermeter=
+if not "%LANDFORM_CONTEXTUAL_MAX_TEXELS_PER_METER%"=="" (
+   set maxtexelspermeter=--maxtexelspermeter=%LANDFORM_CONTEXTUAL_MAX_TEXELS_PER_METER%
+)
+
+set maxtexturestretch=
+if not "%LANDFORM_CONTEXTUAL_MAX_TEXTURE_STRETCH%"=="" (
+   set maxtexturestretch=--maxtexturestretch=%LANDFORM_CONTEXTUAL_MAX_TEXTURE_STRETCH%
+)
+
+set poweroftwotextures=
+if not "%LANDFORM_CONTEXTUAL_POWER_OF_TWO_TEXTURES%"=="" set poweroftwotextures=--poweroftwotextures
+
+set noindices=
+if not "%LANDFORM_CONTEXTUAL_NO_INDICES%"=="" set noindices=--nopublishindeximages
+
+set embedindices=
+if not "%LANDFORM_CONTEXTUAL_EMBED_INDICES%"=="" set embedindices=--embedindeximages
+
 rem --- end service specific boilerplate, begin service specific ---
 
 set maxfetch=50G
@@ -105,12 +144,6 @@ if not "%LANDFORM_CONTEXTUAL_SKY_MIN_BACKPROJECT_RADIUS%"=="" (
     set skyminbackprojectradius=--skyminbackprojectradius=%LANDFORM_CONTEXTUAL_SKY_MIN_BACKPROJECT_RADIUS%
 )
 
-set noindices=
-if not "%LANDFORM_CONTEXTUAL_NO_INDICES%"=="" set noindices=--nopublishindeximages
-
-set embedindices=
-if not "%LANDFORM_CONTEXTUAL_EMBED_INDICES%"=="" set embedindices=--embedindeximages
-
 set allowunmasked=
 if not "%LANDFORM_CONTEXTUAL_ALLOW_UNMASKED%"=="" set allowunmasked==--allowunmaskedroverobservations
 
@@ -142,10 +175,13 @@ set svcopts=%stdopts% --stacktraces --service --mission=%mission% --queuename=%q
 set svcopts=%svcopts% --awsprofile=%awsprofile% --awsregion=%awsregion% %credentialrefresh%
 set svcopts=%svcopts% %msgopts%
 
+set tilingopts=%tilesetimageformat% %tilesetindexformat% %maxfacespertile% %maxtileresolution% %mintileextent%
+set tilingopts=%tilingopts% %notexturesplitrespectmaxtexelspermeter% %maxtexelspermeter% %maxtexturestretch%
+set tilingopts=%tilingopts% %poweroftwotextures% %noindices% %embedindices%
+
 set contextualopts=--maxfetch=%maxfetch% --maxorbital=%maxorbital% %nocombinedmanifest% %noorbital% %solblacklist%
+set contextualopts=%contextualopts% %tilingopts% %allowunmasked% %extent% %surfaceextent%
 set contextualopts=%contextualopts% %nosky% %skymode% %skyradius% %skyminbackprojectradius%
-set contextualopts=%contextualopts% %tilesetimageformat% %tilesetindexformat%
-set contextualopts=%contextualopts% %noindices% %embedindices% %allowunmasked% %extent% %surfaceextent%
 
 set appsdir=%bindir%\ExternalApps
 if exist %appsdir%\opengl32-for-ivcat.dll (

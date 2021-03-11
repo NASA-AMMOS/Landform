@@ -232,7 +232,7 @@ namespace OPS.Pipeline.TilingServer
                     pairs.Add(DownloadInput(input));
                 }
                 LogInfo("loaded {0} input meshes, building tree", inputs.Count);
-                root = BuildTileTreeFromInputs(pipeline, tilingScheme, project.FacesPerTile, pairs,
+                root = BuildTileTreeFromInputs(pairs, tilingScheme, project.MaxFacesPerTile, project.MinTileExtent,
                                                info: msg => LogInfo(msg), verbose: msg => LogVerbose(msg));
             }
 
@@ -313,71 +313,145 @@ namespace OPS.Pipeline.TilingServer
         /// limited to a maximum height equal to the given number of LODs.  Otherwise the tree topology is determined
         /// entirely from the given number of LODs and the tiling scheme.</param>
         /// <returns></returns>
-        public static SceneNode BuildTileTreeFromLODs(PipelineCore pipeline, TilingScheme tilingScheme,
-                                                      List<MeshOperator> lodMeshOps, int maxFacesPerTile = -1,
+        public static SceneNode BuildTileTreeFromLODs(List<MeshOperator> lodMeshOps, TilingScheme tilingScheme,
+                                                      int maxFacesPerTile = -1, double minTileExtent = 0,
+                                                      TextureSplitOptions texSplitOptions = null,
+                                                      bool useTexSplitApprox = true,
                                                       Action<string> info = null, Action<string> verbose = null)
         {
-            if (lodMeshOps.Count < 2)
+            info = info ?? (msg => { });
+            verbose = verbose ?? (msg => { });
+
+            info($"building tile tree from {lodMeshOps.Count} LODs, " +
+                 $"min tile extent {minTileExtent:F3}, {tilingScheme} tiling scheme");
+
+            if (lodMeshOps.Count < 1)
             {
-                throw new InvalidDataException("expecting > 1 LOD meshes, received " + lodMeshOps.Count);
+                throw new InvalidDataException("expecting at least one LOD mesh");
             }
 
-            if (lodMeshOps[0].CountVertices() < lodMeshOps[1].CountVertices())
+            if (lodMeshOps.Count > 1 && lodMeshOps[0].CountVertices() < lodMeshOps[1].CountVertices())
             {
-                pipeline.LogWarn("expecting LOD 0 ({0} verts) to be finer than LOD 1 ({1} verts)",
-                                 lodMeshOps[0].CountVertices(), lodMeshOps[1].CountVertices());
+                info(string.Format("expecting LOD 0 ({0} verts) to be finer than LOD 1 ({1} verts)",
+                                   lodMeshOps[0].CountVertices(), lodMeshOps[1].CountVertices()));
             }
 
-            info($"building bounds tree from {lodMeshOps.Count} LOD meshes");
+            var splitCriteria = MakeTileSplitCriteria(maxFacesPerTile, texSplitOptions, useTexSplitApprox, info);
+
+            var scheme = TilingSchemeBase.Create(tilingScheme, minTileExtent);
+            
+            //child node names are created by adding onto parent name
+            //so root name will be set to "root" after creating all descendants
+            SceneNode root = new SceneNode("");
+            
+            // it is possible LODS might have different bounds if decimation stretches or shrinks triangles
+            root.AddComponent(new NodeBounds(BoundingBoxExtensions.Union(lodMeshOps.Select(o => o.Bounds).ToArray())));
+            
+            var previousLevelNodes = new ConcurrentBag<SceneNode> { root };
+            for (int lod = Math.Max(lodMeshOps.Count - 2, 0);
+                 lod >= 0 && previousLevelNodes.Count > 0;
+                 lod = Math.Max(lod - 1, 0))
+            {
+                var currentLevelNodes = new ConcurrentBag<SceneNode>();
+                CoreLimitedParallel.ForEach(previousLevelNodes, node =>
+                {                    
+                    string name = node == root ? "root" : node.Name;
+                    var bounds = node.GetComponent<NodeBounds>().Bounds;
+                    bool shouldSplit = false;
+                    foreach (var crit in splitCriteria)
+                    {
+                        if (crit.ShouldSplit(bounds, lodMeshOps[0])) //always use finest lod for split decisions
+                        {
+                            shouldSplit = true;
+                            verbose($"attempting to split LOD {lod} tile {name} due to {crit.GetType().Name}");
+                            break;
+                        }
+                    }
+                    if (shouldSplit)
+                    {
+                        var childrenBounds = scheme.Split(bounds).Where(b => !lodMeshOps[0].Empty(b)).ToArray();
+                        if (childrenBounds.Length > 1)
+                        {
+                            verbose($"split tile {name} ({tilingScheme}, min axis {bounds.MinAxis()}): " +
+                                    bounds.Fmt() + " -> " + string.Join(", ", childrenBounds.Select(cb => cb.Fmt())));
+                            int counter = 0; //note this is always exactly one decimal digit
+                            foreach (var childBounds in childrenBounds)
+                            {
+                                var child = CreateChildNode(node, childBounds, ref counter, lodMeshOps[0]);
+                                currentLevelNodes.Add(child);
+                                //verbose($"made child {child.Name} " +
+                                //        $"({childBounds.Fmt()} -> {child.GetComponent<NodeBounds>().Bounds.Fmt()}) " +
+                                //        $"of {name} ({bounds.Fmt()})");
+                            }
+                        }
+                        else
+                        {
+                            verbose($"did not split tile {name}: split resulted in less than two children");
+                        }
+                    }
+                    else
+                    {
+                        verbose($"did not split tile {name}: no triggered split criteria");
+                    }
+                });
+                previousLevelNodes = currentLevelNodes;
+            }
+            root.Name = "root";
+            return root;
+        }
+
+        public static ITileSplitCriteria[] MakeTileSplitCriteria(int maxFacesPerTile,
+                                                                 TextureSplitOptions texSplitOptions = null,
+                                                                 bool useTexSplitApprox = true,
+                                                                 Action<string> info = null)
+        {
+            //lower cost split criteria come before higher cost
+            var splitCriteria = new List<ITileSplitCriteria>();
 
             if (maxFacesPerTile > 0)
             {
-                info($"building bounds tree using up to {lodMeshOps.Count} existing LODs with {tilingScheme} tiling, " +
-                     $"{Fmt.KMG(maxFacesPerTile)} max faces per tile");
-                return BuildBoundsTree(new MeshOperator[] { lodMeshOps[0] }, tilingScheme, 
-                                       new ITileSplitCriteria[] { new FaceSplitCriteria(maxFacesPerTile) },
-                                       maxHeight: lodMeshOps.Count, info: info, verbose: verbose);
+                splitCriteria.Add(new FaceSplitCriteria(maxFacesPerTile));
             }
-            else
-            {
-                info($"building bounds tree to fill {lodMeshOps.Count} existing LODs with {tilingScheme} tiling, " +
-                     "no tile split criteria");
 
-                var scheme = TilingSchemeBase.Create(tilingScheme);
-                
-                var lodBounds = lodMeshOps.Select(op => op.Bounds).ToArray();
-                
-                //child node names are created by adding onto parent name
-                //so root name will be set to "root" after creating all descendants
-                SceneNode root = new SceneNode("");
-                
-                // it is possible lodMeshes might have different bounds if decimation stretches or shrinks triangles
-                root.AddComponent(new NodeBounds(BoundingBoxExtensions.Union(lodBounds)));
-                
-                var previousLevelNodes = new List<SceneNode> { root };
-                for (int lod = lodMeshOps.Count - 2; lod >= 0; lod--)
+            TextureSplitCriteria tsc = null;
+            if (texSplitOptions != null)
+            {
+                if (useTexSplitApprox)
                 {
-                    var meshOp = lodMeshOps[lod];
-                    var currentLevelNodes = new List<SceneNode>();
-                    foreach (var node in previousLevelNodes)
-                    {                    
-                        var bounds = node.GetComponent<NodeBounds>().Bounds;
-                        int counter = 0; //note this is always exactly one decimal digit
-                        foreach (var cb in scheme.Split(bounds).Where(b => !meshOp.Empty(b)))
-                        {
-                            currentLevelNodes.Add(CreateChildNode(node, cb, ref counter, meshOp));
-                        }
-                    }
-                    previousLevelNodes = currentLevelNodes;
+                    tsc = new TextureSplitCriteriaApproximate(texSplitOptions);
                 }
-                root.Name = "root";
-                return root;
+                else
+                {
+                    tsc = new TextureSplitCriteriaBackproject(texSplitOptions);
+                }
+                splitCriteria.Add(tsc);
             }
+
+            if (info != null)
+            {
+                string fsStatus = "unlimited";
+                var fs = splitCriteria.Where(sc => sc is FaceSplitCriteria).Cast<FaceSplitCriteria>().FirstOrDefault();
+                if (fs != null && fs.maxFaces > 0)
+                {
+                    fsStatus = Fmt.KMG(fs.maxFaces);
+                }
+                string tsStatus = (tsc is TextureSplitCriteriaApproximate) ? "approximate" :
+                    (tsc is TextureSplitCriteriaBackproject) ? "backproject" : "disabled";
+                if (tsc != null)
+                {
+                    tsStatus += ", max leaf texture resolution " + tsc.options.MaxTileResolution;
+                }
+                info($"{splitCriteria.Count} split criteria: {fsStatus} max faces per tile, texture split {tsStatus}");
+            }
+                
+            return splitCriteria.ToArray();
         }
 
-        public static SceneNode BuildTileTreeFromInputs(PipelineCore pipeline, TilingScheme tilingScheme,
-                                                        int maxFacesPerTile, List<MeshImagePair> pairs,
-                                                        SplitByTextureOpts texOpts = null, double surfaceExtent = -1,
+        public static SceneNode BuildTileTreeFromInputs(List<MeshImagePair> pairs, TilingScheme tilingScheme,
+                                                        int maxFacesPerTile, double minTileExtent,
+                                                        double surfaceExtent = -1,
+                                                        TextureSplitOptions texSplitOptions = null,
+                                                        bool useTexSplitApprox = true,
                                                         Action<string> info = null, Action<string> verbose = null)
         {
             var meshOps = pairs
@@ -386,33 +460,19 @@ namespace OPS.Pipeline.TilingServer
                                               buildVertexTree: !p.Mesh.HasFaces))
                 .ToArray();
 
-            //lower cost split criteria come before higher cost
-            var splitCriteria = new List<ITileSplitCriteria> { new FaceSplitCriteria(maxFacesPerTile) };
+            var splitCriteria = MakeTileSplitCriteria(maxFacesPerTile, texSplitOptions, useTexSplitApprox, info);
 
-            if (texOpts != null)
-            {
-                if (texOpts.useApproximateTileSplit)
-                {
-                    splitCriteria.Add(new TextureSplitCriteriaApproximate(texOpts));
-                }
-                else
-                {
-                    splitCriteria.Add(new TextureSplitCriteriaBackproject(texOpts));
-                }
-               
-            }
-
-            return BuildBoundsTree(meshOps, tilingScheme, splitCriteria.ToArray(), surfaceExtent,
+            return BuildBoundsTree(meshOps, tilingScheme, splitCriteria, minTileExtent, surfaceExtent,
                                    info: info, verbose: verbose);
         }
 
         public static SceneNode BuildBoundsTree(MultiMeshClipper multiClipper, TilingScheme tilingScheme,
-                                                ITileSplitCriteria[] splitCriteria, double surfaceExtent = -1,
-                                                int maxHeight = -1,
+                                                ITileSplitCriteria[] splitCriteria, double minTileExtent,
+                                                double surfaceExtent = -1, int maxHeight = -1,
                                                 Action<string> info = null, Action<string> verbose = null)
         {
-            return BuildBoundsTree(multiClipper.GetMeshOps(), tilingScheme, splitCriteria, surfaceExtent, maxHeight,
-                                   info, verbose);
+            return BuildBoundsTree(multiClipper.GetMeshOps(), tilingScheme, splitCriteria, minTileExtent,
+                                   surfaceExtent, maxHeight, info, verbose);
         }
 
         //build a tile tree based on the geometry of the finest LOD mesh, represented by one or more meshOps
@@ -423,22 +483,15 @@ namespace OPS.Pipeline.TilingServer
         //thus each node name encodes a full path from the root to the node
         //and the collection of all leaf names encodes the full tree topology
         public static SceneNode BuildBoundsTree(MeshOperator[] meshOps, TilingScheme tilingScheme,
-                                                ITileSplitCriteria[] splitCriteria, double surfaceExtent = -1,
-                                                int maxHeight = -1,
+                                                ITileSplitCriteria[] splitCriteria, double minTileExtent,
+                                                double surfaceExtent = -1, int maxHeight = -1,
                                                 Action<string> info = null, Action<string> verbose = null)
         {
             info = info ?? (msg => { });
             verbose = verbose ?? (msg => { });
 
-            string fsStatus = "unlimited";
-            var fs = splitCriteria.Where(sc => sc is FaceSplitCriteria).Cast<FaceSplitCriteria>().FirstOrDefault();
-            if (fs != null && fs.maxFaces > 0)
-            {
-                fsStatus = Fmt.KMG(fs.maxFaces);
-            }
-            string tsStatus = splitCriteria.Any(sc => sc is TextureSplitCriteria) ? "enabled" : "disabled";
-            info($"building bounds tree, {tilingScheme} tiling scheme, {splitCriteria.Length} split criteria: " +
-                 $"{fsStatus} max faces per tile, texture split {tsStatus}");
+            info($"building tile tree, min tile extent {minTileExtent:F3}, {tilingScheme} tiling scheme, " +
+                 $"max height {maxHeight}");
 
             var totalBounds = BoundingBoxExtensions.Union(meshOps.Select(mo => mo.Bounds).ToArray());
 
@@ -459,7 +512,7 @@ namespace OPS.Pipeline.TilingServer
 
             root.AddComponent(new NodeBounds(totalBounds));
 
-            var scheme = TilingSchemeBase.Create(tilingScheme);
+            var scheme = TilingSchemeBase.Create(tilingScheme, minTileExtent);
 
             int surfaceTiles = 0, orbitalTiles = 0, surfaceSplits = 0, orbitalSplits = 0;
             var previousLevelNodes = new ConcurrentBag<SceneNode> { root };
@@ -469,6 +522,7 @@ namespace OPS.Pipeline.TilingServer
                 var currentLevelNodes = new ConcurrentBag<SceneNode>();
                 CoreLimitedParallel.ForEach(previousLevelNodes, node =>
                 {
+                    string name = node == root ? "root" : node.Name;
                     var bounds = node.GetComponent<NodeBounds>().Bounds;
 
                     var sc = splitCriteria;
@@ -482,45 +536,48 @@ namespace OPS.Pipeline.TilingServer
                         Interlocked.Increment(ref surfaceTiles);
                     }
                     bool shouldSplit = false;
-                    foreach (var criteria in sc)
+                    foreach (var crit in sc)
                     {
-                        if (criteria.ShouldSplit(bounds, meshOps))
+                        if (crit.ShouldSplit(bounds, meshOps))
                         {
                             shouldSplit = true;
-                            verbose($"splitting tile {node.Name} due to {criteria.GetType().Name}");
+                            verbose($"attempting to split tile {name} due to {crit.GetType().Name}");
                             break;
                         }
                     }
                     if (shouldSplit)
                     {
-                        if (sc == orbitalSplitCriteria)
+                        var childrenBounds = scheme.Split(bounds).Where(b => meshOps.Any(op => !op.Empty(b))).ToArray();
+                        if (childrenBounds.Length > 1)
                         {
-                            Interlocked.Increment(ref orbitalSplits);
+                            if (sc == orbitalSplitCriteria)
+                            {
+                                Interlocked.Increment(ref orbitalSplits);
+                            }
+                            else
+                            {
+                                Interlocked.Increment(ref surfaceSplits);
+                            }
+                            verbose($"split tile {name} ({tilingScheme}, min axis {bounds.MinAxis()}): " +
+                                    bounds.Fmt() + " -> " + string.Join(", ", childrenBounds.Select(cb => cb.Fmt())));
+                            int counter = 0; //note this is always exactly one decimal digit
+                            foreach (var childBounds in childrenBounds)
+                            {
+                                var child = CreateChildNode(node, childBounds, ref counter, meshOps);
+                                currentLevelNodes.Add(child);
+                                //verbose($"made child {child.Name} " +
+                                //        $"({childBounds.Fmt()} -> {child.GetComponent<NodeBounds>().Bounds.Fmt()}) " +
+                                //        $"of {name} ({bounds.Fmt()})");
+                            }
                         }
                         else
                         {
-                            Interlocked.Increment(ref surfaceSplits);
-                        }
-
-                        var childrenBounds = scheme.Split(bounds);
-                        verbose($"split tile {node.Name} ({tilingScheme}, min axis {bounds.MinAxis()}): " +
-                                bounds.Fmt() + " -> " + string.Join(", ", childrenBounds.Select(cb => cb.Fmt())));
-                        childrenBounds = childrenBounds.Where(b => meshOps.Any(op => !op.Empty(b)));
-                        verbose($"filtered child bounds: " + string.Join(", ", childrenBounds.Select(cb => cb.Fmt())));
-
-                        int counter = 0; //note this is always exactly one decimal digit
-                        foreach (var childBounds in childrenBounds)
-                        {
-                            var child = CreateChildNode(node, childBounds, ref counter, meshOps);
-                            currentLevelNodes.Add(child);
-                            verbose($"made child {child.Name} " +
-                                    $"({childBounds.Fmt()} -> {child.GetComponent<NodeBounds>().Bounds.Fmt()}) " +
-                                    $"of {node.Name} ({bounds.Fmt()})");
+                            verbose($"did not split tile {name}: split resulted in less than two children");
                         }
                     }
                     else
                     {
-                        verbose($"not splitting {node.Name}");
+                        verbose($"did not split tile {name}: no triggered split criteria");
                     }
                 });
                 previousLevelNodes = currentLevelNodes;
@@ -542,13 +599,14 @@ namespace OPS.Pipeline.TilingServer
             Image image = null;
             if (input.ImageUrl != null)
             {
-                if (input.ImageWidth < ChunkInput.CHUNK_RESOLUTION && input.ImageHeight < ChunkInput.CHUNK_RESOLUTION)
+                if (input.ImageWidth < ChunkInput.SPARSE_IMAGE_CHUNK_RES &&
+                    input.ImageHeight < ChunkInput.SPARSE_IMAGE_CHUNK_RES)
                 {
                     image = pipeline.LoadImage(input.ImageUrl);
                 }
                 else
                 {
-                    image = new SparsePipelineImage(pipeline, input.ImageUrl, ChunkInput.CHUNK_RESOLUTION);
+                    image = new SparsePipelineImage(pipeline, input.ImageUrl, ChunkInput.SPARSE_IMAGE_CHUNK_RES);
                 }
             }
             Mesh mesh = null;

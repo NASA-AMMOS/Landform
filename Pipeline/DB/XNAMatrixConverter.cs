@@ -5,7 +5,7 @@ using Microsoft.Xna.Framework;
 using Newtonsoft.Json;
 using OPS.MathExtensions;
 
-namespace OPS.Pipeline.AlignmentServer
+namespace OPS.Pipeline
 {
     public class XNAMatrixConverter : XNAMatrixJsonConverter, IPropertyConverter
     {

@@ -9,9 +9,9 @@ using System.Threading;
 using CommandLine;
 using OPS.Util;
 using OPS.Cloud;
-using OPS.Pipeline;
 using OPS.Imaging;
 using OPS.Geometry;
+using OPS.Pipeline;
 using OPS.Pipeline.AlignmentServer;
 using OPS.Pipeline.TilingServer;
 
@@ -55,10 +55,13 @@ namespace OPS.Landform
         [Option(HelpText = "Credential refresh period in seconds, -1 for mission default, 0 to disable", Default = -1)]
         public int CredentialRefreshSec { get; set; }
 
-        [Option(HelpText = "Tile image format, e.g. jpg, png.  Empty or \"default\" to use default (" + TilingProject.DEF_TILESET_IMAGE_FORMAT + ")", Default = null)]
+        [Option(HelpText = "Tile mesh format, e.g. b3dm.  Empty or \"default\" to use default (" + TilingDefaults.TILESET_MESH_FORMAT + ")", Default = null)]
+        public string TilesetMeshFormat { get; set; }
+
+        [Option(HelpText = "Tile image format, e.g. jpg, png.  Empty or \"default\" to use default (" + TilingDefaults.TILESET_IMAGE_FORMAT + ")", Default = null)]
         public string TilesetImageFormat { get; set; }
 
-        [Option(HelpText = "Tile index format, e.g. ppm, ppmz, tiff, png.  Empty or \"default\" to use default (" + TilingProject.DEF_TILESET_INDEX_FORMAT + ")", Default = null)]
+        [Option(HelpText = "Tile index format, e.g. ppm, ppmz, tiff, png.  Empty or \"default\" to use default (" + TilingDefaults.TILESET_INDEX_FORMAT + ")", Default = null)]
         public string TilesetIndexFormat { get; set; }
 
         [Option(HelpText = "Extra export mesh format, e.g. ply, obj, help for list", Default = null)]
@@ -70,7 +73,7 @@ namespace OPS.Landform
         [Option(HelpText = "Don't publish index images with tileset", Default = false)]
         public bool NoPublishIndexImages { get; set; }
 
-        [Option(HelpText = "Embed index images images in tileset .b3dm tiles", Default = false)]
+        [Option(HelpText = "Embed index images images in tileset .b3dm tiles", Default = TilingDefaults.EMBED_INDEX_IMAGES)]
         public bool EmbedIndexImages { get; set; }
 
         [Option(HelpText = "Only use specific cameras, comma separated (e.g. Hazcam, Mastcam, Navcam, FrontHazcam, FrontHazcamLeft, etc)", Default = null)]
@@ -78,6 +81,27 @@ namespace OPS.Landform
 
         [Option(HelpText = "Extra fetch arguments", Default = null)]
         public string FetchArgs { get; set; }
+
+        [Option(HelpText = "Maximum faces per tile", Default = TilingDefaults.MAX_FACES_PER_TILE)]
+        public int MaxFacesPerTile { get; set; }
+
+        [Option(Default = TilingDefaults.MAX_TILE_RESOLUTION, HelpText = "Max tile image resolution, negative for unlimited, 0 disables texturing")]
+        public int MaxTileResolution { get; set; }
+
+        [Option(HelpText = "Minium tile bounds extent", Default = TilingDefaults.MIN_TILE_EXTENT)]
+        public double MinTileExtent { get; set; }
+
+        [Option(HelpText = "Don't respect --maxtexelspermeter when splitting tiles if more texture resolution is available from source images", Default = !TilingDefaults.TEXTURE_SPLIT_RESPECT_MAX_TEXELS_PER_METER)]
+        public bool NoTextureSplitRespectMaxTexelsPerMeter { get; set; }
+
+        [Option(HelpText = "Max texels per meter (lineal not areal), 0 or negative for unlimited", Default = TilingDefaults.MAX_TEXELS_PER_METER)]
+        public double MaxTexelsPerMeter { get; set; }
+
+        [Option(HelpText = "Max tile texture atlas stretch (0 = no stretch, 1 = unlimited)", Default = TilingDefaults.MAX_TEXTURE_STRETCH)]
+        public double MaxTextureStretch { get; set; }
+
+        [Option(HelpText = "Require power of two tile textures", Default = TilingDefaults.POWER_OF_TWO_TEXTURES)]
+        public bool PowerOfTwoTextures { get; set; }
     }
 
     public abstract class LandformShell : LandformCommand
@@ -128,15 +152,19 @@ namespace OPS.Landform
 
         protected virtual bool ParseArguments()
         {
+            if (string.IsNullOrEmpty(lsopts.TilesetMeshFormat) || lsopts.TilesetMeshFormat.ToLower() == "default")
+            {
+                lsopts.TilesetMeshFormat = TilingDefaults.TILESET_MESH_FORMAT;
+            }
             if (string.IsNullOrEmpty(lsopts.TilesetImageFormat) || lsopts.TilesetImageFormat.ToLower() == "default")
             {
-                lsopts.TilesetImageFormat = TilingProject.DEF_TILESET_IMAGE_FORMAT;
+                lsopts.TilesetImageFormat = TilingDefaults.TILESET_IMAGE_FORMAT;
             }
             if (string.IsNullOrEmpty(lsopts.TilesetIndexFormat) || lsopts.TilesetIndexFormat.ToLower() == "default")
             {
-                lsopts.TilesetIndexFormat = TilingProject.DEF_TILESET_INDEX_FORMAT;
+                lsopts.TilesetIndexFormat = TilingDefaults.TILESET_INDEX_FORMAT;
             }
-            if (!TilingCommand.CheckTilesetFormats(pipeline,
+            if (!TilingCommand.CheckTilesetFormats(pipeline, lsopts.TilesetMeshFormat,
                                                    lsopts.TilesetImageFormat, lsopts.TilesetIndexFormat,
                                                    lsopts.ExportMeshFormat, lsopts.ExportImageFormat,
                                                    spew: true, noPublishIndexImages: lsopts.NoPublishIndexImages,
@@ -544,12 +572,6 @@ namespace OPS.Landform
             }
         }
 
-        protected string GetTilesetDir(string venue, string meshFrame, string project, string tilesetDir = null)
-        {
-            tilesetDir = tilesetDir ?? TilingCommand.TILESET_DIR;
-            return string.Format("{0}/{1}/{2}/{3}Frame/best/{4}", storageDir, venue, tilesetDir, meshFrame, project);
-        }
-
         protected string GetDestDir(string inputFolder)
         {
             if (!string.IsNullOrEmpty(outputFolder))
@@ -572,9 +594,40 @@ namespace OPS.Landform
             return (rdrIdx >= 0 ? inputFolder.Substring(0, rdrIdx + rdrSegLength) : inputFolder) + TILESET_SUBDIR;
         }
 
+        protected void AddTilingArgs(List<string> args)
+        {
+            args.Add("--maxfacespertile");
+            args.Add(lsopts.MaxFacesPerTile.ToString());
+            args.Add("--maxtileresolution");
+            args.Add(lsopts.MaxTileResolution.ToString());
+            args.Add("--mintileextent");
+            args.Add(lsopts.MinTileExtent.ToString());
+            if (lsopts.NoTextureSplitRespectMaxTexelsPerMeter)
+            {
+                args.Add("--notexturesplitrespectmaxtexelspermeter");
+            }
+            args.Add("--maxtexelspermeter");
+            args.Add(lsopts.MaxTexelsPerMeter.ToString());
+            args.Add("--maxtexturestretch");
+            args.Add(lsopts.MaxTextureStretch.ToString());
+            if (lsopts.PowerOfTwoTextures)
+            {
+                args.Add("--poweroftwotextures");
+            }
+        }
+
+        protected void BuildTilingInput(string project, params string[] extraArgs)
+        {
+            var args = new List<string>() { project };
+            AddTilingArgs(args);
+            RunCommand("build-tiling-input", args.Concat(extraArgs).ToArray());
+        }
+
         protected void BuildTileset(string project, params string[] extraArgs)
         {
             var args = new List<string>() { project };
+
+            AddTilingArgs(args);
 
             if (!string.IsNullOrEmpty(lsopts.TilesetImageFormat))
             {

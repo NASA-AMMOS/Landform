@@ -62,16 +62,6 @@ if not "%LANDFORM_TACTICAL_CONFIG_FOLDER%"=="" set cfgfolder=%LANDFORM_TACTICAL_
 set venue=%service%-service
 if not "%LANDFORM_TACTICAL_VENUE%"=="" set venue=%LANDFORM_TACTICAL_VENUE%
 
-set tilesetimageformat=
-if not "%LANDFORM_TACTICAL_TILESET_IMAGE_FORMAT%"=="" (
-   set tilesetimageformat=--tilesetimageformat=%LANDFORM_TACTICAL_TILESET_IMAGE_FORMAT%
-)
-
-set tilesetindexformat=
-if not "%LANDFORM_TACTICAL_TILESET_INDEX_FORMAT%"=="" (
-   set tilesetindexformat=--tilesetindexformat=%LANDFORM_TACTICAL_TILESET_INDEX_FORMAT%
-)
-
 set msgopts=
 if not "%LANDFORM_TACTICAL_MAX_HANDLER_SEC%"=="" (
     set msgopts=--maxhandlersec=%LANDFORM_TACTICAL_MAX_HANDLER_SEC%
@@ -86,6 +76,55 @@ if not "%LANDFORM_TACTICAL_MAX_RECEIVE_COUNT%"=="" (
 set svcextra=
 if not "%LANDFORM_TACTICAL_OPTS%"=="" set svcextra=%LANDFORM_TACTICAL_OPTS%
 
+set tilesetimageformat=
+if not "%LANDFORM_TACTICAL_TILESET_IMAGE_FORMAT%"=="" (
+   set tilesetimageformat=--tilesetimageformat=%LANDFORM_TACTICAL_TILESET_IMAGE_FORMAT%
+)
+
+set tilesetindexformat=
+if not "%LANDFORM_TACTICAL_TILESET_INDEX_FORMAT%"=="" (
+   set tilesetindexformat=--tilesetindexformat=%LANDFORM_TACTICAL_TILESET_INDEX_FORMAT%
+)
+
+set maxfacespertile=
+if not "%LANDFORM_TACTICAL_MAX_FACES_PER_TILE%"=="" (
+   set maxfacespertile=--maxfacespertile=%LANDFORM_TACTICAL_MAX_FACES_PER_TILE%
+)
+
+set maxtileresolution=
+if not "%LANDFORM_TACTICAL_MAX_TILE_RESOLUTION%"=="" (
+   set maxtileresolution=--maxtileresolution=%LANDFORM_TACTICAL_TILE_RESOLUTION%
+)
+
+set mintileextent=
+if not "%LANDFORM_TACTICAL_MIN_TILE_EXTENT%"=="" (
+   set mintileextent=--mintileextent=%LANDFORM_TACTICAL_MIN_TILE_EXTENT%
+)
+
+set notexturesplitrespectmaxtexelspermeter=
+if not "%LANDFORM_TACTICAL_NO_TEXTURE_SPLIT_RESPECT_MAX_TEXELS_PER_METER%"=="" (
+   set notexturesplitrespectmaxtexelspermeter=--notexturesplitrespectmaxtexelspermeter
+)
+
+set maxtexelspermeter=
+if not "%LANDFORM_TACTICAL_MAX_TEXELS_PER_METER%"=="" (
+   set maxtexelspermeter=--maxtexelspermeter=%LANDFORM_TACTICAL_MAX_TEXELS_PER_METER%
+)
+
+set maxtexturestretch=
+if not "%LANDFORM_TACTICAL_MAX_TEXTURE_STRETCH%"=="" (
+   set maxtexturestretch=--maxtexturestretch=%LANDFORM_TACTICAL_MAX_TEXTURE_STRETCH%
+)
+
+set poweroftwotextures=
+if not "%LANDFORM_TACTICAL_POWER_OF_TWO_TEXTURES%"=="" set poweroftwotextures=--poweroftwotextures
+
+set noindices=
+if not "%LANDFORM_TACTICAL_NO_INDICES%"=="" set noindices=--nopublishindeximages
+
+set embedindices=
+if not "%LANDFORM_TACTICAL_EMBED_INDICES%"=="" set embedindices=--embedindeximages
+
 rem --- end service specific boilerplate, begin service specific ---
 
 set meshregex=
@@ -97,17 +136,17 @@ if not "%LANDFORM_TACTICAL_MESH_EYE%"=="" set mesheye=--meshstereoeye=%LANDFORM_
 set meshgeom=
 if not "%LANDFORM_TACTICAL_MESH_GEOMETRY%"=="" set meshgeom=--meshgeometry=%LANDFORM_TACTICAL_MESH_GEOMETRY%
 
-set noindices=
-if not "%LANDFORM_TACTICAL_NO_INDICES%"=="" set noindices=--nopublishindeximages
-
-set embedindices=
-if not "%LANDFORM_TACTICAL_EMBED_INDICES%"=="" set embedindices=--embedindeximages
-
 set noloadlods=
 if not "%LANDFORM_TACTICAL_NO_LOAD_LODS%"=="" set noloadlods=--noloadexistinglods
 
 set fixuplods=
 if not "%LANDFORM_TACTICAL_FIXUP_LODS%"=="" set fixuplods=--fixuplods=%LANDFORM_TACTICAL_FIXUP_LODS%
+
+set notextureprojection=
+if not "%LANDFORM_TACTICAL_NO_TEXTURE_PROJECTION%"=="" set notextureprojection=--notextureprojection
+
+set noaligntocamera=
+if not "%LANDFORM_TACTICAL_NO_ALIGN_TO_CAMERA%"=="" set noaligntocamera=--noaligntocamera
 
 set tileres=
 if not "%LANDFORM_TACTICAL_MAX_TILE_RESOLUTION%"=="" (
@@ -132,8 +171,12 @@ set svcopts=%stdopts% --stacktraces --service --mission=%mission% --queuename=%q
 set svcopts=%svcopts% --awsprofile=%awsprofile% --awsregion=%awsregion% %credentialrefresh%
 set svcopts=%svcopts% %msgopts%
 
+set tilingopts=%tilesetimageformat% %tilesetindexformat% %maxfacespertile% %maxtileresolution% %mintileextent%
+set tilingopts=%tilingopts% %notexturesplitrespectmaxtexelspermeter% %maxtexelspermeter% %maxtexturestretch%
+set tilingopts=%tilingopts% %poweroftwotextures% %noindices% %embedindices%
+
 set tacticalopts=%meshregex% %mesheye% %meshgeom% %noloadlods% %fixuplods% %tileres% %preferpds% %requirepds% %objopts%
-set tacticalopts=%tacticalopts% %noindices% %embedindices% %tilesetimageformat% %tilesetindexformat%
+set tacticalopts=%tacticalopts% %notextureprojection% %noaligntocamera% %tilingopts%
 
 set appsdir=%bindir%\ExternalApps
 if exist %appsdir%\opengl32-for-ivcat.dll (

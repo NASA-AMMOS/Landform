@@ -167,6 +167,12 @@ namespace OPS.Landform
         [Option(Default = false, HelpText = "Don't ingest")]
         public bool NoIngest { get; set; }
 
+        [Option(Default = false, HelpText = "Don't align")]
+        public bool NoAlign { get; set; }
+
+        [Option(Default = false, HelpText = "Don't build geometry")]
+        public bool NoGeometry { get; set; }
+
         [Option(Default = false, HelpText = "Don't generate tileset")]
         public bool NoTileset { get; set; }
 
@@ -827,7 +833,7 @@ namespace OPS.Landform
             string solDir = StringHelper.ReplaceIntWildcards(rdrDir, primarySol);
             string ingestDir = solDir;
             string fetchDir = !string.IsNullOrEmpty(options.FetchDir) ? options.FetchDir : storageDir + "/" + FETCH_DIR;
-            string tilesetDir = GetTilesetDir(venue, sdStr, project);
+            string tilesetDir = venueDir + "/" + TilingCommand.TILESET_DIR + "/" + project;
             string destDir = GetDestDir(solDir);
 
             var orbitalCfg = OrbitalConfig.Instance;
@@ -911,28 +917,34 @@ namespace OPS.Landform
                     {
                         throw new NotImplementedException("ingestion from multi-sol s3 wildcard not implemented");
                     }
-                    RunCommand("ingest", project, "--mission", fullMissionStr, "--onlyforsitedrives", sdsStr,
-                               "--onlyforsols", solRanges,
+                    RunCommand("ingest", project, "--mission", fullMissionStr, "--meshframe", sdStr, 
+                               "--onlyforsitedrives", sdsStr, "--onlyforsols", solRanges,
                                "--inputpath", ingestDir + "/" + (options.RecursiveSearch ? "**" : "*"), noSurface,
-                               noOrbital, "--orbitalframe", sdStr, orbitalDEMFileOpt, orbitalImageFileOpt, camerasOpt);
+                               noOrbital, orbitalDEMFileOpt, orbitalImageFileOpt, camerasOpt);
                 }
 
-                if (!options.NoTileset)
+                if (!options.NoAlign)
                 {
                     RunCommand("bev-align", options.AbortOnAlignmentError, project, "--fixsitedrives", sdStr,
                                allowUnmasked);
-
+                    
                     RunCommand("heightmap-align", options.AbortOnAlignmentError, project, "--basesitedrive", sdStr,
                                allowUnmasked);
-                    
-                    RunCommand("build-geometry", project, "--meshframe", sdStr, "--extent", options.Extent.ToString(),
-                               "--surfaceextent", options.SurfaceExtent.ToString(), allowUnmasked);
+                }
 
-                    RunCommand("build-tiling-input", project, "--meshframe", sdStr, allowUnmasked);
+                if (!options.NoGeometry)
+                {
+                    RunCommand("build-geometry", project, "--extent", options.Extent.ToString(),
+                               "--surfaceextent", options.SurfaceExtent.ToString(), allowUnmasked);
+                }
+                
+                if (!options.NoTileset)
+                {
+                    BuildTilingInput(project, allowUnmasked);
                     
-                    RunCommand("blend-images", project, "--meshframe", sdStr, allowUnmasked);
+                    RunCommand("blend-images", project, allowUnmasked);
                     
-                    BuildTileset(project, "--meshframe", sdStr, allowUnmasked);
+                    BuildTileset(project, allowUnmasked);
                     
                     RunCommand("update-scene-manifest", project, "--notactical", "--nourls", "--nosky", allowUnmasked,
                                "--sol", solStr, "--sitedrive", sdStr, "--manifestfile", tilesetDir + "/" + SCENE_JSON);
@@ -941,11 +953,10 @@ namespace OPS.Landform
 
                     if (!options.NoSky)
                     {
-                        RunCommand("build-sky-sphere", project, "--meshframe", sdStr,
-                                   "--skymode", options.SkyMode.ToString(), allowUnmasked,
+                        RunCommand("build-sky-sphere", project, "--skymode", options.SkyMode.ToString(), allowUnmasked,
                                    "--sphereradius", options.SkySphereRadius,
                                    "--minbackprojectradius", options.SkyMinBackprojectRadius);
-                        string skyTilesetDir = GetTilesetDir(venue, sdStr, project, BuildSkySphere.SKY_TILESET_DIR);
+                        string skyTilesetDir = venueDir + "/" + BuildSkySphere.SKY_TILESET_DIR + "/" + project;
                         SaveTileset(skyTilesetDir, project, destDir, "_sky");
                     }
                 }
@@ -1609,7 +1620,7 @@ namespace OPS.Landform
                         //also, particularly in certain dev scenarios, PlacesDB availability may be iffy
                         //better to try on each pass rather than once ever
                         var placesCfg = PlacesConfig.Instance;
-                        bool usePlaces = !string.IsNullOrEmpty(placesCfg.Url) && !string.IsNullOrEmpty(placesCfg.Views);
+                        bool usePlaces = !string.IsNullOrEmpty(placesCfg.Url) && !string.IsNullOrEmpty(placesCfg.View);
                         lock (usePlaces ? credentialRefreshLock : new Object())
                         {
                             PlacesDB placesDB = null;

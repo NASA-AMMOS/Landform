@@ -85,9 +85,6 @@ namespace OPS.Landform
         [Option(HelpText = "Optimize color contrast number of standard deviations", Default = 2)]
         public double StretchStdDevs { get; set; }
 
-        [Option(HelpText = "Debug mesh coordinate frame: if set must be a sitedrive SSSSSDDDDD or SSSDDDD, defaults to project root if unset", Default = null)]
-        public string MeshFrame { get; set; }
-
         [Option(HelpText = "Option disabled for this command", Default = false)]
         public override bool NoSurface { get; set; }
     }
@@ -218,13 +215,9 @@ namespace OPS.Landform
             //lexicographically sort siteDrives so that older ones come before newer just to give a canonical order
             siteDrives = siteDrives.Distinct().OrderBy(sd => sd).ToArray();
 
-            if (!string.IsNullOrEmpty(bcopts.MeshFrame))
+            if (SiteDrive.IsSiteDriveString(meshFrame))
             {
-                if (!SiteDrive.IsSiteDriveString(bcopts.MeshFrame))
-                {
-                    throw new Exception("--meshframe must be a site drive in the form SSSDDDD or SSSSSDDDDD");
-                }
-                dbgMeshTransform = Matrix.Invert(BestTransform(new SiteDrive(bcopts.MeshFrame)));
+                dbgMeshTransform = Matrix.Invert(BestTransform(new SiteDrive(meshFrame)));
             }
 
             return true;

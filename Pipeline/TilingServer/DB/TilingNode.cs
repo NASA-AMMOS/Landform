@@ -297,7 +297,7 @@ namespace OPS.Pipeline.TilingServer
                 if (!string.IsNullOrEmpty(project.ExportIndexFormat) && pair.Index != null)
                 {
                     exIndexExt = TilingProject.ToExt(project.ExportIndexFormat);
-                    exIndexFile = Id + TileList.INDEX_FILE_SUFFIX + exIndexExt;
+                    exIndexFile = Id + TilingDefaults.INDEX_FILE_SUFFIX + exIndexExt;
                     exIndexUrl = pipeline.GetStorageUrl(project.ExportDir, ProjectName, exIndexFile);
                 }
             }
@@ -336,7 +336,8 @@ namespace OPS.Pipeline.TilingServer
                 string imageExt = TilingProject.ToExt(project.InternalImageFormat);
                 string imageFile = Id + imageExt;
                 string indexExt = TilingProject.ToExt(project.InternalIndexFormat);
-                string indexFile = !string.IsNullOrEmpty(indexExt) ? Id + TileList.INDEX_FILE_SUFFIX + indexExt : null;
+                string indexFile = !string.IsNullOrEmpty(indexExt) ?
+                    Id + TilingDefaults.INDEX_FILE_SUFFIX + indexExt : null;
                 if (!string.IsNullOrEmpty(project.InternalTileDir) && pair.Image != null)
                 {
                     ImageUrl = pipeline.GetStorageUrl(project.InternalTileDir, ProjectName, imageFile);
@@ -505,10 +506,11 @@ namespace OPS.Pipeline.TilingServer
                         
                         if (tmpIndex != null)
                         {
-                            if (!project.EmbedIndexes)
+                            if (!project.EmbedIndexImages)
                             {
                                 IndexUrl =
-                                StringHelper.StripUrlExtension(tileUrl) + TileList.INDEX_FILE_SUFFIX + tileIndexExt;
+                                StringHelper.StripUrlExtension(tileUrl) +
+                                    TilingDefaults.INDEX_FILE_SUFFIX + tileIndexExt;
                                 upload(tmpIndex, IndexUrl);
                                 tmpIndex = null; //Don't also add to b3dm
                             }

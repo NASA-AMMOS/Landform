@@ -11,7 +11,6 @@ using RTree;
 using log4net;
 using System.Threading;
 using static OPS.Geometry.Triangle;
-using OPS.MathExtensions;
 
 namespace OPS.Pipeline
 {

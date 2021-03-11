@@ -1,40 +1,39 @@
-using System;
+﻿using System;
 using Amazon.DynamoDBv2.DataModel;
 using Amazon.DynamoDBv2.DocumentModel;
-using Microsoft.Xna.Framework;
+using MathNet.Numerics.LinearAlgebra;
 using Newtonsoft.Json;
-using OPS.Imaging;
 
-namespace OPS.Pipeline.AlignmentServer
+namespace OPS.Pipeline
 {
-    public class CameraModelConverter : JsonConverter, IPropertyConverter
+    public class SquareMatrixConverter : JsonConverter, IPropertyConverter
     {
         public override bool CanRead { get { return true; } } 
-        public override bool CanWrite { get { return true; } } 
+        public override bool CanWrite { get { return true; } }
 
         public override bool CanConvert(Type objectType)
         {
-            return objectType == typeof(CameraModel);
+            return objectType == typeof(Matrix<double>);
         }
 
         public override void WriteJson(JsonWriter writer, object value, JsonSerializer serializer)
         {
-            serializer.Serialize(writer, ((CameraModel)value).Serialize());
+            serializer.Serialize(writer, ((Matrix<double>)value).ToArray());
         }
         
         public override object ReadJson(JsonReader reader, Type type, object existing, JsonSerializer serializer)
         {
-            return CameraModel.Deserialize(serializer.Deserialize<string>(reader));
+            return CreateMatrix.DenseOfArray(serializer.Deserialize<double[,]>(reader));
         }
 
         public object FromEntry(DynamoDBEntry entry)
         {
-            return CameraModel.Deserialize(entry.AsString());
+            return CreateMatrix.DenseOfArray(JsonConvert.DeserializeObject<double[,]>(entry.AsString()));
         }
 
         public DynamoDBEntry ToEntry(object value)
         {
-            return ((CameraModel)value).Serialize();
+            return JsonConvert.SerializeObject(((Matrix<double>)value).ToArray());
         }
     }
 }

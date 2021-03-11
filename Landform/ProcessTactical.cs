@@ -126,8 +126,11 @@ namespace OPS.Landform
         [Option(Default = TextureCommand.DEF_FIXUP_LODS, HelpText = "Create or fix LOD meshes, comma separated list of min-max ranges, finest to coarsest")]
         public string FixupLODs{ get; set; }
 
-        [Option(Default = 512, HelpText = "Max tile image resolution, negative for unlimited, 0 disables texturing")]
-        public int MaxTileResolution { get; set; }
+        [Option(HelpText = "Disable generating UVs by texture projection", Default = false)]
+        public bool NoTextureProjection { get; set; }
+
+        [Option(HelpText = "Disable aligning tile bounds to camera axis for improved texture utilization when using texture projection", Default = false)]
+        public bool NoAlignToCamera { get; set; }
     }
 
     public class ProcessTactical : LandformService
@@ -973,11 +976,12 @@ namespace OPS.Landform
             string project = !string.IsNullOrEmpty(options.ProjectName) ? options.ProjectName : mip.id;
             string venue = string.Format("tactical_{0}_{1}", missionStr, project);
             string venueDir = storageDir + "/" + venue;
-            string tilesetDir = GetTilesetDir(venue, "passthrough", project);
+            string tilesetDir = venueDir + "/" + TilingCommand.TILESET_DIR + "/" + project;
             string destDir = TILESET_SUBDIR; //default output to ./TILESET_SUBDIR (e.g. if input is a filename)
             string loadLODs = !options.NoLoadExistingLODs ? "--loadlods" : "";
             string fixupLODs = options.FixupLODs;
-            string tileRes = options.MaxTileResolution.ToString();
+            string noTextureProjection = options.NoTextureProjection ? "--notextureprojection" : "";
+            string noAlignToCamera = options.NoAlignToCamera ? "--noaligntocamera" : "";
 
             pipeline.LogInfo("building tileset {0} for {1}", project, mip.url);
 
@@ -1007,11 +1011,11 @@ namespace OPS.Landform
 
                 if (!options.NoTileset)
                 {
-                    RunCommand("build-tiling-input", project, "--mission", fullMissionStr, "--meshframe", "tactical",
-                               "--inputmesh", meshFile, "--inputtexture", imageFile, "--tileresolution", tileRes,
-                               loadLODs, "--fixuplods", fixupLODs);
-
-                    BuildTileset(project, "--tileresolution", tileRes);
+                    BuildTilingInput(project, "--mission", fullMissionStr, "--meshframe", "tactical", "--inputmesh",
+                                     meshFile, "--inputtexture", imageFile, loadLODs, "--fixuplods", fixupLODs,
+                                     noTextureProjection, noAlignToCamera);
+                    
+                    BuildTileset(project);
 
                     if (IsPDS(imageFile))
                     {

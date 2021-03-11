@@ -22,15 +22,6 @@ namespace OPS.Geometry
         private const int NAIVE_PACKING_BIN_DEPTH = 1;
         private const int NAIVE_PACKING_BIN_WIEGHT = 0;
 
-        public static void Atlas(Mesh mesh)
-        {
-            if (!ComputeAtlas(mesh, out float[] u, out float[] v, out int[] indices, out int[] vertexRemap))
-            {
-                throw new Exception("naive atlas failed");
-            }
-            mesh.ApplyAtlas(u, v, indices, vertexRemap);
-        }
-
         /// <summary>
         /// Packs the atlas based on bounding boxes of each individual triangle in the mesh.
         /// The resultant atlas / mesh will essentially be a set of completely separate faces/triangles -
@@ -45,8 +36,8 @@ namespace OPS.Geometry
         /// <param name="outIndices">indices whose sets of 3 entries correspond to the faces of the atlased mesh</param>
         /// <param name="outVertexRemap">array mapping vertices of output mesh to vertices of input mesh</param>
         /// <returns>true on success</returns>
-        public static bool ComputeAtlas(Mesh mesh, out float[] outU, out float[] outV, out int[] outIndices,
-                                        out int[] outVertexRemap)
+        public static bool Compute(Mesh mesh, out float[] outU, out float[] outV, out int[] outIndices,
+                                   out int[] outVertexRemap)
         {
             // go through all faces in mesh, make a tag for each
             var tags = new NaiveAtlasPackingTag[mesh.Faces.Count];

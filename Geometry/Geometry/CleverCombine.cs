@@ -92,11 +92,6 @@ namespace OPS.Geometry
         {
             int numClouds = clouds.Length;
 
-            if (origins != null && origins.Length != numClouds)
-            {
-                throw new ArgumentException("number of point clouds must match number of origins");
-            }
-            
             if (numClouds < 1)
             {
                 return new Mesh();
@@ -206,13 +201,15 @@ namespace OPS.Geometry
                 }
 
                 //first filter: remove clouds whose origin in XY plane is too far from this grid cell
-                if (origins != null && tls.cloudsInCell.Count > 1)
+                if (origins != null && tls.cloudsInCell.Count > 1 && tls.cloudsInCell.Keys.Any(c => c < origins.Length))
                 {
                     var cellCenter = cellBounds.Center().XY();
-                    tls.dead.Clear();
-                    double d2 = tls.cloudsInCell.Keys.Min(c => Vector2.DistanceSquared(origins[c].XY(), cellCenter));
+                    double d2 = tls.cloudsInCell.Keys
+                        .Where(c => c < origins.Length)
+                        .Min(c => Vector2.DistanceSquared(origins[c].XY(), cellCenter));
                     double t2 = d2 * MinDistRange * MinDistRange;
-                    foreach (int c in tls.cloudsInCell.Keys)
+                    tls.dead.Clear();
+                    foreach (int c in tls.cloudsInCell.Keys.Where(c => c < origins.Length))
                     {
                         if (Vector2.DistanceSquared(origins[c].XY(), cellCenter) > t2)
                         {
@@ -361,15 +358,13 @@ namespace OPS.Geometry
         /// (2) while there is still at least one cloud in the cell, discard points repeatedly from each cloud k
         ///     where mse(i, j, k) is (a) the maximum for all clouds k still in the cell and (b) greater than MaxRMSE^2
         /// </summary>
-        /// <param name="origins">reference points of highest confidence for each cloud</param>
         /// <param name="clouds">point clouds to combine, all in same reference frame</param>
+        /// <param name="origins">reference points of highest confidence for each cloud, or null to skip origin distance
+        /// checking.  This impl allows origins to be specified for only a subset of clouds (origins.Length may be less
+        /// than clouds.Length)</param>
         public Mesh CombineXY(Mesh[] clouds, Vector3[] origins, ILogger logger = null)
         {
             int numClouds = clouds.Length;
-            if (origins.Length != numClouds)
-            {
-                throw new ArgumentException("number of point clouds must match number of origins");
-            }
             
             if (numClouds < 1)
             {
@@ -454,16 +449,24 @@ namespace OPS.Geometry
                 tls.cellToCloudOrigin.Clear();
                 for (int c = 0; c < numClouds; c++)
                 {
-                    double dx = origins[c].X - ((j + 0.5) * CellSize + bbox.Min.X);
-                    double dy = origins[c].Y - ((i + 0.5) * CellSize + bbox.Min.Y);
-                    tls.cellToCloudOrigin.Add(Math.Sqrt(dx * dx + dy * dy));
+                    if (origins == null || c >= origins.Length)
+                    {
+                        tls.cellToCloudOrigin.Add(double.NaN);
+                    }
+                    else
+                    {
+                        double dx = origins[c].X - ((j + 0.5) * CellSize + bbox.Min.X);
+                        double dy = origins[c].Y - ((i + 0.5) * CellSize + bbox.Min.Y);
+                        tls.cellToCloudOrigin.Add(Math.Sqrt(dx * dx + dy * dy));
+                    }
                 }
 
                 //first filter: remove clouds whose origin is too far from this grid cell
-                if (tls.cloudsInCell.Count > 1)
+                if (tls.cloudsInCell.Count > 1 && tls.cellToCloudOrigin.Any(d => !double.IsNaN(d)))
                 {
-                    double minDist = tls.cloudsInCell.Min(c => tls.cellToCloudOrigin[c]);
-                    tls.cloudsInCell.RemoveAll(c => tls.cellToCloudOrigin[c] > minDist * MinDistRange);
+                    double minDist = tls.cloudsInCell.Where(d => !double.IsNaN(d)).Min(c => tls.cellToCloudOrigin[c]);
+                    tls.cloudsInCell.RemoveAll(c => !double.IsNaN(tls.cellToCloudOrigin[c]) &&
+                                               tls.cellToCloudOrigin[c] > minDist * MinDistRange);
                 }
 
                 //second filter: remove clouds where a sampling of their points within this cell
@@ -582,9 +585,15 @@ namespace OPS.Geometry
         /// onsight/terraintools sha 840d24d65f8cc05653e7b8155156cb8bb6d31a75 ClevererCombinePointClouds
         ///
         /// Should implement the same algorithm as CombineXY(), but this impl is not parallelized.
+        /// Also, this impl requires origins to be specified and the same length as clouds.
         /// </summary>
         public Mesh CombineXYLegacy(Mesh[] clouds, Vector3[] origins, ILogger logger = null)
         {
+            if (origins == null || origins.Length != clouds.Length)
+            {
+                throw new ArgumentException("number of point clouds must match number of origins");
+            }
+
             // Compute bounds of surface area
             BoundingBox bbox = clouds.FirstOrDefault().Bounds();
             for (int idx = 1; idx < clouds.Length; idx++)
@@ -643,7 +652,7 @@ namespace OPS.Geometry
                 {
                     for (int j = 0; j < height; j++)
                     {
-                        double[] originDistances = origins.Select( origin =>
+                        double[] originDistances = origins.Select(origin =>
                         {
                             double dx = origin.X - ((i + 0.5) * CellSize + bbox.Min.X);
                             double dy = origin.Y - ((j + 0.5) * CellSize + bbox.Min.Y);
@@ -656,7 +665,9 @@ namespace OPS.Geometry
 
                         // Skip empty cells
                         if (cloudIndices.Count == 0)
+                        {
                             continue;
+                        }
 
                         //narrow down to a single answer per cell
                         while (cloudIndices.Count > 1)

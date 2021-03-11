@@ -1,0 +1,80 @@
+using System;
+using OPS.Geometry;
+
+namespace OPS.Pipeline
+{
+    public enum TextureMode
+    {
+        None,
+        Clip,       //generate tile textures by clipping regions out of the source texture and offsetting uvs
+        Bake,       //generate tile textures by atlassing tiles and sampling source texture at a desired resolution
+        Backproject //generate tile textures by choosing the best data from observations that viewed the mesh
+    }
+
+    public static class TilingDefaults
+    {
+        public const TilingScheme TILING_SCHEME = TilingScheme.QuadAuto;
+        public const int MAX_FACES_PER_TILE = 2000;
+        public const double MIN_TILE_EXTENT = 0.5;
+        public const MeshReconstructionMethod PARENT_RECONSTRUCTION_METHOD = MeshReconstructionMethod.FSSR;
+        public const SkirtMode SKIRT_MODE = SkirtMode.Normal;
+
+        public const AtlasMode ATLAS_MODE = AtlasMode.UVAtlas;
+        public const TextureMode TEXTURE_MODE = TextureMode.Bake;
+
+        public const int MAX_TILE_RESOLUTION = 512;
+        public const int MIN_TILE_RESOLUTION = 16;
+
+        public const double MAX_TEXELS_PER_METER = 1024;
+        public const double MAX_ORBITAL_TEXELS_PER_METER = 64;
+        public const bool TEXTURE_SPLIT_RESPECT_MAX_TEXELS_PER_METER = true; //requires refactoring command line options
+
+        public const int MAX_TEXTURE_CHARTS = UVAtlas.DEF_MAX_CHARTS; //0 = unlimited
+        public const double MAX_TEXTURE_STRETCH = UVAtlas.DEF_MAX_STRETCH; //0 = none, 1 = unlimited
+
+        public const bool POWER_OF_TWO_TEXTURES = false; //requires refactoring comand line options
+
+        public const bool CONVERT_LINEAR_RGB_TO_SRGB = true; //requires refactoring command line options
+
+        public const string EXPORT_DIR = "www";
+        public const string TILESET_DIR = "www";
+        public const string INTERNAL_TILE_DIR = "tiles";
+
+        public const string INTERNAL_MESH_FORMAT = "ply";
+        public const string INTERNAL_IMAGE_FORMAT = "png";
+        public const string INTERNAL_INDEX_FORMAT = "tif";
+
+        public const string TILESET_MESH_FORMAT = "b3dm";
+        public const string TILESET_IMAGE_FORMAT = "png";
+        public const string TILESET_INDEX_FORMAT = "png";
+
+        public const string INDEX_FILE_SUFFIX = "_index";
+        public const string INDEX_FILE_EXT = ".tif";
+
+        public const bool EMBED_INDEX_IMAGES = false; //requires refactoring command line options
+
+        public const int MAX_LEAF_GROUP = 32;
+
+        public const double CHILD_BOUNDS_SEARCH_RATIO = 1.1;
+
+        public const int TEXTURE_PATCH_BORDER_SIZE = 5;
+        public const bool TEXTURE_PATCH_ALLOW_ROTATION = false;
+
+        public const double TEX_SPLIT_PERCENT_TO_TEST = 0.03;
+        public const double TEX_SPLIT_PERCENT_SATISFIED = 0.5;
+        public const double TEX_SPLIT_MAX_PIXELS_PER_TEXEL = 16;
+
+        public const double PARENT_DECIMATE_BOUNDS_RATIO = 1.5;
+        public const double PARENT_CLIP_BOUNDS_EXPAND_HEIGHT = 0.1;
+        public const double PARENT_FACE_COUNT_RATIO = PARENT_DECIMATE_BOUNDS_RATIO * 1.1;
+        public const double PARENT_SAMPLES_PER_FACE = 1.5; //tuned to try to avoid edge collapse in ResampleDecimation()
+        public const double PARENT_HAUSDORFF_RELATIVE_ACCURACY = 0.005; //0.5% of mesh bounds
+        public const double PARENT_MESH_VERTEX_MERGE_EPSILON = 0.002;
+
+        public const double TEXTURE_ERROR_MULTIPLIER = 4;
+
+        public const double MESH_HULL_TEST_EPSILON = 0.00001;
+        public const double APPROX_TEXTURE_UTILIZATION = 0.5;
+
+    }
+}

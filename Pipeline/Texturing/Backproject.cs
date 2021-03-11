@@ -23,10 +23,6 @@ namespace OPS.Pipeline
 {
     public class Backproject
     {
-        public const int MAX_SAMPLES_PER_BATCH = 500000;
-        public const float RAYCAST_NEAR_METERS = 0.001f;
-        public static readonly float[] NO_OBSERVATION_COLOR = new float[] { 0.5f, 0.5f, 0.5f };
-
         public class ObsPixel
         {
             public Observation Obs; //may be (a) RoverObservation, (b) orbital image, (c) null (no observation)
@@ -224,7 +220,7 @@ namespace OPS.Pipeline
                                               float[] missingColor = null, double preadjustLuminance = 0,
                                               double colorizeHue = -1)
         {
-            missingColor = missingColor ?? NO_OBSERVATION_COLOR;
+            missingColor = missingColor ?? TexturingDefaults.BACKPROJECT_NO_OBSERVATION_COLOR;
 
             var stats = new Stats();
 
@@ -618,7 +614,8 @@ namespace OPS.Pipeline
             //if orbital is available we'll try backprojecting these pixels from it below
             var failed = new List<int>(samplePoints.Count);
 
-            int numBatches = (int)Math.Ceiling(((double)samplePoints.Count) / MAX_SAMPLES_PER_BATCH);
+            int numBatches =
+                (int)Math.Ceiling(((double)samplePoints.Count) / TexturingDefaults.BACKPROJECT_MAX_SAMPLES_PER_BATCH);
 
             if (intersectingContexts.Count == 0) //no usable surface observations
             {
@@ -628,8 +625,9 @@ namespace OPS.Pipeline
 
             for (int batch = 0; batch < numBatches; batch++)
             {
-                int startIdx = batch * MAX_SAMPLES_PER_BATCH;
-                int batchSize = Math.Min(samplePoints.Count - startIdx, MAX_SAMPLES_PER_BATCH);
+                int startIdx = batch * TexturingDefaults.BACKPROJECT_MAX_SAMPLES_PER_BATCH;
+                int batchSize =
+                    Math.Min(samplePoints.Count - startIdx, TexturingDefaults.BACKPROJECT_MAX_SAMPLES_PER_BATCH);
 
                 if (numBatches > 1)
                 {
@@ -1027,7 +1025,9 @@ namespace OPS.Pipeline
                 if (sample.Point.IsFinite()) //sampleTransform (used e.g. by BuildSkySphere) can kill points
                 {
                     var rayToSky = new Ray(sample.Point, skyDirInMesh);
-                    if (occlusionScene == null || occlusionScene.RaycastDistance(rayToSky, RAYCAST_NEAR_METERS) == null)
+                    if (occlusionScene == null ||
+                        occlusionScene.RaycastDistance(rayToSky, TexturingDefaults.BACKPROJECT_RAYCAST_NEAR_METERS)
+                        == null)
                     {
                         try
                         {
@@ -1111,7 +1111,8 @@ namespace OPS.Pipeline
             //The implementation makes no guarantees that primitives whose hit distance is exactly at
             //(or very close to) tnear or tfar are hit or missed. 
             //If you want to exclude intersections at tnear just pass a slightly enlarged tnear
-            double? dist = occlusionScene.RaycastDistance(rayMeshToCam, RAYCAST_NEAR_METERS);
+            double? dist =
+                occlusionScene.RaycastDistance(rayMeshToCam, TexturingDefaults.BACKPROJECT_RAYCAST_NEAR_METERS);
 
             //if hit something else before camera, occluded
             return (dist != null) && (dist < rangeMeshToImage);
@@ -1193,7 +1194,7 @@ namespace OPS.Pipeline
             //The implementation makes no guarantees that primitives whose hit distance is exactly at
             //(or very close to) tnear or tfar are hit or missed. 
             //If you want to exclude intersections at tnear just pass a slightly enlarged tnear
-            return sc.RaycastPosition(rayCamToMesh.Value, RAYCAST_NEAR_METERS);
+            return sc.RaycastPosition(rayCamToMesh.Value, TexturingDefaults.BACKPROJECT_RAYCAST_NEAR_METERS);
         }
      
         public static IDictionary<string, ConvexHull> //indexed by observation name

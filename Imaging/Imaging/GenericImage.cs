@@ -743,7 +743,7 @@ namespace OPS.Imaging
         /// </summary>
         /// <param name="pixelBounds"></param>
         /// <returns></returns>
-        public BoundingBox PixelToUv(BoundingBox pixelBounds)
+        public BoundingBox PixelToUV(BoundingBox pixelBounds)
         {
             BoundingBox uvBounds = new BoundingBox();
             // Swap max and min because UV corrdintes flip the vertical component

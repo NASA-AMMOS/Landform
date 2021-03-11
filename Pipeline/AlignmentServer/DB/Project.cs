@@ -20,11 +20,13 @@ namespace OPS.Pipeline.AlignmentServer
         [DynamoDBHashKey]
         public string Name;
 
+        public string Mission;
+
+        public string MeshFrame;
+
         public string ProductPath;
 
         public string InputPath;
-
-        public string Mission;
 
         public HashSet<string> SceneMeshes = new HashSet<string>(); //MT safety: lock before accessing
 
@@ -43,17 +45,18 @@ namespace OPS.Pipeline.AlignmentServer
         /// Creates Project  
         /// </summary>
         /// <param name="name">Project names in the database must be unique</param>
-        protected Project(string name, string productPath, string inputPath, string mission)
+        protected Project(string name, string mission, string meshFrame, string productPath, string inputPath)
         {
             Name = name;
+            Mission = mission;
+            MeshFrame = meshFrame;
             ProductPath = productPath;
             InputPath = inputPath;
-            Mission = mission;
             IsValid();
         }
 
-        public static Project FindOrCreate(PipelineCore pipeline, string name, string productPath, string inputPath,
-                                           string mission)
+        public static Project FindOrCreate(PipelineCore pipeline, string name, string mission, string meshFrame,
+                                           string productPath, string inputPath)
         {
             Project project = Find(pipeline, name);
             if (project != null)
@@ -61,7 +64,7 @@ namespace OPS.Pipeline.AlignmentServer
                 return project;
             }
 
-            project = Create(pipeline, name, productPath, inputPath, mission);
+            project = Create(pipeline, name, mission, meshFrame, productPath, inputPath);
             if (project != null)
             {
                 return project;
@@ -77,10 +80,10 @@ namespace OPS.Pipeline.AlignmentServer
         /// <param name="pipeline"></param>
         /// <param name="name">Project names in the database must be unique</param>
         /// <returns></returns>
-        public static Project Create(PipelineCore pipeline, string name, string productPath, string inputPath,
-                                     string mission)
+        public static Project Create(PipelineCore pipeline, string name, string mission, string meshFrame,
+                                     string productPath, string inputPath)
         {
-            Project project = new Project(name, productPath, inputPath, mission);
+            Project project = new Project(name, mission, meshFrame, productPath, inputPath);
             project.Save(pipeline);
             return project;
         }

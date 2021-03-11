@@ -127,6 +127,11 @@ namespace OPS.Landform
                 pipeline.LogWarn("{0} file delete retries", ndr);
             }
 
+            DumpOutputPaths();
+        }
+
+        protected void DumpOutputPaths()
+        {
             if (!string.IsNullOrEmpty(localOutputPath))
             {
                 pipeline.LogInfo("local output path: {0}", localOutputPath);
@@ -167,7 +172,8 @@ namespace OPS.Landform
             {
                 throw new Exception("project not found: " + lcopts.ProjectName);
             }
-            pipeline.LogInfo("loaded project {0}", project.Name);
+            pipeline.LogInfo("loaded project {0}, mission {1}, mesh frame {2}",
+                             project.Name, project.Mission, project.MeshFrame);
             return project;
         }
 
@@ -182,7 +188,7 @@ namespace OPS.Landform
             return mission != null ? mission.GetMasker() : null;
         }
 
-        protected virtual bool DeleteLocalProductsBeforeRedo()
+        protected virtual bool DeleteProductsBeforeRedo()
         {
             return true;
         }
@@ -191,23 +197,30 @@ namespace OPS.Landform
         {
             outputFolder = outDir;
             localOutputPath = pipeline.GetLocalFolder(lcopts.OutputFolder, outDir, project != null ? project.Name : "");
-            if (lcopts.Redo && DeleteLocalProductsBeforeRedo())
-            {
-                DeleteLocalProducts();
-            }
         }
 
-        protected virtual void DeleteLocalProducts()
+        protected virtual void DeleteProducts()
         {
             if (Directory.Exists(localOutputPath))
             {
                 pipeline.LogInfo("deleting any prior results under {0}", localOutputPath);
                 Directory.Delete(localOutputPath, true);
             }
+            if ((pipeline is CloudPipeline) && project != null)
+            {
+                string url = StringHelper.EnsureTrailingSlash(pipeline.GetStorageUrl(outputFolder, project.Name));
+                pipeline.LogInfo("deleting any prior results under {0}", url);
+                pipeline.DeleteFiles(url);
+            }
         }
 
         protected virtual bool ParseArguments(string outDir)
         {
+            if (string.IsNullOrEmpty(outDir))
+            {
+                throw new ArgumentException("output folder must be specified");
+            }
+
             if (lcopts.NoOrbital && lcopts.NoSurface)
             {
                 throw new Exception("cannot combine --noorbital with --nosurface");
@@ -229,12 +242,43 @@ namespace OPS.Landform
             mission = GetMission(); //side effect: sets Config.DefaultsProvider
             masker = GetMasker();
 
-            if (outDir != null)
+            SetOutDir(outDir);
+
+            DumpOutputPaths();
+
+            if (lcopts.Redo && DeleteProductsBeforeRedo())
             {
-                SetOutDir(outDir);
+                DeleteProducts();
             }
 
             return true;
+        }
+
+        protected virtual string CheckOutputURL<T>(string url, string defaultFilename, string outDir,
+                                                   SerializerMap<T> serializerMap = null)
+        {
+            url = StringHelper.NormalizeUrl(url);
+            var ext = StringHelper.GetUrlExtension(url);
+            if (serializerMap != null && serializerMap.CheckFormat(ext) == null)
+            {
+                throw new Exception("unsupported output format " + ext);
+            }
+            if (url.StartsWith("."))
+            {
+                url = defaultFilename + url;
+            }
+            if (pipeline is CloudPipeline)
+            {
+                if (!url.Contains("://"))
+                {
+                    url = pipeline.GetStorageUrl(outDir, project.Name, url);
+                }
+                else if (!url.StartsWith(pipeline.StorageUrlWithVenue))
+                {
+                    throw new Exception(string.Format("output URL {0} outside cloud storage area", url));
+                }
+            }
+            return url;
         }
 
         protected virtual void SaveFloatTIFF(Image img, string name)
@@ -264,6 +308,10 @@ namespace OPS.Landform
         protected virtual void SaveMesh(Mesh mesh, string name, string texture = null,
                                         bool writeNormalLengthsAsValue = false)
         {
+            if (writeNormalLengthsAsValue && !meshExt.Equals(".ply", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new Exception("PLY format required to write normal lengths as vertex values");
+            }
             string meshFile = Path.Combine(localOutputPath, name + meshExt);
             PathHelper.EnsureExists(Path.GetDirectoryName(meshFile)); //name could have a subpath in it
             if (!lcopts.NoProgress)
@@ -272,8 +320,7 @@ namespace OPS.Landform
             }
             if (writeNormalLengthsAsValue)
             {
-                var plyWriter = new PLYMaximumCompatibilityWriter(writeXYZAsFloat: false,
-                                                                  writeNormalLengthsAsValue: true);
+                var plyWriter = new PLYMaximumCompatibilityWriter(writeNormalLengthsAsValue: true);
                 PLYSerializer.Write(mesh, meshFile, plyWriter, texture);
             }
             else

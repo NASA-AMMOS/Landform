@@ -8,6 +8,7 @@ using System.Diagnostics;
 using Microsoft.Xna.Framework;
 using RTree;
 using OPS.Util;
+using OPS.MathExtensions;
 using OPS.Imaging;
 
 namespace OPS.Geometry

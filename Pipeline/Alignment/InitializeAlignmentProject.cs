@@ -14,8 +14,8 @@ namespace OPS.Pipeline
 
         public InitializeAlignmentProject(PipelineCore pipeline) : base(pipeline) { }
 
-        public Project Initialize(string projectName, string productPath, string inputPath, string mission,
-                                  bool recreateIfExists)
+        public Project Initialize(string projectName, string mission, string meshFrame,
+                                  string productPath, string inputPath, bool recreateIfExists = false)
         {
             Project project = null;
             try
@@ -39,15 +39,17 @@ namespace OPS.Pipeline
 
             if (project == null)
             {
-                pipeline.LogInfo("creating alignment project {0}", projectName);
-                project = Project.Create(pipeline, projectName, productPath, inputPath, mission.ToString());
+                pipeline.LogInfo("creating alignment project {0}: " +
+                                 "mission {1}, mesh frame {2}, product path {3}, input path {4}",
+                                 projectName, mission, meshFrame, productPath, inputPath);
+                project = Project.Create(pipeline, projectName, mission.ToString(), meshFrame, productPath, inputPath);
             }
             else if (recreateIfExists)
             {
                 pipeline.LogInfo("re-creating alignment project {0}", projectName);
 
                 pipeline.DeleteDatabaseItem(project);
-                project = Project.Create(pipeline, projectName, productPath, inputPath, mission.ToString());
+                project = Project.Create(pipeline, mission.ToString(), meshFrame, projectName, productPath, inputPath);
 
                 var oldRoot = Frame.Find(pipeline, projectName, rootName);
                 if (oldRoot != null)
@@ -69,18 +71,34 @@ namespace OPS.Pipeline
             }
             else
             {
+                if (mission.ToString() != project.Mission)
+                {
+                    throw new Exception(string.Format("alignment project {0} already exists " +
+                                                      "but has mission \"{1}\", not \"{2}\"",
+                                                      projectName, project.Mission, mission));
+                }
+
+                if (meshFrame != project.MeshFrame)
+                {
+                    throw new Exception(string.Format("alignment project {0} already exists " +
+                                                      "but has mesh frame \"{1}\", not \"{2}\"",
+                                                      projectName, project.MeshFrame, meshFrame));
+                }
+
                 if (productPath != null && project.ProductPath != productPath)
                 {
                     throw new Exception(string.Format("alignment project {0} already exists " +
                                                       "but has product path \"{1}\", not \"{2}\"",
                                                       projectName, project.ProductPath, productPath));
                 }
+
                 if (inputPath != null && project.InputPath != inputPath)
                 {
                     throw new Exception(string.Format("alignment project {0} already exists " +
                                                       "but has input path \"{1}\", not \"{2}\"",
                                                       projectName, project.InputPath, inputPath));
                 }
+
                 pipeline.LogInfo("using existing alignment project {0}", projectName);
             }
 

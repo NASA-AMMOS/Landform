@@ -34,40 +34,48 @@ namespace OPS.TilingServer
 
         public int Run()
         {
-            var project = TilingProject.Find(pipeline, options.ProjectName);
-
-            if (project == null)
+            try
             {
-                pipeline.LogError("project \"{0}\" not found", options.ProjectName);
-                return 1; //argument error
-            }
-
-            if (project.StartedRunning && !project.FinishedRunning)
-            {
-                pipeline.LogError("cannot delete project \"{0}\", project currently running", options.ProjectName);
-                return 1; //argument error
-            }
-
-            pipeline.EnqueueToMaster(new DeleteProjectMessage(options.ProjectName));
-
-            if (!options.NoWait)
-            {
-                pipeline.LogInfo("waiting for project \"{0}\" to be deleted", options.ProjectName);
-                var sw = new Stopwatch();
-                sw.Start();
-                do
+                var project = TilingProject.Find(pipeline, options.ProjectName);
+                
+                if (project == null)
                 {
-                    if (sw.ElapsedMilliseconds > MAX_WAIT_MS)
-                    {
-                        pipeline.LogError("project \"{0}\" not deleted in {1}ms", options.ProjectName, MAX_WAIT_MS);
-                        return 2; //internal error
-                    }
-                    Thread.Sleep(SLEEP_MS);
-                    project = TilingProject.Find(pipeline, options.ProjectName);
+                    pipeline.LogError("project \"{0}\" not found", options.ProjectName);
+                    return 1; //argument error
                 }
-                while (project != null);
-
-                pipeline.LogInfo("project \"{0}\" deleted", options.ProjectName);
+                
+                if (project.StartedRunning && !project.FinishedRunning)
+                {
+                    pipeline.LogError("cannot delete project \"{0}\", project currently running", options.ProjectName);
+                    return 1; //argument error
+                }
+                
+                pipeline.EnqueueToMaster(new DeleteProjectMessage(options.ProjectName));
+                
+                if (!options.NoWait)
+                {
+                    pipeline.LogInfo("waiting for project \"{0}\" to be deleted", options.ProjectName);
+                    var sw = new Stopwatch();
+                    sw.Start();
+                    do
+                    {
+                        if (sw.ElapsedMilliseconds > MAX_WAIT_MS)
+                        {
+                            pipeline.LogError("project \"{0}\" not deleted in {1}ms", options.ProjectName, MAX_WAIT_MS);
+                            return 2; //internal error
+                        }
+                        Thread.Sleep(SLEEP_MS);
+                        project = TilingProject.Find(pipeline, options.ProjectName);
+                    }
+                    while (project != null);
+                    
+                    pipeline.LogInfo("project \"{0}\" deleted", options.ProjectName);
+                }
+            }
+            catch (Exception ex)
+            {
+                pipeline.LogException(ex);
+                return 1;
             }
 
             return 0;

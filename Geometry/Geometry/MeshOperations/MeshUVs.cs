@@ -12,6 +12,8 @@ using OPS.Imaging;
 
 namespace OPS.Geometry
 {
+    public enum AtlasMode { None, UVAtlas, Heightmap, Naive, Project };
+
     public static class MeshUVs
     {
         /// <summary>
@@ -51,7 +53,8 @@ namespace OPS.Geometry
         /// <summary>
         /// remap UV coordinates to the box [border, border]x[1 - border, 1 - border]
         /// </summary>
-        public static void RescaleUVs(this Mesh mesh, double border = 0.01, double growThreshold = 0.1)
+        public static void RescaleUVs(this Mesh mesh, double border = 0.01, double maxStretch = 1,
+                                      double growThreshold = 0.1)
         {
             var targetMin = Vector2.Zero;
             var targetMax = Vector2.One;
@@ -60,26 +63,35 @@ namespace OPS.Geometry
                 targetMin += border * Vector2.One;
                 targetMax -= border * Vector2.One;
             }
-            mesh.RescaleUVs(BoundingBoxExtensions.CreateXY(targetMin, targetMax), growThreshold);
+            mesh.RescaleUVs(BoundingBoxExtensions.CreateXY(targetMin, targetMax), maxStretch, growThreshold);
         }
 
         /// <summary>
         /// remap UV coordinates to targetBounds  
-        /// does nothing if the current UV bounds is already contained in targetBounds
-        /// and the current bounds size in each dimension is within growThreshold of targetBounds
         /// </summary>
-        public static void RescaleUVs(this Mesh mesh, BoundingBox targetBounds, double growThreshold = 0.1)
+        /// <param name="maxStretch">
+        /// Same semantics as UVAtlas.Atlas(maxStretch). If less than or equal to 0 then force isometric scaling (same
+        /// scale factor in each dimension).  If greater than or equal to 1 then allow unlimited aspect ratio of
+        /// scaling.  Otherwise limit aspect ratio of scaling to 1/(1-maxStretch).
+        /// </param>
+        /// <param name="growThreshold">
+        /// Ignored if less than or equal to zero.  Otherwise, if the current UV bounds is already contained in
+        /// targetBounds and the current bounds size in each dimension is within growThreshold of targetBounds then
+        /// don't modify current UV coordinates.
+        /// </param>
+        public static void RescaleUVs(this Mesh mesh, BoundingBox targetBounds, double maxStretch = 1,
+                                      double growThreshold = 0.1)
         {
-            if (!mesh.HasUVs)
+            if (!mesh.HasVertices)
             {
-                throw new Exception("mesh does not have UVs");
+                return;
             }
-            var targetSz = targetBounds.Max - targetBounds.Min;
 
-            var b = mesh.UVBounds();
+            var b = mesh.UVBounds(); //ensures HasUVs=true
             var uvMin = new Vector2(b.Min.X, b.Min.Y);
             var uvMax = new Vector2(b.Max.X, b.Max.Y);
             var sz = uvMax - uvMin;
+            var targetSz = targetBounds.Max - targetBounds.Min;
 
             if (growThreshold > 0 &&
                 targetBounds.Contains(b) == ContainmentType.Contains &&
@@ -91,6 +103,29 @@ namespace OPS.Geometry
             double eps = 1e-10;
             var rescale = new Vector2(Math.Abs(sz.X) > eps ? targetSz.X / sz.X : 1,
                                       Math.Abs(sz.Y) > eps ? targetSz.Y / sz.Y : 1);
+            if (maxStretch <= 0) //no stretch allowed, force isometric scaling
+            {
+                if (rescale.X <= rescale.Y)
+                {
+                    rescale.Y = rescale.X;
+                }
+                else
+                {
+                    rescale.X = rescale.Y;
+                }
+            }
+            else if (maxStretch < 1)
+            {
+                double maxAspect = 1.0 / (1.0 - maxStretch);
+                if (rescale.X <= rescale.Y)
+                {
+                    rescale.Y = Math.Min(rescale.Y, maxAspect * rescale.X);
+                }
+                else
+                {
+                    rescale.X = Math.Min(rescale.X, maxAspect * rescale.Y);
+                }
+            }
             var targetMin = new Vector2(targetBounds.Min.X, targetBounds.Min.Y);
             foreach (Vertex v in mesh.Vertices)
             {
@@ -99,15 +134,68 @@ namespace OPS.Geometry
         }
 
         /// <summary>
-        /// computes target bounds from image pixels
+        /// rewrite UVs, if necessary, to fill available texture resolution
         /// </summary>
         public static void RescaleUVsForTexture(this Mesh mesh, int texWidth, int texHeight, double borderPixels = 2,
-                                                double growThreshold = 0.1)
+                                                double maxStretch = 1, double growThreshold = 0.1)
         {
             var border = borderPixels * Vector2.One;
             var targetMin = Image.PixelToUV(border, texWidth, texHeight);
             var targetMax = Image.PixelToUV(new Vector2(texWidth, texHeight) - border, texWidth, texHeight);
-            mesh.RescaleUVs(BoundingBoxExtensions.CreateXY(targetMin, targetMax), growThreshold);
+            mesh.RescaleUVs(BoundingBoxExtensions.CreateXY(targetMin, targetMax), maxStretch, growThreshold);
+        }
+
+        /// <summary>
+        /// Clip image to just the area referenced by texture coordinates of this mesh, plus a border.
+        /// Then remap the texture coordinates of this mesh in-place to match the clipped image.
+        /// Consider TexturedMeshClipper.RemapMeshClipImage() if the mesh uses sparse and disconnected islands in image.
+        /// </summary>
+        public static Image ClipImageAndRemapUVs(this Mesh mesh, Image image, ref Image index, double borderPixels = 2)
+        {
+            if (!mesh.HasVertices)
+            {
+                return image;
+            }
+
+            var b = image.UVToPixel(mesh.UVBounds()); //ensures HasUVs=true
+            var l = new Vector2(Math.Max(0, b.Min.X - borderPixels), Math.Max(0, b.Min.Y - borderPixels));
+            var u = new Vector2(Math.Min(image.Width - 1, b.Max.X + borderPixels),
+                                Math.Min(image.Height - 1, b.Max.Y + borderPixels));
+            if (l.X == 0 && l.Y == 0 && u.X == image.Width - 1 && u.Y == image.Height - 1)
+            {
+                return image;
+            }
+
+            int startRow = (int)l.Y;
+            int startCol = (int)l.X;
+            int newWidth = (int)(u.X - l.X + 1);
+            int newHeight = (int)(u.Y - l.Y + 1);
+
+            var ret = image.Crop(startRow, startCol, newWidth, newHeight);
+
+            if (index != null)
+            {
+                index = index.Crop(startRow, startCol, newWidth, newHeight);
+            }
+
+            foreach (Vertex v in mesh.Vertices)
+            {
+                v.UV = ret.PixelToUV(image.UVToPixel(v.UV) - l);
+            }
+
+            return ret;
+        }
+
+        public static Image ClipImageAndRemapUVs(this Mesh mesh, Image image, double borderPixels = 2)
+        {
+            Image index = null;
+            return mesh.ClipImageAndRemapUVs(image, ref index, borderPixels);
+        }
+
+        public static void HeightmapAtlas(this Mesh mesh, Vector3 verticalAxis, bool flipU = false, bool flipV = false,
+                                          bool swapUV = false)
+        {
+            mesh.HeightmapAtlas(BoundingBoxExtensions.GetBoxAxis(verticalAxis), flipU, flipV, swapUV);
         }
 
         /// <summary>
@@ -149,6 +237,16 @@ namespace OPS.Geometry
                 v.UV.Y = MathE.Clamp01(v.UV.Y);
             }
             mesh.HasUVs = true;
+        }
+
+        public static void NaiveAtlas(this Mesh mesh)
+        {
+            if (!OPS.Geometry.NaiveAtlas.Compute(mesh, out float[] u, out float[] v, out int[] indices,
+                                                 out int[] vertexRemap))
+            {
+                throw new Exception("naive atlas failed");
+            }
+            mesh.ApplyAtlas(u, v, indices, vertexRemap);
         }
 
         /// <summary>
@@ -274,20 +372,20 @@ namespace OPS.Geometry
         /// add texture coordinates to a mesh by projecting vertices onto an image
         /// also optionally removes any vertices of the mesh that aren't visible in the image
         /// </summary>
-        public static void ProjectTexture(this Mesh mesh, Image img, bool removeVertsOutsideView = true,
-                                          bool processVertsInParallel = false, Matrix? meshToImage = null)
+        public static void ProjectTexture(this Mesh mesh, Image image, Matrix? meshToImage = null,
+                                          bool removeVertsOutsideView = true, bool processVertsInParallel = false)
         {
-            if (img.CameraModel == null)
+            if (image.CameraModel == null)
             {
                 throw new ArgumentException("image camera model required to project texture");
             }
-            mesh.ProjectTexture(img.Width, img.Height, img.CameraModel, removeVertsOutsideView, processVertsInParallel,
-                                meshToImage);
+            mesh.ProjectTexture(image.Width, image.Height, image.CameraModel, meshToImage,
+                                removeVertsOutsideView, processVertsInParallel);
         }
 
         public static void ProjectTexture(this Mesh mesh, int imgWidth, int imgHeight, CameraModel cameraModel,
-                                          bool removeVertsOutsideView = true, bool processVertsInParallel = false,
-                                          Matrix? meshToImage = null)
+                                          Matrix? meshToImage = null, bool removeVertsOutsideView = true,
+                                          bool processVertsInParallel = false)
         {
             Matrix xform = meshToImage ?? Matrix.Identity;
             ConcurrentBag<Vertex> verticesToRemove = new ConcurrentBag<Vertex>();

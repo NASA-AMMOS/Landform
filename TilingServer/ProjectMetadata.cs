@@ -48,65 +48,72 @@ namespace OPS.TilingServer
 
         public int Run()
         {
-            var project = TilingProject.Find(pipeline, options.ProjectName);
-
-            if (project == null)
+            try
             {
-                pipeline.LogError("project \"{0}\" not found", options.ProjectName);
-                return 1; //argument error
-            }
-
-            var md = new Metadata();
-            md.Project = project;
-
-            var sanitizedInputs = new List<SanitizedInput>();
-            foreach (var inputName in project.LoadInputNames(pipeline))
-            {
-                var input = TilingInput.Find(pipeline, options.ProjectName, inputName);
-
-                //if project deletion is ongoing then input could be null here
-                if (input != null)
+                var project = TilingProject.Find(pipeline, options.ProjectName);
+                
+                if (project == null)
                 {
-                    var sanitizedInput = new SanitizedInput {
-                        Name = input.Name,
-                        MeshUrl = CloudPipeline.ConvertS3UrlToHttps(input.MeshUrl),
-                        ImageUrl = CloudPipeline.ConvertS3UrlToHttps(input.ImageUrl),
-                        Processed = input.Chunked
-                    };
-                    if (input.Chunked)
-                    {
-                        sanitizedInput.ImageBands = input.ImageBands;
-                        sanitizedInput.ImageWidth = input.ImageWidth;
-                        sanitizedInput.ImageHeight = input.ImageHeight;
-                    }
-                    sanitizedInputs.Add(sanitizedInput);
+                    pipeline.LogError("project \"{0}\" not found", options.ProjectName);
+                    return 1; //argument error
                 }
-            }
-            md.Inputs = sanitizedInputs;
-
-            if (project.TilesDefined)
-            {
-                var nodes = TilingNode.Find(pipeline, project).ToList();
-                md.NumNodes = nodes.Count;
-
-                int numProcessed = 0;
-                foreach (var node in nodes)
+                
+                var md = new Metadata();
+                md.Project = project;
+                
+                var sanitizedInputs = new List<SanitizedInput>();
+                foreach (var inputName in project.LoadInputNames(pipeline))
                 {
-                    //if project deletion is ongoing then node could be null here
-                    if (node != null && !string.IsNullOrEmpty(node.MeshUrl))
+                    var input = TilingInput.Find(pipeline, options.ProjectName, inputName);
+                    
+                    //if project deletion is ongoing then input could be null here
+                    if (input != null)
                     {
-                        numProcessed++;
+                        var sanitizedInput = new SanitizedInput {
+                            Name = input.Name,
+                            MeshUrl = CloudPipeline.ConvertS3UrlToHttps(input.MeshUrl),
+                            ImageUrl = CloudPipeline.ConvertS3UrlToHttps(input.ImageUrl),
+                            Processed = input.Chunked
+                        };
+                        if (input.Chunked)
+                        {
+                            sanitizedInput.ImageBands = input.ImageBands;
+                            sanitizedInput.ImageWidth = input.ImageWidth;
+                            sanitizedInput.ImageHeight = input.ImageHeight;
+                        }
+                        sanitizedInputs.Add(sanitizedInput);
                     }
                 }
-                md.NumProcessedNodes = numProcessed;
+                md.Inputs = sanitizedInputs;
+                
+                if (project.TilesDefined)
+                {
+                    var nodes = TilingNode.Find(pipeline, project).ToList();
+                    md.NumNodes = nodes.Count;
+                    
+                    int numProcessed = 0;
+                    foreach (var node in nodes)
+                    {
+                        //if project deletion is ongoing then node could be null here
+                        if (node != null && !string.IsNullOrEmpty(node.MeshUrl))
+                        {
+                            numProcessed++;
+                        }
+                    }
+                    md.NumProcessedNodes = numProcessed;
+                }
+                
+                md.OutputUrl =
+                    CloudPipeline.ConvertS3UrlToHttps(pipeline.GetStorageUrl("www", project.Name, "tileset.json"));
+                
+                var ignore = new string[] { "TilingProject.NodeIdsUrl", "TilingProject.InputNamesUrl" };
+                Console.WriteLine(JsonHelper.ToJson(md, indent: true, autoTypes: false, ignoreProperties: ignore));
             }
-
-            md.OutputUrl =
-                CloudPipeline.ConvertS3UrlToHttps(pipeline.GetStorageUrl("www", project.Name, "tileset.json"));
-
-            var ignore = new string[] { "TilingProject.NodeIdsUrl", "TilingProject.InputNamesUrl" };
-            Console.WriteLine(JsonHelper.ToJson(md, indent: true, autoTypes: false, ignoreProperties: ignore));
-
+            catch (Exception ex)
+            {
+                pipeline.LogException(ex);
+                return 1;
+            }
             return 0;
         }
     }

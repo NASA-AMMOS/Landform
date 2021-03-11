@@ -42,12 +42,12 @@ using OPS.Pipeline.AlignmentServer;
 ///
 /// Generate merged unaligned sitedrive meshes:
 ///
-/// Landform.exe observation-products windjana --onlymergedsitedrivemeshes --onlyforphases=meshing --meshframe 0311472
+/// Landform.exe observation-products windjana --onlymergedsitedrivemeshes --onlyforphases=meshing
 ///   --usepriors
 ///
 /// Generate merged aligned sitedrive meshes:
 ///
-/// Landform.exe observation-products windjana --onlymergedsitedrivemeshes --onlyforphases=meshing --meshframe 0311472
+/// Landform.exe observation-products windjana --onlymergedsitedrivemeshes --onlyforphases=meshing
 ///
 /// Just spew stats:
 ///
@@ -109,8 +109,8 @@ namespace OPS.Landform
         [Option(HelpText = "Disable generating organized mesh normals when normal image missing", Default = false)]
         public bool NoGenerateNormals { get; set; }
 
-        [Option(HelpText = "Scale normals by confidence (for Poisson reconstruction)", Default = false)]
-        public bool ScaleNormalsByConfidence { get; set; }
+        [Option(HelpText = "Normal scaling mode, one of None, Confidence, PointScale", Default = NormalScale.None)]
+        public NormalScale NormalScale { get; set; }
 
         [Option(HelpText = "Don't split output by site drive", Default = false)]
         public bool SuppressSiteDriveDirectories { get; set; }
@@ -271,12 +271,6 @@ namespace OPS.Landform
             withTextures = buildWedgeMeshes && options.ColorMeshesBy == MeshColor.Texture;
             buildWedgeImages = withTextures || !options.NoWedgeImages;
             
-            if (options.MergedSiteDriveMeshes && options.MeshFrame == "rover")
-            {
-                pipeline.LogWarn("cannot write merged sitedrive meshes in rover frame, using newest sitedrive");
-                options.MeshFrame = "newest";
-            }
-
             if (!ParseArgumentsAndLoadCaches("alignment/ObservationProducts"))
             {
                 return false; // help
@@ -329,7 +323,7 @@ namespace OPS.Landform
                     UsePriors = options.UsePriors,
                     OnlyAligned = options.OnlyAligned,
                     Decimate = options.DecimateWedgeMeshes,
-                    ScaleNormalsByConfidence = options.ScaleNormalsByConfidence,
+                    NormalScale = options.NormalScale,
                     ApplyTexture = withTextures,
                     MaxTriangleAspect = options.MaxTriangleAspect,
                     IsolatedPointSize = options.IsolatedPointSize,
@@ -636,16 +630,20 @@ namespace OPS.Landform
                     var maskUrl = obs.Mask != null ? obs.Mask.Url : null;
                     mask = masker.LoadOrBuild(pipeline, maskUrl, normals.Metadata as PDSMetadata);
                 }
-                Image confidence = null;
+                Image scale = null;
                 PDSImage points = new PDSImage(pipeline.LoadImage(obs.Points.Url));
-                if (options.ScaleNormalsByConfidence)
+                switch (options.NormalScale)
                 {
-                    confidence = points.GenerateConfidence();
+                    case NormalScale.Confidence: scale = points.GenerateConfidence(); break;
+                    case NormalScale.PointScale: scale = points.GenerateScale(); break;
+                    case NormalScale.None: break;
+                    default: throw new ArgumentException("unknown normal scaling mode " + options.NormalScale);
                 }
-                normals = (new PDSImage(normals)).ConvertNormals(confidence, points.ConvertPoints());
+                normals = (new PDSImage(normals)).ConvertNormals(scale, points.ConvertPoints());
                 if (normals != null)
                 {
-                    normals = OrganizedPointCloud.MaskAndDecimateNormals(normals, mbs, mask);
+                    normals = OrganizedPointCloud.MaskAndDecimateNormals(normals, mbs, mask,
+                                                                         normalize: options.ConvertNormalsToTilts);
                     if (options.ConvertNormalsToTilts)
                     {
                         normals = OrganizedPointCloud.NormalsToTilt(normals, options.TiltMode);
@@ -680,7 +678,7 @@ namespace OPS.Landform
                 {
                     var normals = (new PDSImage(pipeline.LoadImage(obs.Normals.Url))).ConvertNormals();
                     points = OrganizedPointCloud.MaskAndDecimatePoints(points, mbs, mask);
-                    normals = OrganizedPointCloud.MaskAndDecimateNormals(normals, mbs, mask);
+                    normals = OrganizedPointCloud.MaskAndDecimateNormals(normals, mbs, mask, normalize: true);
                     curvatures = OrganizedPointCloud.Curvatures(points, normals, !options.StretchContrast,
                                                                 options.CurvatureNeighborhood);
                 }

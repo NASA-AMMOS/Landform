@@ -65,7 +65,7 @@ using OPS.Pipeline.TilingServer;
 ///
 /// Example:
 ///
-/// Landform.exe build-sky-sphere windjana --meshframe 0311472
+/// Landform.exe build-sky-sphere windjana
 ///
 /// </summary>
 namespace OPS.Landform
@@ -134,13 +134,13 @@ namespace OPS.Landform
         [Option(HelpText = "Option disabled for this command", Default = ObsSelectionStrategyName.Spatial)]
         public override ObsSelectionStrategyName ObsSelectionStrategy { get; set; }
 
-        [Option(HelpText = "Image resolution for output texture for each tile, should be power of 2", Default = 512)]
-        public override int TileResolution { get; set; }
+        [Option(HelpText = "Tile image resolution, should be power of 2", Default = TilingDefaults.MAX_TILE_RESOLUTION)]
+        public override int MaxTileResolution { get; set; }
 
         [Option(HelpText = "Prefer color images (Never, Always, EquivalentScores, auto)", Default = "auto")]
         public string SkyPreferColor { get; set; }
 
-        [Option(Required = false, HelpText = "Preadjust image luminance towards global median before blending, 0 to disable, 1 for max", Default = 1)]
+        [Option(Required = false, HelpText = "Preadjust image luminance towards global median before blending, 0 to disable, 1 for max", Default = TexturingDefaults.SKY_PREADJUST_LUMINANCE)]
         public double PreadjustLuminance { get; set; }
 
         [Option(HelpText = "Colorize mono images to median chrominance", Default = false)]
@@ -448,7 +448,7 @@ namespace OPS.Landform
                              numTiles, options.SphereResolutionDegrees, sphereTileRows, sphereTileCols,
                              MathHelper.ToDegrees(angleBelowHorizon), MathHelper.ToDegrees(angleAboveHorizon));
 
-            int totalWidth = sphereTileCols * tileResolution;
+            int totalWidth = sphereTileCols * maxTileResolution;
             if (!MathHelper.IsPowerOfTwo(totalWidth))
             {
                 pipeline.LogWarn("total width {0} pixels not a power of two, LimberDMG wrap mode disabled", totalWidth);
@@ -462,7 +462,7 @@ namespace OPS.Landform
 
             //select a good spacing of backproject points per tile
             options.BackprojectQuality = options.BackprojectSamplesPerTile / tileAreaOnSphereAtHorizon;
-            options.BackprojectQuality /= ObsSelectionSpatial.QUALITY_TO_SAMPLES_PER_SQUARE_METER; 
+            options.BackprojectQuality /= TexturingDefaults.OBS_SEL_QUALITY_TO_SAMPLES_PER_SQUARE_METER; 
 
             pipeline.LogInfo("backproject quality: {0:f6} ({1} samples per {2:f3}m^2 tile)",
                              options.BackprojectQuality, options.BackprojectSamplesPerTile, tileAreaOnSphereAtHorizon);
@@ -472,7 +472,7 @@ namespace OPS.Landform
                                      (float)options.SkyColorGreen / 255.0f,
                                      (float)options.SkyColorBlue / 255.0f };
 
-            tilesetFolder = DecorateOutDir(SKY_TILESET_DIR);
+            tilesetFolder = SKY_TILESET_DIR;
 
             return true;
         }
@@ -498,7 +498,7 @@ namespace OPS.Landform
                 //but we need to get them done sooner here so that we can get the sceneCaster
                 if (sceneMesh == null) //might have already been loaded in GetProject()
                 {
-                    sceneMesh = SceneMesh.Find(pipeline, project.Name, meshFrame);
+                    sceneMesh = SceneMesh.Find(pipeline, project.Name, MeshVariant.Default);
                 }
                 if (sceneMesh != null)
                 {
@@ -638,9 +638,9 @@ namespace OPS.Landform
             {
                 MeshExt = meshExt,
                 ImageExt = imageExt,
-                MeshFrame = meshFrame,
                 HasIndexImages = true,
                 TilingScheme = TilingScheme.Flat,
+                TextureMode = TextureMode.Backproject,
                 LeafNames = new List<string>(),
                 ParentNames = new List<string>()
             };
@@ -769,7 +769,7 @@ namespace OPS.Landform
 
             pipeline.LogInfo("backprojecting {0} tiles, texture resolution {1}, quality {2}, prefer color {3}, " +
                              "texture far clip {4:f3}",
-                             leaves.Count, tileResolution, options.BackprojectQuality, options.PreferColor,
+                             leaves.Count, maxTileResolution, options.BackprojectQuality, options.PreferColor,
                              options.TextureFarClip);
 
             int np = 0, curTileNum = 0, numFailed = 0, numSucceded = 0;
@@ -791,7 +791,10 @@ namespace OPS.Landform
 
                 if (mip.Mesh != null && mip.Image != null && mip.Index != null)
                 {
-                    SaveTile(mip, tile.Name, localSave, cloudSave, tile.IsLeaf);
+                    if (!options.NoSave)
+                    {
+                        SaveTile(mip, tile.Name, localSave, cloudSave, tile.IsLeaf);
+                    }
                     Interlocked.Increment(ref numSucceded);
                 }
                 else
@@ -818,18 +821,27 @@ namespace OPS.Landform
 
             pipeline.LogInfo("{0} tiles built successfully", numSucceded);
             tileTree.DumpStats(msg => pipeline.LogInfo(msg));
+
+            if (!options.NoSave)
+            {
+                pipeline.LogInfo("saving sky tile list");
+                var skySceneMesh = SceneMesh.Create(pipeline, project, MeshVariant.Sky, mesh);
+                pipeline.SaveDataProduct(project, tileList);
+                skySceneMesh.TileListGuid = tileList.Guid;
+                skySceneMesh.Save(pipeline);
+            }
         }
 
         private void BlendTileTextures()
         {
-            int tileRes = tileResolution;
+            int tileRes = maxTileResolution;
             int tileDecimation = 1;
             int bigImgWidth = sphereTileCols * tileRes, bigImgHeight = sphereTileRows * tileRes;
 
             while (Math.Max(bigImgWidth, bigImgHeight) > MAX_BLEND_SIZE)
             {
                 tileDecimation++;
-                tileRes = tileResolution / tileDecimation; //integer math
+                tileRes = maxTileResolution / tileDecimation; //integer math
                 bigImgWidth = sphereTileCols * tileRes;
                 bigImgHeight = sphereTileRows * tileRes;
             }
@@ -846,7 +858,7 @@ namespace OPS.Landform
             Image bigIndexMap = new Image(3, bigImgWidth, bigImgHeight);
             CoreLimitedParallel.ForEach(tileList.LeafNames, leafName =>
             {
-                string indexName = leafName + TileList.INDEX_FILE_SUFFIX + TileList.INDEX_FILE_EXT;
+                string indexName = leafName + TilingDefaults.INDEX_FILE_SUFFIX + TilingDefaults.INDEX_FILE_EXT;
                 string indexUrl = pipeline.GetStorageUrl(outputFolder, project.Name, indexName);
                 var leafIndex = MaskBackprojectIndex(pipeline.LoadImage(indexUrl));
 
@@ -944,7 +956,7 @@ namespace OPS.Landform
 
         protected override void SaveTileset()
         {
-            string tsMeshExt = TilingProject.ToExt(TilingProject.DEF_TILESET_MESH_FORMAT);
+            string tsMeshExt = TilingProject.ToExt(TilingDefaults.TILESET_MESH_FORMAT);
             Func<SceneNode, string> nodeToUrl = node => node.Name + tsMeshExt;
             if (options.HackRoot)
             {

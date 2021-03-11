@@ -379,7 +379,7 @@ namespace ImagingTest
         {
             GenericImage<float> img = new GenericImage<float>(1, 100, 200);
             BoundingBox pixels = new BoundingBox(new Vector3(10, 30, 0), new Vector3(25, 60, 0));
-            BoundingBox uvs = img.PixelToUv(pixels);
+            BoundingBox uvs = img.PixelToUV(pixels);
             Assert.AreEqual(new Vector3(10 / 100.0, 1 - (60 / 200.0), 0), uvs.Min);
             Assert.AreEqual(new Vector3(25 / 100.0, 1 - (30 / 200.0), 0), uvs.Max);
             BoundingBox p2 = img.UVToPixel(uvs);            

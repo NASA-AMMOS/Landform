@@ -550,7 +550,11 @@ namespace OPS.Pipeline
 
         public virtual string GetOrbitalS3Folder()
         {
-            return "s3://m20-ids-g-landform/M2020/orbital/";
+            if (venue == "dev")
+            {
+                return "s3://m20-ids-g-landform/M2020/orbital/";
+            }
+            return $"s3://m20-{venue}-ods/ods/surface/strategic/ids/orbital/";
         }
 
         public override string GetOrbitalConfigDefaults()
@@ -589,15 +593,14 @@ namespace OPS.Pipeline
                 "}";
         }
 
-        protected string GetPlacesConfigDefaults(string url)
+        protected string GetPlacesConfigDefaults(string url, string views = "best_interp")
         {
-            //From RGD:
-            //this is basically the same as MSL, except some of the names have changed.
+            //From RGD: this is basically the same as MSL, except some of the names have changed.
             //There are three views you  might care about (there are a few others you won't):
             //
             //telemetry
-            //best_tactical
-            //best_interp
+            //best_tactical (NB: during early mission this view was borked)
+            //best_interp (NB: best and should fall back to others)
             //
             //Telemetry contains whatever the rover sent, period.
             //It has all frames we know anything about, but NO localization whatsoever.
@@ -615,10 +618,10 @@ namespace OPS.Pipeline
             //However, neither best_tactical nor best_interp will show a value if localization has not yet been done.
             //If you add deep=true then it will go back to telemetry if there's no answer yet... but you may get a
             //discontinuous drive path that way.
-
             return "{\n" +
                 $"\"Url\": \"{url}\",\n" +
-                "\"Views\": \"telemetry,best_tactical,best_interp\",\n" +
+                $"\"View\": \"{views}\",\n" +
+                "\"AlwaysCheckRMC\": false,\n" +
                 "\"AuthCookieName\": \"ssosession\",\n" +
                 $"\"AuthCookieFile\": \"~/.cssotoken/{venue}/ssosession\"\n" +
                 "}";
@@ -715,7 +718,8 @@ namespace OPS.Pipeline
 
         public override string GetPlacesConfigDefaults()
         {
-            return GetPlacesConfigDefaults("https://places-external-roastt.m20-training.jpl.nasa.gov/m2020-places");
+            return GetPlacesConfigDefaults("https://places-external-roastt.m20-training.jpl.nasa.gov/m2020-places",
+                                           "telemetry");
         }
 
         public override RoverProductGeometry GetTacticalMeshGeometry()
@@ -769,7 +773,7 @@ namespace OPS.Pipeline
 
         public override string GetPlacesConfigDefaults()
         {
-            return GetPlacesConfigDefaults("https://places-sstage.m20.jpl.nasa.gov");
+            return GetPlacesConfigDefaults("https://places-sstage.m20.jpl.nasa.gov", "telemetry");
         }
 
         public override RoverProductGeometry GetTacticalMeshGeometry()
@@ -952,7 +956,7 @@ namespace OPS.Pipeline
             //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/725#issuecomment-267319
             //per Kevin Grimes on 3/18/20 ROASTT20 data will soon move to
             //https://places-roastt.dev.m20.jpl.nasa.gov
-            return GetPlacesConfigDefaults("https://places-rocs.{venue}.m20.jpl.nasa.gov");
+            return GetPlacesConfigDefaults($"https://places-rocs.{venue}.m20.jpl.nasa.gov", "telemetry");
         }
 
         public override RoverProductGeometry GetTacticalMeshGeometry()
@@ -996,6 +1000,8 @@ namespace OPS.Pipeline
         }
     }
 
+    //this is mostly here for backwards compatibility
+    //please make the regular MissionM2020 impl do the right thing when venue=sops
     public class MissionM20SOPS : MissionM2020
     {
         public MissionM20SOPS(string venue = null) : base(venue ?? "sops") { }
@@ -1003,11 +1009,6 @@ namespace OPS.Pipeline
         public override Mission GetMission()
         {
             return Mission.M20SOPS;
-        }
-
-        public override string GetOrbitalS3Folder()
-        {
-            return $"s3://m20-{venue}-ods/ods/surface/strategic/ids/orbital/";
         }
     }
 }

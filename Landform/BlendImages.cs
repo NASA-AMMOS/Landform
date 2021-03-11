@@ -18,6 +18,7 @@ using OPS.Geometry;
 using OPS.Pipeline;
 using OPS.Pipeline.AlignmentServer;
 using OPS.Pipeline.TilingServer;
+using OPS.Pipeline.Texturing;
 
 /// <summary>
 /// Creates blended observation images, implementing the blend-images stage in the Landform contextual mesh workflow.
@@ -90,7 +91,7 @@ using OPS.Pipeline.TilingServer;
 ///
 /// Example:
 ///
-/// Landform.exe blend-images windjana --meshframe 0311472
+/// Landform.exe blend-images windjana
 ///
 /// </summary>
 namespace OPS.Landform
@@ -109,7 +110,7 @@ namespace OPS.Landform
         [Option(HelpText = "Don't use existing backproject index", Default = false)]
         public bool NoUseExistingIndex { get; set; }
 
-        [Option(HelpText = "Scene mesh texture resolution, should be power of two", Default = 4096)]
+        [Option(HelpText = "Scene mesh texture resolution, should be power of two", Default = TexturingDefaults.BLEND_TEXTURE_RESOLUTION)]
         public override int TextureResolution { get; set; }
 
         [Option(HelpText = "Option disabled for this command - always uses blurred observation textures", Default = TextureVariant.Blurred)]
@@ -127,7 +128,7 @@ namespace OPS.Landform
         [Option(HelpText = "Inpaint diff images by this many pixels (after Barycentric interpolation, if any), 0 to disable, negative for unlimited", Default = -1)]
         public int InpaintDiff { get; set; }
 
-        [Option(HelpText = "Diff image blur radius, 0 to disable", Default = 7)]
+        [Option(HelpText = "Diff image blur radius, 0 to disable", Default = TexturingDefaults.DIFF_BLUR_RADIUS)]
         public int BlurDiff { get; set; }
 
         [Option(HelpText = "Don't fill unknown areas in blended images with average diff", Default = false)]
@@ -157,7 +158,7 @@ namespace OPS.Landform
         [Option(HelpText = "Higher values will cause sharper transitions between images but better conform to the inputs", Default = LimberDMG.DEF_LAMBDA)]
         public double Lambda { get; set; }
 
-        [Option(HelpText = "Preadjust image luminance towards global median before blending, 0 to disable, 1 for max", Default = 0.5)]
+        [Option(HelpText = "Preadjust image luminance towards global median before blending, 0 to disable, 1 for max", Default = TexturingDefaults.BLEND_PREADJUST_LUMINANCE)]
         public double PreadjustLuminance { get; set; }
 
         [Option(HelpText = "Redo shrinkwrap mesh", Default = false)]
@@ -285,7 +286,7 @@ namespace OPS.Landform
                 return false; //help
             }
 
-            sceneMesh = SceneMesh.Find(pipeline, project.Name, meshFrame, MeshVariant.Default, siteDrives);
+            sceneMesh = SceneMesh.Find(pipeline, project.Name, MeshVariant.Default);
 
             if (!options.NoUseExistingLeaves && sceneMesh != null && sceneMesh.TileListGuid != Guid.Empty)
             {
@@ -303,11 +304,10 @@ namespace OPS.Landform
                 }
                 else
                 {
-                    sceneMesh = SceneMesh.Find(pipeline, project.Name, meshFrame, MeshVariant.Shrinkwrap, siteDrives);
+                    sceneMesh = SceneMesh.Find(pipeline, project.Name, MeshVariant.Shrinkwrap);
                     if (sceneMesh == null)
                     {
-                        sceneMesh = SceneMesh.Create(pipeline, project, meshFrame, MeshVariant.Shrinkwrap, siteDrives,
-                                                     noSave: options.NoSave);
+                        sceneMesh = SceneMesh.Create(pipeline, project, MeshVariant.Shrinkwrap, noSave: options.NoSave);
                     }
                     else if (!options.NoUseExistingIndex && sceneMesh.BackprojectIndexGuid != Guid.Empty)
                     {
@@ -391,7 +391,7 @@ namespace OPS.Landform
                 }
                 else
                 {
-                    SceneMesh dsm = SceneMesh.Find(pipeline, project.Name, meshFrame, MeshVariant.Default, siteDrives);
+                    SceneMesh dsm = SceneMesh.Find(pipeline, project.Name, MeshVariant.Default);
                     if (dsm != null && dsm.MeshGuid != Guid.Empty)
                     {
                         pipeline.LogInfo("loading scene mesh from database");
@@ -438,7 +438,7 @@ namespace OPS.Landform
                     {
                         if (options.WriteDebug)
                         {
-                            SaveMesh(mesh, sceneMesh.Name + "-prewarp");
+                            SaveMesh(mesh, meshFrame + "-prewarp");
                         }
 
                         pipeline.LogInfo("warping {0:F3}x{0:F3} central UVs to {1:F3}x{1:F3}, ease {2:F3}",
@@ -484,7 +484,7 @@ namespace OPS.Landform
 
             if (options.WriteDebug)
             {
-                SaveMesh(mesh, sceneMesh.Name);
+                SaveMesh(mesh, meshFrame);
             }
         }
 
@@ -551,7 +551,7 @@ namespace OPS.Landform
             {
                 if (options.WriteDebug)
                 {
-                    string name = sceneMesh.Name + "_backprojectTexture_" + TextureVariant.Blended;
+                    string name = meshFrame + "_backprojectTexture_" + TextureVariant.Blended;
                     SaveImage(blendedTexture, name);
                     if (mesh != null)
                     {
@@ -1033,7 +1033,7 @@ namespace OPS.Landform
                 bounds = sceneMesh.GetBounds();
                 if (!bounds.HasValue)
                 {
-                    throw new Exception(string.Format("scene mesh {0} missing bounds", sceneMesh.Name));
+                    throw new Exception(string.Format("scene mesh missing bounds"));
                 }
             }
             var boundsSize = bounds.Value.Extent();
@@ -1054,13 +1054,13 @@ namespace OPS.Landform
             pipeline.LogInfo("rasterizing {0}x{0} backproject index from {1} leaves, {2:F5} meters/pixel",
                              sceneTextureResolution, tileList.LeafNames.Count, opts.MetersPerPixel);
 
-            string leafFolder = DecorateOutDir(TilingCommand.TILING_DIR);
+            string leafFolder = TilingCommand.TILING_DIR;
             CoreLimitedParallel.ForEach(tileList.LeafNames, leaf =>
             {
                 string meshUrl = pipeline.GetStorageUrl(leafFolder, project.Name, leaf + tileList.MeshExt);
                 var leafMesh = Mesh.Load(pipeline.GetFileCached(meshUrl, "meshes"));
 
-                string indexName = leaf + TileList.INDEX_FILE_SUFFIX + TileList.INDEX_FILE_EXT;
+                string indexName = leaf + TilingDefaults.INDEX_FILE_SUFFIX + TilingDefaults.INDEX_FILE_EXT;
                 string indexUrl = pipeline.GetStorageUrl(leafFolder, project.Name, indexName);
                 var leafIndex = pipeline.LoadImage(indexUrl);
 
@@ -1127,7 +1127,7 @@ namespace OPS.Landform
 
         private void BuildBlendedLeafTextures()
         {
-            string leafFolder = DecorateOutDir(TilingCommand.TILING_DIR);
+            string leafFolder = TilingCommand.TILING_DIR;
             BuildBlendedLeafTextures(pipeline, project, leafFolder, tileList, indexedImages, orbitalTexture,
                                      options.BackprojectInpaintMissing, options.BackprojectInpaintGutter,
                                      colorizeHue: options.Colorize ? medianHue : -1);
@@ -1148,7 +1148,7 @@ namespace OPS.Landform
                 Interlocked.Increment(ref curLeafNum);
                 pipeline.LogVerbose("building {0} leaf texture {1}/{2} ({3:F2}%): {4}",
                                     textureVariant, curLeafNum, leafCount, 100 * curLeafNum / (float)leafCount, leaf);
-                string indexName = leaf + TileList.INDEX_FILE_SUFFIX + TileList.INDEX_FILE_EXT;
+                string indexName = leaf + TilingDefaults.INDEX_FILE_SUFFIX + TilingDefaults.INDEX_FILE_EXT;
                 string indexUrl = pipeline.GetStorageUrl(leafFolder, project.Name, indexName);
                 var index = pipeline.LoadImage(indexUrl);
                 var results = Backproject.BuildResultsFromIndex(index, indexedImages, msg => pipeline.LogWarn(msg));

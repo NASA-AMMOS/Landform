@@ -172,6 +172,18 @@ namespace OPS.MathExtensions
         {
             return MathE.IsFinite(v.X) && MathE.IsFinite(v.Y);
         }
+
+        public static RTree.Rectangle ToRectangle(this Vector3 v)
+        {
+            return new RTree.Rectangle((float)v.X, (float)v.Y,
+                                       (float)v.X, (float)v.Y,
+                                       (float)v.Z, (float)v.Z); //yes, z last
+        }
+
+        public static RTree.Point ToRTreePoint(this Vector3 v)
+        {
+            return new RTree.Point((float)v.X, (float)v.Y, (float)v.Z);
+        }
     }
 
     public class XNAMatrixJsonConverter : JsonConverter

@@ -52,7 +52,7 @@ namespace OPS.Geometry
         /// <param name="comments"></param>
         public static void Write(Mesh m, string filename, string textureFilename = null, List<string> comments = null)
         {
-            Write(m, filename, new PLYMaximumCompatibilityWriter(false), textureFilename, comments);
+            Write(m, filename, new PLYMaximumCompatibilityWriter(), textureFilename, comments);
         }
 
         /// <summary>

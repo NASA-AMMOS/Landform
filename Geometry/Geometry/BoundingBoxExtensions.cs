@@ -80,6 +80,23 @@ namespace OPS.Geometry
             }
         }
 
+        public static BoxAxis GetBoxAxis(Vector3 dir)
+        {
+            if (dir == Vector3.UnitX)
+            {
+                return BoxAxis.X;
+            }
+            if (dir == Vector3.UnitY)
+            {
+                return BoxAxis.Y;
+            }
+            if (dir == Vector3.UnitZ)
+            {
+                return BoxAxis.Z;
+            }
+            throw new Exception("no box axis for direction " + dir);
+        }
+
         public static double GetExtentInAxis(this BoundingBox box, BoxAxis axis)
         {
             var sz = box.Extent();
@@ -696,13 +713,6 @@ namespace OPS.Geometry
             return new RTree.Rectangle((float)box.Min.X, (float)box.Min.Y,
                                        (float)box.Max.X, (float)box.Max.Y,
                                        (float)box.Min.Z, (float)box.Max.Z); //yes, z last
-        }
-
-        public static RTree.Rectangle ToRectangle(this Vector3 v)
-        {
-            return new RTree.Rectangle((float)v.X, (float)v.Y,
-                                       (float)v.X, (float)v.Y,
-                                       (float)v.Z, (float)v.Z); //yes, z last
         }
 
         public static BoundingBox ToBoundingBox(this RTree.Rectangle rect)

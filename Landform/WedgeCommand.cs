@@ -69,6 +69,8 @@ namespace OPS.Landform
         protected FrameCache frameCache;
         protected ObservationCache observationCache;
 
+        protected string meshFrame;
+
         protected SiteDrive? rootSiteDrive;
 
         protected Matrix orbitalDEMToRoot; //unprojected point in orbitalDEM camera model -> project root frame
@@ -95,11 +97,6 @@ namespace OPS.Landform
             priorSources = FrameTransform.ParseSources(wcopts.PriorTransformSources);
             adjustedSources = FrameTransform.ParseSources(wcopts.AdjustedTransformSources);
 
-            if (outDir != null)
-            {
-                outDir = DecorateOutDir(outDir);
-            }
-
             if (!base.ParseArguments(outDir))
             {
                 return false; //help
@@ -111,17 +108,137 @@ namespace OPS.Landform
                 LoadObservationCache();
             }
 
-            return true;
-        }
+            HandleSpecialMeshFrames();
 
-        protected virtual string DecorateOutDir(string outDir)
-        {
-            return FrameTransform.AppendSourcesPath(outDir, adjustedSources, priorSources, wcopts.UsePriors);
+            return true;
         }
 
         protected override bool ParseArguments(string outDir)
         {
             throw new NotImplementedException();
+        }
+
+        protected virtual string GetMeshFrame()
+        {
+            return project != null ? project.MeshFrame : "auto";
+        }
+
+        protected virtual string GetAutoMeshFrame()
+        {
+            return "newest";
+        }
+
+        protected virtual bool PassthroughMeshFrameAllowed()
+        {
+            return false;
+        }
+
+        protected virtual bool NonPassthroughMeshFrameAllowed()
+        {
+            return true;
+        }
+
+        protected virtual void HandleSpecialMeshFrames()
+        {
+            meshFrame = GetMeshFrame();
+
+            if (string.IsNullOrEmpty(meshFrame))
+            {
+                return;
+            }
+
+            meshFrame = meshFrame.ToLower().Trim();
+
+            if (meshFrame == "auto")
+            {
+                meshFrame = GetAutoMeshFrame();
+            }
+                
+            string missionRoot = mission != null ? mission.RootFrameName() : null;
+
+            var specials =
+                new string[] { "passthrough", "newest", "oldest", "mission_root", "project_root", missionRoot };
+
+            bool isSiteDrive = SiteDrive.IsSiteDriveString(meshFrame);
+            bool isSpecial = !isSiteDrive && specials.Contains(meshFrame);
+
+            if (!isSiteDrive && !isSpecial)
+            {
+                throw new Exception("unsupported mesh frame: " + meshFrame);
+            }
+
+            var origMeshFrame = meshFrame;
+            if (meshFrame == "passthrough")
+            {
+                if (!PassthroughMeshFrameAllowed())
+                {
+                    throw new Exception("passthrough mesh frame not allowed");
+                }
+            }
+            else if (!NonPassthroughMeshFrameAllowed())
+            {
+                throw new Exception("only passthrough mesh frame allowed");
+            }
+
+            if (meshFrame == "mission_root" || meshFrame == missionRoot)
+            {
+                meshFrame = "root"; //recognized as a meta-name by FrameCache.GetObservationTransform()
+            }
+            else if (meshFrame == "project_root")
+            {
+                if (rootSiteDrive == null)
+                {
+                    //this can happen if there were no frames to load or the frame cache was not loaded
+                    throw new Exception("project root output requested but no root site drive");
+                }
+                if (rootSiteDrive == mission.GetLandingSiteDrive())
+                {
+                    meshFrame = "root";
+                }
+                else
+                {
+                    meshFrame = rootSiteDrive.ToString();
+                }
+            }
+            else if (meshFrame == "newest" || meshFrame == "oldest")
+            {
+                if (observationCache == null)
+                {
+                    throw new Exception("observation cache not loaded, cannot resolve special frame: " + meshFrame);
+                }
+                                              
+                var sds = observationCache
+                    .GetAllObservations()
+                    .Where(obs => obs is RoverObservation)
+                    .Select(obs => ((RoverObservation)obs).SiteDrive)
+                    .Distinct()
+                    .ToArray();
+
+                if (sds.Length == 0)
+                {
+                    throw new Exception("no sitedrives");
+                }
+
+                if (meshFrame == "newest")
+                {
+                    meshFrame = sds.OrderByDescending(sd => sd).First().ToString();
+                }
+                else
+                {
+                    meshFrame = sds.OrderBy(sd => sd).First().ToString();
+                }
+
+                isSiteDrive = true;
+            }
+
+            //some workflows do not load frame cache, for example updating scene manifest for tactical meshes
+            if (isSiteDrive && frameCache != null && !frameCache.ContainsFrame(meshFrame))
+            {
+                throw new Exception("sitedrive frame not found: " + meshFrame);
+            }
+
+            pipeline.LogInfo("scene mesh frame: {0}{1}", meshFrame,
+                             origMeshFrame != meshFrame ? " (" + origMeshFrame + ")" : "");
         }
 
         protected virtual void LoadFrameCache()

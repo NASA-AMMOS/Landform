@@ -18,8 +18,11 @@ namespace OPS.TilingServer
         [Option(HelpText = "Start a worker in the same process (useful for debugging)", Default = false)]
         public bool StartWorker { get; set; }
 
-        [Option(Default = false, HelpText = "Support alignment workflows")]
+        [Option(HelpText = "Support alignment workflows", Default = false)]
         public bool SupportAlignment { get; set; }
+
+        [Option(HelpText = "Don't respawn master on error", Default = false)]
+        public bool NoRespawn { get; set; }
     }
 
     //https://github.jpl.nasa.gov/OnSight/Landform/issues/399
@@ -48,11 +51,13 @@ namespace OPS.TilingServer
 
         public int Run()
         {
-            DumpConfig();
-
-            if (options.StartWorker)
+            try
             {
-                workerTask = new Task(() => {
+                DumpConfig();
+                
+                if (options.StartWorker)
+                {
+                    workerTask = new Task(() => {
                         try
                         {
                             var opts = new StartWorkerOptions();
@@ -80,24 +85,31 @@ namespace OPS.TilingServer
                             LogException(e, "error in worker task", stackTrace: true);
                         }
                     });
-                workerTask.Start();
+                    workerTask.Start();
+                }
+                
+                while (true)
+                {
+                    try
+                    {
+                        RunMaster();
+                    }
+                    catch (Exception e)
+                    {
+                        LogException(e, "error in master task", stackTrace: true);
+                        Thread.Sleep(2000); // limit spew just in case a misconfiguration is causing this error
+                        if (options.NoRespawn)
+                        {
+                            throw;
+                        }
+                    }
+                }
             }
-
-            while (true)
+            catch (Exception ex)
             {
-                try
-                {
-                    RunMaster();
-                }
-                catch (Exception e)
-                {
-                    LogException(e, "error in master task", stackTrace: true);
-                    Thread.Sleep(2000); // limit spew just in case a misconfiguration is causing this error
-                }
+                LogException(ex);
+                return 1;
             }
-#pragma warning disable 0162
-            return 0;
-#pragma warning restore 0162
         }
 
         const int FAILED_MESSAGE_TIMEOUT_SEC = 3;
@@ -117,7 +129,7 @@ namespace OPS.TilingServer
                     {
                         if (!stateMachines.ContainsKey(m.ProjectName))
                         {
-                            PipelineStateMachine.ProjectType? pt = PipelineStateMachine.GetProjectType(this, m);
+                            ProjectType? pt = PipelineStateMachine.GetProjectType(this, m);
                             if (pt.HasValue)
                             {
                                 var sm = PipelineStateMachine.CreateInstance(this, pt.Value, m.ProjectName);

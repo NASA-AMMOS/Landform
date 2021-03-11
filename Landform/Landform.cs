@@ -31,6 +31,8 @@ namespace OPS.Landform
             var verbs = new Dictionary<Type, Type>()
                 {
                     { typeof(ConfigureCloudOptions), typeof(ConfigureCloud) },
+                    { typeof(StartWorkerOptions), typeof(StartWorker) },
+
                     { typeof(ConfigureLocalOptions), typeof(ConfigureLocal) },
 
                     { typeof(FetchDataOptions), typeof(FetchData) },

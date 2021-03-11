@@ -25,11 +25,14 @@ namespace OPS.Pipeline
 
         [Option(Default = false, HelpText = "Support alignment workflows")]
         public bool SupportAlignment { get; set; }
+
+        [Option(HelpText = "Don't respawn master on error", Default = false)]
+        public bool NoRespawn { get; set; }
     }
 
     //TODO: https://github.jpl.nasa.gov/ProtoSpace/ps-pipeline/issues/159
     //this actually handles worker tasks for both alignment and tiling workflows
-    //it should be a subcommand of Landform.exe not TilingServer.exe
+    //and all of this is basically deprecated now
     public class StartWorker : CloudPipeline
     {
         public const int MAX_PROCESSING_SEC = 6 * 60 * 60; //6h
@@ -124,6 +127,10 @@ namespace OPS.Pipeline
                             {
                                 LogException(e, "error in worker task", stackTrace: true);
                                 Thread.Sleep(2000); // limit spew just in case a misconfiguration is causing this error
+                                if (options.NoRespawn)
+                                {
+                                    throw;
+                                }
                             }
                         }
                     });
@@ -395,9 +402,10 @@ namespace OPS.Pipeline
 
             var dispatcher = MakeDispatcher(pipeline, options.SupportAlignment);
 
-            void sendStatus(PipelineMessage m, string status, bool done = false)
+            void sendStatus(PipelineMessage m, string status, bool done = false, bool error = false)
             {
-                pipeline.EnqueueToMaster(new StatusMessage(m.ProjectName, m.MessageId, m.GetType().Name, status, done));
+                pipeline.EnqueueToMaster(new StatusMessage(m.ProjectName, m.MessageId, m.GetType().Name, status, done,
+                                         error));
             }
 
             while (true)
@@ -422,7 +430,7 @@ namespace OPS.Pipeline
                             }
                             catch (Exception e)
                             {
-                                sendStatus(m, "error: " + e.Message, done: true);
+                                sendStatus(m, "error: " + e.Message, done: true, error: true);
                                 LogException(e, m.Info() + ": processing error", stackTrace: true);
                             }
 

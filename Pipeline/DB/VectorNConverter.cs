@@ -4,36 +4,36 @@ using Amazon.DynamoDBv2.DocumentModel;
 using MathNet.Numerics.LinearAlgebra;
 using Newtonsoft.Json;
 
-namespace OPS.Pipeline.AlignmentServer
+namespace OPS.Pipeline
 {
-    public class SquareMatrixConverter : JsonConverter, IPropertyConverter
+    public class VectorNConverter : JsonConverter, IPropertyConverter
     {
         public override bool CanRead { get { return true; } } 
-        public override bool CanWrite { get { return true; } }
+        public override bool CanWrite { get { return true; } } 
 
         public override bool CanConvert(Type objectType)
         {
-            return objectType == typeof(Matrix<double>);
+            return objectType == typeof(Vector<double>);
         }
 
         public override void WriteJson(JsonWriter writer, object value, JsonSerializer serializer)
         {
-            serializer.Serialize(writer, ((Matrix<double>)value).ToArray());
+            serializer.Serialize(writer, ((Vector<double>)value).ToArray());
         }
         
         public override object ReadJson(JsonReader reader, Type type, object existing, JsonSerializer serializer)
         {
-            return CreateMatrix.DenseOfArray(serializer.Deserialize<double[,]>(reader));
+            return CreateVector.DenseOfArray(serializer.Deserialize<double[]>(reader));
         }
 
         public object FromEntry(DynamoDBEntry entry)
         {
-            return CreateMatrix.DenseOfArray(JsonConvert.DeserializeObject<double[,]>(entry.AsString()));
+            return CreateVector.DenseOfArray(JsonConvert.DeserializeObject<double[]>(entry.AsString()));
         }
 
         public DynamoDBEntry ToEntry(object value)
         {
-            return JsonConvert.SerializeObject(((Matrix<double>)value).ToArray());
+            return JsonConvert.SerializeObject(((Vector<double>)value).ToArray());
         }
     }
 }
