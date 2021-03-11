@@ -21,27 +21,6 @@ namespace OPS.MathExtensions
         public readonly int N;
 
         /// <summary>
-        /// Mean value as an XNA Vector3.
-        /// </summary>
-        public Xna.Vector3 XnaMean
-        {
-            get
-            {
-                return Mean.ToXna();
-            }
-        }
-        /// <summary>
-        /// Covariance matrix as an XNA Matrix.
-        /// </summary>
-        public Xna.Matrix XnaCovariance
-        {
-            get
-            {
-                return Covariance.ToXna();
-            }
-        }
-
-        /// <summary>
         /// Return a joint distribution of two assumed-independent distributions.
         /// </summary>
         /// <param name="one"></param>
@@ -182,7 +161,7 @@ namespace OPS.MathExtensions
 
         public override string ToString()
         {
-            return $"mean: {XnaMean.ToString()}, covariance {XnaCovariance.ToString()}";
+            return $"mean: {Mean}, covariance {Covariance}";
         }
         
         public override int GetHashCode()

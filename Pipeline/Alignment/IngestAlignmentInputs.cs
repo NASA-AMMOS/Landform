@@ -915,7 +915,7 @@ namespace OPS.Pipeline
             }
             catch (Exception ex)
             {
-                pipeline.LogError("error ingesting orbital DEM: {0}", ex.Message);
+                pipeline.LogException(ex, "error ingesting orbital DEM");
             }
 
             try
@@ -925,7 +925,7 @@ namespace OPS.Pipeline
             }
             catch (Exception ex)
             {
-                pipeline.LogError("error ingesting orbital image: {0}", ex.Message);
+                pipeline.LogException(ex, "error ingesting orbital image");
             }
 
             return na;
