@@ -10,12 +10,13 @@ using OPS.MathExtensions;
 using OPS.Geometry;
 using OPS.Pipeline.AlignmentServer;
 using OPS.Pipeline;
+using OPS.Pipeline.Texturing;
 
 namespace OPS.Landform
 {
     public class GeometryCommandOptions : WedgeCommandOptions
     {
-        [Option(HelpText = "Scene mesh texture resolution, should be power of two", Default = 8192)]
+        [Option(HelpText = "Scene mesh texture resolution, should be power of two", Default = TexturingDefaults.SCENE_TEXTURE_RESOLUTION)]
         public virtual int TextureResolution { get; set; }
 
         [Option(HelpText = "Max texture charts, 0 for unlimited", Default = UVAtlas.DEF_MAX_CHARTS)]
@@ -24,22 +25,22 @@ namespace OPS.Landform
         [Option(HelpText = "Max texture stretch, 0 for none, 1 for unlimited", Default = UVAtlas.DEF_MAX_STRETCH)]
         public virtual double MaxTextureStretch { get; set; }
 
-        [Option(HelpText = "Min fraction of texture space to use for surface data", Default = 0.5)]
+        [Option(HelpText = "Min fraction of texture space to use for surface data", Default =TexturingDefaults.MIN_SURFACE_TEXTURE_FRACTION)]
         public double MinSurfaceTextureFraction { get; set; }
 
         [Option(HelpText = "Disable texture space warp", Default = false)]
         public bool NoTextureWarp { get; set; }
 
-        [Option(HelpText = "Ease texture space warp in range [0, 1], otherwise no easing", Default = 0.5)]
+        [Option(HelpText = "Ease texture space warp in range [0, 1], otherwise no easing", Default = TexturingDefaults.EASE_TEXTURE_WARP)]
         public double EaseTextureWarp { get; set; }
 
-        [Option(HelpText = "Ease surface pixels per meter factor", Default = 0.2)]
+        [Option(HelpText = "Ease surface pixels per meter factor", Default = TexturingDefaults.EASE_SURFACE_PPM_FACTOR)]
         public double EaseSurfacePPMFactor { get; set; }
 
         [Option(HelpText = "Orbital sampling rate, non-positive to use DEM resolution", Default = -1)]
         public double OrbitalPointsPerMeter { get; set; }
 
-        [Option(HelpText = "UV generation mode for meshes if texture projection is not available (None, UVAtlas, Heightmap, Naive)", Default = AtlasMode.UVAtlas)]
+        [Option(HelpText = "UV generation mode for meshes if texture projection is not available (None, UVAtlas, Heightmap, Naive)", Default = TexturingDefaults.ATLAS_MODE)]
         public AtlasMode AtlasMode { get; set; }
     }
 

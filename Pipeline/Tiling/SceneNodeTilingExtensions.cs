@@ -272,12 +272,14 @@ namespace OPS.Pipeline
                 }
             } 
 
-            node.GetComponent<NodeBounds>().Bounds = BoundingBoxExtensions.Union(parentBounds, parentMesh.Bounds());
+            parentBounds = BoundingBoxExtensions.Union(parentBounds, parentMesh.Bounds());
+            node.GetComponent<NodeBounds>().Bounds = parentBounds;
 
             int textureSize = 0;
             if (project.TextureMode != TextureMode.None)
             {
-                textureSize = GetTileResolution(parentMesh, project.MaxTextureResolution, project.MaxTexelsPerMeter,
+                double texelsPerMeter = project.GetMaxTexelsPerMeter(parentBounds);
+                textureSize = GetTileResolution(parentMesh, project.MaxTextureResolution, texelsPerMeter,
                                                 project.PowerOfTwoTextures);
             }
 

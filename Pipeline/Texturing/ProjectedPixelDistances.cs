@@ -9,7 +9,7 @@ using OPS.Imaging;
 using OPS.Geometry;
 using OPS.RayTrace;
 using OPS.Pipeline.AlignmentServer;
-
+using OPS.Pipeline.Texturing;
 
 namespace OPS.Pipeline
 {
@@ -17,8 +17,6 @@ namespace OPS.Pipeline
     //using how far the pixels are apart (in meters) when projected onto a specific mesh
     public class ProjectedPixelDistances
     {
-        const double FRUSTUMHULLTESTEPSILON = 0.00001;
-
         //meshBounds: bounds of the area of interest you are measuring
         //meshcaster: the area of interest you are measuring (usually a tile mesh)
         //occlusionScene: the entire scene's mesh
@@ -107,7 +105,7 @@ namespace OPS.Pipeline
                 spreads[sampleIndex] = -1;
                 
                 //protect against bad ray calculations from camera model
-                if (obsHull.Contains(pt.Point, FRUSTUMHULLTESTEPSILON))
+                if (obsHull.Contains(pt.Point, TexturingDefaults.FRUSTUM_HULL_TEST_EPSILON))
                 {
                     //Issue #523: want median or average in case glancing angle?
                     //want a term that looks for consistancy in spacing? implies dead on?
@@ -214,7 +212,7 @@ namespace OPS.Pipeline
                                                      Matrix meshToCam, ConvexHull camHullInMesh,
                                                      Vector3 meshPos, int widthPixels, int heightPixels)
         {
-            if (!camHullInMesh.Contains(meshPos, FRUSTUMHULLTESTEPSILON))
+            if (!camHullInMesh.Contains(meshPos, TexturingDefaults.FRUSTUM_HULL_TEST_EPSILON))
             {
                 return null;
             }

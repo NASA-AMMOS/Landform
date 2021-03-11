@@ -33,14 +33,6 @@ namespace OPS.Pipeline.Texturing
     // the goal is higher fidelity than greedy and tunable noisiness that is better than exhaustive. 
     public class ObsSelectionSpatial : ObsSelectionStrategy
     {
-        public const double QUALITY_TO_SAMPLES_PER_SQUARE_METER = 100;
-
-        public const double ORBITAL_QUALITY_TO_SAMPLES_PER_SQUARE_METER = 1;
-
-        public const double EXTEND_SURFACE_EXTENT = 2;
-
-        public const double SEARCH_RADIUS_SAMPLES = 2; //multipled by average sample spacing to get search radius
-
         public override ObsSelectionStrategyName Name { get { return ObsSelectionStrategyName.Spatial; } }
 
         public SpatialSelectionMode SelectionMode = SpatialSelectionMode.CombinedFilteredWeightedNeighbors;
@@ -69,14 +61,15 @@ namespace OPS.Pipeline.Texturing
             if (OrbitalMetersPerPixel > 0)
             {
                 //orbitalSamplesPerSquareMeter = 1 / (OrbitalMetersPerPixel * OrbitalMetersPerPixel);
-                orbitalSamplesPerSquareMeter = Quality * ORBITAL_QUALITY_TO_SAMPLES_PER_SQUARE_METER;
+                orbitalSamplesPerSquareMeter =
+                    Quality * TexturingDefaults.OBS_SEL_ORBITAL_QUALITY_TO_SAMPLES_PER_SQUARE_METER;
                 orbitalSampleSpacing = SurfacePointSampler.DensityToSampleSpacing(orbitalSamplesPerSquareMeter);
             }
 
-            double samplesPerSquareMeter = Quality * QUALITY_TO_SAMPLES_PER_SQUARE_METER;
+            double samplesPerSquareMeter = Quality * TexturingDefaults.OBS_SEL_QUALITY_TO_SAMPLES_PER_SQUARE_METER;
             if (OrbitalMetersPerPixel > 0 && contexts.Count == 0) //only orbital
             {
-                samplesPerSquareMeter = Quality * ORBITAL_QUALITY_TO_SAMPLES_PER_SQUARE_METER;
+                samplesPerSquareMeter = Quality * TexturingDefaults.OBS_SEL_ORBITAL_QUALITY_TO_SAMPLES_PER_SQUARE_METER;
             }
 
             sampleSpacing = SurfacePointSampler.DensityToSampleSpacing(samplesPerSquareMeter);
@@ -85,7 +78,8 @@ namespace OPS.Pipeline.Texturing
 
             if (SurfaceExtent > 0)
             {
-                var sb = BoundingBoxExtensions.CreateFromPoint(meshCtr, EXTEND_SURFACE_EXTENT * SurfaceExtent);
+                double surfaceBoundsExtent = TexturingDefaults.EXTEND_SURFACE_EXTENT * SurfaceExtent;
+                var sb = BoundingBoxExtensions.CreateFromPoint(meshCtr, surfaceBoundsExtent);
                 sb.Min.Z = meshOp.Bounds.Min.Z;
                 sb.Max.Z = meshOp.Bounds.Max.Z;
                 surfaceBounds = sb;
@@ -255,7 +249,7 @@ namespace OPS.Pipeline.Texturing
                 spacing = orbitalSampleSpacing;
             }
 
-            double searchRadius = SEARCH_RADIUS_SAMPLES * spacing;
+            double searchRadius = TexturingDefaults.OBS_SEL_SEARCH_RADIUS_SAMPLES * spacing;
             var searchBounds = BoundingBoxExtensions.CreateFromPoint(meshPoint, 2 * searchRadius).ToRectangle();
             var neighborIndices = rTree.Intersects(searchBounds);
 

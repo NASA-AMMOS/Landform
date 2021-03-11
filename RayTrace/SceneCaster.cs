@@ -95,25 +95,25 @@ namespace OPS.RayTrace
         /// <param name="near"></param>
         /// <param name="far"></param>
         /// <returns></returns>
-        public HitData Raycast(Ray ray, float near = 0, float far = float.PositiveInfinity)
+        public HitData Raycast(Ray ray, double near = 0, double far = double.PositiveInfinity)
         {
             if (!sceneBuilt)
             {
                 throw new Exception("Must call Build on scene before raycasting");
             }
-            var packet = scene.Intersects(new EmbreeRay(ray), near, far);
+            var packet = scene.Intersects(new EmbreeRay(ray), (float)near, (float)far);
             Intersection<Model> hit = packet.ToIntersection<Model>(scene);
             return HitToHitData(ray, hit);
         }
 
         /// NOTE: this will return both frontface and backface hits
-        public Vector3? RaycastPosition(Ray ray, float near = 0, float far = float.PositiveInfinity)
+        public Vector3? RaycastPosition(Ray ray, double near = 0, double far = double.PositiveInfinity)
         {
             if (!sceneBuilt)
             {
                 throw new Exception("Must call Build on scene before raycasting");
             }
-            var packet = scene.Intersects(new EmbreeRay(ray), near, far);
+            var packet = scene.Intersects(new EmbreeRay(ray), (float)near, (float)far);
             Intersection<Model> hit = packet.ToIntersection<Model>(scene);
 
             if (hit.HasHit)
@@ -127,13 +127,13 @@ namespace OPS.RayTrace
         }
 
         /// NOTE: this will return both frontface and backface hits
-        public double? RaycastDistance(Ray ray, float near = 0, float far = float.PositiveInfinity)
+        public double? RaycastDistance(Ray ray, double near = 0, double far = double.PositiveInfinity)
         {
             if (!sceneBuilt)
             {
                 throw new Exception("Must call Build on scene before raycasting");
             }
-            var packet = scene.Intersects(new EmbreeRay(ray), near, far);
+            var packet = scene.Intersects(new EmbreeRay(ray), (float)near, (float)far);
             Intersection<Model> hit = packet.ToIntersection<Model>(scene);
 
             if (hit.HasHit)
@@ -147,7 +147,7 @@ namespace OPS.RayTrace
         }
 
         /// NOTE: this will return both frontface and backface hits
-        public HitData[] Raycast4(Ray[] rays, float near = 0, float far = float.PositiveInfinity)
+        public HitData[] Raycast4(Ray[] rays, double near = 0, double far = double.PositiveInfinity)
         {
             if (!sceneBuilt)
             {
@@ -160,7 +160,7 @@ namespace OPS.RayTrace
             }
 
             var embreeRays = rays.Select(r => new EmbreeRay(r)).ToArray();
-            var packet4 = scene.Intersects4(embreeRays, near, far);
+            var packet4 = scene.Intersects4(embreeRays, (float)near, (float)far);
             Intersection<Model>[] hits = packet4.ToIntersection<Model>(scene);
 
             HitData[] results = new HitData[4];
@@ -222,9 +222,9 @@ namespace OPS.RayTrace
         /// <param name="ray"></param>
         /// <param name="distance"></param>
         /// <returns></returns>
-        public bool Occludes(Ray ray, float distance = float.PositiveInfinity)
+        public bool Occludes(Ray ray, double distance = double.PositiveInfinity)
         {
-            return scene.Occludes(new EmbreeRay(ray), 0, distance);
+            return scene.Occludes(new EmbreeRay(ray), 0, (float)distance);
         }
 
         ~SceneCaster()

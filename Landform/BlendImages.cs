@@ -18,6 +18,7 @@ using OPS.Geometry;
 using OPS.Pipeline;
 using OPS.Pipeline.AlignmentServer;
 using OPS.Pipeline.TilingServer;
+using OPS.Pipeline.Texturing;
 
 /// <summary>
 /// Creates blended observation images, implementing the blend-images stage in the Landform contextual mesh workflow.
@@ -109,7 +110,7 @@ namespace OPS.Landform
         [Option(HelpText = "Don't use existing backproject index", Default = false)]
         public bool NoUseExistingIndex { get; set; }
 
-        [Option(HelpText = "Scene mesh texture resolution, should be power of two", Default = 4096)]
+        [Option(HelpText = "Scene mesh texture resolution, should be power of two", Default = TexturingDefaults.BLEND_TEXTURE_RESOLUTION)]
         public override int TextureResolution { get; set; }
 
         [Option(HelpText = "Option disabled for this command - always uses blurred observation textures", Default = TextureVariant.Blurred)]
@@ -127,7 +128,7 @@ namespace OPS.Landform
         [Option(HelpText = "Inpaint diff images by this many pixels (after Barycentric interpolation, if any), 0 to disable, negative for unlimited", Default = -1)]
         public int InpaintDiff { get; set; }
 
-        [Option(HelpText = "Diff image blur radius, 0 to disable", Default = 7)]
+        [Option(HelpText = "Diff image blur radius, 0 to disable", Default = TexturingDefaults.DIFF_BLUR_RADIUS)]
         public int BlurDiff { get; set; }
 
         [Option(HelpText = "Don't fill unknown areas in blended images with average diff", Default = false)]
@@ -157,7 +158,7 @@ namespace OPS.Landform
         [Option(HelpText = "Higher values will cause sharper transitions between images but better conform to the inputs", Default = LimberDMG.DEF_LAMBDA)]
         public double Lambda { get; set; }
 
-        [Option(HelpText = "Preadjust image luminance towards global median before blending, 0 to disable, 1 for max", Default = 0.5)]
+        [Option(HelpText = "Preadjust image luminance towards global median before blending, 0 to disable, 1 for max", Default = TexturingDefaults.BLEND_PREADJUST_LUMINANCE)]
         public double PreadjustLuminance { get; set; }
 
         [Option(HelpText = "Redo shrinkwrap mesh", Default = false)]

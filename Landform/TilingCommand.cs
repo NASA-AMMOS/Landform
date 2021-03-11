@@ -33,6 +33,9 @@ namespace OPS.Landform
         [Option(HelpText = "Max texels per meter (lineal not areal), 0 or negative for unlimited", Default = TilingDefaults.MAX_TEXELS_PER_METER)]
         public double MaxTexelsPerMeter { get; set; }
 
+        [Option(HelpText = "Max texels per meter (lineal not areal) for orbital tiles, 0 or negative for unlimited", Default = TilingDefaults.MAX_ORBITAL_TEXELS_PER_METER)]
+        public double MaxOrbitalTexelsPerMeter { get; set; }
+
         [Option(HelpText = "Max tile texture atlas stretch (0 = no stretch, 1 = unlimited)", Default = TilingDefaults.MAX_TEXTURE_STRETCH)]
         public override double MaxTextureStretch { get; set; }
 
@@ -87,8 +90,6 @@ namespace OPS.Landform
 
     public class TilingCommand : TextureCommand
     {
-        private const int MAX_LEAF_GROUP_SIZE = 32;
-
         private const int TILING_NODE_LRU_MESH_CACHE_SIZE = 500;
         private const int TILING_NODE_LRU_IMAGE_CACHE_SIZE = 500;
         private const int TILING_NODE_LRU_INDEX_CACHE_SIZE = 500;
@@ -488,6 +489,7 @@ namespace OPS.Landform
                 tilingProject.TilingScheme = tilingScheme;
                 tilingProject.MaxFacesPerTile = tilingOpts.MaxFacesPerTile;
                 tilingProject.MinTileExtent = tilingOpts.MinTileExtent;
+                tilingProject.SurfaceExtent = sceneMesh.SurfaceExtent;
                 tilingProject.ParentReconstructionMethod = tilingOpts.ParentReconstructionMethod;
                 tilingProject.SkirtMode = tilingOpts.SkirtMode;
 
@@ -495,6 +497,7 @@ namespace OPS.Landform
                 tilingProject.TextureMode = parentTileTextureMode;
                 tilingProject.MaxTextureResolution = maxTileResolution;
                 tilingProject.MaxTexelsPerMeter = tilingOpts.MaxTexelsPerMeter;
+                tilingProject.MaxOrbitalTexelsPerMeter = tilingOpts.MaxOrbitalTexelsPerMeter;
                 tilingProject.MaxTextureStretch = tilingOpts.MaxTextureStretch;
                 tilingProject.PowerOfTwoTextures = tilingOpts.PowerOfTwoTextures;
                 tilingProject.ConvertLinearRGBToSRGB = !tilingOpts.NoConvertLinearRGBToSRGB;

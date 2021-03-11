@@ -134,13 +134,13 @@ namespace OPS.Landform
         [Option(HelpText = "Option disabled for this command", Default = ObsSelectionStrategyName.Spatial)]
         public override ObsSelectionStrategyName ObsSelectionStrategy { get; set; }
 
-        [Option(HelpText = "Tile image resolution, should be power of 2", Default = 512)]
+        [Option(HelpText = "Tile image resolution, should be power of 2", Default = TilingDefaults.MAX_TILE_RESOLUTION)]
         public override int MaxTileResolution { get; set; }
 
         [Option(HelpText = "Prefer color images (Never, Always, EquivalentScores, auto)", Default = "auto")]
         public string SkyPreferColor { get; set; }
 
-        [Option(Required = false, HelpText = "Preadjust image luminance towards global median before blending, 0 to disable, 1 for max", Default = 1)]
+        [Option(Required = false, HelpText = "Preadjust image luminance towards global median before blending, 0 to disable, 1 for max", Default = TexturingDefaults.SKY_PREADJUST_LUMINANCE)]
         public double PreadjustLuminance { get; set; }
 
         [Option(HelpText = "Colorize mono images to median chrominance", Default = false)]
@@ -462,7 +462,7 @@ namespace OPS.Landform
 
             //select a good spacing of backproject points per tile
             options.BackprojectQuality = options.BackprojectSamplesPerTile / tileAreaOnSphereAtHorizon;
-            options.BackprojectQuality /= ObsSelectionSpatial.QUALITY_TO_SAMPLES_PER_SQUARE_METER; 
+            options.BackprojectQuality /= TexturingDefaults.OBS_SEL_QUALITY_TO_SAMPLES_PER_SQUARE_METER; 
 
             pipeline.LogInfo("backproject quality: {0:f6} ({1} samples per {2:f3}m^2 tile)",
                              options.BackprojectQuality, options.BackprojectSamplesPerTile, tileAreaOnSphereAtHorizon);

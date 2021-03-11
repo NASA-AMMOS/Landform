@@ -38,6 +38,7 @@ namespace OPS.Pipeline
 
         public int MaxTileResolution = TilingDefaults.MAX_TILE_RESOLUTION;
         public double MaxTexelsPerMeter = TilingDefaults.MAX_TEXELS_PER_METER;
+        public double MaxOrbitalTexelsPerMeter = TilingDefaults.MAX_ORBITAL_TEXELS_PER_METER;
         public double MaxTextureStretch = TilingDefaults.MAX_TEXTURE_STRETCH;
         public bool PowerOfTwoTextures = TilingDefaults.POWER_OF_TWO_TEXTURES;
 
@@ -46,6 +47,8 @@ namespace OPS.Pipeline
         public CameraInstance[] CameraInstances;
 
         public SceneCaster SceneCaster;
+
+        public BoundingBox? SurfaceBounds;
 
         public double RaycastTolerance;
 
@@ -116,9 +119,11 @@ namespace OPS.Pipeline
             }
 
             double meshArea = clippedMesh.SurfaceArea();
+            bool orbital = options.SurfaceBounds.HasValue &&
+                options.SurfaceBounds.Value.Contains(bounds) == ContainmentType.Disjoint;
+            double texelsPerMeter = orbital ? options.MaxOrbitalTexelsPerMeter : options.MaxTexelsPerMeter;
             int texRes = SceneNodeTilingExtensions.
-                GetTileResolution(meshArea, options.MaxTileResolution, options.MaxTexelsPerMeter,
-                                  options.PowerOfTwoTextures);
+                GetTileResolution(meshArea, options.MaxTileResolution, texelsPerMeter, options.PowerOfTwoTextures);
 
             if (options.RespectMaxTexelsPerMeter && texRes < options.MaxTileResolution)
             {
@@ -150,8 +155,6 @@ namespace OPS.Pipeline
 
     public class TextureSplitCriteriaBackproject : TextureSplitCriteria
     {
-        const double MESH_HULL_TEST_EPSILON = 0.00001;
-
         public TextureSplitCriteriaBackproject(TextureSplitOptions opts) : base(opts)
         {
             spewProgress = true;
@@ -214,7 +217,7 @@ namespace OPS.Pipeline
                 //if the points are spilling onto other tiles, they aren't great candidates for testing.
                 //In addition to handling cases where you are peeking through a valley or keyhole in the terrain
                 //and all points are landing on other mesh tiles, this is a performance optimization.
-                if (!clippedHull.Contains(destPixelPt.Point, MESH_HULL_TEST_EPSILON))
+                if (!clippedHull.Contains(destPixelPt.Point, TilingDefaults.MESH_HULL_TEST_EPSILON))
                 {
                     continue;
                 }
@@ -340,8 +343,6 @@ namespace OPS.Pipeline
 
     public class TextureSplitCriteriaApproximate : TextureSplitCriteria
     {
-        public const double APPROX_TEXTURE_UTILIZATION = 0.5;
-
         public TextureSplitCriteriaApproximate(TextureSplitOptions opts) : base(opts) {}
 
         protected override bool GetTileTexelsPerArea(Mesh clippedMesh, int texRes, double meshArea, out double texels)
@@ -357,7 +358,7 @@ namespace OPS.Pipeline
             //the uv atlas wastes some amount of pixels on gutter, accounted for here by APPROX_TEXTURE_UTILIZATION
             // the uv atlas also allocates area unequally in the atlas, could spend 80% of the pixels
             // on 20% of the area (not accounted for here)
-            texels = APPROX_TEXTURE_UTILIZATION * numTexels / meshArea; //return texels per square meter
+            texels = TilingDefaults.APPROX_TEXTURE_UTILIZATION * numTexels / meshArea; //return texels per square meter
 
             return true;
         }

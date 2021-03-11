@@ -130,11 +130,14 @@ namespace OPS.Landform
 
     public class BuildTilingInput : TilingCommand
     {
-        public const double SYNTHESIZE_RELATIVE_THRESHOLD = 0.5;
+        public const double SYNTHESIZE_LOD_RELATIVE_THRESHOLD = 0.5;
 
         private BuildTilingInputOptions options;
 
         private TextureMode textureMode = TextureMode.None;
+
+        private double surfaceExtent = -1;
+        private BoundingBox? surfaceBounds;
 
         private bool tacticalFrame;
         private string inputTexturePDS;
@@ -266,6 +269,12 @@ namespace OPS.Landform
             }
 
             pipeline.LogInfo("texture mode: {0}, max tile resolution {1}", textureMode, maxTileResolution);
+
+            if (sceneMesh != null)
+            {
+                surfaceExtent = sceneMesh.SurfaceExtent;
+                surfaceBounds = TilingProject.GetSurfaceBoundingBox(surfaceExtent);
+            }
 
             return true;
         }
@@ -754,11 +763,13 @@ namespace OPS.Landform
                 MaxPixelsPerTexel = options.SplitByTextureMaxPixelsPerTexel,
                 MaxTileResolution = maxTileResolution, //> 0 otherwise texture split would be disabled
                 MaxTexelsPerMeter = options.MaxTexelsPerMeter,
+                MaxOrbitalTexelsPerMeter = options.MaxOrbitalTexelsPerMeter,
                 MaxTextureStretch = maxTextureStretch,
                 PowerOfTwoTextures = options.PowerOfTwoTextures,
                 TextureMode = textureMode,
                 CameraInstances = cams,
                 SceneCaster = sceneCaster,
+                SurfaceBounds = surfaceBounds,
                 RaycastTolerance = options.RaycastTolerance,
                 RedoUVs = !options.NoRedoTileMeshUVs,
                 Warn = msg => pipeline.LogWarn(msg)
@@ -779,8 +790,7 @@ namespace OPS.Landform
                 tileTree = DefineTiles
                     .BuildTileTreeFromInputs(new List<MeshImagePair>() { new MeshImagePair(mesh) },
                                              options.TilingScheme, options.MaxFacesPerTile, options.MinTileExtent,
-                                             sceneMesh != null ? sceneMesh.SurfaceExtent : -1, textureSplitOptions,
-                                             !options.NoApproxTileSplit,
+                                             surfaceExtent, textureSplitOptions, !options.NoApproxTileSplit,
                                              msg => pipeline.LogInfo(msg), msg => pipeline.LogVerbose(msg));
             }
 
@@ -883,7 +893,7 @@ namespace OPS.Landform
 
                 Mesh srcMesh = meshLOD[srcLOD];
                 Mesh newMesh = srcMesh;
-                if (maxDiff > SYNTHESIZE_RELATIVE_THRESHOLD * srcMesh.Faces.Count)
+                if (maxDiff > SYNTHESIZE_LOD_RELATIVE_THRESHOLD * srcMesh.Faces.Count)
                 {
                     int target = srcMesh.Faces.Count - (int)(0.5 * maxDiff);
                     pipeline.LogInfo("inserting new LOD by decimating LOD {0} ({1} tris) to {2} tris with {3}",
@@ -1053,9 +1063,7 @@ namespace OPS.Landform
 
                 var mip = tile.GetComponent<MeshImagePair>();
 
-                int resolution = SceneNodeTilingExtensions
-                    .GetTileResolution(mip.Mesh, //empty or zero area ok
-                                       maxTileResolution, options.MaxTexelsPerMeter, options.PowerOfTwoTextures);
+                int resolution = GetTileResolution(mip.Mesh, tile.GetComponent<NodeBounds>().Bounds);
                 
                 if (!mip.Mesh.HasFaces)
                 {
@@ -1175,6 +1183,15 @@ namespace OPS.Landform
             }
         }
 
+        private int GetTileResolution(Mesh tileMesh, BoundingBox tileBounds)
+        {
+            double texelsPerMeter =
+                TilingProject.GetMaxTexelsPerMeter(tileBounds, surfaceBounds, options.MaxTexelsPerMeter,
+                                                   options.MaxOrbitalTexelsPerMeter);
+            return SceneNodeTilingExtensions.
+                GetTileResolution(tileMesh, maxTileResolution, texelsPerMeter, options.PowerOfTwoTextures);
+        }
+
         private Mesh MakeTileMesh(SceneNode tile, MeshOperator meshOp)
         {
             Mesh tileMesh = null;
@@ -1183,11 +1200,12 @@ namespace OPS.Landform
             {
                 throw new Exception(string.Format("tile {0} missing bounds", tile.Name));
             }
+            var tileBounds = tile.GetComponent<NodeBounds>().Bounds;
 
             //clip the big mesh to get a tile's mesh
             try
             {
-                tileMesh = meshOp.Clipped(tile.GetComponent<NodeBounds>().Bounds);
+                tileMesh = meshOp.Clipped(tileBounds);
             }
             catch (Exception ex)
             {
@@ -1201,8 +1219,7 @@ namespace OPS.Landform
                 return tileMesh;
             }
 
-            int resolution = SceneNodeTilingExtensions.
-                GetTileResolution(tileMesh, maxTileResolution, options.MaxTexelsPerMeter, options.PowerOfTwoTextures);
+            int resolution = GetTileResolution(tileMesh, tileBounds);
 
             if (textureMode == TextureMode.Bake || textureMode == TextureMode.Backproject)
             {

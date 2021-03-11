@@ -163,6 +163,8 @@ namespace OPS.Pipeline.TilingServer
                 }
             }
 
+            BoundingBox? surfaceBounds = project.GetSurfaceBoundingBox();
+
             LogLess("building {0} leaves", leaves.Count);
             int nc = inputGroups.SelectMany(g => g.Chunks).Count();
             int nl = 0;
@@ -175,25 +177,32 @@ namespace OPS.Pipeline.TilingServer
                 MeshImagePair pair = null;
                 if (inputHasImages && inputHasUVs && maxTexRes != 0)
                 {
+                    int tileResolution = maxTexRes;
+                    Mesh mesh = null;
+                    if (project.TextureMode == TextureMode.Bake || project.TextureMode == TextureMode.Clip)
+                    {
+                        mesh = clipper.Clip(bounds);
+                        double texelsPerMeter = project.GetMaxTexelsPerMeter(bounds, surfaceBounds);
+                        tileResolution = SceneNodeTilingExtensions
+                            .GetTileResolution(mesh, maxTexRes, texelsPerMeter, project.PowerOfTwoTextures);
+                    }
+
                     if (project.TextureMode == TextureMode.Bake)
                     {
-                        var mesh = clipper.Clip(bounds);
-                        var res = SceneNodeTilingExtensions.GetTileResolution(mesh, maxTexRes,
-                                                                              project.MaxTexelsPerMeter,
-                                                                              project.PowerOfTwoTextures);
-                        LogLess("baking {0}x{0} leaf texture, {1}", res, res,
+                        LogLess("baking {0}x{0} leaf texture, {1}", tileResolution, tileResolution,
                                 mesh.HasUVs ? "using exising UVs" : "assigning new UVs with UVAtlas");
                         if (mesh.HasUVs)
                         {
-                            mesh.RescaleUVsForTexture(res, res, project.MaxTextureStretch);
+                            mesh.RescaleUVsForTexture(tileResolution, tileResolution, project.MaxTextureStretch);
                         }
                         //BakeTexture() will call UVAtlas if necessary
-                        pair = clipper.BakeTexture(mesh, res, project.MaxTextureStretch, msg => LogLess(msg));
+                        pair =
+                            clipper.BakeTexture(mesh, tileResolution, project.MaxTextureStretch, msg => LogLess(msg));
                     }
                     else if (project.TextureMode == TextureMode.Clip)
                     {
                         LogLess("clipping leaf texture");
-                        pair = clipper.ClipWithTexture(bounds, maxTexRes, project.MaxTexelsPerMeter);
+                        pair = clipper.ClipWithTexture(bounds, tileResolution, project.MaxTexelsPerMeter);
                     }
                     if (pair.Mesh != null && pair.Image != null &&
                         project.MaxTextureStretch < 1 && !project.PowerOfTwoTextures)

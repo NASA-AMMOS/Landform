@@ -47,10 +47,10 @@ namespace OPS.Landform
         [Option(HelpText = "Observation image texture variant (Original, Blurred, Blended)", Default = TextureVariant.Original)]
         public virtual TextureVariant TextureVariant { get; set; }
 
-        [Option(HelpText = "A tunable parameter for the Observation Selection Strategy used in backproject (range 0-1)", Default = 0.3)]
+        [Option(HelpText = "A tunable parameter for the Observation Selection Strategy used in backproject (range 0-1)", Default = TexturingDefaults.BACKPROJECT_QUALITY)]
         public virtual double BackprojectQuality { get; set; }
 
-        [Option(HelpText = "The smallest distance (meters) for a raycast determined to be significant, prevents self intersections", Default = 0.0001)]
+        [Option(HelpText = "The smallest distance (meters) for a raycast determined to be significant, prevents self intersections", Default = TexturingDefaults.RAYCAST_TOLERANCE)]
         public virtual double RaycastTolerance { get; set; }
 
         [Option(HelpText = "Write extended backproject debug info", Default = false)]
@@ -59,10 +59,10 @@ namespace OPS.Landform
         [Option(HelpText = "Verbose backproject spew", Default = false)]
         public bool VerboseBackproject { get; set; }
 
-        [Option(HelpText = "The strategy used to pick which of the many source image candidates for a given area is selected in backproject (Exhaustive, Spatial)", Default = ObsSelectionStrategyName.Spatial)]
+        [Option(HelpText = "The strategy used to pick which of the many source image candidates for a given area is selected in backproject (Exhaustive, Spatial)", Default = TexturingDefaults.OBS_SEL_STRATEGY)]
         public virtual ObsSelectionStrategyName ObsSelectionStrategy { get; set; }
         
-        [Option(Required = false, HelpText = "Observation image blur radius", Default = 7)]
+        [Option(Required = false, HelpText = "Observation image blur radius", Default = TexturingDefaults.OBSERVATION_BLUR_RADIUS)]
         public int ObservationBlurRadius { get; set; }
 
         [Option(HelpText = "Redo blurred observation textures", Default = false)]
@@ -74,19 +74,19 @@ namespace OPS.Landform
         [Option(HelpText = "Redo observation image stats", Default = false)]
         public bool RedoObservationStats { get; set; }
 
-        [Option(HelpText = "Number of inpaint missing pixels for backproject, 0 to disable inpaint, negative for unlimited", Default = 4)]
+        [Option(HelpText = "Number of inpaint missing pixels for backproject, 0 to disable inpaint, negative for unlimited", Default = TexturingDefaults.BACKPROJECT_INPAINT_MISSING)]
         public int BackprojectInpaintMissing { get; set; }
 
-        [Option(HelpText = "Number of inpaint gutter pixels for backproject, 0 to disable inpaint, negative for unlimited", Default = -1)]
+        [Option(HelpText = "Number of inpaint gutter pixels for backproject, 0 to disable inpaint, negative for unlimited", Default = TexturingDefaults.BACKPROJECT_INPAINT_GUTTER)]
         public int BackprojectInpaintGutter { get; set; }
 
         [Option(HelpText = "Just show list of image observations selected for texturing", Default = false)]
         public bool ListImageObservations { get; set; }
 
-        [Option(HelpText = "Length of the convex hull to use when finding observations to texture width (meters)", Default = 100)]
+        [Option(HelpText = "Length of the convex hull to use when finding observations to texture width (meters)", Default = TexturingDefaults.TEXTURE_FAR_CLIP)]
         public virtual double TextureFarClip { get; set; }
 
-        [Option(HelpText = "Prefer color images (Never, Always, EquivalentScores)", Default = PreferColorMode.EquivalentScores)]
+        [Option(HelpText = "Prefer color images (Never, Always, EquivalentScores)", Default = TexturingDefaults.OBS_SEL_PREFER_COLOR)]
         public virtual PreferColorMode PreferColor { get; set; }
 
         [Option(HelpText = "Colorize mono images to median chrominance", Default = false)]

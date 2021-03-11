@@ -12,6 +12,7 @@ using OPS.Util;
 using OPS.Cloud;
 using OPS.Geometry;
 using OPS.Pipeline;
+using OPS.Pipeline.Texturing;
 
 namespace OPS.Pipeline.TilingServer
 {
@@ -33,6 +34,8 @@ namespace OPS.Pipeline.TilingServer
 
         public double MinTileExtent = TilingDefaults.MIN_TILE_EXTENT;
 
+        public double SurfaceExtent;
+
         public MeshReconstructionMethod ParentReconstructionMethod = TilingDefaults.PARENT_RECONSTRUCTION_METHOD;
 
         public SkirtMode SkirtMode = TilingDefaults.SKIRT_MODE;
@@ -44,6 +47,7 @@ namespace OPS.Pipeline.TilingServer
         public int MaxTextureResolution = TilingDefaults.MAX_TILE_RESOLUTION;
 
         public double MaxTexelsPerMeter = TilingDefaults.MAX_TEXELS_PER_METER;
+        public double MaxOrbitalTexelsPerMeter = TilingDefaults.MAX_ORBITAL_TEXELS_PER_METER;
 
         public double MaxTextureStretch = TilingDefaults.MAX_TEXTURE_STRETCH;
 
@@ -262,6 +266,47 @@ namespace OPS.Pipeline.TilingServer
             SaveStringArray(url, names, pipeline);
             InputNamesUrl = url;
             return url;
+        }
+
+        public static BoundingBox? GetSurfaceBoundingBox(double surfaceExtent)
+        {
+            if (surfaceExtent > 0)
+            {
+                double surfaceBoundsExtent = TexturingDefaults.EXTEND_SURFACE_EXTENT * surfaceExtent;
+                return BoundingBoxExtensions.CreateFromPoint(Vector3.Zero, surfaceBoundsExtent);
+            }
+            return null;
+        }
+
+        public BoundingBox? GetSurfaceBoundingBox()
+        {
+            return GetSurfaceBoundingBox(SurfaceExtent);
+        }
+
+        public static double GetMaxTexelsPerMeter(BoundingBox tileBounds, BoundingBox? surfaceBounds,
+                                                  double maxTexelsPerMeter, double maxOrbitalTexelsPerMeter)
+        {
+            if (surfaceBounds.HasValue)
+            {
+                var sb = surfaceBounds.Value;
+                sb.Min.Z = tileBounds.Min.Z;
+                sb.Max.Z = tileBounds.Max.Z;
+                if (sb.Contains(tileBounds) == ContainmentType.Disjoint)
+                {
+                    return maxOrbitalTexelsPerMeter;
+                }
+            }
+            return maxTexelsPerMeter;
+        }
+            
+        public double GetMaxTexelsPerMeter(BoundingBox tileBounds, BoundingBox? surfaceBounds)
+        {
+            return GetMaxTexelsPerMeter(tileBounds, surfaceBounds, MaxTexelsPerMeter, MaxOrbitalTexelsPerMeter);
+        }
+
+        public double GetMaxTexelsPerMeter(BoundingBox tileBounds)
+        {
+            return GetMaxTexelsPerMeter(tileBounds, GetSurfaceBoundingBox());
         }
 
         private List<string> LoadStringArray(string url, PipelineCore pipeline)
