@@ -620,7 +620,7 @@ namespace OPS.Pipeline
             //discontinuous drive path that way.
             return "{\n" +
                 $"\"Url\": \"{url}\",\n" +
-                "\"View\": \"{views}\",\n" +
+                $"\"View\": \"{views}\",\n" +
                 "\"AlwaysCheckRMC\": false,\n" +
                 "\"AuthCookieName\": \"ssosession\",\n" +
                 $"\"AuthCookieFile\": \"~/.cssotoken/{venue}/ssosession\"\n" +
@@ -956,7 +956,7 @@ namespace OPS.Pipeline
             //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/725#issuecomment-267319
             //per Kevin Grimes on 3/18/20 ROASTT20 data will soon move to
             //https://places-roastt.dev.m20.jpl.nasa.gov
-            return GetPlacesConfigDefaults("https://places-rocs.{venue}.m20.jpl.nasa.gov", "telemetry");
+            return GetPlacesConfigDefaults($"https://places-rocs.{venue}.m20.jpl.nasa.gov", "telemetry");
         }
 
         public override RoverProductGeometry GetTacticalMeshGeometry()

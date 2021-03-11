@@ -144,7 +144,7 @@ namespace OPS.Pipeline
             }
             if (logger != null)
             {
-                logger.LogInfo("PLACESDB url: {0}; views {1}", config.Url, String.Join(",", views));
+                logger.LogInfo("PlacesDB url: {0}; views {1}", config.Url, String.Join(",", views));
             }
 
             if (!string.IsNullOrEmpty(config.AuthCookieValue))
