@@ -287,7 +287,7 @@ namespace OPS.Landform
                     {
                         mesh = orbitalMesh;
                     }
-                    else if (options.OrbitalBlendRadius > 0 || options.OrbitalSewRadius > 0)
+                    else
                     {
                         RunPhase("blend orbital to surface", BlendOrbitalToSurface);
                     }
@@ -312,6 +312,8 @@ namespace OPS.Landform
                 {
                     RunPhase("save mesh", SaveSceneMesh);
                 }
+
+                SaveDebugMesh(mesh, "final");
 
                 var bounds = mesh.Bounds().Extent();
                 pipeline.LogInfo("scene bounds (meters): {0:f3}x{1:f3}x{2:f3}", bounds.X, bounds.Y, bounds.Z);
@@ -430,7 +432,7 @@ namespace OPS.Landform
                     blendRadius = sewRadius;
                 }
 
-                //already verified 0 < options.SurfaceExtent < options.Extent
+                //already verified 0 < options.SurfaceExtent <= options.Extent
                 blendExtent = Math.Min(options.Extent, options.SurfaceExtent + 2 * Math.Max(blendRadius, 0));
             }
 
@@ -945,6 +947,9 @@ namespace OPS.Landform
 
         private void BuildOrbitalMesh()
         {
+            int orbitalRadiusPixels = (int)Math.Ceiling(0.5 * options.Extent / orbitalDEMMetersPerPixel);
+            int blendRadiusPixels = (int)Math.Ceiling(0.5 * blendExtent / orbitalDEMMetersPerPixel);
+
             var maskOp = maskUVMeshOp;
             if (maskOp == null && mesh != null) //CreateSurfaceMaskMesh() failed
             {
@@ -969,9 +974,6 @@ namespace OPS.Landform
                 return ret;
             }
 
-            int orbitalRadiusPixels = (int)Math.Ceiling(0.5 * options.Extent / orbitalDEMMetersPerPixel);
-            int blendRadiusPixels = (int)Math.Ceiling(0.5 * blendExtent / orbitalDEMMetersPerPixel);
-
             Vector3 meshOriginInOrbital = Vector3.Transform(Vector3.Zero, meshToOrbital);
 
             Image.Subrect blendBounds = null;
@@ -995,7 +997,10 @@ namespace OPS.Landform
 
             if (blendBounds != null)
             {
-                SaveDebugMesh(orbitalMesh, "outer-orbital");
+                if (orbitalMesh != null)
+                {
+                    SaveDebugMesh(orbitalMesh, "outer-orbital");
+                }
 
                 pipeline.LogInfo("making {0:f3}x{0:f3} orbital blend mesh at {1:f3} samples/meter",
                                  2 * blendRadiusPixels * orbitalDEMMetersPerPixel,
@@ -1023,8 +1028,9 @@ namespace OPS.Landform
 
         private void BlendOrbitalToSurface()
         {
-            if (blendRadius == 0 && sewRadius == 0)
+            if (orbitalMesh == null || (blendRadius == 0 && sewRadius == 0))
             {
+                pipeline.LogInfo("skipping blend orbital to surface: no orbital mesh or no blend or sew radius");
                 return;
             }
 
