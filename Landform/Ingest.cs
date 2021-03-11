@@ -115,14 +115,14 @@ namespace OPS.Landform
         [Option(HelpText = "URL to legacy manifest, used to build priors from onsight manifest", Default = null)]
         public string LegacyManifestURL { get; set; }
 
-        [Option(HelpText = "Recreate project if it already exists", Default = false)]
-        public bool RedoProject { get; set; }
+        [Option(HelpText = "Don't ecreate project if it already exists", Default = false)]
+        public bool NoRedoProject { get; set; }
 
-        [Option(HelpText = "Recreate observations that already exist", Default = false)]
-        public bool RedoObservations { get; set; }
+        [Option(HelpText = "Don't ecreate observations that already exist", Default = false)]
+        public bool NoRedoObservations { get; set; }
 
-        [Option(HelpText = "Recreate transform priors that already exist", Default = false)]
-        public bool RedoPriors { get; set; }
+        [Option(HelpText = "Don't recreate transform priors that already exist", Default = false)]
+        public bool NoRedoPriors { get; set; }
 
         [Option(Default = "None", HelpText = "Mission flag enables mission specific behavior, optional :venue override, e.g. None, MSL, M2020, M20SOPS, M20SOPS:dev, M20SOPS:sbeta")]
         public string Mission { get; set; }
@@ -154,9 +154,9 @@ namespace OPS.Landform
 
             if (options.Redo)
             {
-                options.RedoProject = true;
-                options.RedoObservations = true;
-                options.RedoPriors = true;
+                options.NoRedoProject = false;
+                options.NoRedoObservations = false;
+                options.NoRedoPriors = false;
             }
         }
 
@@ -197,7 +197,7 @@ namespace OPS.Landform
 
             var init = new InitializeAlignmentProject(pipeline);
             return init.Initialize(options.ProjectName, options.Mission, options.MeshFrame, productUrl, inputUrl,
-                                   options.RedoProject);
+                                   !options.NoRedoProject);
         }
 
         protected override MissionSpecific GetMission()
@@ -227,7 +227,7 @@ namespace OPS.Landform
             string orbitalImage =
                 !string.IsNullOrEmpty(options.OrbitalImage) ? options.OrbitalImage : oc.GetImageFile();
             ingester = new IngestAlignmentInputs(pipeline, project, mission,
-                                                 options.RedoObservations, options.RedoPriors,
+                                                 !options.NoRedoObservations, !options.NoRedoPriors,
                                                  options.OnlyForObservations, options.OnlyForFrames,
                                                  options.OnlyForCameras, options.OnlyForSiteDrives, options.OnlyForSols,
                                                  orbitalDEM, orbitalImage,
