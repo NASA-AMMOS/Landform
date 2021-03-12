@@ -474,7 +474,7 @@ namespace OPS.Pipeline
 
             public bool onlyCompletelyUnobstructed; //skip pts in frame but occluded in *any* obs (other than orbital)
 
-            public double maxGlancingAngleDegrees = 90;
+            public double maxGlancingAngleDegrees = 90; //only respected if occlusionScene == meshCaster != null
             
             public string meshName;
 
