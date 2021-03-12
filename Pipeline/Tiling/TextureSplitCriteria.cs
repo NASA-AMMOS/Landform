@@ -327,7 +327,7 @@ namespace OPS.Pipeline
                 //Issue #523: want median or average in case glancing angle?
                 //want a term that looks for consistancy in spacing? implies dead on?
                 double curSpread = ProjectedPixelDistances.
-                    GetMinPixelSpreadInMeters(meshBounds, meshCaster, options.SceneCaster, camInst.CameraModel,
+                    GetMaxPixelSpreadInMeters(meshBounds, meshCaster, options.SceneCaster, camInst.CameraModel,
                                               camInst.CameraToMesh, srcPixel.Value, pxlPt.Point,
                                               camInst.WidthPixels, camInst.HeightPixels, options.RaycastTolerance);
                 if (curSpread < minSpread)

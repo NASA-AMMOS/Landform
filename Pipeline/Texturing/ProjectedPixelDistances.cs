@@ -75,7 +75,7 @@ namespace OPS.Pipeline
         }
 
         /// <summary>
-        /// Estimates minimum lineal meters on mesh per pixel in obs, median across allSamples.
+        /// Estimates maximum lineal meters on mesh per pixel in obs, median across allSamples.
         /// meshBounds: the bounds of the individual mesh for which the pixel distances are being calculated
         /// meshCaster: the indvidual mesh for which the pixel distances are being calculated
         /// occlusionScene: the broader whole-scene that may occlude the current mesh
@@ -109,7 +109,7 @@ namespace OPS.Pipeline
                 {
                     //Issue #523: want median or average in case glancing angle?
                     //want a term that looks for consistancy in spacing? implies dead on?
-                    double dist = GetMinPixelSpreadInMeters(meshBounds, meshCaster, occlusionScene, cam, obsToOutput,
+                    double dist = GetMaxPixelSpreadInMeters(meshBounds, meshCaster, occlusionScene, cam, obsToOutput,
                                                             pt.Pixel, pt.Point, obs.Width, obs.Height,
                                                             raycastTolerance);
                     if (dist >= 0 && dist < double.MaxValue)
@@ -131,7 +131,7 @@ namespace OPS.Pipeline
 
         //raycast the 4 neighbors of a pixel
         //then measure the distance between the source pixel's intersected position and the neighbors
-        //then return the shortest
+        //then return the longest
         //this should give an estimate of the source textures local resolution
         //using our best approximation of the mesh to compare against other images
         //
@@ -141,7 +141,7 @@ namespace OPS.Pipeline
         //if meshCaster = occlusionScene then meshBounds is used to differentiate hits on the mesh vs hits on other
         //occluding geometry
         //raycastTolerance: a distance based on the scale of your geometries used to exclude self intersections
-        public static double GetMinPixelSpreadInMeters(BoundingBox meshBounds, SceneCaster meshCaster,
+        public static double GetMaxPixelSpreadInMeters(BoundingBox meshBounds, SceneCaster meshCaster,
                                                        SceneCaster occlusionScene, CameraModel camera, Matrix camToMesh,
                                                        Vector2 srcPixel, Vector3 srcPos, int srcWidth, int srcHeight,
                                                        double raycastTolerance)
@@ -152,29 +152,13 @@ namespace OPS.Pipeline
 
             if (offsetPixels.Count == 0)
             {
-                return double.MaxValue;
+                return -1;
             }
 
-            List<Vector3> meshPositions = GetMeshPositionsForCameraPixels(meshBounds, meshCaster, occlusionScene,
-                                                                          camera, camToMesh, offsetPixels,
-                                                                          raycastTolerance);
-
-            if (meshPositions.Count == 0)
-            {
-                return double.MaxValue;
-            }
-
-            double shortestDistance = double.MaxValue;
-            foreach (var curPos in meshPositions)
-            {
-                double sqDist = (curPos - srcPos).LengthSquared();
-                if (sqDist < shortestDistance)
-                {
-                    shortestDistance = sqDist;
-                }
-            }
-
-            return Math.Sqrt(shortestDistance);
+            var meshPos = GetMeshPositionsForCameraPixels(meshBounds, meshCaster, occlusionScene, camera, camToMesh,
+                                                          offsetPixels, raycastTolerance);
+            
+            return meshPos.Count > 0 ? Math.Sqrt(meshPos.Select(p => (p - srcPos).LengthSquared()).Max()) : -1;
         }
 
         //Issue #531: raycast bundle of 4 with embree
