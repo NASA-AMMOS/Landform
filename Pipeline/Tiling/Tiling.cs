@@ -16,6 +16,7 @@ namespace OPS.Pipeline
         public const TilingScheme TILING_SCHEME = TilingScheme.QuadAuto;
         public const int MAX_FACES_PER_TILE = 2000;
         public const double MIN_TILE_EXTENT = 0.5;
+        public const double MAX_LEAF_AREA = 100;
         public const MeshReconstructionMethod PARENT_RECONSTRUCTION_METHOD = MeshReconstructionMethod.FSSR;
         public const SkirtMode SKIRT_MODE = SkirtMode.Normal;
 
@@ -26,7 +27,7 @@ namespace OPS.Pipeline
         public const int MIN_TILE_RESOLUTION = 16;
 
         public const double MAX_TEXELS_PER_METER = 1024;
-        public const double MAX_ORBITAL_TEXELS_PER_METER = 64;
+        public const double MAX_ORBITAL_TEXELS_PER_METER = 16;
         public const bool TEXTURE_SPLIT_RESPECT_MAX_TEXELS_PER_METER = true; //requires refactoring command line options
 
         public const int MAX_TEXTURE_CHARTS = UVAtlas.DEF_MAX_CHARTS; //0 = unlimited

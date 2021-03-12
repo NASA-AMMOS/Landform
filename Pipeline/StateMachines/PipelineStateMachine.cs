@@ -18,6 +18,7 @@ namespace OPS.Pipeline
         public TilingScheme TilingScheme;
         public int MaxFacesPerTile;
         public double MinTileExtent;
+        public double MaxLeafArea;
         public MeshReconstructionMethod ParentReconstructionMethod;
         public SkirtMode SkirtMode;
 
@@ -296,6 +297,7 @@ namespace OPS.Pipeline
                 project.TilingScheme = m.TilingScheme;
                 project.MaxFacesPerTile = m.MaxFacesPerTile;
                 project.MinTileExtent = m.MinTileExtent;
+                project.MaxLeafArea = m.MaxLeafArea;
                 project.ParentReconstructionMethod = m.ParentReconstructionMethod;
                 project.SkirtMode = m.SkirtMode;
 

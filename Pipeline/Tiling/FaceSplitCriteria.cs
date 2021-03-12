@@ -11,7 +11,7 @@ namespace OPS.Pipeline
     /// <summary>
     /// Splitting criteria to split tiles based on a max number of allowed faces
     /// </summary>
-    public class FaceSplitCriteria : ITileSplitCriteria
+    public class FaceSplitCriteria : TileSplitCriteria
     {
         public readonly int maxFaces; //unlimited if non-positive
 

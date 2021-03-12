@@ -19,6 +19,7 @@ async function createProject(req, res) {
       tilingscheme: { type: 'enum', options: ['Bin', 'QuadX', 'QuadY', 'QuadZ', 'QuadAuto', 'Oct', 'UserDefined'] },
       maxfacespertile: { type: 'int' },
       mintileextent: { type: 'float' },
+      maxleafarea: { type: 'float' },
       parentreconstructionmethod: { type: 'enum', options: ['Poisson', 'FSSR'] },
       texturemode: { type: 'enum', options: ['None', 'Clip', 'Bake' ] },
       maxtextureresolution: { type: 'int' },

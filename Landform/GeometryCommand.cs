@@ -88,10 +88,9 @@ namespace OPS.Landform
 
         protected virtual void UVAtlasMesh(Mesh mesh, int resolution, string name = null) 
         {
-            name = !string.IsNullOrEmpty(name) ? (name + " ") : "";
-            string msg = string.Format("atlassing {0}mesh ({1} triangles) with UVAtlas, texture resolution {2}",
-                                       name, Fmt.KMG(mesh.Faces.Count), resolution);
-
+            string msg =
+                string.Format("atlassing {0}mesh ({1} triangles) with UVAtlas, texture resolution {2}",
+                              !string.IsNullOrEmpty(name) ? (name + " ") : "", Fmt.KMG(mesh.Faces.Count), resolution);
             if (mesh.Faces.Count > 20000)
             {
                 pipeline.LogInfo(msg);
@@ -117,8 +116,8 @@ namespace OPS.Landform
 
         protected virtual void HeightmapAtlasMesh(Mesh mesh, string name = null)
         {
-            name = !string.IsNullOrEmpty(name) ? (name + " ") : "";
-            string msg = string.Format("heightmap atlassing {0}mesh ({1} triangles)", name, Fmt.KMG(mesh.Faces.Count));
+            string msg = string.Format("heightmap atlassing {0}mesh ({1} triangles)",
+                                       !string.IsNullOrEmpty(name) ? (name + " ") : "", Fmt.KMG(mesh.Faces.Count));
 
             if (mesh.Faces.Count > 20000)
             {
@@ -137,9 +136,8 @@ namespace OPS.Landform
 
         protected virtual void NaiveAtlasMesh(Mesh mesh, string name = null)
         {
-            name = !string.IsNullOrEmpty(name) ? (name + " ") : "";
-            string msg = string.Format("naive atlassing {0}mesh ({1} triangles)", name, Fmt.KMG(mesh.Faces.Count));
-
+            string msg = string.Format("naive atlassing {0}mesh ({1} triangles)",
+                                       !string.IsNullOrEmpty(name) ? (name + " ") : "", Fmt.KMG(mesh.Faces.Count));
             if (mesh.Faces.Count > 20000)
             {
                 pipeline.LogInfo(msg);
@@ -154,10 +152,9 @@ namespace OPS.Landform
 
         protected virtual void AtlasMesh(Mesh mesh, int resolution, string name = null)
         {
-            name = !string.IsNullOrEmpty(name) ? (name + " ") : "";
             switch (gcopts.AtlasMode)
             {
-                case AtlasMode.None: throw new Exception($"cannot atlas {name}mesh, atlassing disabled");
+                case AtlasMode.None: throw new Exception($"cannot atlas mesh, atlassing disabled");
                 case AtlasMode.UVAtlas: UVAtlasMesh(mesh, resolution, name); break;
                 case AtlasMode.Heightmap: HeightmapAtlasMesh(mesh, name); break;
                 case AtlasMode.Project: //fallthrough here, see TextureCommand.AtlasMesh()

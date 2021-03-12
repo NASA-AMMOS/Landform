@@ -30,6 +30,9 @@ namespace OPS.Landform
         [Option(HelpText = "Minium tile bounds extent", Default = TilingDefaults.MIN_TILE_EXTENT)]
         public double MinTileExtent { get; set; }
 
+        [Option(HelpText = "Maximum leaf tile mesh area", Default = TilingDefaults.MAX_LEAF_AREA)]
+        public double MaxLeafArea { get; set; }
+
         [Option(HelpText = "Max texels per meter (lineal not areal), 0 or negative for unlimited", Default = TilingDefaults.MAX_TEXELS_PER_METER)]
         public double MaxTexelsPerMeter { get; set; }
 
@@ -519,6 +522,7 @@ namespace OPS.Landform
                 tilingProject.TilingScheme = tilingScheme;
                 tilingProject.MaxFacesPerTile = tilingOpts.MaxFacesPerTile;
                 tilingProject.MinTileExtent = tilingOpts.MinTileExtent;
+                tilingProject.MaxLeafArea = tilingOpts.MaxLeafArea;
                 tilingProject.SurfaceExtent = sceneMesh.SurfaceExtent;
                 tilingProject.ParentReconstructionMethod = tilingOpts.ParentReconstructionMethod;
                 tilingProject.SkirtMode = tilingOpts.SkirtMode;

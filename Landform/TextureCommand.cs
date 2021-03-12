@@ -663,11 +663,10 @@ namespace OPS.Landform
 
         protected override void AtlasMesh(Mesh mesh, int resolution, string name = null)
         {
-            name = !string.IsNullOrEmpty(name) ? (name + " ") : "";
             if (tcopts.AtlasMode == AtlasMode.Project && TextureProjectionEnabled())
             {
                 pipeline.LogInfo("atlassing {0}mesh ({1} triangles) with texture projection",
-                                 name, Fmt.KMG(mesh.Faces.Count));
+                                 !string.IsNullOrEmpty(name) ? (name + " ") : "", Fmt.KMG(mesh.Faces.Count));
                 ProjectTexture(mesh);
             }
             else if (tcopts.AtlasMode != AtlasMode.Project)

@@ -13,7 +13,8 @@ Accepts the following arugments:
 * *projecttype*: project type; currently only `GenericTiling` is supported
 * *tilingscheme*: tiling scheme; one of `Bin`, `QuadX`, `QuadY`, `QuadZ`, `QuadAuto`, `Oct`, `UserDefined`, `Flat`; default `QuadAuto`
 * *maxfacespertile*: target maximum faces per tile; default 2000
-* *mintileextent*: minimum tile bounds extent; default 0.05
+* *mintileextent*: minimum tile bounds extent; default 0.5
+* *maxleafarea*: maximum leaf tile mesh area in square meters; default 100
 * *parentreconstructionmethod*: parent tile mesh reconstruction method; one of `Poisson`, `FSSR`; default `FSSR`
 * *texturemode*: texture generation method; one of `None`, `Clip`, `Bake`; default `Bake`
 * *maxtextureresolution*: max resolution per tile, 0 disables texturing, negative for unlimited/default; default 512

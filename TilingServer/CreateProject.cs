@@ -31,6 +31,9 @@ namespace OPS.TilingServer
         [Option(Default = TilingDefaults.MIN_TILE_EXTENT, HelpText = "minimum tile bounds extent")]
         public double MinTileExtent { get; set; }
 
+        [Option(Default = TilingDefaults.MAX_LEAF_AREA, HelpText = "maximum leaf mesh area")]
+        public double MaxLeafArea { get; set; }
+
         [Option(Default = TilingDefaults.PARENT_RECONSTRUCTION_METHOD, HelpText = "parent tile mesh reconstruction method")]
         public MeshReconstructionMethod ParentReconstructionMethod { get; set; }
 
@@ -167,6 +170,7 @@ namespace OPS.TilingServer
                         TilingScheme = options.TilingScheme,
                         MaxFacesPerTile = options.MaxFacesPerTile,
                         MinTileExtent = options.MinTileExtent,
+                        MaxLeafArea = options.MaxLeafArea,
                         ParentReconstructionMethod = options.ParentReconstructionMethod,
                         SkirtMode = options.SkirtMode,
                                              

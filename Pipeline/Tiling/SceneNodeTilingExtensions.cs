@@ -37,13 +37,13 @@ namespace OPS.Pipeline
         }
 
         public static int GetTileResolution(Mesh mesh, int maxRes = -1, double maxTexelsPerMeter = -1,
-                                            bool powerOfTwoTextures = false)
+                                            bool powerOfTwoTextures = false, Action<string> info = null)
         {
-            return GetTileResolution(mesh.SurfaceArea(), maxRes, maxTexelsPerMeter, powerOfTwoTextures);
+            return GetTileResolution(mesh.SurfaceArea(), maxRes, maxTexelsPerMeter, powerOfTwoTextures, info);
         }
 
         public static int GetTileResolution(double meshArea, int maxRes = -1, double maxTexelsPerMeter = -1,
-                                            bool powerOfTwoTextures = false)
+                                            bool powerOfTwoTextures = false, Action<string> info = null)
         {
             if (maxRes == 0)
             {
@@ -57,10 +57,12 @@ namespace OPS.Pipeline
 
             int res = maxRes;
 
+            double squareTexelsPerSquareMeter = -1;
+            double texelArea = -1;
             if (maxTexelsPerMeter > 0)
             {
-                double squareTexelsPerSquareMeter = maxTexelsPerMeter * maxTexelsPerMeter;
-                double texelArea = meshArea * squareTexelsPerSquareMeter;
+                squareTexelsPerSquareMeter = maxTexelsPerMeter * maxTexelsPerMeter;
+                texelArea = meshArea * squareTexelsPerSquareMeter;
 
                 res = Math.Max(TilingDefaults.MIN_TILE_RESOLUTION, (int)Math.Sqrt(texelArea));
 
@@ -70,6 +72,16 @@ namespace OPS.Pipeline
                 }
 
                 res = Math.Min(maxRes, (int)res);
+            }
+
+            if (info != null)
+            {
+                info(string.Format("computed tile resolution {0}, min {1}, max {2}, max texels/meter {3}, " +
+                                   "max square texels/square meter {4}, mesh area {5:F3}m^2, max texels {6}, " +
+                                   "res for max texels {7}, power of two required {8}",
+                                   res, TilingDefaults.MIN_TILE_RESOLUTION, maxRes, maxTexelsPerMeter,
+                                   Fmt.KMG(squareTexelsPerSquareMeter), meshArea, Fmt.KMG(texelArea),
+                                   (int)Math.Sqrt(texelArea), powerOfTwoTextures));
             }
 
             return res;
@@ -280,7 +292,7 @@ namespace OPS.Pipeline
             {
                 double texelsPerMeter = project.GetMaxTexelsPerMeter(parentBounds);
                 textureSize = GetTileResolution(parentMesh, project.MaxTextureResolution, texelsPerMeter,
-                                                project.PowerOfTwoTextures);
+                                                project.PowerOfTwoTextures, info);
             }
 
             Image parentImg = null, parentIndex = null;

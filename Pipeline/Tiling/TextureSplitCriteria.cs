@@ -57,7 +57,7 @@ namespace OPS.Pipeline
         public Action<string> Warn;
     }
 
-    abstract public class TextureSplitCriteria : ITileSplitCriteria
+    abstract public class TextureSplitCriteria : TileSplitCriteria
     {
         public readonly TextureSplitOptions options;
 

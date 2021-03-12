@@ -86,7 +86,7 @@ namespace OPS.Pipeline.TilingServer
             multiClipper.AddInput(new MeshImagePair(mesh, sparseImage));
 
             LogLess("building bounds tree to chunk input {0}", message.InputName);
-            var criteria = new ITileSplitCriteria[] { new FaceSplitCriteria(MAX_FACES_PER_CHUNK) };
+            var criteria = new TileSplitCriteria[] { new FaceSplitCriteria(MAX_FACES_PER_CHUNK) };
             var root = DefineTiles.BuildBoundsTree(multiClipper, project.TilingScheme, criteria, MIN_CHUNK_EXTENT,
                                                    info: msg => LogLess(msg), verbose: msg => LogVerbose(msg));
 

@@ -11,7 +11,7 @@ namespace OPS.Pipeline
     /// <summary>
     /// Interface for objects that can determine when a mesh should be split when tiling
     /// </summary>
-    public interface ITileSplitCriteria
+    public interface TileSplitCriteria
     {
         /// <summary>
         /// </summary>

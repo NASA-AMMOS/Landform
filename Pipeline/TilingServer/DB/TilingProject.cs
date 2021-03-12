@@ -34,7 +34,9 @@ namespace OPS.Pipeline.TilingServer
 
         public double MinTileExtent = TilingDefaults.MIN_TILE_EXTENT;
 
-        public double SurfaceExtent;
+        public double MaxLeafArea = TilingDefaults.MAX_LEAF_AREA;
+
+        public double SurfaceExtent; //-1 if unlimited, 0 if no surface (only orbital)
 
         public MeshReconstructionMethod ParentReconstructionMethod = TilingDefaults.PARENT_RECONSTRUCTION_METHOD;
 
@@ -270,7 +272,7 @@ namespace OPS.Pipeline.TilingServer
 
         public static BoundingBox? GetSurfaceBoundingBox(double surfaceExtent)
         {
-            if (surfaceExtent > 0)
+            if (surfaceExtent >= 0)
             {
                 double surfaceBoundsExtent = TexturingDefaults.EXTEND_SURFACE_EXTENT * surfaceExtent;
                 return BoundingBoxExtensions.CreateFromPoint(Vector3.Zero, surfaceBoundsExtent);
@@ -289,6 +291,10 @@ namespace OPS.Pipeline.TilingServer
             if (surfaceBounds.HasValue)
             {
                 var sb = surfaceBounds.Value;
+                if (sb.MinDimension() == 0)
+                {
+                    return maxOrbitalTexelsPerMeter; //orbital only
+                }
                 sb.Min.Z = tileBounds.Min.Z;
                 sb.Max.Z = tileBounds.Max.Z;
                 if (sb.Contains(tileBounds) == ContainmentType.Disjoint)
@@ -296,7 +302,7 @@ namespace OPS.Pipeline.TilingServer
                     return maxOrbitalTexelsPerMeter;
                 }
             }
-            return maxTexelsPerMeter;
+            return maxTexelsPerMeter; //surface only
         }
             
         public double GetMaxTexelsPerMeter(BoundingBox tileBounds, BoundingBox? surfaceBounds)

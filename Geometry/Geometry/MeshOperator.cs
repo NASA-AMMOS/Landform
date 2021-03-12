@@ -201,6 +201,37 @@ namespace OPS.Geometry
         }
 
         /// <summary>
+        /// compute the area that a mesh from a corresponding call to Clip() would have
+        /// </summary>
+        public double ClippedMeshArea(BoundingBox box, bool ragged = false)
+        {
+            if (!HasFaces)
+            {
+                return 0;
+            }
+            if (faceTree == null)
+            {
+                throw new Exception("MeshOperator must have a face tree in order to clip meshes");
+            }
+            double area = 0;
+            foreach (Triangle t in faceTree.Intersects(box.ToRectangle()).Select(x => triangles[x]))
+            {
+                if (ragged)
+                {
+                    area += t.Area();
+                }
+                else
+                {
+                    foreach (var ct in t.Clip(box))
+                    {
+                        area += t.Area();
+                    }
+                }
+            }
+            return area;
+        }
+
+        /// <summary>
         /// Return the number of faces that are contained within or intersect with the given box
         /// </summary>
         /// <param name="box"></param>
@@ -410,16 +441,18 @@ namespace OPS.Geometry
 
             var results = pixelToPoint.Select(entry => new PixelPoint(entry.Key, entry.Value)).ToList();
 
-            if(sorted)
+            if (sorted)
             {
-                results.Sort((p1, p2) => p1.Pixel.Y == p2.Pixel.Y ? p1.Pixel.X.CompareTo(p2.Pixel.X) : p1.Pixel.Y.CompareTo(p2.Pixel.Y));
+                results.Sort((p1, p2) => p1.Pixel.Y == p2.Pixel.Y ? p1.Pixel.X.CompareTo(p2.Pixel.X) :
+                             p1.Pixel.Y.CompareTo(p2.Pixel.Y));
             }
 
             return results;
         }
 
         /// <summary>
-        /// convenience function that returns a simple subset of the pixels in the resulting texture atlas which were valid for this mesh
+        /// convenience function that returns a simple subset of the pixels in the resulting texture atlas which were
+        /// valid for this mesh
         /// </summary>
         public List<PixelPoint> SubsampleUVSpace(double pct, int widthPixels, int heightPixels)
         {

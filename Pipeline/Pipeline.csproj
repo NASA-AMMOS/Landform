@@ -260,12 +260,13 @@
     <Compile Include="MissionSpecific\CuriosityRoverModel.cs" />
     <Compile Include="MissionSpecific\RoverReachability.cs" />
     <Compile Include="MissionSpecific\SolDateTime.cs" />
+    <Compile Include="Tiling\AreaSplitCriteria.cs" />
     <Compile Include="Tiling\MeshImagePairStats.cs" />
     <Compile Include="Tiling\SceneManifest.cs" />
     <Compile Include="Tiling\TextureBaker.cs" />
     <Compile Include="MissionSpecific\SiteDrive.cs" />
     <Compile Include="Tiling\FaceSplitCriteria.cs" />
-    <Compile Include="Tiling\ITileSplitCriteria.cs" />
+    <Compile Include="Tiling\TileSplitCriteria.cs" />
     <Compile Include="Tiling\LegacyScene.cs" />
     <Compile Include="Tiling\MeshImagePair.cs" />
     <Compile Include="MissionSpecific\PDSParser.cs" />

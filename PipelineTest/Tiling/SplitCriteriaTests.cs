@@ -21,7 +21,7 @@ namespace PipelineTest
             BoundingBox box = new BoundingBox(-1 * Vector3.One, Vector3.One);
             MeshOperator op = new MeshOperator(box.ToMesh());
 
-            ITileSplitCriteria split = new FaceSplitCriteria(7);
+            TileSplitCriteria split = new FaceSplitCriteria(7);
             Assert.IsTrue(split.ShouldSplit(box, op));
 
             BoundingBox quarterBox = new BoundingBox(Vector3.Zero, Vector3.One);
@@ -117,7 +117,7 @@ namespace PipelineTest
                 SceneCaster = sc
             };
 
-            ITileSplitCriteria split = new TextureSplitCriteriaBackproject(opts);
+            TileSplitCriteria split = new TextureSplitCriteriaBackproject(opts);
             if (approx)
             {
                 split = new TextureSplitCriteriaApproximate(opts);

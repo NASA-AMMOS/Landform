@@ -782,14 +782,16 @@ namespace OPS.Landform
             {
                 tileTree = DefineTiles
                     .BuildTileTreeFromLODs(meshOpForLOD, options.TilingScheme, options.MaxFacesPerTile,
-                                           options.MinTileExtent, textureSplitOptions, !options.NoApproxTileSplit,
+                                           options.MinTileExtent, options.MaxLeafArea,
+                                           textureSplitOptions, !options.NoApproxTileSplit,
                                            msg => pipeline.LogInfo(msg), msg => pipeline.LogVerbose(msg));
             }
             else
             {
                 tileTree = DefineTiles
                     .BuildTileTreeFromInputs(new List<MeshImagePair>() { new MeshImagePair(mesh) },
-                                             options.TilingScheme, options.MaxFacesPerTile, options.MinTileExtent,
+                                             options.TilingScheme, options.MaxFacesPerTile,
+                                             options.MinTileExtent, options.MaxLeafArea,
                                              surfaceExtent, textureSplitOptions, !options.NoApproxTileSplit,
                                              msg => pipeline.LogInfo(msg), msg => pipeline.LogVerbose(msg));
             }
@@ -1189,7 +1191,8 @@ namespace OPS.Landform
                 TilingProject.GetMaxTexelsPerMeter(tileBounds, surfaceBounds, options.MaxTexelsPerMeter,
                                                    options.MaxOrbitalTexelsPerMeter);
             return SceneNodeTilingExtensions.
-                GetTileResolution(tileMesh, maxTileResolution, texelsPerMeter, options.PowerOfTwoTextures);
+                GetTileResolution(tileMesh, maxTileResolution, texelsPerMeter, options.PowerOfTwoTextures,
+                                  msg => pipeline.LogVerbose(msg));
         }
 
         private Mesh MakeTileMesh(SceneNode tile, MeshOperator meshOp)

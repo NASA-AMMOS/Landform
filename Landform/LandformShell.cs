@@ -91,11 +91,17 @@ namespace OPS.Landform
         [Option(HelpText = "Minium tile bounds extent", Default = TilingDefaults.MIN_TILE_EXTENT)]
         public double MinTileExtent { get; set; }
 
+        [Option(HelpText = "Maximum leaf tile mesh area", Default = TilingDefaults.MAX_LEAF_AREA)]
+        public double MaxLeafArea { get; set; }
+
         [Option(HelpText = "Don't respect --maxtexelspermeter when splitting tiles if more texture resolution is available from source images", Default = !TilingDefaults.TEXTURE_SPLIT_RESPECT_MAX_TEXELS_PER_METER)]
         public bool NoTextureSplitRespectMaxTexelsPerMeter { get; set; }
 
         [Option(HelpText = "Max texels per meter (lineal not areal), 0 or negative for unlimited", Default = TilingDefaults.MAX_TEXELS_PER_METER)]
         public double MaxTexelsPerMeter { get; set; }
+
+        [Option(HelpText = "Max orbital texels per meter (lineal not areal), 0 or negative for unlimited", Default = TilingDefaults.MAX_ORBITAL_TEXELS_PER_METER)]
+        public double MaxOrbitalTexelsPerMeter { get; set; }
 
         [Option(HelpText = "Max tile texture atlas stretch (0 = no stretch, 1 = unlimited)", Default = TilingDefaults.MAX_TEXTURE_STRETCH)]
         public double MaxTextureStretch { get; set; }
@@ -598,18 +604,30 @@ namespace OPS.Landform
         {
             args.Add("--maxfacespertile");
             args.Add(lsopts.MaxFacesPerTile.ToString());
+
             args.Add("--maxtileresolution");
             args.Add(lsopts.MaxTileResolution.ToString());
+
             args.Add("--mintileextent");
             args.Add(lsopts.MinTileExtent.ToString());
+
+            args.Add("--maxleafarea");
+            args.Add(lsopts.MaxLeafArea.ToString());
+
             if (lsopts.NoTextureSplitRespectMaxTexelsPerMeter)
             {
                 args.Add("--notexturesplitrespectmaxtexelspermeter");
             }
+
             args.Add("--maxtexelspermeter");
             args.Add(lsopts.MaxTexelsPerMeter.ToString());
+
+            args.Add("--maxorbitaltexelspermeter");
+            args.Add(lsopts.MaxOrbitalTexelsPerMeter.ToString());
+
             args.Add("--maxtexturestretch");
             args.Add(lsopts.MaxTextureStretch.ToString());
+
             if (lsopts.PowerOfTwoTextures)
             {
                 args.Add("--poweroftwotextures");
