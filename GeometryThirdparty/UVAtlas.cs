@@ -12,8 +12,8 @@ namespace OPS.Geometry
     {
         public const int DEF_RESOLUTION = 512;
         public const int DEF_MAX_CHARTS = 0;
-        //public const double DEF_MAX_STRETCH = 0.1666f;
-        public const double DEF_MAX_STRETCH = 1;
+        public const double DEF_MAX_STRETCH = 0.1666;
+        //public const double DEF_MAX_STRETCH = 1;
         public const double DEF_GUTTER = 2;
 
         /// <summary>
