@@ -442,6 +442,36 @@ namespace OPS.Landform
             SaveTileset(project.Name);
         }
 
+        protected void MakeFlatTileset()
+        {
+            var root = new SceneNode("root");
+            var rootBounds = BoundingBoxExtensions.CreateEmpty();
+            foreach (var leafName in tileList.LeafNames)
+            {
+                string meshUrl = pipeline.GetStorageUrl(outputFolder, project.Name, leafName + tileList.MeshExt);
+                string imgUrl = pipeline.GetStorageUrl(outputFolder, project.Name, leafName + tileList.ImageExt);
+                string idxUrl = pipeline.GetStorageUrl(outputFolder, project.Name,
+                                                       leafName + TilingDefaults.INDEX_FILE_EXT);
+                var leafMesh = Mesh.Load(pipeline.GetFileCached(meshUrl, "meshes"));
+                var leafBounds = leafMesh.Bounds();
+                var leafNode = new SceneNode(leafName, root.Transform);
+                leafNode.AddComponent<NodeGeometricError>().Error = 0;
+                leafNode.AddComponent<NodeBounds>().Bounds = leafBounds;
+                var mip = new MeshImagePair(leafMesh);
+                if (pipeline.FileExists(imgUrl))
+                {
+                    mip.Image = pipeline.LoadImage(imgUrl);
+                }
+                var mipStats = new MeshImagePairStats(mip);
+                mipStats.HasIndex = pipeline.FileExists(idxUrl);
+                leafNode.AddComponent(mipStats);
+                rootBounds = BoundingBoxExtensions.Union(rootBounds, leafBounds);
+            }
+            root.AddComponent<NodeGeometricError>().Error = rootBounds.Diameter(); //so high it should never get picked
+            root.AddComponent<NodeBounds>().Bounds = rootBounds;
+            tileTree = root;
+        }
+
         protected virtual void CreateTilingProject()
         {
             CreateTilingProject(TilingScheme.UserDefined);

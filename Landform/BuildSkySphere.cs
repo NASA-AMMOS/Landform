@@ -145,10 +145,6 @@ namespace OPS.Landform
 
         [Option(HelpText = "Colorize mono images to median chrominance", Default = false)]
         public override bool Colorize { get; set; }
-
-        //https://github.jpl.nasa.gov/OnSight/Landform/issues/1095
-        [Option(HelpText = "Add dummy content to tileset root", Default = false)]
-        public bool HackRoot { get; set; }
     }
 
     public class BuildSkySphere : TilingCommand
@@ -645,11 +641,6 @@ namespace OPS.Landform
                 ParentNames = new List<string>()
             };
 
-            var root = new SceneNode("root");
-            var rootBounds = BoundingBoxExtensions.CreateEmpty();
-            root.AddComponent<NodeGeometricError>(new NodeGeometricError(2 * sphereRadius));
-            tileList.ParentNames.Add(root.Name);
-
             //mission surface frames are X north, Y right, Z down
             //sphere tile rows decrease in elevation from top down
             //sphere tile cols increase in azimuth clockwise from east 
@@ -723,6 +714,9 @@ namespace OPS.Landform
             double azStep = 2 * Math.PI / sphereTileCols;
             double elStep = (angleBelowHorizon + angleAboveHorizon) / sphereTileRows;
 
+            var root = new SceneNode("root");
+            var rootBounds = BoundingBoxExtensions.CreateEmpty();
+
             for (int row = 0; row < sphereTileRows; row++)
             {
                 for (int col = 0; col < sphereTileCols; col++)
@@ -759,7 +753,9 @@ namespace OPS.Landform
                 }
             }
 
-            root.AddComponent(new NodeBounds(rootBounds));
+            root.AddComponent<NodeBounds>().Bounds = rootBounds;
+            root.AddComponent<NodeGeometricError>().Error = 2 * sphereRadius; //high enough that root shouldn't get used
+            tileList.ParentNames.Add(root.Name);
             tileTree = root;
         }
 
@@ -952,18 +948,6 @@ namespace OPS.Landform
                                                  orbitalTexture, options.BackprojectInpaintMissing,
                                                  options.BackprojectInpaintGutter, TextureVariant.SkyBlended,
                                                  colorizeHue: options.Colorize ? medianHue : -1);
-        }
-
-        protected override void SaveTileset()
-        {
-            string tsMeshExt = TilingProject.ToExt(TilingDefaults.TILESET_MESH_FORMAT);
-            Func<SceneNode, string> nodeToUrl = node => node.Name + tsMeshExt;
-            if (options.HackRoot)
-            {
-                nodeToUrl = node => (node.Name == "root" ? "0" : node.Name) + tsMeshExt;
-                tileTree.AddComponent(new MeshImagePair());
-            }
-            SaveTileset(project.Name, nodeToUrl);
         }
     }
 }

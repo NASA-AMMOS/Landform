@@ -207,7 +207,7 @@ namespace OPS.Pipeline
                     Image index = withIndices ? (mip?.Index ?? loadImage(tile, inIdxExt, idxSfx, "index")) : null;
                     if (index != null)
                     {
-                        SaveTileIndex(index, tmpIdx, msg => pipeline.LogWarn($"{msg} for tile {tile.Name}"));
+                        SaveTileIndex(index, tmpIdx, msg => pipeline.LogVerbose($"{msg} for tile {tile.Name}"));
                         if (!embedImgs || !embedIndices)
                         {
                             pipeline.SaveFile(tmpIdx, outputUrl(tile, tsIdxExt));

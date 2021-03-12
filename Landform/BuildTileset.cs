@@ -64,6 +64,9 @@ namespace OPS.Landform
 
         [Option(HelpText = "Option disabled for this command", Default = false)]
         public override bool NoSave { get; set; }
+
+        [Option(HelpText = "Build flat tileset", Default = false)]
+        public bool Flat { get; set; }
     }
 
     public class BuildTileset : TilingCommand
@@ -84,10 +87,18 @@ namespace OPS.Landform
                     return 0; //help
                 }
 
-                RunPhase("create tiling project", CreateTilingProject);
-                RunPhase("add tiling inputs", AddTilingInputs);
-                RunPhase("build tiles and define parents", BuildTilesAndDefineParents);
-                RunPhase("build parent tiles and save tileset", BuildParentTilesAndSaveTileset);
+                if (options.Flat)
+                {
+                    RunPhase("create flat tileset", MakeFlatTileset);
+                    RunPhase("saving flat tileset", SaveTileset);
+                }
+                else
+                {
+                    RunPhase("create tiling project", CreateTilingProject);
+                    RunPhase("add tiling inputs", AddTilingInputs);
+                    RunPhase("build tiles and define parents", BuildTilesAndDefineParents);
+                    RunPhase("build parent tiles and save tileset", BuildParentTilesAndSaveTileset);
+                }
             }
             catch (Exception ex)
             {
