@@ -57,8 +57,6 @@ using OPS.Pipeline.AlignmentServer;
 /// </summary>
 namespace OPS.Landform
 {
-    public enum SiteDrivePriority { NewestFirst, OldestFirst, BiggestFirst, SmallestFirst };
-    
     public enum AlignmentMode { Pairwise, Simultaneous, None };
 
     public enum CalfMode { None, Centroid, Temporal };
@@ -66,7 +64,7 @@ namespace OPS.Landform
     [Verb("bev-align", HelpText = "birds eye view alignment")]
     public class BEVAlignerOptions : BEVCommandOptions
     {
-        [Option(HelpText = "Don't adjust specified site drives (or \"newest\", \"oldest\", \"largest\", \"smallest\"), comma separated", Default = null)]
+        [Option(HelpText = "Don't adjust specified site drives, comma separated, or Newest, Oldest, Biggest, Smallest, ProjectThenBiggest", Default = "ProjectThenBiggest")]
         public string FixSiteDrives { get; set; }
 
         [Option(HelpText = "Alignment algorithm: Pairwise, Simultaneous, None (match only)", Default = AlignmentMode.Pairwise)]
@@ -75,7 +73,7 @@ namespace OPS.Landform
         [Option(HelpText = "Algorithm to bring un-aligned \"calf\" site drives along for the ride: None, Centroid (match to aligned site drive with closest horizontal centroid), Temporal (match to closest aligned site drive by acquisition time)", Default = CalfMode.Centroid)]
         public CalfMode CalfMode { get; set; }
 
-        [Option(HelpText = "In pairwise alignment modes lower priority site drives will be aligned to higher priority ones (NewestFirst, OldestFirst, BiggestFirst, SmallestFirst)", Default = SiteDrivePriority.OldestFirst)]
+        [Option(HelpText = "In pairwise alignment modes lower priority site drives will be aligned to higher priority ones (Newest, Oldest, Biggest, Smallest, ProjectThenBiggest)", Default = SiteDrivePriority.ProjectThenBiggest)]
         public SiteDrivePriority SiteDrivePriority { get; set; }
 
         [Option(HelpText = "Stop after rendering BEVs (and DEMs)", Default = false)]
@@ -922,46 +920,28 @@ namespace OPS.Landform
         {
             var fx = StringHelper.ParseList(options.FixSiteDrives);
 
-            var specials = new Dictionary<string, SiteDrive>();
-            specials["newest"] = siteDrives.OrderByDescending(sd => sd).FirstOrDefault();
-            specials["oldest"] = siteDrives.OrderBy(sd => sd).FirstOrDefault();
-            specials["largest"] = siteDrives.OrderByDescending(sd => bevs[sd].Area).FirstOrDefault();
-            specials["smallest"] = siteDrives.OrderBy(sd => bevs[sd].Area).FirstOrDefault();
+            var specials = new Dictionary<string, string>();
+            foreach (var priority in (SiteDrivePriority[])Enum.GetValues(typeof(SiteDrivePriority)))
+            {
+                specials[priority.ToString()] = SortSiteDrives(siteDrives, priority).First().ToString();
+            }
 
             for (int i = 0; i < fx.Length; i++)
             {
-                var sd = fx[i];
-                if (specials.ContainsKey(sd))
+                if (specials.ContainsKey(fx[i]))
                 {
-                    fx[i] = specials[sd].ToString();
+                    fx[i] = specials[fx[i]];
                 }
+            }
+
+            if (fx.Any(sd => !SiteDrive.IsSiteDriveString(sd)))
+            {
+                throw new ArgumentException("error parsing --fixedsitedrives: " + string.Join(",", fx));
             }
 
             fixedSiteDrives.UnionWith(fx.Select(sd => new SiteDrive(sd)));
 
-            switch (options.SiteDrivePriority)
-            {
-                case SiteDrivePriority.NewestFirst:
-                {
-                    siteDrives = siteDrives.OrderByDescending(sd => sd).ToArray();
-                    break;
-                }
-                case SiteDrivePriority.OldestFirst:
-                {
-                    siteDrives = siteDrives.OrderBy(sd => sd).ToArray();
-                    break;
-                }
-                case SiteDrivePriority.BiggestFirst:
-                {
-                    siteDrives = siteDrives.OrderByDescending(sd => bevs[sd].Area).ToArray();
-                    break;
-                }
-                case SiteDrivePriority.SmallestFirst:
-                {
-                    siteDrives = siteDrives.OrderBy(sd => bevs[sd].Area).ToArray();
-                    break;
-                }
-            }
+            siteDrives = SortSiteDrives(siteDrives, options.SiteDrivePriority).ToArray();
 
             pipeline.LogInfo("site drives ordered by {0}: {1}",
                              options.SiteDrivePriority, string.Join(", ", siteDrives));

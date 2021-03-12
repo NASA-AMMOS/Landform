@@ -925,11 +925,8 @@ namespace OPS.Landform
 
                 if (!options.NoAlign)
                 {
-                    RunCommand("bev-align", options.AbortOnAlignmentError, project, "--fixsitedrives", sdStr,
-                               allowUnmasked);
-                    
-                    RunCommand("heightmap-align", options.AbortOnAlignmentError, project, "--basesitedrive", sdStr,
-                               allowUnmasked);
+                    RunCommand("bev-align", options.AbortOnAlignmentError, project, allowUnmasked);
+                    RunCommand("heightmap-align", options.AbortOnAlignmentError, project, allowUnmasked);
                 }
 
                 if (!options.NoGeometry)

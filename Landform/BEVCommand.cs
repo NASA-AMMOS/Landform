@@ -17,6 +17,8 @@ using OPS.Pipeline.AlignmentServer;
 
 namespace OPS.Landform
 {
+    public enum SiteDrivePriority { Newest, Oldest, Biggest, Smallest, ProjectThenBiggest };
+    
     public class BEVCommandOptions : WedgeCommandOptions
     {
         [Option(HelpText = "Option disabled for this command", Default = false)]
@@ -221,6 +223,23 @@ namespace OPS.Landform
             }
 
             return true;
+        }
+
+        protected IEnumerable<SiteDrive> SortSiteDrives(IEnumerable<SiteDrive>sds, SiteDrivePriority priority)
+        {
+            switch (priority)
+            {
+                case SiteDrivePriority.Newest: return sds.OrderByDescending(sd => sd.ToString());
+                case SiteDrivePriority.Oldest: return sds.OrderBy(sd => sd.ToString());
+                case SiteDrivePriority.Biggest: return sds.OrderByDescending(sd => dems[sd].Area);
+                case SiteDrivePriority.Smallest: return sds.OrderBy(sd => dems[sd].Area);
+                case SiteDrivePriority.ProjectThenBiggest: return sds
+                    .OrderByDescending(sd => dems[sd].Area)
+                    .OrderBy(sd => sd, Comparer<SiteDrive>.Create((sda, sdb) =>
+                                                                  sda.ToString() == project.MeshFrame ? -1 :
+                                                                  sdb.ToString() == project.MeshFrame ? 1 : 0));
+                default: throw new Exception("unknown site drive priority: " + priority);
+            }
         }
 
         protected abstract HashSet<TransformSource> GetDefaultExcludedAdjustedTransformSources();

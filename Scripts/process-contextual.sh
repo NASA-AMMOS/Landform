@@ -386,8 +386,8 @@ if [ "$generate" ]; then
     if [ ! "$only_ingest" ]; then
 
         if [ ! "$no_align" ]; then
-            ${dry}$landform bev-align $proj $stdopts --fixsitedrives $sd $bevargs | tee -a $log
-            ${dry}$landform heightmap-align $proj $stdopts --basesitedrive $sd $heightmapargs | tee -a $log
+            ${dry}$landform bev-align $proj $stdopts $bevargs | tee -a $log
+            ${dry}$landform heightmap-align $proj $stdopts $heightmapargs | tee -a $log
         fi
 
         if [ ! "$no_geometry" ]; then
