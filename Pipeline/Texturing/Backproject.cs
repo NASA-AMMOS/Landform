@@ -596,7 +596,8 @@ namespace OPS.Pipeline
                               opts.observationCache, opts.meshFrame, opts.usePriors, opts.onlyAligned, warn);
 
             double maxGlancingAngleCosine = 0;
-            if (opts.maxGlancingAngleDegrees > 0)
+            if (opts.maxGlancingAngleDegrees > 0 && (opts.meshCaster != null) &&
+                (opts.meshCaster == opts.occlusionScene))
             {
                 maxGlancingAngleCosine = Math.Cos(MathHelper.ToRadians(opts.maxGlancingAngleDegrees));
             }
