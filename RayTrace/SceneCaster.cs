@@ -185,7 +185,8 @@ namespace OPS.RayTrace
                 var position = ray.Position + ray.Direction * hit.Distance;
 
                 // Negate the normal direction coming out of embree.  Its poorly documented in the images on this page
-                // https://embree.github.io/api.html but it looks like they use a different winding order than we assume for our normals
+                // https://embree.github.io/api.html but it looks like they use a different winding order than we assume
+                // for our normals
                 var modelSpaceNormal = -new Vector3(hit.NX, hit.NY, hit.NZ);
                 var worldSpaceNormal = hit.Instance.NormalToWorldSpace(modelSpaceNormal);
 

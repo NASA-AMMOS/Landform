@@ -474,6 +474,8 @@ namespace OPS.Pipeline
 
             public bool onlyCompletelyUnobstructed; //skip pts in frame but occluded in *any* obs (other than orbital)
 
+            public double maxGlancingAngleDegrees = 90;
+            
             public string meshName;
 
             public bool quiet, verbose;
@@ -592,6 +594,12 @@ namespace OPS.Pipeline
             List<Context> intersectingContexts =
                 BuildContexts(opts.obsToHull, intersectingObservations, opts.mission, opts.frameCache,
                               opts.observationCache, opts.meshFrame, opts.usePriors, opts.onlyAligned, warn);
+
+            double maxGlancingAngleCosine = 0;
+            if (opts.maxGlancingAngleDegrees > 0)
+            {
+                maxGlancingAngleCosine = Math.Cos(MathHelper.ToRadians(opts.maxGlancingAngleDegrees));
+            }
 
             if (opts.writeDebug)
             {
@@ -721,7 +729,7 @@ namespace OPS.Pipeline
                     foreach (var group in groups)
                     {
                         var wl = BackprojectSurfaceObs(opts.pipeline, opts.project, opts.occlusionScene, masker,
-                                                       group.Key, samplePoints, group, results);
+                                                       maxGlancingAngleCosine, group.Key, samplePoints, group, results);
                         nw += wl.winners.Count;
                         no += (wl.winners.Count > 0) ? 1 : 0;
                         losers.AddRange(wl.losers);
@@ -925,7 +933,8 @@ namespace OPS.Pipeline
         public static WinnersAndLosers CoreBackproject(SceneCaster occlusionScene, Image mask, ConvexHull obsHullInMesh,
                                                        Matrix meshToObs, Matrix obsToMesh, CameraModel camera,
                                                        Observation obs, List<PixelPoint> samplePoints,
-                                                       IEnumerable<int> indices, IDictionary<Pixel, ObsPixel> results)
+                                                       IEnumerable<int> indices, IDictionary<Pixel, ObsPixel> results,
+                                                       double maxGlancingAngleCosine = 0)
         {
             int ni = indices != null ? indices.Count() : 0;
             var winners = new WinnersAndLosers(ni);
@@ -960,7 +969,8 @@ namespace OPS.Pipeline
                             if (mask == null || mask.BilinearSample(0, (float)px.Y, (float)px.X) >= 1)
                             {
                                 //raycast the scene to test if the desired position is occluded by terrain
-                                if (!IsOccluded(camera, px, sample.Point, occlusionScene, range, obsToMesh))
+                                if (!IsOccluded(camera, px, sample.Point, occlusionScene, range, obsToMesh,
+                                                maxGlancingAngleCosine))
                                 {
                                     results[SubpixelToPixel(sample.Pixel)] = new ObsPixel(obs, px);
                                     winner = true;
@@ -997,13 +1007,14 @@ namespace OPS.Pipeline
 
         public static WinnersAndLosers BackprojectSurfaceObs(PipelineCore pipeline, Project project,
                                                              SceneCaster occlusionScene, RoverMasker masker,
-                                                             Context ctx, List<PixelPoint> samplePoints,
+                                                             double maxGlancingAngleCosine, Context ctx,
+                                                             List<PixelPoint> samplePoints,
                                                              IEnumerable<int> indices,
                                                              IDictionary<Pixel, ObsPixel> results)
         {
             Image mask = ImageMasker.GetOrCreateMask(pipeline, project, ctx.Obs, masker, ctx.MaskObs); //cached
             return CoreBackproject(occlusionScene, mask, ctx.FrustumHull, ctx.MeshToObs, ctx.ObsToMesh, ctx.CameraModel,
-                                   ctx.Obs, samplePoints, indices, results);
+                                   ctx.Obs, samplePoints, indices, results, maxGlancingAngleCosine);
         }
 
         public static WinnersAndLosers BackprojectOrbitalObs(Observation orbitalObs, SceneCaster occlusionScene,
@@ -1092,7 +1103,7 @@ namespace OPS.Pipeline
         /// helper function to test if there is another part of the mesh between the camera and the test point
         /// </summary>
         public static bool IsOccluded(CameraModel camera, Vector2 pixel, Vector3 meshPos, SceneCaster occlusionScene,
-                                      double rangeMeshToImage, Matrix obsToMesh)
+                                      double rangeMeshToImage, Matrix obsToMesh, double maxGlancingAngleCosine = 0)
         {
             if (occlusionScene == null)
             {
@@ -1111,11 +1122,26 @@ namespace OPS.Pipeline
             //The implementation makes no guarantees that primitives whose hit distance is exactly at
             //(or very close to) tnear or tfar are hit or missed. 
             //If you want to exclude intersections at tnear just pass a slightly enlarged tnear
-            double? dist =
-                occlusionScene.RaycastDistance(rayMeshToCam, TexturingDefaults.BACKPROJECT_RAYCAST_NEAR_METERS);
+            var hit = occlusionScene.Raycast(rayMeshToCam, TexturingDefaults.BACKPROJECT_RAYCAST_NEAR_METERS);
 
-            //if hit something else before camera, occluded
-            return (dist != null) && (dist < rangeMeshToImage);
+            if (hit == null)
+            {
+                return false; //ray did not hit scene
+            }
+
+            if (hit.Distance < rangeMeshToImage)
+            {
+                return true; //if hit something else before camera, occluded
+            }
+
+            Vector3 n = hit.PointNormal.HasValue ? hit.PointNormal.Value : hit.FaceNormal;
+
+            if (maxGlancingAngleCosine > 0 && Vector3.Dot(rayMeshToCam.Direction, n) < maxGlancingAngleCosine)
+            {
+                return true; //glancing angle too great
+            }
+
+            return false;
         }
 
 

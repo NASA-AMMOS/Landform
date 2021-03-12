@@ -52,7 +52,8 @@ namespace OPS.RayTrace
         /// </summary>
         public readonly Image Texture;
 
-        public HitData(Vector3 position, Vector3 geometryNormal, Vector3? meshNormal, Vector2? uv, Mesh mesh, Image texture, double distance)
+        public HitData(Vector3 position, Vector3 geometryNormal, Vector3? meshNormal,
+                       Vector2? uv, Mesh mesh, Image texture, double distance)
         {
             this.Distance = distance;
             this.Position = position;

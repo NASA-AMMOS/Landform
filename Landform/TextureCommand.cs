@@ -50,6 +50,9 @@ namespace OPS.Landform
         [Option(HelpText = "A tunable parameter for the Observation Selection Strategy used in backproject (range 0-1)", Default = TexturingDefaults.BACKPROJECT_QUALITY)]
         public virtual double BackprojectQuality { get; set; }
 
+        [Option(HelpText = "Max backproject glancing angle, 90 to disable glance filter", Default = TexturingDefaults.BACKPROJECT_MAX_GLANCING_ANGLE_DEGREES)]
+        public double MaxGlancingAngleDegrees { get; set; }
+
         [Option(HelpText = "The smallest distance (meters) for a raycast determined to be significant, prevents self intersections", Default = TexturingDefaults.RAYCAST_TOLERANCE)]
         public virtual double RaycastTolerance { get; set; }
 
@@ -864,6 +867,8 @@ namespace OPS.Landform
 
                 quality = tcopts.BackprojectQuality,
                 obsSelectionStrategy = strategy,
+
+                maxGlancingAngleDegrees = tcopts.MaxGlancingAngleDegrees,
 
                 meshName = meshName,
                 quiet = quiet,
