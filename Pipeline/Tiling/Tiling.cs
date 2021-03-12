@@ -14,7 +14,7 @@ namespace OPS.Pipeline
     public static class TilingDefaults
     {
         public const TilingScheme TILING_SCHEME = TilingScheme.QuadAuto;
-        public const int MAX_FACES_PER_TILE = 2000;
+        public const int MAX_FACES_PER_TILE = 32768;
         public const double MIN_TILE_EXTENT = 0.5;
         public const double MAX_LEAF_AREA = 100;
         public const MeshReconstructionMethod PARENT_RECONSTRUCTION_METHOD = MeshReconstructionMethod.FSSR;
