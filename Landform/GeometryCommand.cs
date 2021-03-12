@@ -46,6 +46,9 @@ namespace OPS.Landform
 
     public class GeometryCommand : WedgeCommand
     {
+        public const int ATLAS_LOG_THRESHOLD = 50000;
+        public const int UVATLAS_WARN_THRESHOLD = 100000;
+
         protected GeometryCommandOptions gcopts;
 
         protected int sceneTextureResolution;
@@ -91,7 +94,7 @@ namespace OPS.Landform
             string msg =
                 string.Format("atlassing {0}mesh ({1} triangles) with UVAtlas, texture resolution {2}",
                               !string.IsNullOrEmpty(name) ? (name + " ") : "", Fmt.KMG(mesh.Faces.Count), resolution);
-            if (mesh.Faces.Count > 20000)
+            if (mesh.Faces.Count > ATLAS_LOG_THRESHOLD)
             {
                 pipeline.LogInfo(msg);
             }
@@ -100,7 +103,7 @@ namespace OPS.Landform
                 pipeline.LogVerbose(msg);
             }
 
-            if (mesh.Faces.Count > 100000)
+            if (mesh.Faces.Count > UVATLAS_WARN_THRESHOLD)
             {
                 //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/902
                 pipeline.LogWarn("UVAtlas may not work well on large meshes");
@@ -119,7 +122,7 @@ namespace OPS.Landform
             string msg = string.Format("heightmap atlassing {0}mesh ({1} triangles)",
                                        !string.IsNullOrEmpty(name) ? (name + " ") : "", Fmt.KMG(mesh.Faces.Count));
 
-            if (mesh.Faces.Count > 20000)
+            if (mesh.Faces.Count > ATLAS_LOG_THRESHOLD)
             {
                 pipeline.LogInfo(msg);
             }
@@ -138,7 +141,7 @@ namespace OPS.Landform
         {
             string msg = string.Format("naive atlassing {0}mesh ({1} triangles)",
                                        !string.IsNullOrEmpty(name) ? (name + " ") : "", Fmt.KMG(mesh.Faces.Count));
-            if (mesh.Faces.Count > 20000)
+            if (mesh.Faces.Count > ATLAS_LOG_THRESHOLD)
             {
                 pipeline.LogInfo(msg);
             }

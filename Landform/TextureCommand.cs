@@ -668,8 +668,16 @@ namespace OPS.Landform
         {
             if (tcopts.AtlasMode == AtlasMode.Project && TextureProjectionEnabled())
             {
-                pipeline.LogInfo("atlassing {0}mesh ({1} triangles) with texture projection",
-                                 !string.IsNullOrEmpty(name) ? (name + " ") : "", Fmt.KMG(mesh.Faces.Count));
+                string msg = string.Format("atlassing {0}mesh ({1} triangles) with texture projection",
+                                           !string.IsNullOrEmpty(name) ? (name + " ") : "", Fmt.KMG(mesh.Faces.Count));
+                if (mesh.Faces.Count > ATLAS_LOG_THRESHOLD)
+                {
+                    pipeline.LogInfo(msg);
+                }
+                else
+                {
+                    pipeline.LogVerbose(msg);
+                }
                 ProjectTexture(mesh);
             }
             else if (tcopts.AtlasMode != AtlasMode.Project)

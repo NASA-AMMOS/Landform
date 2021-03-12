@@ -90,9 +90,9 @@ namespace OPS.Pipeline.Texturing
             {
                 if (Logger != null)
                 {
-                    Logger.LogInfo("ObsSelectionSpatial orbital meters per pixel: {0}, " +
-                                   "orbital samples per square meter: {1}, orbital sample spacing: {2}, " +
-                                   "surface samples per square meter: {3}, surface sample spacing: {3}",
+                    Logger.LogInfo("ObsSelectionSpatial orbital meters per pixel: {0:F3}, " +
+                                   "orbital samples per square meter: {1}, orbital sample spacing: {2:F3}, " +
+                                   "surface samples per square meter: {3}, surface sample spacing: {3:F3}",
                                    OrbitalMetersPerPixel, orbitalSamplesPerSquareMeter, orbitalSampleSpacing,
                                    samplesPerSquareMeter, sampleSpacing);
                     Logger.LogInfo("ObsSelectionSpatial: mesh bounds: {0}, surface bounds: {1}",
@@ -112,7 +112,7 @@ namespace OPS.Pipeline.Texturing
                 if (Logger != null)
                 {
                     Logger.LogInfo("ObsSelectionSpatial surface samples: {0}, orbital samples: {1}",
-                                   samples.Count, orbitalSamples.Count);
+                                   Fmt.KMG(samples.Count), Fmt.KMG(orbitalSamples.Count));
                 }
 
                 samples.AddRange(orbitalSamples);
@@ -123,7 +123,7 @@ namespace OPS.Pipeline.Texturing
 
                 if (Logger != null)
                 {
-                    Logger.LogInfo("ObsSelectionSpatial samples per square meter: {0}, sample spacing: {1}",
+                    Logger.LogInfo("ObsSelectionSpatial samples per square meter: {0}, sample spacing: {1:F3}",
                                    samplesPerSquareMeter, sampleSpacing);
                 }
 
@@ -134,7 +134,7 @@ namespace OPS.Pipeline.Texturing
 
                 if (Logger != null)
                 {
-                    Logger.LogInfo("ObsSelectionSpatial samples: {0}", samples.Count);
+                    Logger.LogInfo("ObsSelectionSpatial samples: {0}", Fmt.KMG(samples.Count));
                 }
             }
 

@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using System.Collections.Concurrent;
 using Microsoft.Xna.Framework;
 using Embree;
+using OPS.MathExtensions;
 using OPS.Util;
 using OPS.Imaging;
 using OPS.Geometry;
@@ -187,32 +188,37 @@ namespace OPS.RayTrace
                 // Negate the normal direction coming out of embree.  Its poorly documented in the images on this page
                 // https://embree.github.io/api.html but it looks like they use a different winding order than we assume
                 // for our normals
-                var modelSpaceNormal = -new Vector3(hit.NX, hit.NY, hit.NZ);
-                var worldSpaceNormal = hit.Instance.NormalToWorldSpace(modelSpaceNormal);
+                var faceNormal = -new Vector3(hit.NX, hit.NY, hit.NZ);
+                if (faceNormal.Length() > MathE.EPSILON)
+                {
+                    faceNormal = hit.Instance.NormalToWorldSpace(faceNormal);
+                }
 
                 var mesh = hit.Instance.Mesh;
+                var f = mesh.Faces[(int)hit.Primitive];
+
+                Vector2? uv = null;
+                Vector3? interpNorm = null;
+
                 // If this mesh has uvs compute the uv coordinates as per documentation
                 // https://embree.github.io/api.html
                 float u = hit.U;
                 float v = hit.V;
-                var f = mesh.Faces[(int)hit.Primitive];
-                var tri = new Geometry.Triangle(mesh.Vertices[f.P0], mesh.Vertices[f.P1], mesh.Vertices[f.P2]);
-                var bp = new Geometry.BarycentricPoint(1.0 - u - v, u, v, tri);
-                Vector2? uv = null;
                 if (mesh.HasUVs)
                 {
+                    var tri = new Geometry.Triangle(mesh.Vertices[f.P0], mesh.Vertices[f.P1], mesh.Vertices[f.P2]);
+                    var bp = new Geometry.BarycentricPoint(1.0 - u - v, u, v, tri);
                     uv = bp.UV;
                 }
-                Vector3? meshNorm = null;
                 if (mesh.HasNormals)
                 {
                     var n0 = mesh.Vertices[f.P0].Normal;
                     var n1 = mesh.Vertices[f.P1].Normal;
                     var n2 = mesh.Vertices[f.P2].Normal;
-                    meshNorm = (1.0 - u - v) * n0 + u * n1 + v * n2;
-                    meshNorm = hit.Instance.NormalToWorldSpace(meshNorm.Value);
+                    interpNorm = (1.0 - u - v) * n0 + u * n1 + v * n2;
+                    interpNorm = hit.Instance.NormalToWorldSpace(interpNorm.Value);
                 }
-                return new HitData(position, worldSpaceNormal, meshNorm, uv, mesh, hit.Instance.Texture, hit.Distance);
+                return new HitData(position, faceNormal, interpNorm, uv, mesh, hit.Instance.Texture, hit.Distance);
             }
             return null;
         }

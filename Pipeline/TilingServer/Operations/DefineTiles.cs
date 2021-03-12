@@ -346,7 +346,7 @@ namespace OPS.Pipeline.TilingServer
                 {
                     fsStatus = Fmt.KMG(fs.maxFaces);
                 }
-                string areaStatus = maxLeafArea > 0 ? maxLeafArea.ToString() : "unlimited";
+                string areaStatus = maxLeafArea > 0 ? (maxLeafArea + "m^2") : "unlimited";
                 string tsStatus = (tsc is TextureSplitCriteriaApproximate) ? "approximate" :
                     (tsc is TextureSplitCriteriaBackproject) ? "backproject" : "disabled";
                 if (tsc != null)
