@@ -941,6 +941,8 @@ namespace OPS.Landform
 
             fixedSiteDrives.UnionWith(fx.Select(sd => new SiteDrive(sd)));
 
+            pipeline.LogInfo("fixed site drives: {0}", string.Join(", ", fixedSiteDrives.Select(sd => sd.ToString())));
+
             siteDrives = SortSiteDrives(siteDrives, options.SiteDrivePriority).ToArray();
 
             pipeline.LogInfo("site drives ordered by {0}: {1}",

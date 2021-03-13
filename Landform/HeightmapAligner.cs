@@ -240,7 +240,7 @@ namespace OPS.Landform
             if (string.IsNullOrEmpty(options.BaseSiteDrive))
             {
                 baseSiteDrive = SortSiteDrives(siteDrives, options.BaseSiteDrivePriority).First();
-                pipeline.LogInfo("base site drive ({0}): {1}", options.BaseSiteDrivePriority, baseSiteDrive);
+                pipeline.LogInfo("using base site drive ({0}): {1}", options.BaseSiteDrivePriority, baseSiteDrive);
             }
             else
             {
