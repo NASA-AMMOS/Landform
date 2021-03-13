@@ -92,6 +92,12 @@ namespace OPS.Landform
 
         [Option(HelpText = "Max runtime for UVAtlas", Default = TilingDefaults.MAX_UVATLAS_SEC)]
         public override int MaxUVAtlasSec { get; set; }
+
+        [Option(HelpText = "Turn on debug spew while defining parent tiles", Default = false)]
+        public bool DebugDefineParentTiles { get; set; }
+
+        [Option(HelpText = "Turn on debug spew while building parent tiles", Default = false)]
+        public bool DebugBuildParentTiles { get; set; }
     }
 
     public class TilingCommand : TextureCommand
@@ -628,15 +634,30 @@ namespace OPS.Landform
 
         protected void BuildTilesAndDefineParents()
         {
+            bool wasVerbose = pipeline.Verbose;
+            bool wasDebug = pipeline.Debug;
+            if (tilingOpts.DebugDefineParentTiles)
+            {
+                pipeline.Verbose = pipeline.Debug = true;
+            }
             TilingNode.SetLRUCacheCapacity(TILING_NODE_LRU_MESH_CACHE_SIZE, TILING_NODE_LRU_IMAGE_CACHE_SIZE,
                                            TILING_NODE_LRU_INDEX_CACHE_SIZE);
             var dt = new DefineTiles(pipeline, new DefineTilesMessage(project.Name));
             dt.DownloadInputsAndBuildTree(tilingProject, !tilingOpts.NoProgress,
                                           skipSavingInternalTileMeshesForUserDefinedNodes: true);
+            pipeline.Verbose = wasVerbose;
+            pipeline.Debug = wasDebug;
         }
 
         protected void BuildParentTilesAndSaveTileset()
         {
+            bool wasVerbose = pipeline.Verbose;
+            bool wasDebug = pipeline.Debug;
+            if (tilingOpts.DebugBuildParentTiles)
+            {
+                pipeline.Verbose = pipeline.Debug = true;
+            }
+
             DeferredExecutive executive = null;
             if (pipeline is LocalPipeline)
             {
@@ -695,6 +716,9 @@ namespace OPS.Landform
             numNaiveAtlas = SceneNodeTilingExtensions.numNaiveAtlas;
             numManifoldAtlas = SceneNodeTilingExtensions.numManifoldAtlas;
             DumpAtlasStats();
+
+            pipeline.Verbose = wasVerbose;
+            pipeline.Debug = wasDebug;
         }
 
         protected bool BackprojectTile(MeshImagePair mip, string tileName, SceneCaster meshCaster,

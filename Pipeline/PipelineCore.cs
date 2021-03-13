@@ -91,7 +91,7 @@ namespace OPS.Pipeline
 
         public virtual bool LegacyCompat { get { return false; } }
 
-        public readonly bool Quiet, Verbose, Debug, StackTraces;
+        public bool Quiet, Verbose, Debug, StackTraces;
 
         private LRUCache<string, Image> imageCache; //indexed by URL
         private LRUCache<Guid, DataProduct> dataProductCache;

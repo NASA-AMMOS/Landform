@@ -109,8 +109,17 @@ namespace OPS.Landform
         [Option(HelpText = "Don't inpaint output to fill seams and holes when backprojecting", Default = false)]
         public bool DontInpaint { get; set; }
 
-        [Option(HelpText = "Debug function that skips all tiles except the one with this name", Default = null)]
-        public string OnlyTilesNamed { get; set; }
+        [Option(HelpText = "Debug function to only mesh and texture specific tiles", Default = null)]
+        public string OnlyForTiles { get; set; }
+
+        [Option(HelpText = "Turn on debug spew while building tile tree", Default = false)]
+        public bool DebugTileTree { get; set; }
+
+        [Option(HelpText = "Turn on debug spew while building tile meshes", Default = false)]
+        public bool DebugTileMeshes { get; set; }
+
+        [Option(HelpText = "Turn on debug spew while building tile textures", Default = false)]
+        public bool DebugTileTextures { get; set; }
 
         [Option(HelpText = "Don't use approximated areas for the tilesplit test", Default = false)]
         public bool NoApproxTileSplit { get; set; }
@@ -133,6 +142,8 @@ namespace OPS.Landform
         public const double SYNTHESIZE_LOD_RELATIVE_THRESHOLD = 0.5;
 
         private BuildTilingInputOptions options;
+
+        private string[] onlyForTiles;
 
         private TextureMode textureMode = TextureMode.None;
 
@@ -193,14 +204,7 @@ namespace OPS.Landform
                     
                 RunPhase("build tile tree", BuildTileTree);
 
-                if (meshLOD.Count > 1)
-                {
-                    RunPhase("build LOD tile meshes", BuildLODTileMeshes);
-                }
-                else
-                {
-                    RunPhase("build leaf meshes", BuildLeafMeshes);
-                }
+                RunPhase("build tile meshes", BuildTileMeshes);
 
                 if (withTextures && textureMode == TextureMode.Backproject)
                 {
@@ -230,6 +234,11 @@ namespace OPS.Landform
             if (!base.ParseArgumentsAndLoadCaches(TILING_DIR))
             {
                 return false; //help
+            }
+
+            if (!string.IsNullOrEmpty(options.OnlyForTiles))
+            {
+                onlyForTiles = options.OnlyForTiles.Split(',');
             }
 
             if (project == null && mission == null)
@@ -779,6 +788,12 @@ namespace OPS.Landform
 
         private void BuildTileTree()
         {
+            bool wasVerbose = pipeline.Verbose;
+            bool wasDebug = pipeline.Debug;
+            if (options.DebugTileTree)
+            {
+                pipeline.Verbose = pipeline.Debug = true;
+            }
             if (meshLOD.Count > 1)
             {
                 tileTree = DefineTiles
@@ -796,18 +811,33 @@ namespace OPS.Landform
                                              surfaceExtent, textureSplitOptions, !options.NoApproxTileSplit,
                                              msg => pipeline.LogInfo(msg), msg => pipeline.LogVerbose(msg));
             }
-
             tileTree.DumpStats(msg => pipeline.LogInfo(msg));
+            pipeline.Verbose = wasVerbose;
+            pipeline.Debug = wasDebug;
+        }
+
+        private void BuildTileMeshes()
+        {
+            bool wasVerbose = pipeline.Verbose;
+            bool wasDebug = pipeline.Debug;
+            if (options.DebugTileMeshes)
+            {
+                pipeline.Verbose = pipeline.Debug = true;
+            }
+            if (meshLOD.Count > 1)
+            {
+                BuildLODTileMeshes();
+            }
+            else
+            {
+                BuildLeafMeshes();
+            }
+            pipeline.Verbose = wasVerbose;
+            pipeline.Debug = wasDebug;
         }
 
         private void BuildLODTileMeshes()
         {
-            if (!string.IsNullOrEmpty(options.OnlyTilesNamed))
-            {
-                //could be done by seeing if the tile's name starts with the same digits (subtree over named tile)
-                throw new NotImplementedException("only for tile not implemented for LODs yet");
-            }
-
             //it is possible that a tiling scheme may choose not to split a node
             //which means there can be leaf nodes at any depth in the tree
             //the approach to map tiling nodes to pre-existing LODs is as follows
@@ -849,6 +879,12 @@ namespace OPS.Landform
             CoreLimitedParallel.ForEach(nodes, node =>
             {
                 Interlocked.Increment(ref curNode);
+
+                if (onlyForTiles != null && !onlyForTiles.Contains(node.Name))
+                {
+                    return;
+                }
+
                 Interlocked.Increment(ref np);
 
                 int lod = node.GetComponent<NodeLOD>().Lod;
@@ -936,21 +972,16 @@ namespace OPS.Landform
         private void BuildLeafMeshes()
         {
             int curNode = 0, numFailed = 0, numNodes = tileTree.Leaves().Count(), np = 0;
-
-            string[] onlyTilesNamed = null;
-            if (!string.IsNullOrEmpty(options.OnlyTilesNamed))
-            {
-                onlyTilesNamed = options.OnlyTilesNamed.Split(',');
-            }
             CoreLimitedParallel.ForEach(tileTree.Leaves(), leaf =>
             {
                 Interlocked.Increment(ref curNode);
-                Interlocked.Increment(ref np);
 
-                if (onlyTilesNamed != null && !onlyTilesNamed.Contains(leaf.Name))
+                if (onlyForTiles != null && !onlyForTiles.Contains(leaf.Name))
                 {
                     return;
                 }
+
+                Interlocked.Increment(ref np);
 
                 pipeline.LogVerbose("building leaf mesh {0}/{1} ({2:F2}%){3}: {4}",
                                     curNode, numNodes, 100 * curNode / (float)numNodes,
@@ -980,6 +1011,14 @@ namespace OPS.Landform
 
         private void BuildTileTexturesAndSaveTiles()
         {
+            bool wasVerbose = pipeline.Verbose;
+            bool wasDebug = pipeline.Debug;
+            if (options.DebugTileTextures)
+            {
+                options.VerboseBackproject = true;
+                pipeline.Verbose = pipeline.Debug = true;
+            }
+
             tileList = new TileList()
             {
                 MeshExt = meshExt,
@@ -1056,6 +1095,12 @@ namespace OPS.Landform
             void buildTile(SceneNode tile)
             {
                 Interlocked.Increment(ref curTileNum);
+
+                if (onlyForTiles != null && !onlyForTiles.Contains(tile.Name))
+                {
+                    return;
+                }
+
                 Interlocked.Increment(ref np);
 
                 if (!options.NoProgress)
@@ -1186,6 +1231,9 @@ namespace OPS.Landform
 
                 sceneMesh.Save(pipeline);
             }
+
+            pipeline.Verbose = wasVerbose;
+            pipeline.Debug = wasDebug;
         }
 
         private int GetTileResolution(Mesh tileMesh, BoundingBox tileBounds)
