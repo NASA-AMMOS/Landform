@@ -93,7 +93,7 @@ namespace OPS.Landform
         public virtual PreferColorMode PreferColor { get; set; }
 
         [Option(HelpText = "Colorize mono images to median chrominance", Default = false)]
-        public virtual bool Colorize { get; set; }
+        public bool Colorize { get; set; }
 
         [Option(HelpText = "Override median hue [0-360], negative disables (e.g. 33)", Default = -1)]
         public double OverrideMedianHue { get; set; }

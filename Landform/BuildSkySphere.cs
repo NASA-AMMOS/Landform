@@ -142,9 +142,6 @@ namespace OPS.Landform
 
         [Option(Required = false, HelpText = "Preadjust image luminance towards global median before blending, 0 to disable, 1 for max", Default = TexturingDefaults.SKY_PREADJUST_LUMINANCE)]
         public double PreadjustLuminance { get; set; }
-
-        [Option(HelpText = "Colorize mono images to median chrominance", Default = false)]
-        public override bool Colorize { get; set; }
     }
 
     public class BuildSkySphere : TilingCommand

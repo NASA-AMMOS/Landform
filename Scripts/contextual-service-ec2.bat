@@ -157,6 +157,9 @@ if not "%LANDFORM_CONTEXTUAL_SKY_MIN_BACKPROJECT_RADIUS%"=="" (
 set allowunmasked=
 if not "%LANDFORM_CONTEXTUAL_ALLOW_UNMASKED%"=="" set allowunmasked==--allowunmaskedroverobservations
 
+set colorize=
+if not "%LANDFORM_CONTEXTUAL_COLORIZE%"=="" set colorize=--colorize
+
 set extent=
 if not "%LANDFORM_CONTEXTUAL_EXTENT%"=="" set extent=--extent=%LANDFORM_CONTEXTUAL_EXTENT%
 
@@ -192,7 +195,7 @@ set tilingopts=%tilingopts% %maxtexturestretch% %poweroftwotextures% %noindices%
 
 set contextualopts=--maxfetch=%maxfetch% --maxorbital=%maxorbital% %nocombinedmanifest% %noorbital% %solblacklist%
 set contextualopts=%contextualopts% %tilingopts% %allowunmasked% %extent% %surfaceextent%
-set contextualopts=%contextualopts% %nosky% %skymode% %skyradius% %skyminbackprojectradius%
+set contextualopts=%contextualopts% %nosky% %skymode% %skyradius% %skyminbackprojectradius% %colorize%
 
 set appsdir=%bindir%\ExternalApps
 if exist %appsdir%\opengl32-for-ivcat.dll (

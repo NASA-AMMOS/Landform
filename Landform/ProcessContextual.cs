@@ -861,6 +861,8 @@ namespace OPS.Landform
 
             string allowUnmasked = options.AllowUnmaskedRoverObservations ? "--allowunmaskedroverobservations" : null;
 
+            string colorize = options.Colorize ? "--colorize" : null;
+
             pipeline.LogInfo("building contextual tileset {0} from {1} sitedrives in {2} sols",
                              project, siteDrives.Count, sols.Count);
 
@@ -939,7 +941,7 @@ namespace OPS.Landform
                 {
                     BuildTilingInput(project, allowUnmasked);
                     
-                    RunCommand("blend-images", project, allowUnmasked);
+                    RunCommand("blend-images", project, allowUnmasked, colorize);
                     
                     BuildTileset(project, allowUnmasked);
                     

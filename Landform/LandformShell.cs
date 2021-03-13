@@ -108,6 +108,9 @@ namespace OPS.Landform
 
         [Option(HelpText = "Require power of two tile textures", Default = TilingDefaults.POWER_OF_TWO_TEXTURES)]
         public bool PowerOfTwoTextures { get; set; }
+
+        [Option(HelpText = "Colorize mono images to median chrominance", Default = false)]
+        public bool Colorize { get; set; }
     }
 
     public abstract class LandformShell : LandformCommand
@@ -631,6 +634,11 @@ namespace OPS.Landform
             if (lsopts.PowerOfTwoTextures)
             {
                 args.Add("--poweroftwotextures");
+            }
+
+            if (lsopts.Colorize)
+            {
+                args.Add("--colorize");
             }
         }
 

@@ -76,7 +76,7 @@
 # * run again with --nocleanup --suffix foo --onlysky --redo --skyargs "--onlyforcameras=Mastcam --noblend"
 #   to rebuild the sky sphere tileset using only mastcam and without blending.
 # * run again with --nocleanup --suffix foo --noingest --noalign --nogeometry --notileset --notexture --blendargs
-#   --colorize to re-blend the monolithich mesh with colorize.
+#   --colorize to re-blend the monolithic mesh with colorize.
 # * run again with --nocleanup --suffix foo --noingest --noalign --nogeometry --notilinginput --nosky --nomanifest
 #   --blendargs --colorize to re-blend the tileset with colorize.
 #
