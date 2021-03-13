@@ -210,7 +210,7 @@ namespace OPS.Pipeline
                         SaveTileIndex(index, tmpIdx, msg => pipeline.LogVerbose($"{msg} for tile {tile.Name}"));
                         if (!embedImgs || !embedIndices)
                         {
-                            pipeline.SaveFile(tmpIdx, outputUrl(tile, tsIdxExt));
+                            pipeline.SaveFile(tmpIdx, outputUrl(tile, tsIdxExt, idxSfx));
                             tmpIdx = null; //don't also try to save index with mesh in this case
                         }
                     }
