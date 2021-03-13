@@ -244,7 +244,8 @@ namespace OPS.Landform
         protected virtual void LoadFrameCache()
         {
             frameCache = new FrameCache(pipeline, project.Name);
-            int num = frameCache.PreloadFilteredTransforms(priorSources, adjustedSources, wcopts.UsePriors);
+            int num = frameCache.PreloadFilteredTransforms(priorSources, adjustedSources, wcopts.UsePriors,
+                                                           wcopts.OnlyAligned);
             pipeline.LogInfo("loaded {0} frames in project {1}", num, project.Name);
             rootSiteDrive = frameCache.CheckPriors(mission.GetLandingSiteDrive());
             if (!rootSiteDrive.HasValue)
@@ -315,7 +316,9 @@ namespace OPS.Landform
             int num = observationCache.
                 Preload(obs =>
                         (!wcopts.NoOrbital && obs.IsOrbital) ||
-                        (!wcopts.NoSurface && (obs is RoverObservation) && ObservationFilter((RoverObservation)obs) &&
+                        (!wcopts.NoSurface && (obs is RoverObservation) &&
+                         (frameCache == null || frameCache.ContainsFrame(obs.FrameName)) &&
+                         ObservationFilter((RoverObservation)obs) &&
                          (siteDrives.Length == 0 || siteDrives.Any(sd => sd == ((RoverObservation)obs).SiteDrive)) &&
                          (observations.Length == 0 || observations.Any(name => name == obs.Name)) &&
                          (frames.Length == 0 || frames.Any(name => name == obs.FrameName)) &&
