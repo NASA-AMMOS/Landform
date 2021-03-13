@@ -236,6 +236,7 @@ namespace OPS.Landform
                 case SiteDrivePriority.ProjectThenBiggest: return sds
                     .OrderByDescending(sd => dems[sd].Area)
                     .OrderBy(sd => sd, Comparer<SiteDrive>.Create((sda, sdb) =>
+                                                                  sda == sdb ? 0 :
                                                                   sda.ToString() == project.MeshFrame ? -1 :
                                                                   sdb.ToString() == project.MeshFrame ? 1 : 0));
                 default: throw new Exception("unknown site drive priority: " + priority);
