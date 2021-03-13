@@ -42,6 +42,9 @@ namespace OPS.Landform
 
         [Option(HelpText = "UV generation mode for meshes if texture projection is not available (None, UVAtlas, Heightmap, Naive)", Default = TexturingDefaults.ATLAS_MODE)]
         public AtlasMode AtlasMode { get; set; }
+
+        [Option(HelpText = "Max runtime for UVAtlas", Default = 10 * 60)]
+        public virtual int MaxUVAtlasSec { get; set; }
     }
 
     public class GeometryCommand : WedgeCommand
@@ -110,7 +113,8 @@ namespace OPS.Landform
             }
 
             if (!UVAtlas.Atlas(mesh, resolution, resolution, gcopts.MaxTextureCharts,
-                               maxTextureStretch, logger: pipeline, fallbackToNaive: false))
+                               maxTextureStretch, logger: pipeline, fallbackToNaive: false,
+                               maxSec: gcopts.MaxUVAtlasSec))
             {
                 pipeline.LogWarn("failed to atlas mesh with UVAtlas, falling back to heightmap atlas");
                 HeightmapAtlasMesh(mesh, name);

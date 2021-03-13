@@ -335,7 +335,7 @@ namespace OPS.Pipeline
                         info($"atlassing parent tile with UVAtlas, resolution {textureSize}x{textureSize}, " +
                              $"max stretch {project.MaxTextureStretch}");
                         if (!UVAtlas.Atlas(parentMesh, textureSize, textureSize, maxStretch: project.MaxTextureStretch,
-                                           logger: logger, fallbackToNaive: false))
+                                           logger: logger, fallbackToNaive: false, maxSec: project.MaxUVAtlasSec))
                         {
                             info("failed to atlas parent tile with UVAtlas, falling back to heightmap atlas");
                             parentMesh.HeightmapAtlas(upAxis ?? Vector3.UnitZ, swapUV: true);

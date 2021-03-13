@@ -14,13 +14,14 @@ namespace OPS.Pipeline
     public static class TilingDefaults
     {
         public const TilingScheme TILING_SCHEME = TilingScheme.QuadAuto;
-        public const int MAX_FACES_PER_TILE = 32768;
+        public const int MAX_FACES_PER_TILE = 8192; //UVAtlas may crap out for some 16k tri meshes...
         public const double MIN_TILE_EXTENT = 0.5;
         public const double MAX_LEAF_AREA = 100;
         public const MeshReconstructionMethod PARENT_RECONSTRUCTION_METHOD = MeshReconstructionMethod.FSSR;
         public const SkirtMode SKIRT_MODE = SkirtMode.Normal;
 
         public const AtlasMode ATLAS_MODE = AtlasMode.UVAtlas;
+        public const int MAX_UVATLAS_SEC = 2 * 60;
         public const TextureMode TEXTURE_MODE = TextureMode.Bake;
 
         public const int MAX_TILE_RESOLUTION = 512;
@@ -76,6 +77,5 @@ namespace OPS.Pipeline
 
         public const double MESH_HULL_TEST_EPSILON = 0.00001;
         public const double APPROX_TEXTURE_UTILIZATION = 0.5;
-
     }
 }

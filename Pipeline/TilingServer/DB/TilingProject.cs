@@ -43,6 +43,7 @@ namespace OPS.Pipeline.TilingServer
         public SkirtMode SkirtMode = TilingDefaults.SKIRT_MODE;
 
         public AtlasMode AtlasMode = TilingDefaults.ATLAS_MODE;
+        public int MaxUVAtlasSec = TilingDefaults.MAX_UVATLAS_SEC;
 
         public TextureMode TextureMode = TilingDefaults.TEXTURE_MODE;
 

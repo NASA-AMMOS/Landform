@@ -89,6 +89,9 @@ namespace OPS.Landform
 
         [Option(HelpText = "Don't include texture in tile error computation", Default = false)]
         public bool NoTextureError { get; set; }
+
+        [Option(HelpText = "Max runtime for UVAtlas", Default = TilingDefaults.MAX_UVATLAS_SEC)]
+        public override int MaxUVAtlasSec { get; set; }
     }
 
     public class TilingCommand : TextureCommand
@@ -528,6 +531,7 @@ namespace OPS.Landform
                 tilingProject.SkirtMode = tilingOpts.SkirtMode;
 
                 tilingProject.AtlasMode = canProjectUVs ? AtlasMode.Project : TilingDefaults.ATLAS_MODE;
+                tilingProject.MaxUVAtlasSec = tilingOpts.MaxUVAtlasSec;
                 tilingProject.TextureMode = parentTileTextureMode;
                 tilingProject.MaxTextureResolution = maxTileResolution;
                 tilingProject.MaxTexelsPerMeter = tilingOpts.MaxTexelsPerMeter;
