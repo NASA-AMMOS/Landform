@@ -335,8 +335,10 @@ namespace OPS.Landform
                 mission.GetProductIDString(product) : StringHelper.GetLastUrlPathSegment(product, stripExtension: true);
         }
 
-        private List<string> Filter(List<string> products)
+        private List<string> Filter(List<string> products, string what)
         {
+            logger.InfoFormat("filtering files for {0}", what);
+
             var acceptedSiteDrives = SiteDrive.ParseList(options.OnlyForSiteDrives);
             //var acceptedFrames = StringHelper.ParseList(options.OnlyForFrames); //cannot determine frame from filename
             var acceptedCameras = RoverCamera.ParseList(options.OnlyForCameras);
@@ -701,15 +703,16 @@ namespace OPS.Landform
                 }
                 if (umFiltered.Count < filtered.Count)
                 {
-                    filtered = umFiltered;
+                    int countWas = filtered.Count;
                     //unified mesh filter may have removed all geometry products for a wedge
                     //but it might still have mask products
                     //and if it doesn't have raster products
                     //or if the raster products have a different linearity than the geometry products did
                     //then we may have extra masks now
                     //so filterProductIdGroups() again to cull those
+                    filtered = umFiltered;
                     filterProductIdGroups();
-                    logger.InfoFormat("unified meshes filtered {0}->{1} products", filtered.Count, umFiltered.Count);
+                    logger.InfoFormat("unified meshes filtered {0}->{1} products", countWas, filtered.Count);
                 }
             }
 
@@ -723,10 +726,22 @@ namespace OPS.Landform
                     }
                 }
             }
-            
-            logger.InfoFormat("filtered {0}->{1} products, site drives {2}, extensions {3}, {4} specific product ids",
-                              products.Count, filtered.Count,
-                              acceptedSiteDrives.Count() > 0 ? String.Join(",", acceptedSiteDrives) : "(all)",
+
+            var sds = filtered
+                .Select(p => RoverProductId.Parse(GetProductIDString(p), mission))
+                .Where(id => id is OPGSProductId)
+                .Cast<OPGSProductId>()
+                .Select(id => id.SiteDrive)
+                .OrderBy(sd => sd)
+                .Distinct()
+                .Select(sd => sd.ToString())
+                .ToArray();
+
+            logger.InfoFormat("filtered {0}->{1} products for {2}, site drives {3}->{4}, extensions {5}, " +
+                              "{6} specific product ids",
+                              products.Count, filtered.Count, what,
+                              acceptedSiteDrives.Length > 0 ? String.Join(",", acceptedSiteDrives) : "(all)",
+                              sds.Length > 0 ? String.Join(",", sds) : "(none)",
                               String.Join(",", acceptedExtensions.ToList()),
                               acceptedProductIds != null ? acceptedProductIds.Count.ToString() : "no");
 
@@ -1260,7 +1275,7 @@ namespace OPS.Landform
                     }
                     var locations = StringHelper.ParseList(options.SearchLocations);
                     var sols = IngestAlignmentInputs.ExpandSolSpecifier(options.Input);
-                    logger.InfoFormat("seaching sols {0} in {1}", string.Join(", ", sols),
+                    logger.InfoFormat("searching sols {0} in {1}", string.Join(", ", sols),
                                       string.Join(", ", locations));
                     
                     var solToProducts = new ConcurrentDictionary<int, List<string>>();
@@ -1312,8 +1327,7 @@ namespace OPS.Landform
                     
                     foreach (var sol in sols)
                     {
-                        logger.InfoFormat("filtering files for sol {0}", sol);
-                        solToProducts[sol] = Filter(solToProducts[sol]);
+                        solToProducts[sol] = Filter(solToProducts[sol], "sol " + sol);
                     }
                     
                     if (options.Summary)
