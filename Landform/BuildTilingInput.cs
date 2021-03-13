@@ -772,6 +772,7 @@ namespace OPS.Landform
                 SurfaceBounds = surfaceBounds,
                 RaycastTolerance = options.RaycastTolerance,
                 RedoUVs = !options.NoRedoTileMeshUVs,
+                AtlasTile = (mesh, bounds, res) => AtlasTile(mesh, bounds, res),
                 Warn = msg => pipeline.LogWarn(msg)
             };
         }
@@ -1224,7 +1225,14 @@ namespace OPS.Landform
                 return tileMesh;
             }
 
-            int resolution = GetTileResolution(tileMesh, tileBounds);
+            AtlasTile(tileMesh, tileBounds, -1, " " + tile.Name);
+
+            return tileMesh;
+        }
+
+        private void AtlasTile(Mesh tileMesh, BoundingBox tileBounds, int tileRes, string tileName = "")
+        {
+            tileRes = tileRes > 0 ? tileRes : GetTileResolution(tileMesh, tileBounds);
 
             if (textureMode == TextureMode.Bake || textureMode == TextureMode.Backproject)
             {
@@ -1232,35 +1240,32 @@ namespace OPS.Landform
                 {
                     if (TilingProject.IsOrbitalTile(tileBounds, surfaceBounds))
                     {
-                        HeightmapAtlasMesh(tileMesh, "orbital tile " + tile.Name);
+                        HeightmapAtlasMesh(tileMesh, "orbital tile" + tileName);
                     }
                     else
                     {
-                        AtlasMesh(tileMesh, resolution, "tile " + tile.Name);
+                        AtlasMesh(tileMesh, tileRes, "tile" + tileName);
                     }
                 }
                 else
                 {
-                    pipeline.LogVerbose("using existing UVs on tile {0}", tile.Name);
+                    pipeline.LogVerbose("using existing UVs on tile{0}", tileName);
                 }
-                tileMesh.RescaleUVsForTexture(resolution, resolution, maxTextureStretch);
+                tileMesh.RescaleUVsForTexture(tileRes, tileRes, maxTextureStretch);
             }
             else if (textureMode == TextureMode.Clip)
             {
                 if ((!tileMesh.HasUVs || !options.NoRedoTileMeshUVs) && TextureProjectionEnabled())
                 {
-                    pipeline.LogVerbose("(re-)atlasing tile mesh {0} with texture projection", tile.Name);
+                    pipeline.LogVerbose("(re-)atlasing tile mesh{0} with texture projection", tileName);
                     ProjectTexture(tileMesh);
                 }
                 else if (!tileMesh.HasUVs)
                 {
-                    pipeline.LogError("cannot clip texture for tile {0}: " +
-                                      "scene mesh missing UVs and texture projection disabled", tile.Name);
-                    return null;
+                    throw new Exception($"cannot clip texture for tile{tileName}: " +
+                                        "scene mesh missing UVs and texture projection disabled");
                 }
             }
-
-            return tileMesh;
         }
     }
 }

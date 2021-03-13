@@ -53,6 +53,7 @@ namespace OPS.Pipeline
         public double RaycastTolerance;
 
         public bool RedoUVs;
+        public Action<Mesh, BoundingBox, int> AtlasTile;
 
         public Action<string> Warn;
     }
@@ -133,12 +134,13 @@ namespace OPS.Pipeline
             //for a representative texel estimate the ratio of observation pixel area to tile texel area
             //different implementations may have different definitions of "area"
             //but it doesn't matter because we're just going to take a ratio, so that will divide out
-            if (!GetTileTexelsPerArea(clippedMesh, texRes, meshArea, out double texels))
+            if (!GetTileTexelsPerArea(bounds, clippedMesh, texRes, meshArea, out double texels))
             {
                 return false;
             }
 
-            if (!GetObservationPixelsPerArea(clippedMesh, texRes, clippedHull, intersectingCameras, out double pixels))
+            if (!GetObservationPixelsPerArea(bounds, clippedMesh, texRes, clippedHull, intersectingCameras,
+                                             out double pixels))
             {
                 return false;
             }
@@ -146,11 +148,13 @@ namespace OPS.Pipeline
             return (pixels / texels) > options.MaxPixelsPerTexel;
         }
 
-        protected abstract bool GetObservationPixelsPerArea(Mesh clippedMesh, int texRes, ConvexHull clippedHull,
+        protected abstract bool GetObservationPixelsPerArea(BoundingBox bounds, Mesh clippedMesh, int texRes,
+                                                            ConvexHull clippedHull,
                                                             List<CameraInstance> intersectingCameras,
                                                             out double pixels);
 
-        protected abstract bool GetTileTexelsPerArea(Mesh clippedMesh, int texRes, double meshArea, out double texels);
+        protected abstract bool GetTileTexelsPerArea(BoundingBox bounds, Mesh clippedMesh, int texRes, double meshArea,
+                                                     out double texels);
     }
 
     public class TextureSplitCriteriaBackproject : TextureSplitCriteria
@@ -160,15 +164,16 @@ namespace OPS.Pipeline
             spewProgress = true;
         }
 
-        protected override bool GetTileTexelsPerArea(Mesh clippedMesh, int texRes, double meshArea, out double texels)
+        protected override bool GetTileTexelsPerArea(BoundingBox bounds, Mesh clippedMesh, int texRes, double meshArea,
+                                                     out double texels)
         {
             texels = 1; //this implementation always computes observation pixel area for one tile texel
             return true;
         }
 
-        protected override bool GetObservationPixelsPerArea(Mesh clippedMesh, int texRes, ConvexHull clippedHull,
-                                                            List<CameraInstance> intersectingCameras,
-                                                            out double pixels)
+        protected override bool GetObservationPixelsPerArea(BoundingBox bounds, Mesh clippedMesh, int texRes,
+                                                            ConvexHull clippedHull,
+                                                            List<CameraInstance> intersectingCameras, out double pixels)
         {
             pixels = 0;
 
@@ -189,14 +194,21 @@ namespace OPS.Pipeline
                 }
                 else
                 {
-                    if (!UVAtlas.Atlas(clippedMesh, texRes, texRes, maxStretch: options.MaxTextureStretch,
-                                       logger: new ThunkLogger() { Warn = options.Warn }))
+                    if (options.AtlasTile != null)
                     {
-                        //TODO: atlas fail can be caused by mesh complexity, which might be helped by a split 
-                        //https://github.jpl.nasa.gov/OnSight/Landform/issues/826
-                        //returning false in case there's a mesh that wont atlas (degenerate triangles?)
-                        //this would recurse down to single triangle tiles
-                        return false;
+                        options.AtlasTile(clippedMesh, bounds, texRes);
+                    }
+                    else
+                    {
+                        if (!UVAtlas.Atlas(clippedMesh, texRes, texRes, maxStretch: options.MaxTextureStretch,
+                                           logger: new ThunkLogger() { Warn = options.Warn }))
+                        {
+                            //TODO: atlas fail can be caused by mesh complexity, which might be helped by a split 
+                            //https://github.jpl.nasa.gov/OnSight/Landform/issues/826
+                            //returning false in case there's a mesh that wont atlas (degenerate triangles?)
+                            //this would recurse down to single triangle tiles
+                            return false;
+                        }
                     }
                 }
             }
@@ -345,7 +357,8 @@ namespace OPS.Pipeline
     {
         public TextureSplitCriteriaApproximate(TextureSplitOptions opts) : base(opts) {}
 
-        protected override bool GetTileTexelsPerArea(Mesh clippedMesh, int texRes, double meshArea, out double texels)
+        protected override bool GetTileTexelsPerArea(BoundingBox bounds, Mesh clippedMesh, int texRes, double meshArea,
+                                                     out double texels)
         {
             texels = 0;
             if (meshArea <= 0)
@@ -363,9 +376,9 @@ namespace OPS.Pipeline
             return true;
         }
 
-        protected override bool GetObservationPixelsPerArea(Mesh clippedMesh, int texRes, ConvexHull clippedHull,
-                                                            List<CameraInstance> intersectingCameras,
-                                                            out double pixels)
+        protected override bool GetObservationPixelsPerArea(BoundingBox bounds, Mesh clippedMesh, int texRes,
+                                                            ConvexHull clippedHull,
+                                                            List<CameraInstance> intersectingCameras, out double pixels)
         {
             pixels = 0;
 
@@ -385,7 +398,7 @@ namespace OPS.Pipeline
                 }
 
                 var pts = ProjectedPixelDistances
-                    .GetMeshPositionsForCameraPixels(clippedMesh.Bounds(), options.SceneCaster, options.SceneCaster,
+                    .GetMeshPositionsForCameraPixels(bounds, options.SceneCaster, options.SceneCaster,
                                                      camInst.CameraModel, camInst.CameraToMesh, samples,
                                                      options.RaycastTolerance);
                 if (pts.Count < 1)
