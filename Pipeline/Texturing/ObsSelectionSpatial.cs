@@ -172,8 +172,8 @@ namespace OPS.Pipeline.Texturing
             foreach (var ctx in contexts)
             {
                 var ctrPixel = new Vector2(0.5 * ctx.Obs.Width, 0.5 * ctx.Obs.Height);
-                Vector3? res = Backproject.RaycastMesh(ctx.CameraModel, ctx.ObsToMesh, ctrPixel, meshOp.Bounds,
-                                                       meshCaster, occlusionScene, RaycastTolerance);
+                Vector3? res = Backproject.RaycastMesh(ctx.CameraModel, ctx.ObsToMesh, ctrPixel, occlusionScene,
+                                                       meshCaster, meshOp.Bounds, RaycastTolerance);
                 if (res.HasValue)
                 {
                     samples.Add(res.Value);

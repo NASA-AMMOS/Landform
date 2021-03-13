@@ -889,6 +889,7 @@ namespace OPS.Landform
                 quality = tcopts.BackprojectQuality,
                 obsSelectionStrategy = strategy,
 
+                raycastTolerance = tcopts.RaycastTolerance,
                 maxGlancingAngleDegrees = tcopts.MaxGlancingAngleDegrees,
 
                 meshName = meshName,

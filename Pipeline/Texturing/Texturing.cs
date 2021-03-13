@@ -8,7 +8,7 @@ namespace OPS.Pipeline.Texturing
 {
     public class TexturingDefaults
     {
-        public const double RAYCAST_TOLERANCE = 0.0001;
+        public const double RAYCAST_TOLERANCE = 0.001;
         public const double FRUSTUM_HULL_TEST_EPSILON = 0.00001;
 
         public const double TEXTURE_FAR_CLIP = 64;
@@ -31,7 +31,6 @@ namespace OPS.Pipeline.Texturing
         public const int BACKPROJECT_INPAINT_MISSING = 4;
         public const int BACKPROJECT_INPAINT_GUTTER = -1;
         public const int BACKPROJECT_MAX_SAMPLES_PER_BATCH = 500000;
-        public const double BACKPROJECT_RAYCAST_NEAR_METERS = 0.001f;
         public static readonly float[] BACKPROJECT_NO_OBSERVATION_COLOR = new float[] { 0.5f, 0.5f, 0.5f };
 
         public const int SCENE_TEXTURE_RESOLUTION = 8192;

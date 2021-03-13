@@ -256,7 +256,8 @@ namespace OPS.Pipeline
                             GetCameraPixelForMeshPosition(options.SceneCaster, bestCamera.CameraModel,
                                                           bestCamera.CameraToMesh, bestCamera.MeshToCamera,
                                                           bestCamera.HullInMesh, meshPos,
-                                                          bestCamera.WidthPixels, bestCamera.HeightPixels))
+                                                          bestCamera.WidthPixels, bestCamera.HeightPixels,
+                                                          options.RaycastTolerance))
                     .Where(x => x.HasValue);
 
                 // if enough pixels landed in the source image, find their area in pixels
@@ -329,7 +330,8 @@ namespace OPS.Pipeline
                 var srcPixel = ProjectedPixelDistances.
                     GetCameraPixelForMeshPosition(options.SceneCaster, camInst.CameraModel, camInst.CameraToMesh,
                                                   camInst.MeshToCamera, camInst.HullInMesh,
-                                                  pxlPt.Point, camInst.WidthPixels, camInst.HeightPixels);
+                                                  pxlPt.Point, camInst.WidthPixels, camInst.HeightPixels,
+                                                  options.RaycastTolerance);
 
                 if (!srcPixel.HasValue)
                 {

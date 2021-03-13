@@ -180,8 +180,8 @@ namespace OPS.Pipeline
 
             foreach (var curPixel in srcPixels)
             {
-                var meshPos = Backproject.RaycastMesh(camera, camToMesh, curPixel, meshBounds, meshCaster,
-                                                      occlusionScene, raycastTolerance);
+                var meshPos = Backproject.RaycastMesh(camera, camToMesh, curPixel, occlusionScene, meshCaster,
+                                                      meshBounds, raycastTolerance);
                 if (meshPos.HasValue)
                 {
                     result.Add(meshPos.Value);
@@ -192,8 +192,9 @@ namespace OPS.Pipeline
         }
 
         public static Vector2? GetCameraPixelForMeshPosition(SceneCaster sc, CameraModel camera, Matrix camToMesh,
-                                                     Matrix meshToCam, ConvexHull camHullInMesh,
-                                                     Vector3 meshPos, int widthPixels, int heightPixels)
+                                                             Matrix meshToCam, ConvexHull camHullInMesh,
+                                                             Vector3 meshPos, int widthPixels, int heightPixels,
+                                                             double raycastTolerance)
         {
             if (!camHullInMesh.Contains(meshPos, TexturingDefaults.FRUSTUM_HULL_TEST_EPSILON))
             {
@@ -214,7 +215,7 @@ namespace OPS.Pipeline
                 }
                 
                 // raycast the scene to test if the desired position is occluded by terrain
-                if (Backproject.IsOccluded(camera, obsPixel, meshPos, sc, rangeMeshToImage, camToMesh))
+                if (Backproject.IsOccluded(camera, camToMesh, obsPixel, sc, rangeMeshToImage, raycastTolerance))
                 {
                     return null;
                 }
