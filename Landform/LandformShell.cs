@@ -466,10 +466,10 @@ namespace OPS.Landform
             }
             var stdArgs = new Dictionary<string, string>()
                 {
-                    { "--logfile", subcommandLogFile }, //already handles --logdir
-                    { "--tempdir", StringHelper.NormalizeSlashes(lsopts.TempDir) },
                     { "--configdir", StringHelper.NormalizeSlashes(Config.GetConfigDir()) },
-                    { "--configfolder", subcommandConfigFolder }
+                    { "--configfolder", subcommandConfigFolder },
+                    { "--tempdir", StringHelper.NormalizeSlashes(lsopts.TempDir) },
+                    { "--logfile", subcommandLogFile } //already handles --logdir
                 };
             foreach (var entry in stdArgs)
             {
