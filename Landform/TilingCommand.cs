@@ -456,14 +456,17 @@ namespace OPS.Landform
 
         protected void MakeFlatTileset()
         {
+            string inMeshExt = TilingProject.ToExt(tileList.MeshExt);
+            string inImgExt = TilingProject.ToExt(tileList.ImageExt);
+            string inIdxExt = TilingProject.ToExt(TilingDefaults.INDEX_FILE_EXT);
+            string idxSfx = TilingDefaults.INDEX_FILE_SUFFIX;
             var root = new SceneNode("root");
             var rootBounds = BoundingBoxExtensions.CreateEmpty();
             foreach (var leafName in tileList.LeafNames)
             {
-                string meshUrl = pipeline.GetStorageUrl(outputFolder, project.Name, leafName + tileList.MeshExt);
-                string imgUrl = pipeline.GetStorageUrl(outputFolder, project.Name, leafName + tileList.ImageExt);
-                string idxUrl = pipeline.GetStorageUrl(outputFolder, project.Name,
-                                                       leafName + TilingDefaults.INDEX_FILE_EXT);
+                string meshUrl = pipeline.GetStorageUrl(outputFolder, project.Name, leafName + inMeshExt);
+                string imgUrl = pipeline.GetStorageUrl(outputFolder, project.Name, leafName + inImgExt);
+                string idxUrl = pipeline.GetStorageUrl(outputFolder, project.Name, leafName + idxSfx + inIdxExt);
                 var leafMesh = Mesh.Load(pipeline.GetFileCached(meshUrl, "meshes"));
                 var leafBounds = leafMesh.Bounds();
                 var leafNode = new SceneNode(leafName, root.Transform);
@@ -475,7 +478,7 @@ namespace OPS.Landform
                     mip.Image = pipeline.LoadImage(imgUrl);
                 }
                 var mipStats = new MeshImagePairStats(mip);
-                mipStats.HasIndex = pipeline.FileExists(idxUrl);
+                mipStats.HasIndex = tileList.HasIndexImages && pipeline.FileExists(idxUrl);
                 leafNode.AddComponent(mipStats);
                 rootBounds = BoundingBoxExtensions.Union(rootBounds, leafBounds);
             }
