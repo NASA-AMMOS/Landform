@@ -59,6 +59,8 @@ namespace OPS.Landform
 
         protected double orbitalSamplesPerPixel;
 
+        protected int numUVatlas, numHeightmapAtlas, numNaiveAtlas, numManifoldAtlas;
+
         public GeometryCommand(GeometryCommandOptions gcopts) : base(gcopts)
         {
             this.gcopts = gcopts;
@@ -89,6 +91,18 @@ namespace OPS.Landform
                 throw new Exception("MaxTextureStretch must be between 0 and 1");
             }
 
+            string atlasMsg = "";
+            if (gcopts.AtlasMode == AtlasMode.UVAtlas)
+            {
+                atlasMsg = $" (max time {Fmt.HMS(gcopts.MaxUVAtlasSec * 1000)}, will fallback to heightmap)";
+            }
+            else if (gcopts.AtlasMode == AtlasMode.Manifold)
+            {
+                atlasMsg = $" (will fallback to UVAtlas, max time {Fmt.HMS(gcopts.MaxUVAtlasSec * 1000)}";
+                atlasMsg += ", then heightmap)";
+            }
+            pipeline.LogInfo("atlas mode {0}{1}", gcopts.AtlasMode, atlasMsg);
+
             return true;
         }
 
@@ -116,8 +130,13 @@ namespace OPS.Landform
                                maxTextureStretch, logger: pipeline, fallbackToNaive: false,
                                maxSec: gcopts.MaxUVAtlasSec))
             {
-                pipeline.LogWarn("failed to atlas mesh with UVAtlas, falling back to heightmap atlas");
+                pipeline.LogWarn("failed to atlas {0}mesh with UVAtlas, falling back to heightmap atlas",
+                                 !string.IsNullOrEmpty(name) ? (name + " ") : "", Fmt.KMG(mesh.Faces.Count));
                 HeightmapAtlasMesh(mesh, name);
+            }
+            else
+            {
+                numUVatlas++;
             }
         }
 
@@ -139,6 +158,7 @@ namespace OPS.Landform
             //this doesn't really matter here except that texture images created to match these flipped UVs
             //will have north up and east right in image viewers, matching the orientation of other debug images
             mesh.HeightmapAtlas(BoxAxis.Z, swapUV: true);
+            numHeightmapAtlas++;
         }
 
         protected virtual void NaiveAtlasMesh(Mesh mesh, string name = null)
@@ -153,8 +173,33 @@ namespace OPS.Landform
             {
                 pipeline.LogVerbose(msg);
             }
-
             mesh.NaiveAtlas();
+            numNaiveAtlas++;
+        }
+
+        protected virtual void ManifoldAtlasMesh(Mesh mesh, string name = null)
+        {
+            string msg = string.Format("manifold atlassing {0}mesh ({1} triangles)",
+                                       !string.IsNullOrEmpty(name) ? (name + " ") : "", Fmt.KMG(mesh.Faces.Count));
+            if (mesh.Faces.Count > ATLAS_LOG_THRESHOLD)
+            {
+                pipeline.LogInfo(msg);
+            }
+            else
+            {
+                pipeline.LogVerbose(msg);
+            }
+            if (!mesh.ManifoldAtlas())
+            {
+                //this is expected for a non-convex mesh, verbose not info
+                pipeline.LogVerbose("failed to manifold atlas {0}mesh, falling back to UVAtlas",
+                                    !string.IsNullOrEmpty(name) ? (name + " ") : "");
+                UVAtlasMesh(mesh, UVAtlas.DEF_RESOLUTION, name);
+            }
+            else
+            {
+                numManifoldAtlas++;
+            }
         }
 
         protected virtual void AtlasMesh(Mesh mesh, int resolution, string name = null)
@@ -166,7 +211,28 @@ namespace OPS.Landform
                 case AtlasMode.Heightmap: HeightmapAtlasMesh(mesh, name); break;
                 case AtlasMode.Project: //fallthrough here, see TextureCommand.AtlasMesh()
                 case AtlasMode.Naive: NaiveAtlasMesh(mesh, name); break;
+                case AtlasMode.Manifold: ManifoldAtlasMesh(mesh, name); break;
                 default: throw new ArgumentException("unsupported atlas mode: " + gcopts.AtlasMode);
+            }
+        }
+
+        protected virtual void DumpAtlasStats()
+        {
+            if (numUVatlas > 0)
+            {
+                pipeline.LogInfo("UVAtlassed {0} meshes", numUVatlas);
+            }
+            if (numHeightmapAtlas > 0)
+            {
+                pipeline.LogInfo("heightmap atlassed {0} meshes", numHeightmapAtlas);
+            }
+            if (numNaiveAtlas > 0)
+            {
+                pipeline.LogInfo("naive atlassed {0} meshes", numNaiveAtlas);
+            }
+            if (numManifoldAtlas > 0)
+            {
+                pipeline.LogInfo("manifold atlassed {0} meshes", numManifoldAtlas);
             }
         }
 

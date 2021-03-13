@@ -688,6 +688,13 @@ namespace OPS.Landform
             {
                 throw new Exception("failed to build parent tiles and save tileset, " + tp.ExecutionError);
             }
+
+            numProjectAtlas = SceneNodeTilingExtensions.numProjectAtlas;
+            numUVatlas = SceneNodeTilingExtensions.numUVatlas;
+            numHeightmapAtlas = SceneNodeTilingExtensions.numHeightmapAtlas;
+            numNaiveAtlas = SceneNodeTilingExtensions.numNaiveAtlas;
+            numManifoldAtlas = SceneNodeTilingExtensions.numManifoldAtlas;
+            DumpAtlasStats();
         }
 
         protected bool BackprojectTile(MeshImagePair mip, string tileName, SceneCaster meshCaster,

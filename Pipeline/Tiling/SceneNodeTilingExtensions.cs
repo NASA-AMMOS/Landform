@@ -19,6 +19,12 @@ namespace OPS.Pipeline
     {
         public static bool useTextureError;
 
+        public static int numProjectAtlas;
+        public static int numUVatlas;
+        public static int numHeightmapAtlas;
+        public static int numNaiveAtlas;
+        public static int numManifoldAtlas;
+
         public static void SaveMesh(this SceneNode node, string directory, string meshExtension = "ply",
                                     string imageExtension = "jpg")
         {
@@ -163,9 +169,10 @@ namespace OPS.Pipeline
         //TilingServer.BuildParent.Process() builds a mini-scene graph with just this parent node as root
         //and all its dependencies as first level descendants
         public static void BuildParentGeometry(this SceneNode node, PipelineCore pipeline, TilingProject project,
-                                               Action<string> info = null)
+                                               Action<string> info = null, Action<string> warn = null,
+                                               Action<string> error = null)
         {
-            node.BuildParentGeometry(pipeline, project, node, info);
+            node.BuildParentGeometry(pipeline, project, node, info, warn, error);
         }
 
         /// <summary>
@@ -174,9 +181,12 @@ namespace OPS.Pipeline
         /// see FindNodesRequiredForParent() for more info
         /// </summary>
         public static void BuildParentGeometry(this SceneNode node, PipelineCore pipeline, TilingProject project,
-                                               SceneNode root, Action<string> info = null)
+                                               SceneNode root, Action<string> info = null, Action<string> warn = null,
+                                               Action<string> error = null)
         {
             info = info ?? (msg => {});
+            warn = warn ?? (msg => {});
+            error = error ?? (msg => {});
 
             var dependencies = FindNodesRequiredForParent(node, root);
 
@@ -288,9 +298,13 @@ namespace OPS.Pipeline
             node.GetComponent<NodeBounds>().Bounds = parentBounds;
 
             int textureSize = 0;
+            bool orbitalTile = false;
+            string tileType = "";
             if (project.TextureMode != TextureMode.None)
             {
-                double texelsPerMeter = project.GetMaxTexelsPerMeter(parentBounds);
+                orbitalTile = project.IsOrbitalTile(parentBounds);
+                tileType = orbitalTile ? "orbital " : "";
+                double texelsPerMeter = orbitalTile ? project.MaxOrbitalTexelsPerMeter : project.MaxTexelsPerMeter;
                 textureSize = GetTileResolution(parentMesh, project.MaxTextureResolution, texelsPerMeter,
                                                 project.PowerOfTwoTextures, info);
             }
@@ -298,7 +312,7 @@ namespace OPS.Pipeline
             Image parentImg = null, parentIndex = null;
             if (project.TextureMode != TextureMode.None && project.AtlasMode != AtlasMode.None && textureSize > 0)
             {
-                var logger = new ThunkLogger() { Info = info, Warn = info, Error = info };
+                var logger = new ThunkLogger() { Info = info, Warn = warn, Error = error };
 
                 TextureProjector textureProjector = null;
                 Image textureImage = null;
@@ -313,7 +327,8 @@ namespace OPS.Pipeline
                     }
                 }
 
-                switch (project.AtlasMode)
+                switch (textureProjector != null ? AtlasMode.Project :
+                        orbitalTile ? AtlasMode.Heightmap : project.AtlasMode)
                 {
                     case AtlasMode.Project:
                     {
@@ -321,40 +336,70 @@ namespace OPS.Pipeline
                         {
                             throw new Exception("no texture projector to atlas parent tile with texture projection");
                         }
-                        info("atlassing parent tile with texture projection");
+                        info($"atlassing {tileType}parent tile with texture projection");
                         parentMesh.ProjectTexture(textureProjector.ImageWidth, textureProjector.ImageHeight,
                                                   textureProjector.CameraModel, textureProjector.MeshToImage);
-                        if (project.TextureMode != TextureMode.Clip || textureImage == null)
-                        {
-                            parentMesh.RescaleUVsForTexture(textureSize, textureSize, project.MaxTextureStretch);
-                        }
+                        numProjectAtlas++;
                         break;
                     }
                     case AtlasMode.UVAtlas:
                     {
-                        info($"atlassing parent tile with UVAtlas, resolution {textureSize}x{textureSize}, " +
+                        info($"atlassing {tileType}parent tile with UVAtlas, resolution {textureSize}, " +
                              $"max stretch {project.MaxTextureStretch}");
                         if (!UVAtlas.Atlas(parentMesh, textureSize, textureSize, maxStretch: project.MaxTextureStretch,
                                            logger: logger, fallbackToNaive: false, maxSec: project.MaxUVAtlasSec))
                         {
-                            info("failed to atlas parent tile with UVAtlas, falling back to heightmap atlas");
+                            warn($"failed to atlas {tileType}parent tile with UVAtlas, falling back to heightmap");
                             parentMesh.HeightmapAtlas(upAxis ?? Vector3.UnitZ, swapUV: true);
+                            numHeightmapAtlas++;
+                        }
+                        else
+                        {
+                            numUVatlas++;
                         }
                         break;
                     }
                     case AtlasMode.Heightmap:
                     {
-                        info("atlassing parent tile with heightmap atlas");
-                        parentMesh.HeightmapAtlas(upAxis ?? Vector3.UnitZ, swapUV: true);
                         //swap U and V because mission surface frames are typically X north, Y east
                         //this doesn't really matter here except that texture images created to match these flipped UVs
                         //will match the orientation of other debug images
+                        info($"atlassing {tileType}parent tile with heightmap atlas");
+                        parentMesh.HeightmapAtlas(upAxis ?? Vector3.UnitZ, swapUV: true);
+                        numHeightmapAtlas++;
                         break;
                     }
                     case AtlasMode.Naive:
                     {
-                        info("atlassing parent tile with naive atlas");
+                        info($"atlassing {tileType}parent tile with naive atlas");
                         parentMesh.NaiveAtlas();
+                        numNaiveAtlas++;
+                        break;
+                    }
+                    case AtlasMode.Manifold:
+                    {
+                        info($"atlassing {tileType}parent tile with manifold atlas");
+                        if (!parentMesh.ManifoldAtlas())
+                        {
+                            //this is expected for a non-convex mesh, info not warn
+                            info("failed to manifold atlas parent tile, falling back to UVAtlas");
+                            if (!UVAtlas.Atlas(parentMesh, textureSize, textureSize,
+                                               maxStretch: project.MaxTextureStretch, logger: logger,
+                                               fallbackToNaive: false, maxSec: project.MaxUVAtlasSec))
+                            {
+                                warn($"failed to atlas {tileType}parent tile with UVAtlas, falling back to heightmap");
+                                parentMesh.HeightmapAtlas(upAxis ?? Vector3.UnitZ, swapUV: true);
+                                numHeightmapAtlas++;
+                            }
+                            else
+                            {
+                                numUVatlas++;
+                            }
+                        }
+                        else
+                        {
+                            numManifoldAtlas++;
+                        }
                         break;
                     }
                     default: throw new Exception("unsupported atlas mode for parent tile " + project.AtlasMode);
@@ -384,6 +429,7 @@ namespace OPS.Pipeline
                 }
                 else
                 {
+                    parentMesh.RescaleUVsForTexture(textureSize, textureSize, project.MaxTextureStretch);
                     //we need to bake parent tile textures even when textureMode is Clip
                     //unless we also have a texture projector to assign appropriate UVs
                     info($"baking {textureSize}x{textureSize} parent tile texture");

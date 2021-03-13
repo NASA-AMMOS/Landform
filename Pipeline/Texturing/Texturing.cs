@@ -38,7 +38,7 @@ namespace OPS.Pipeline.Texturing
         public const double MIN_SURFACE_TEXTURE_FRACTION = 0.5;
         public const double EASE_TEXTURE_WARP = 0.5;
         public const double EASE_SURFACE_PPM_FACTOR = 0.2;
-        public const AtlasMode ATLAS_MODE = AtlasMode.UVAtlas;
+        public const AtlasMode ATLAS_MODE = AtlasMode.Manifold; //will fall back to UVAtlas and then HeightmapAtlas
 
         public const int OBSERVATION_BLUR_RADIUS = 7;
         public const int DIFF_BLUR_RADIUS = 7;

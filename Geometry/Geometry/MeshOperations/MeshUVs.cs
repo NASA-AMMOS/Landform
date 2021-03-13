@@ -12,7 +12,7 @@ using OPS.Imaging;
 
 namespace OPS.Geometry
 {
-    public enum AtlasMode { None, UVAtlas, Heightmap, Naive, Project };
+    public enum AtlasMode { None, UVAtlas, Heightmap, Naive, Project, Manifold };
 
     public static class MeshUVs
     {
@@ -247,6 +247,109 @@ namespace OPS.Geometry
                 throw new Exception("naive atlas failed");
             }
             mesh.ApplyAtlas(u, v, indices, vertexRemap);
+        }
+
+        /// <summary>
+        /// Compute an atlas assuming mesh is a non-self-intersectng two-manifold without holes.
+        /// Relies on the assumption that the avarage face normal is an unoccluded viewing direction if no face is a
+        /// backface from that direction.
+        /// Returns false if the average face normal did not seem to be an unoccluded view direction (i.e. because at
+        /// least one face was a backface from that direction).
+        /// </summary>
+        public static bool ManifoldAtlas(this Mesh mesh)
+        {
+            if (!mesh.HasFaces)
+            {
+                return false;
+            }
+            Vector3 averageFaceNormal = Vector3.Zero;
+            int numNonDegenerate = 0;
+            foreach (var t in mesh.Triangles())
+            {
+                if (t.TryComputeNormal(out Vector3 tn))
+                {
+                    averageFaceNormal += tn;
+                    numNonDegenerate++;
+                }
+            }
+            if (numNonDegenerate == 0)
+            {
+                return false;
+            }
+            averageFaceNormal /= numNonDegenerate;
+            averageFaceNormal.Normalize();
+            foreach (var t in mesh.Triangles())
+            {
+                if (t.TryComputeNormal(out Vector3 tn))
+                {
+                    if (Vector3.Dot(tn, averageFaceNormal) < 0)
+                    {
+                        return false; //backface
+                    }
+                }
+            }
+            return mesh.UnoccludedAtlas(-averageFaceNormal);
+        }
+
+        public static bool UnoccludedAtlas(this Mesh mesh, Vector3 viewAxis)
+        {
+            viewAxis.Normalize();
+            Vector3 centroid = Vector3.Zero;
+            foreach (var v in mesh.Vertices)
+            {
+                centroid += v.Position;
+            }
+            centroid /= mesh.Vertices.Count;
+            Vector3 extremum = centroid;
+            double extremumRadius = 0;
+            foreach (var v in mesh.Vertices)
+            {
+                double r = Vector3.Distance(v.Position, centroid);
+                if (r > extremumRadius)
+                {
+                    extremumRadius =r;
+                    extremum = v.Position;
+                }
+            }
+            if (extremumRadius == 0)
+            {
+                return false;
+            }
+            Vector3 uAxis = Vector3.Normalize(extremum - centroid);
+            Vector3 vAxis = Vector3.Cross(-viewAxis, uAxis);
+            if (vAxis.Length() < MathE.EPSILON)
+            {
+                return false;
+            }
+            vAxis.Normalize();
+            uAxis = Vector3.Cross(vAxis, -viewAxis);
+            //rotate 45 deg so that extremum direction is diagonal
+            uAxis = 0.5 * (uAxis + vAxis);
+            uAxis.Normalize();
+            vAxis = Vector3.Cross(-viewAxis, uAxis);
+            double minU = double.PositiveInfinity, maxU = double.NegativeInfinity;
+            double minV = double.PositiveInfinity, maxV = double.NegativeInfinity;
+            foreach (var v in mesh.Vertices)
+            {
+                var d = v.Position - centroid;
+                v.UV = new Vector2(Vector3.Dot(d, uAxis), Vector3.Dot(d, vAxis));
+                minU = Math.Min(v.UV.X, minU);
+                maxU = Math.Max(v.UV.X, maxU);
+                minV = Math.Min(v.UV.Y, minV);
+                maxV = Math.Max(v.UV.Y, maxV);
+            }
+            double rangeU = maxU - minU;
+            double rangeV = maxV - minV;
+            if (rangeU <= 0 || rangeV <= 0)
+            {
+                return false;
+            }
+            foreach (var v in mesh.Vertices)
+            {
+                v.UV = new Vector2(MathE.Clamp01((v.UV.X - minU) / rangeU), MathE.Clamp01((v.UV.Y - minV) / rangeV));
+            }
+            mesh.HasUVs = true;
+            return true;
         }
 
         /// <summary>

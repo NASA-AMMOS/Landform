@@ -289,21 +289,7 @@ namespace OPS.Pipeline.TilingServer
         public static double GetMaxTexelsPerMeter(BoundingBox tileBounds, BoundingBox? surfaceBounds,
                                                   double maxTexelsPerMeter, double maxOrbitalTexelsPerMeter)
         {
-            if (surfaceBounds.HasValue)
-            {
-                var sb = surfaceBounds.Value;
-                if (sb.MinDimension() == 0)
-                {
-                    return maxOrbitalTexelsPerMeter; //orbital only
-                }
-                sb.Min.Z = tileBounds.Min.Z;
-                sb.Max.Z = tileBounds.Max.Z;
-                if (sb.Contains(tileBounds) == ContainmentType.Disjoint)
-                {
-                    return maxOrbitalTexelsPerMeter;
-                }
-            }
-            return maxTexelsPerMeter; //surface only
+            return IsOrbitalTile(tileBounds, surfaceBounds) ? maxOrbitalTexelsPerMeter : maxTexelsPerMeter;
         }
             
         public double GetMaxTexelsPerMeter(BoundingBox tileBounds, BoundingBox? surfaceBounds)
@@ -314,6 +300,30 @@ namespace OPS.Pipeline.TilingServer
         public double GetMaxTexelsPerMeter(BoundingBox tileBounds)
         {
             return GetMaxTexelsPerMeter(tileBounds, GetSurfaceBoundingBox());
+        }
+
+        public static bool IsOrbitalTile(BoundingBox tileBounds, BoundingBox? surfaceBounds)
+        {
+            if (surfaceBounds.HasValue)
+            {
+                var sb = surfaceBounds.Value;
+                if (sb.MinDimension() == 0)
+                {
+                    return true; //orbital only
+                }
+                sb.Min.Z = tileBounds.Min.Z;
+                sb.Max.Z = tileBounds.Max.Z;
+                if (sb.Contains(tileBounds) == ContainmentType.Disjoint)
+                {
+                    return true;
+                }
+            }
+            return false; //surface only
+        }
+
+        public bool IsOrbitalTile(BoundingBox tileBounds)
+        {
+            return IsOrbitalTile(tileBounds, GetSurfaceBoundingBox());
         }
 
         private List<string> LoadStringArray(string url, PipelineCore pipeline)

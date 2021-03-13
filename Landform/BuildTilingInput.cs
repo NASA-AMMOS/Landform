@@ -973,6 +973,8 @@ namespace OPS.Landform
             {
                 pipeline.LogWarn("failed to generate meshes for {0} leaves", numFailed);
             }
+
+            DumpAtlasStats();
         }
 
         private void BuildTileTexturesAndSaveTiles()
@@ -1228,14 +1230,20 @@ namespace OPS.Landform
             {
                 if (!tileMesh.HasUVs || !options.NoRedoTileMeshUVs)
                 {
-                    AtlasMesh(tileMesh, resolution, "tile " + tile.Name);
-                    tileMesh.RescaleUVsForTexture(resolution, resolution, maxTextureStretch);
+                    if (TilingProject.IsOrbitalTile(tileBounds, surfaceBounds))
+                    {
+                        HeightmapAtlasMesh(tileMesh, "orbital tile " + tile.Name);
+                    }
+                    else
+                    {
+                        AtlasMesh(tileMesh, resolution, "tile " + tile.Name);
+                    }
                 }
                 else
                 {
                     pipeline.LogVerbose("using existing UVs on tile {0}", tile.Name);
-                    tileMesh.RescaleUVsForTexture(resolution, resolution, maxTextureStretch);
                 }
+                tileMesh.RescaleUVsForTexture(resolution, resolution, maxTextureStretch);
             }
             else if (textureMode == TextureMode.Clip)
             {

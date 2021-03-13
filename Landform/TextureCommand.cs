@@ -135,6 +135,8 @@ namespace OPS.Landform
 
         protected double medianHue = -1;
 
+        protected int numProjectAtlas;
+
         protected TextureCommand(TextureCommandOptions tcopts) : base(tcopts)
         {
             this.tcopts = tcopts;
@@ -679,6 +681,7 @@ namespace OPS.Landform
                     pipeline.LogVerbose(msg);
                 }
                 ProjectTexture(mesh);
+                numProjectAtlas++;
             }
             else if (tcopts.AtlasMode != AtlasMode.Project)
             {
@@ -688,6 +691,15 @@ namespace OPS.Landform
             {
                 throw new Exception($"cannot atlas {name}mesh, texture projection not available");
             }
+        }
+
+        protected override void DumpAtlasStats()
+        {
+            if (numProjectAtlas > 0)
+            {
+                pipeline.LogInfo("projection atlassed {0} meshes", numProjectAtlas);
+            }
+            base.DumpAtlasStats();
         }
 
         protected virtual bool CanAtlasSceneMesh()

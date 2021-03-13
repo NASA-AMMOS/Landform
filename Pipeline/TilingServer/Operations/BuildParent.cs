@@ -79,7 +79,8 @@ namespace OPS.Pipeline.TilingServer
             {
                 LogLess("generating parent {0} mesh and geometric error from {1} tiles",
                         message.TileId, parent.DependsOn.Count);
-                parentSceneNode.BuildParentGeometry(pipeline, project, msg => LogLess(msg));
+                parentSceneNode.BuildParentGeometry(pipeline, project, info: msg => LogLess(msg),
+                                                    warn: msg => LogWarn(msg), error: msg => LogError(msg));
                 parent.SaveMesh(parentSceneNode.GetComponent<MeshImagePair>(), pipeline, project);
             }
             else
