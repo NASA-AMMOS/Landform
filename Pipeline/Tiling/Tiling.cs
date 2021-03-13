@@ -16,7 +16,7 @@ namespace OPS.Pipeline
         public const TilingScheme TILING_SCHEME = TilingScheme.QuadAuto;
         public const int MAX_FACES_PER_TILE = 8192; //UVAtlas may crap out for some 16k tri meshes...
         public const double MIN_TILE_EXTENT = 0.5;
-        public const double MAX_LEAF_AREA = 100;
+        public const double MAX_LEAF_AREA = 128;
         public const MeshReconstructionMethod PARENT_RECONSTRUCTION_METHOD = MeshReconstructionMethod.FSSR;
         public const SkirtMode SKIRT_MODE = SkirtMode.Normal;
 
