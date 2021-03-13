@@ -250,13 +250,14 @@ namespace OPS.Geometry
         }
 
         /// <summary>
-        /// Compute an atlas assuming mesh is a non-self-intersectng two-manifold without holes.
-        /// Relies on the assumption that the avarage face normal is an unoccluded viewing direction if no face is a
-        /// backface from that direction.
-        /// Returns false if the average face normal did not seem to be an unoccluded view direction (i.e. because at
-        /// least one face was a backface from that direction).
+        /// Compute an atlas assuming mesh is a well behaved two-manifold such that the average of all face normals is
+        /// likely to be an unoccluded viewing direction.
+        ///
+        /// Does a rudimentary visibility check to compute the relative area of backfaces from that direction.  However,
+        /// there are non-self-intersecting connected two-manfolds without holes that still have no single view
+        /// direction without self occlusion (e.g. consider a helicoid).
         /// </summary>
-        public static bool ManifoldAtlas(this Mesh mesh)
+        public static bool ManifoldAtlas(this Mesh mesh, double backfaceAreaRelTol = 0.01)
         {
             if (!mesh.HasFaces)
             {
@@ -264,6 +265,7 @@ namespace OPS.Geometry
             }
             Vector3 averageFaceNormal = Vector3.Zero;
             int numNonDegenerate = 0;
+            double area = 0;
             foreach (var t in mesh.Triangles())
             {
                 if (t.TryComputeNormal(out Vector3 tn))
@@ -271,6 +273,7 @@ namespace OPS.Geometry
                     averageFaceNormal += tn;
                     numNonDegenerate++;
                 }
+                area += t.Area();
             }
             if (numNonDegenerate == 0)
             {
@@ -278,13 +281,17 @@ namespace OPS.Geometry
             }
             averageFaceNormal /= numNonDegenerate;
             averageFaceNormal.Normalize();
+            double backfaceAreaThreshold = backfaceAreaRelTol * area;
+            double backfaceArea = 0;
             foreach (var t in mesh.Triangles())
             {
-                if (t.TryComputeNormal(out Vector3 tn))
+                if (t.TryComputeNormal(out Vector3 tn) && Vector3.Dot(tn, averageFaceNormal) < 0)
                 {
-                    if (Vector3.Dot(tn, averageFaceNormal) < 0)
+                    //nondegenerate backface
+                    backfaceArea += t.Area();
+                    if (backfaceArea > backfaceAreaThreshold)
                     {
-                        return false; //backface
+                        return false;
                     }
                 }
             }
