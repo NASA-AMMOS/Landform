@@ -62,8 +62,7 @@ namespace OPS.Pipeline.Texturing
                         .CalculateForObs(meshOp.Bounds, meshCaster ?? this.meshCaster, occlusionScene,
                                          new List<PixelPoint>() { new PixelPoint(pixel, meshPoint) },
                                          ctx.Obs, ctx.CameraModel, ctx.FrustumHull, ctx.ObsToMesh, RaycastTolerance);
-
-                    if (dist < double.MaxValue && (OrbitalMetersPerPixel <= 0 || dist < OrbitalMetersPerPixel))
+                    if (dist < double.MaxValue && BetterThanOrbital(ctx, dist))
                     {
                         bestContexts.Add(ctx, dist);
                     }
@@ -71,6 +70,34 @@ namespace OPS.Pipeline.Texturing
             };
 
             return bestContexts.GetSortedContexts();
+        }
+
+        private bool BetterThanOrbital(Backproject.Context context, double pixelSpread)
+        {
+            if (OrbitalMetersPerPixel <= 0)
+            {
+                return true;
+            }
+            bool obsIsColor = context.Obs.Bands > 1;
+            if (PreferColor == PreferColorMode.Always && (obsIsColor != OrbitalIsColor))
+            {
+                return obsIsColor;
+            }
+            double diff = Math.Abs(pixelSpread - OrbitalMetersPerPixel);
+            double equivAbs = Math.Max(EquivalentScoresAbs, 0);
+            double equivRel = Math.Max(EquivalentScoresRel, 0);
+            if (diff <= equivAbs || diff <= equivRel * 0.5 * (pixelSpread + OrbitalMetersPerPixel))
+            {
+                if (PreferSurface)
+                {
+                    return true;
+                }
+                if (PreferColor == PreferColorMode.EquivalentScores && (obsIsColor != OrbitalIsColor))
+                {
+                    return obsIsColor;
+                }
+            }
+            return pixelSpread < OrbitalMetersPerPixel;
         }
     }
 }

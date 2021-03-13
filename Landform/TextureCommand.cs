@@ -817,6 +817,7 @@ namespace OPS.Landform
                 var texObs = observationCache.GetObservation(Observation.ORBITAL_IMAGE_INDEX);
                 backprojectStrategy.OrbitalMetersPerPixel =
                     (texObs.CameraModel as ConformalCameraModel).AvgMetersPerPixel;
+                backprojectStrategy.OrbitalIsColor = texObs.Bands > 1;
                 if (useSurfaceBounds && sceneMesh != null)
                 {
                     backprojectStrategy.SurfaceExtent = sceneMesh.SurfaceExtent;

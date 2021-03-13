@@ -55,6 +55,7 @@ namespace OPS.Pipeline.Texturing
         public string DebugOutputPath; //null disables debug output
 
         public double OrbitalMetersPerPixel; //0 disables orbital
+        public bool OrbitalIsColor;
 
         public double SurfaceExtent; //size in meters of central square of mesh with surface geometry, 0 if only orbital
 

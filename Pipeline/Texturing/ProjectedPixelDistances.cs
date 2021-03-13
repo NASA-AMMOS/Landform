@@ -109,9 +109,9 @@ namespace OPS.Pipeline
                 {
                     //Issue #523: want median or average in case glancing angle?
                     //want a term that looks for consistancy in spacing? implies dead on?
-                    double dist = GetMaxPixelSpreadInMeters(meshBounds, meshCaster, occlusionScene, cam, obsToOutput,
-                                                            pt.Pixel, pt.Point, obs.Width, obs.Height,
-                                                            raycastTolerance);
+                    double dist = GetPixelSpreadInMeters(meshBounds, meshCaster, occlusionScene, cam, obsToOutput,
+                                                         pt.Pixel, pt.Point, obs.Width, obs.Height,
+                                                         raycastTolerance);
                     if (dist >= 0 && dist < double.MaxValue)
                     {
                         spreads[sampleIndex] = dist;
@@ -130,8 +130,7 @@ namespace OPS.Pipeline
         }
 
         //raycast the 4 neighbors of a pixel
-        //then measure the distance between the source pixel's intersected position and the neighbors
-        //then return the longest
+        //then find the max distance between the source pixel's intersected position and any neighbor
         //this should give an estimate of the source textures local resolution
         //using our best approximation of the mesh to compare against other images
         //
@@ -141,10 +140,10 @@ namespace OPS.Pipeline
         //if meshCaster = occlusionScene then meshBounds is used to differentiate hits on the mesh vs hits on other
         //occluding geometry
         //raycastTolerance: a distance based on the scale of your geometries used to exclude self intersections
-        public static double GetMaxPixelSpreadInMeters(BoundingBox meshBounds, SceneCaster meshCaster,
-                                                       SceneCaster occlusionScene, CameraModel camera, Matrix camToMesh,
-                                                       Vector2 srcPixel, Vector3 srcPos, int srcWidth, int srcHeight,
-                                                       double raycastTolerance)
+        public static double GetPixelSpreadInMeters(BoundingBox meshBounds, SceneCaster meshCaster,
+                                                    SceneCaster occlusionScene, CameraModel camera, Matrix camToMesh,
+                                                    Vector2 srcPixel, Vector3 srcPos, int srcWidth, int srcHeight,
+                                                    double raycastTolerance)
         {
             var offsetPixels = Image.GetOffsetPixels(srcPixel, offset: 1.0)
                 .Where(px => px.X >= 0 && px.X < srcWidth && px.Y >= 0 && px.Y < srcHeight)
