@@ -454,7 +454,7 @@ namespace OPS.Landform
                     }
                     catch (Exception ex)
                     {
-                        pipeline.LogException(ex, "error creating mesh for wedge " + obs.Name);
+                        pipeline.LogWarn("error creating mesh for wedge {0}: {1}", obs.Name, ex.Message);
                         Interlocked.Increment(ref nf);
                     }
                     finally
@@ -658,7 +658,12 @@ namespace OPS.Landform
                         pipeline.LogVerbose("rendering BEV image for site drive {0}...", siteDrive);
 
                         var bev = Rasterizer.Rasterize(mesh, img, out Vector2 originPixel, sdBEVOpts);
-                        
+
+                        if (bev.Width == 0 || bev.Height == 0)
+                        {
+                            throw new Exception("BEV has zero dimension");
+                        }
+
                         pipeline.LogVerbose("birds eye view for site drive {0}: {1}x{2}, origin ({3:f1}, {4:f1}), " +
                                             "{5} meters/pixel ({6} with decimation), sparse block size {7}, " +
                                             "valid block ratio {8}, inpaint {9}, smoothing {10}, decimation {11}, " +
@@ -710,6 +715,11 @@ namespace OPS.Landform
                             var opts = sdBEVOpts.Clone();
 
                             dem = Rasterizer.Rasterize(mesh, null, out Vector2 originPixel, opts);
+
+                            if (dem.Width == 0 || dem.Height == 0)
+                            {
+                                throw new Exception("DEM has zero dimension");
+                            }
 
                             if (bev != null && (dem.Width != bev.Width || dem.Height != bev.Height))
                             {
@@ -766,7 +776,7 @@ namespace OPS.Landform
                 }
                 catch (Exception ex)
                 {
-                    pipeline.LogException(ex, "error rendering BEV for site drive " + siteDrive);
+                    pipeline.LogWarn("error rendering BEV for site drive {0}: {1}", siteDrive, ex.Message);
                     Interlocked.Increment(ref nf);
                 }
                 finally
