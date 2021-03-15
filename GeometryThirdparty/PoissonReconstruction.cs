@@ -111,9 +111,9 @@ namespace OPS.Geometry
             var cfg = PoissonConfig.Instance;
             string reconstructExe = Path.Combine(PathHelper.GetApplicationPath(), "ExternalApps", cfg.PoissonExe);
 
-            if (pointCloud.Vertices.Count == 0)
+            if (pointCloud.Vertices.Count < 3)
             {
-                throw new MeshException("Poisson requires non-empty mesh");
+                throw new MeshException("Poisson requires at least 3 vertices");
             }
             if (!pointCloud.HasNormals)
             {
@@ -121,15 +121,21 @@ namespace OPS.Geometry
             }
             if (pointCloud.ContainsZeroLengthNormals())
             {
-                throw new MeshException("Poisson input mesh had zero length normals");
+                logger.Warn("Poisson input mesh had zero length normals - removing");
+                pointCloud.RemoveZeroLengthNormals();
+                if (pointCloud.Vertices.Count < 3)
+                {
+                    throw new MeshException("Poisson requires at least 3 vertices");
+                }
             }
             if (pointCloud.HasUVs)
             {
-                throw new MeshException("Poisson meshes cannot have UVs");
+                logger.Warn("Poisson meshes cannot have UVs - removing");
+                pointCloud.HasUVs = false;
             }
             if (pointCloud.HasColors && cfg.PoissonExeLegacy)
             {
-                logger.Warn("Poission (legacy) meshes cannot have colors - removing colors");
+                logger.Warn("Poission (legacy) meshes cannot have colors - removing");
                 pointCloud = new Mesh(pointCloud);
                 pointCloud.ClearColors();
             }

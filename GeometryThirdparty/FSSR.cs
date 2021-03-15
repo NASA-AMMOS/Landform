@@ -31,9 +31,9 @@ namespace OPS.Geometry
                                        Action<Mesh> uncleanedMesh = null, bool runClean = true,
                                        bool quiet = true)
         {
-            if (pointCloud.Vertices.Count == 0)
+            if (pointCloud.Vertices.Count < 3)
             {
-                throw new MeshException("FSSR requires non-empty mesh");
+                throw new MeshException("FSSR requires at least 3 vertices");
             }
             if (!pointCloud.HasNormals)
             {
@@ -41,15 +41,21 @@ namespace OPS.Geometry
             }
             if (pointCloud.ContainsZeroLengthNormals())
             {
-                throw new MeshException("FSSR input mesh had zero length normals");
+                logger.Warn("FSSR input mesh had zero length normals - removing");
+                pointCloud.RemoveZeroLengthNormals();
+                if (pointCloud.Vertices.Count < 3)
+                {
+                    throw new MeshException("FSSR requires at least 3 vertices");
+                }
             }
             if (pointCloud.HasUVs)
             {
-                throw new MeshException("FSSR meshes cannot have UVs");
+                logger.Warn("FSSR meshes cannot have UVs - removing");
+                pointCloud.HasUVs = false;
             }
             if (pointCloud.HasColors)
             {
-                logger.Warn("FSSR meshes cannot have colors - removing colors");
+                logger.Warn("FSSR meshes cannot have colors - removing");
                 pointCloud = new Mesh(pointCloud);
                 pointCloud.ClearColors();
             }
