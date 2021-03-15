@@ -94,6 +94,9 @@ namespace OPS.Landform
         [Option(HelpText = "Maximum leaf tile mesh area", Default = TilingDefaults.MAX_LEAF_AREA)]
         public double MaxLeafArea { get; set; }
 
+        [Option(HelpText = "Maximum orbital leaf tile mesh area", Default = TilingDefaults.MAX_ORBITAL_LEAF_AREA)]
+        public double MaxOrbitalLeafArea { get; set; }
+
         [Option(HelpText = "Don't respect --maxtexelspermeter when splitting tiles if more texture resolution is available from source images", Default = !TilingDefaults.TEXTURE_SPLIT_RESPECT_MAX_TEXELS_PER_METER)]
         public bool NoTextureSplitRespectMaxTexelsPerMeter { get; set; }
 
@@ -616,6 +619,9 @@ namespace OPS.Landform
 
             args.Add("--maxleafarea");
             args.Add(lsopts.MaxLeafArea.ToString());
+
+            args.Add("--maxorbitalleafarea");
+            args.Add(lsopts.MaxOrbitalLeafArea.ToString());
 
             if (lsopts.NoTextureSplitRespectMaxTexelsPerMeter)
             {

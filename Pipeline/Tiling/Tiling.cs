@@ -20,6 +20,10 @@ namespace OPS.Pipeline
         public const MeshReconstructionMethod PARENT_RECONSTRUCTION_METHOD = MeshReconstructionMethod.FSSR;
         public const SkirtMode SKIRT_MODE = SkirtMode.Normal;
 
+        //8192tri*(1quad/2tri)=4096quad, sqrt(4096)=64quad*(1m/quad)=64m,  64*64=4096m^2 < 5km^2
+        //512px*(1m/4px)=128m, 128*128=16384m^2
+        public const double MAX_ORBITAL_LEAF_AREA = 5000;
+
         public const AtlasMode ATLAS_MODE = AtlasMode.Manifold; //will fall back to UVAtlas and then Heightmap
         public const int MAX_UVATLAS_SEC = 2 * 60;
         public const TextureMode TEXTURE_MODE = TextureMode.Bake;

@@ -92,6 +92,11 @@ if not "%LANDFORM_CONTEXTUAL_MAX_LEAF_AREA%"=="" (
    set maxleafarea=--maxleafarea=%LANDFORM_CONTEXTUAL_MAX_LEAF_AREA%
 )
 
+set maxorbitalleafarea=
+if not "%LANDFORM_CONTEXTUAL_MAX_ORBITAL_LEAF_AREA%"=="" (
+   set maxorbitalleafarea=--maxorbitalleafarea=%LANDFORM_CONTEXTUAL_MAX_ORBITAL_LEAF_AREA%
+)
+
 set notexturesplitrespectmaxtexelspermeter=
 if not "%LANDFORM_CONTEXTUAL_NO_TEXTURE_SPLIT_RESPECT_MAX_TEXELS_PER_METER%"=="" (
    set notexturesplitrespectmaxtexelspermeter=--notexturesplitrespectmaxtexelspermeter
@@ -189,7 +194,7 @@ set svcopts=%svcopts% --awsprofile=%awsprofile% --awsregion=%awsregion% %credent
 set svcopts=%svcopts% %msgopts%
 
 set tilingopts=%tilesetimageformat% %tilesetindexformat%
-set tilingopts=%tilingopts% %maxfacespertile% %maxtileresolution% %mintileextent% %maxleafarea%
+set tilingopts=%tilingopts% %maxfacespertile% %maxtileresolution% %mintileextent% %maxleafarea% %maxorbitalleafarea%
 set tilingopts=%tilingopts% %notexturesplitrespectmaxtexelspermeter% %maxtexelspermeter% %maxorbitaltexelspermeter%
 set tilingopts=%tilingopts% %maxtexturestretch% %poweroftwotextures% %noindices% %embedindices%
 

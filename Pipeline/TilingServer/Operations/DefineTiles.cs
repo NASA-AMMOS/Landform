@@ -306,10 +306,9 @@ namespace OPS.Pipeline.TilingServer
             project.Save(pipeline);
         }
 
-        public static TileSplitCriteria[] MakeTileSplitCriteria(int maxFacesPerTile, double maxLeafArea = 0,
-                                                                TextureSplitOptions texSplitOptions = null,
-                                                                bool useTexSplitApprox = true,
-                                                                Action<string> info = null)
+        private static TileSplitCriteria[] MakeTileSplitCriteria(int maxFacesPerTile, double maxLeafArea,
+                                                                 TextureSplitOptions texSplitOptions,
+                                                                 bool useTexSplitApprox, Action<string> info = null)
         {
             //lower cost split criteria come before higher cost
             var splitCriteria = new List<TileSplitCriteria>();
@@ -340,12 +339,7 @@ namespace OPS.Pipeline.TilingServer
 
             if (info != null)
             {
-                string fsStatus = "unlimited";
-                var fs = splitCriteria.Where(sc => sc is FaceSplitCriteria).Cast<FaceSplitCriteria>().FirstOrDefault();
-                if (fs != null && fs.maxFaces > 0)
-                {
-                    fsStatus = Fmt.KMG(fs.maxFaces);
-                }
+                string fsStatus = maxFacesPerTile > 0 ? Fmt.KMG(maxFacesPerTile) : "unlimited";
                 string areaStatus = maxLeafArea > 0 ? (maxLeafArea + "m^2") : "unlimited";
                 string tsStatus = (tsc is TextureSplitCriteriaApproximate) ? "approximate" :
                     (tsc is TextureSplitCriteriaBackproject) ? "backproject" : "disabled";
@@ -355,6 +349,33 @@ namespace OPS.Pipeline.TilingServer
                 }
                 info($"{splitCriteria.Count} split criteria: {fsStatus} max faces per tile, " +
                      $"max leaf area {areaStatus}, texture split {tsStatus}");
+            }
+                
+            return splitCriteria.ToArray();
+        }
+
+        private static TileSplitCriteria[] MakeOrbitalSplitCriteria(int maxFacesPerTile, double maxLeafArea,
+                                                                    Action<string> info = null)
+        {
+            //lower cost split criteria come before higher cost
+            var splitCriteria = new List<TileSplitCriteria>();
+
+            if (maxFacesPerTile > 0)
+            {
+                splitCriteria.Add(new FaceSplitCriteria(maxFacesPerTile));
+            }
+
+            if (maxLeafArea > 0)
+            {
+                splitCriteria.Add(new AreaSplitCriteria(maxLeafArea));
+            }
+
+            if (info != null)
+            {
+                string fsStatus = maxFacesPerTile > 0 ? Fmt.KMG(maxFacesPerTile) : "unlimited";
+                string areaStatus = maxLeafArea > 0 ? (maxLeafArea + "m^2") : "unlimited";
+                info($"{splitCriteria.Count} orbital split criteria: {fsStatus} max faces per tile, " +
+                     $"max leaf area {areaStatus}");
             }
                 
             return splitCriteria.ToArray();
@@ -458,8 +479,8 @@ namespace OPS.Pipeline.TilingServer
         }
 
         public static SceneNode BuildTileTreeFromInputs(List<MeshImagePair> pairs, TilingScheme tilingScheme,
-                                                        int maxFacesPerTile = 0,
-                                                        double minTileExtent = 0, double maxLeafArea = 0,
+                                                        int maxFacesPerTile = 0, double minTileExtent = 0,
+                                                        double maxLeafArea = 0, double maxOrbitalLeafArea = 0,
                                                         double surfaceExtent = -1,
                                                         TextureSplitOptions texSplitOptions = null,
                                                         bool useTexSplitApprox = true,
@@ -479,17 +500,25 @@ namespace OPS.Pipeline.TilingServer
             var splitCriteria = MakeTileSplitCriteria(maxFacesPerTile, maxLeafArea, texSplitOptions,
                                                       useTexSplitApprox, info);
 
+            var orbitalSplitCriteria = splitCriteria.Where(sc => !(sc is TextureSplitCriteria)).ToArray();
+            if (maxOrbitalLeafArea > 0)
+            {
+                orbitalSplitCriteria = MakeOrbitalSplitCriteria(maxFacesPerTile, maxOrbitalLeafArea, info);
+            }
+
             return BuildBoundsTree(meshOps, tilingScheme, splitCriteria, minTileExtent, surfaceExtent,
-                                   info: info, verbose: verbose);
+                                   orbitalSplitCriteria, info: info, verbose: verbose);
         }
 
         public static SceneNode BuildBoundsTree(MultiMeshClipper multiClipper, TilingScheme tilingScheme,
                                                 TileSplitCriteria[] splitCriteria, double minTileExtent = 0,
-                                                double surfaceExtent = -1, int maxHeight = -1,
+                                                double surfaceExtent = -1,
+                                                TileSplitCriteria[] orbitalSplitCriteria = null,
+                                                int maxHeight = -1,
                                                 Action<string> info = null, Action<string> verbose = null)
         {
             return BuildBoundsTree(multiClipper.GetMeshOps(), tilingScheme, splitCriteria, minTileExtent,
-                                   surfaceExtent, maxHeight, info, verbose);
+                                   surfaceExtent, orbitalSplitCriteria, maxHeight, info, verbose);
         }
 
         //build a tile tree based on the geometry of the finest LOD mesh, represented by one or more meshOps
@@ -501,7 +530,8 @@ namespace OPS.Pipeline.TilingServer
         //and the collection of all leaf names encodes the full tree topology
         public static SceneNode BuildBoundsTree(MeshOperator[] meshOps, TilingScheme tilingScheme,
                                                 TileSplitCriteria[] splitCriteria, double minTileExtent = 0,
-                                                double surfaceExtent = -1, int maxHeight = -1,
+                                                double surfaceExtent = -1,
+                                                TileSplitCriteria[] orbitalSplitCriteria = null, int maxHeight = -1,
                                                 Action<string> info = null, Action<string> verbose = null)
         {
             info = info ?? (msg => { });
@@ -510,14 +540,14 @@ namespace OPS.Pipeline.TilingServer
             var totalBounds = BoundingBoxExtensions.Union(meshOps.Select(mo => mo.Bounds).ToArray());
 
             //if surfaceExtent is negative then treat the whole scene like surface
-            //if surfaceExtent is zero then treat the whole scene like orbital
-            BoundingBox? surfaceBounds = null;
-            var orbitalSplitCriteria = splitCriteria.Where(sc => !(sc is TextureSplitCriteria)).ToArray();
-            if (surfaceExtent > 0)
+            //if surfaceExtent is zero treat the whole scene like orbital (handled below)
+            BoundingBox? surfaceBounds = TilingProject.GetSurfaceBoundingBox(surfaceExtent); //null if negative
+            if (surfaceBounds.HasValue)
             {
-                double rad = 0.5 * surfaceExtent;
-                surfaceBounds = new BoundingBox(new Vector3(-rad, -rad, totalBounds.Min.Z),
-                                                new Vector3(rad, rad, totalBounds.Max.Z));
+                var sb = surfaceBounds.Value;
+                sb.Min.Z = totalBounds.Min.Z;
+                sb.Max.Z = totalBounds.Max.Z;
+                surfaceBounds = sb;
             }
 
             //child node names are created by adding onto parent name

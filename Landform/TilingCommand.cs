@@ -33,6 +33,9 @@ namespace OPS.Landform
         [Option(HelpText = "Maximum leaf tile mesh area", Default = TilingDefaults.MAX_LEAF_AREA)]
         public double MaxLeafArea { get; set; }
 
+        [Option(HelpText = "Maximum orbital leaf tile mesh area", Default = TilingDefaults.MAX_ORBITAL_LEAF_AREA)]
+        public double MaxOrbitalLeafArea { get; set; }
+
         [Option(HelpText = "Max texels per meter (lineal not areal), 0 or negative for unlimited", Default = TilingDefaults.MAX_TEXELS_PER_METER)]
         public double MaxTexelsPerMeter { get; set; }
 
@@ -645,9 +648,12 @@ namespace OPS.Landform
             }
             TilingNode.SetLRUCacheCapacity(TILING_NODE_LRU_MESH_CACHE_SIZE, TILING_NODE_LRU_IMAGE_CACHE_SIZE,
                                            TILING_NODE_LRU_INDEX_CACHE_SIZE);
+            bool wasLessSpew = PipelineOperation.LessSpew;
+            PipelineOperation.LessSpew = false;
             var dt = new DefineTiles(pipeline, new DefineTilesMessage(project.Name));
             dt.DownloadInputsAndBuildTree(tilingProject, !tilingOpts.NoProgress,
                                           skipSavingInternalTileMeshesForUserDefinedNodes: true);
+            PipelineOperation.LessSpew = wasLessSpew;
             pipeline.Verbose = wasVerbose;
             pipeline.Debug = wasDebug;
         }

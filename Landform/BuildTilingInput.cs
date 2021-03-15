@@ -807,7 +807,7 @@ namespace OPS.Landform
                 tileTree = DefineTiles
                     .BuildTileTreeFromInputs(new List<MeshImagePair>() { new MeshImagePair(mesh) },
                                              options.TilingScheme, options.MaxFacesPerTile,
-                                             options.MinTileExtent, options.MaxLeafArea,
+                                             options.MinTileExtent, options.MaxLeafArea, options.MaxOrbitalLeafArea,
                                              surfaceExtent, textureSplitOptions, !options.NoApproxTileSplit,
                                              msg => pipeline.LogInfo(msg), msg => pipeline.LogVerbose(msg));
             }
