@@ -20,9 +20,14 @@ namespace OPS.Pipeline
             this.maxFaces = maxFaces;
         }
 
-        public bool ShouldSplit(BoundingBox bounds, params MeshOperator[] meshOps)
+        public string ShouldSplit(BoundingBox bounds, params MeshOperator[] meshOps)
         {
-            return maxFaces > 0 && meshOps.Sum(meshOp => meshOp.CountFaces(bounds)) > maxFaces;
+            if (maxFaces <= 0)
+            {
+                return null;
+            }
+            int faces = meshOps.Sum(meshOp => meshOp.CountFaces(bounds));
+            return faces > maxFaces ? $"{faces} > {maxFaces} faces" : null;
         }
     }
 }

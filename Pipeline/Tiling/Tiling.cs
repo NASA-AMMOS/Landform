@@ -14,11 +14,14 @@ namespace OPS.Pipeline
     public static class TilingDefaults
     {
         public const TilingScheme TILING_SCHEME = TilingScheme.QuadAuto;
-        public const int MAX_FACES_PER_TILE = 8192; //UVAtlas may crap out for some 16k tri meshes...
         public const double MIN_TILE_EXTENT = 0.5;
         public const double MAX_LEAF_AREA = 128;
         public const MeshReconstructionMethod PARENT_RECONSTRUCTION_METHOD = MeshReconstructionMethod.FSSR;
         public const SkirtMode SKIRT_MODE = SkirtMode.Normal;
+
+        //UVAtlas may crap out for some 16k tri meshes...
+        //but 8192 is not quite enough to avoid splitting some 64x64 orbital tiles
+        public const int MAX_FACES_PER_TILE = 10000;
 
         //8192tri*(1quad/2tri)=4096quad, sqrt(4096)=64quad*(1m/quad)=64m,  64*64=4096m^2 < 5km^2
         //512px*(1m/4px)=128m, 128*128=16384m^2

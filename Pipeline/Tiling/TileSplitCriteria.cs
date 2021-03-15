@@ -17,7 +17,7 @@ namespace OPS.Pipeline
         /// </summary>
         /// <param name="meshOps">source mesh operators to consider splitting</param>
         /// <param name="bounds">Bounding area to consider splitting</param>
-        /// <returns>True if bounds should be subdevided</returns>
-        bool ShouldSplit(BoundingBox bounds, params MeshOperator[] meshOps);
+        /// <returns>non-null reason iff bounds should be subdivided</returns>
+        string ShouldSplit(BoundingBox bounds, params MeshOperator[] meshOps);
     }
 }

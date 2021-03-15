@@ -84,7 +84,7 @@ namespace OPS.Pipeline
             }
         }
 
-        public bool ShouldSplit(BoundingBox bounds, params MeshOperator[] meshOps)
+        public string ShouldSplit(BoundingBox bounds, params MeshOperator[] meshOps)
         {
             //TODO ISSUE 1038:  add the resolution of orbital to this decision
 
@@ -100,13 +100,13 @@ namespace OPS.Pipeline
                 .ToList();
             if (intersectingCameras.Count == 0)
             {
-                return false;
+                return null;
             }
 
             Mesh clippedMesh = meshOperator.Clipped(bounds);
             if (!clippedMesh.HasFaces)
             {
-                return false;
+                return null;
             }
 
             // finer frustum test: get all observations that intersect mesh hull
@@ -116,7 +116,7 @@ namespace OPS.Pipeline
             //no textures would be used on this mesh, no need to split
             if (intersectingCameras.Count == 0)
             {
-                return false;
+                return null;
             }
 
             double meshArea = clippedMesh.SurfaceArea();
@@ -128,7 +128,7 @@ namespace OPS.Pipeline
 
             if (options.RespectMaxTexelsPerMeter && texRes < options.MaxTileResolution)
             {
-                return false;
+                return null;
             }
 
             //for a representative texel estimate the ratio of observation pixel area to tile texel area
@@ -136,16 +136,18 @@ namespace OPS.Pipeline
             //but it doesn't matter because we're just going to take a ratio, so that will divide out
             if (!GetTileTexelsPerArea(bounds, clippedMesh, texRes, meshArea, out double texels))
             {
-                return false;
+                return null;
             }
 
             if (!GetObservationPixelsPerArea(bounds, clippedMesh, texRes, clippedHull, intersectingCameras,
                                              out double pixels))
             {
-                return false;
+                return null;
             }
 
-            return (pixels / texels) > options.MaxPixelsPerTexel;
+            double ppt = pixels / texels;
+
+            return ppt > options.MaxPixelsPerTexel ? $"{ppt:f3} > {options.MaxPixelsPerTexel:f3} pixels/texel" : null;
         }
 
         protected abstract bool GetObservationPixelsPerArea(BoundingBox bounds, Mesh clippedMesh, int texRes,

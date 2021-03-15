@@ -20,9 +20,14 @@ namespace OPS.Pipeline
             this.maxArea = maxArea;
         }
 
-        public bool ShouldSplit(BoundingBox bounds, params MeshOperator[] meshOps)
+        public string ShouldSplit(BoundingBox bounds, params MeshOperator[] meshOps)
         {
-            return maxArea > 0 && meshOps.Sum(meshOp => meshOp.ClippedMeshArea(bounds)) > maxArea;
+            if (maxArea <= 0)
+            {
+                return null;
+            }
+            double area = meshOps.Sum(meshOp => meshOp.ClippedMeshArea(bounds));
+            return area > maxArea ? $"{area:f3} > {maxArea:f3} m^2" : null;
         }
     }
 }

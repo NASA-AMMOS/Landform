@@ -438,10 +438,11 @@ namespace OPS.Pipeline.TilingServer
                     bool shouldSplit = false;
                     foreach (var crit in splitCriteria)
                     {
-                        if (crit.ShouldSplit(bounds, lodMeshOps[0])) //always use finest lod for split decisions
+                        string reason = crit.ShouldSplit(bounds, lodMeshOps[0]); //use finest lod for split decisions
+                        if (!string.IsNullOrEmpty(reason))
                         {
                             shouldSplit = true;
-                            verbose($"attempting to split LOD {lod} tile {name} due to {crit.GetType().Name}");
+                            verbose($"attempting to split LOD {lod} tile {name}: {crit.GetType().Name} " + reason);
                             break;
                         }
                     }
@@ -534,6 +535,7 @@ namespace OPS.Pipeline.TilingServer
                                                 TileSplitCriteria[] orbitalSplitCriteria = null, int maxHeight = -1,
                                                 Action<string> info = null, Action<string> verbose = null)
         {
+            bool isVerbose = verbose != null;
             info = info ?? (msg => { });
             verbose = verbose ?? (msg => { });
 
@@ -569,9 +571,11 @@ namespace OPS.Pipeline.TilingServer
                     string name = node == root ? "root" : node.Name;
                     var bounds = node.GetComponent<NodeBounds>().Bounds;
 
+                    string tileType = "surface";
                     var sc = splitCriteria;
                     if (surfaceExtent == 0 || (surfaceBounds.HasValue && !surfaceBounds.Value.Intersects(bounds)))
                     {
+                        tileType = "orbital";
                         sc = orbitalSplitCriteria;
                         Interlocked.Increment(ref orbitalTiles);
                     }
@@ -582,10 +586,11 @@ namespace OPS.Pipeline.TilingServer
                     bool shouldSplit = false;
                     foreach (var crit in sc)
                     {
-                        if (crit.ShouldSplit(bounds, meshOps))
+                        string reason = crit.ShouldSplit(bounds, meshOps);
+                        if (!string.IsNullOrEmpty(reason))
                         {
                             shouldSplit = true;
-                            verbose($"attempting to split tile {name} due to {crit.GetType().Name}");
+                            verbose($"attempting to split {tileType} tile {name}: {crit.GetType().Name} " + reason);
                             break;
                         }
                     }
@@ -616,7 +621,7 @@ namespace OPS.Pipeline.TilingServer
                         }
                         else
                         {
-                            verbose($"did not split tile {name}: split resulted in less than two children");
+                            verbose($"did not split {tileType} tile {name}: split resulted in less than two children");
                         }
                     }
                     //else
