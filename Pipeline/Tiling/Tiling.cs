@@ -35,7 +35,7 @@ namespace OPS.Pipeline
         public const int MIN_TILE_RESOLUTION = 16;
 
         public const double MAX_TEXELS_PER_METER = 512;
-        public const double MAX_ORBITAL_TEXELS_PER_METER = 16;
+        public const double MAX_ORBITAL_TEXELS_PER_METER = 4;
         public const bool TEXTURE_SPLIT_RESPECT_MAX_TEXELS_PER_METER = true; //requires refactoring command line options
 
         public const int MAX_TEXTURE_CHARTS = UVAtlas.DEF_MAX_CHARTS; //0 = unlimited
