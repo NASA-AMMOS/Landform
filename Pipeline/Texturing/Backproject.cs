@@ -733,16 +733,16 @@ namespace OPS.Pipeline
                     foreach (var group in groups)
                     {
                         var wl = BackprojectSurfaceObs(opts.pipeline, opts.project, opts.occlusionScene, masker,
-                                                       opts.raycastTolerance, maxGlancingAngleCosine, opts.verbose,
-                                                       group.Key, samplePoints, group, results);
+                                                       opts.raycastTolerance, maxGlancingAngleCosine,
+                                                       group.Key, samplePoints, group, results, opts.verbose);
                         nw += wl.winners.Count;
                         no += (wl.winners.Count > 0) ? 1 : 0;
                         losers.AddRange(wl.losers);
                         if (opts.verbose)
                         {
-                            verbose($"backprojected {Fmt.KMG(wl.winners.Count)} pixels into preference {level} " +
-                                    $"observation {group.Key.Obs.Name}, {Fmt.KMG(wl.losers.Count)} failed: " +
-                                    wl.GetStats());
+                            verbose($"backprojected {Fmt.KMG(wl.winners.Count)}/{Fmt.KMG(group.Count())} pixels " +
+                                    $"into preference {level} observation {group.Key.Obs.Name}, " +
+                                    $"{Fmt.KMG(wl.losers.Count)} failed: " + wl.GetStats());
                         }
                     }
                     remaining = losers;
@@ -770,10 +770,15 @@ namespace OPS.Pipeline
                 info($"failed to backproject {Fmt.KMG(nf)} pixels to surface observations");
                 if (orbitalImage != null)
                 {
-                    info("backprojecting into orbital image");
                     var indices = failed ?? Enumerable.Range(0, samplePoints.Count);
-                    var wl = BackprojectOrbitalObs(orbitalImage, opts.occlusionScene, samplePoints, indices,
-                                                   opts.meshToOrbital, opts.skyDirInMesh, results);
+                    info($"attempting to backproject {Fmt.KMG(indices.Count())} pixels into orbital image");
+                    var wl = BackprojectOrbitalObs(opts.occlusionScene, orbitalImage, opts.meshToOrbital,
+                                                   opts.skyDirInMesh, samplePoints, indices, results, opts.verbose);
+                    if (opts.verbose)
+                    {
+                        verbose($"backprojected {Fmt.KMG(wl.winners.Count)} pixels into orbital observation, " +
+                                $"{Fmt.KMG(wl.losers.Count)} failed: " + wl.GetStats());
+                    }
                     stats.BackprojectedOrbitalPixels = wl.winners.Count;
                     failed = wl.losers;
                 }
@@ -903,23 +908,17 @@ namespace OPS.Pipeline
             
             public WinnersAndLosers(int capacity)
             {
-                if (capacity > 0)
-                {
-                    winners = new List<int>(capacity);
-                    losers = new List<int>(capacity);
-                }
+                winners = new List<int>(Math.Max(capacity, 1));
+                losers = new List<int>(Math.Max(capacity, 1));
             }
 
             public WinnersAndLosers Add(int idx, bool winner)
             {
                 if (winner)
                 {
-                    if (winners != null)
-                    {
-                        winners.Add(idx);
-                    }
+                    winners.Add(idx);
                 }
-                else if (losers != null)
+                else
                 {
                     losers.Add(idx);
                 }
@@ -930,14 +929,14 @@ namespace OPS.Pipeline
             {
                 lock (this)
                 {
-                    if (winners != null && other.winners != null)
-                    {
-                        winners.AddRange(other.winners);
-                    }
-                    if (losers != null && other.losers != null)
-                    {
-                        losers.AddRange(other.losers);
-                    }
+                    winners.AddRange(other.winners);
+                    losers.AddRange(other.losers);
+                    numOccluded += other.numOccluded;
+                    numMasked += other.numMasked;
+                    numOutOfFrame += other.numOutOfFrame;
+                    numCameraModelExceptions += other.numCameraModelExceptions;
+                    numOutOfHull += other.numOutOfHull;
+                    numNonFinite += other.numNonFinite;
                 }
                 return this;
             }
@@ -1058,9 +1057,9 @@ namespace OPS.Pipeline
         public static WinnersAndLosers BackprojectSurfaceObs(PipelineCore pipeline, Project project,
                                                              SceneCaster occlusionScene, RoverMasker masker,
                                                              double raycastTolerance, double maxGlancingAngleCosine,
-                                                             bool stats, Context ctx, List<PixelPoint> samplePoints,
+                                                             Context ctx, List<PixelPoint> samplePoints,
                                                              IEnumerable<int> indices,
-                                                             IDictionary<Pixel, ObsPixel> results)
+                                                             IDictionary<Pixel, ObsPixel> results, bool stats)
         {
             Image mask = ImageMasker.GetOrCreateMask(pipeline, project, ctx.Obs, masker, ctx.MaskObs); //cached
             return CoreBackproject(occlusionScene, mask, ctx.FrustumHull, ctx.MeshToObs, ctx.ObsToMesh, ctx.CameraModel,
@@ -1068,10 +1067,10 @@ namespace OPS.Pipeline
                                    stats);
         }
 
-        public static WinnersAndLosers BackprojectOrbitalObs(Observation orbitalObs, SceneCaster occlusionScene,
-                                                             List<PixelPoint> samplePoints, IEnumerable<int> indices,
+        public static WinnersAndLosers BackprojectOrbitalObs(SceneCaster occlusionScene, Observation orbitalObs,
                                                              Matrix meshToOrbital, Vector3 skyDirInMesh,
-                                                             IDictionary<Pixel, ObsPixel> results)
+                                                             List<PixelPoint> samplePoints, IEnumerable<int> indices,
+                                                             IDictionary<Pixel, ObsPixel> results, bool stats)
         {
             int ni = indices.Count();
             var winners = new WinnersAndLosers(ni);
@@ -1098,12 +1097,28 @@ namespace OPS.Pipeline
                                 results[SubpixelToPixel(sample.Pixel)] = new ObsPixel(orbitalObs, px);
                                 winner = true;
                             }
+                            else if (stats)
+                            {
+                                Interlocked.Increment(ref winners.numOutOfFrame);
+                            }
                         }
                         catch (CameraModelException)
                         {
                             winner = false; //happens infrequently, but not in frame
+                            if (stats)
+                            {
+                                Interlocked.Increment(ref winners.numCameraModelExceptions);
+                            }
                         }
                     }
+                    else if (stats)
+                    {
+                        Interlocked.Increment(ref winners.numOccluded);
+                    }
+                }
+                else if (stats)
+                {
+                    Interlocked.Increment(ref winners.numNonFinite);
                 }
 #if NO_PARALLEL_RAYCASTS
                 winners.Add(index, winner);
