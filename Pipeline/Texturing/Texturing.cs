@@ -28,7 +28,7 @@ namespace OPS.Pipeline
         public const double OBS_SEL_SEARCH_RADIUS_SAMPLES = 2; //multipled by avg sample spacing to get search radius
 
         public const double BACKPROJECT_QUALITY = 0.3;
-        public const double BACKPROJECT_MAX_GLANCING_ANGLE_DEGREES = 80;
+        public const double BACKPROJECT_MAX_GLANCING_ANGLE_DEGREES = 85;
         public const int BACKPROJECT_INPAINT_MISSING = 4;
         public const int BACKPROJECT_INPAINT_GUTTER = -1;
         public const int BACKPROJECT_MAX_SAMPLES_PER_BATCH = 500000;
