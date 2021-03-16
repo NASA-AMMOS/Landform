@@ -165,6 +165,11 @@ if not "%LANDFORM_CONTEXTUAL_ALLOW_UNMASKED%"=="" set allowunmasked==--allowunma
 set colorize=
 if not "%LANDFORM_CONTEXTUAL_COLORIZE%"=="" set colorize=--colorize
 
+set maxglancingangledegrees=
+if not "%LANDFORM_CONTEXTUAL_MAX_GLANCING_ANGLE_DEGREES%"=="" (
+    set maxglancingangledegrees=--maxglancingangledegrees=%LANDFORM_CONTEXTUAL_MAX_GLANCING_ANGLE_DEGREES%
+)
+
 set extent=
 if not "%LANDFORM_CONTEXTUAL_EXTENT%"=="" set extent=--extent=%LANDFORM_CONTEXTUAL_EXTENT%
 
@@ -193,10 +198,10 @@ set svcopts=%stdopts% --stacktraces --service --mission=%mission% --queuename=%q
 set svcopts=%svcopts% --awsprofile=%awsprofile% --awsregion=%awsregion% %credentialrefresh%
 set svcopts=%svcopts% %msgopts%
 
-set tilingopts=%tilesetimageformat% %tilesetindexformat%
+set tilingopts=%tilesetimageformat% %tilesetindexformat% %noindices% %embedindices%
 set tilingopts=%tilingopts% %maxfacespertile% %maxtileresolution% %mintileextent% %maxleafarea% %maxorbitalleafarea%
 set tilingopts=%tilingopts% %notexturesplitrespectmaxtexelspermeter% %maxtexelspermeter% %maxorbitaltexelspermeter%
-set tilingopts=%tilingopts% %maxtexturestretch% %poweroftwotextures% %noindices% %embedindices%
+set tilingopts=%tilingopts% %maxtexturestretch% %poweroftwotextures% %maxglancingangledegrees%
 
 set contextualopts=--maxfetch=%maxfetch% --maxorbital=%maxorbital% %nocombinedmanifest% %noorbital% %solblacklist%
 set contextualopts=%contextualopts% %tilingopts% %allowunmasked% %extent% %surfaceextent%

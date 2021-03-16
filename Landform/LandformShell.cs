@@ -114,6 +114,9 @@ namespace OPS.Landform
 
         [Option(HelpText = "Colorize mono images to median chrominance", Default = false)]
         public bool Colorize { get; set; }
+
+        [Option(HelpText = "Max backproject glancing angle relative to mesh normal, 90 to disable glance filter", Default = TexturingDefaults.BACKPROJECT_MAX_GLANCING_ANGLE_DEGREES)]
+        public double MaxGlancingAngleDegrees { get; set; }
     }
 
     public abstract class LandformShell : LandformCommand
@@ -646,6 +649,9 @@ namespace OPS.Landform
             {
                 args.Add("--colorize");
             }
+
+            args.Add("--maxglancingangledegrees");
+            args.Add(lsopts.MaxGlancingAngleDegrees.ToString());
         }
 
         protected void BuildTilingInput(string project, params string[] extraArgs)

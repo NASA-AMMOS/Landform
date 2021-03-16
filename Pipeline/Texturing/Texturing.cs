@@ -3,8 +3,9 @@ using Microsoft.Xna.Framework;
 using OPS.Util;
 using OPS.MathExtensions;
 using OPS.Geometry;
+using OPS.Pipeline.Texturing;
 
-namespace OPS.Pipeline.Texturing
+namespace OPS.Pipeline
 {
     public class TexturingDefaults
     {
