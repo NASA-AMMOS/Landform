@@ -30,7 +30,7 @@ using System.IO;
 /// https://github.jpl.nasa.gov/OnSight/Landform/issues/766 (and such products may not even be available) so we use
 /// distance from the camera as a proxy.
 ///
-/// The reconstructed mesh is cleaned and clipped to a surface data bounding box typically 32m square around the origin
+/// The reconstructed mesh is cleaned and clipped to a surface data bounding box typically 64m square around the origin
 /// of the primary sitedrive frame for the contextual mesh.  Its vertex normals are recomputed from its faces to avoid
 /// issues with bad normals corrupting downstream operations such as reconstruction of parent tile meshes.
 ///
@@ -42,9 +42,8 @@ using System.IO;
 /// boundary of the mesh are avoided, but the benefits of allowing more internal hole filling are gained.
 ///
 /// If an orbital DEM is available a square portion of it centered on the origin of the primary sitedrive frame is
-/// organized meshed.  The bounds of this mesh may be larger than the surface mesh bounds.  For example, if the surface
-/// mesh bounds are 32m then the orbital mesh bounds may be 64m (or surface could be 64m and orbital 256m).  It is also
-/// possible for the orbital mesh bounds to be the same as the surface mesh bounds, but they can't be smaller.
+/// organized meshed.  The bounds of this mesh may be larger than the surface mesh bounds.  It is also possible for the
+/// orbital mesh bounds to be the same as the surface mesh bounds, but they can't be smaller.
 ///
 /// Typically the orbital mesh includes both coarse and fine portions.  A fine area is defined within a small blend
 /// radius (typicaly 3m) of the surface bounds. A reasonable level of interpolation (typically 15 samples/meter) is used
@@ -211,7 +210,7 @@ namespace OPS.Landform
     {
         private const string OUT_DIR = "meshing/GeometryProducts";
 
-        public const double DEF_EXTENT = 256;
+        public const double DEF_EXTENT = 1024;
         public const double DEF_SURFACE_EXTENT = 64;
 
         public const double DEF_BLEND_RADIUS = 3;
