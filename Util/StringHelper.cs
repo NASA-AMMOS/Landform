@@ -15,9 +15,10 @@ namespace OPS.Util
         /// </summary>
         /// <param name="value"></param>
         /// <returns></returns>
-        public static string WildcardToRegularExpressionString(string value)
+        public static string WildcardToRegularExpressionString(string value, bool fullMatch = true)
         {
-            return "^" + Regex.Escape(value).Replace("\\?", ".").Replace("\\*", ".*") + "$";
+            string regex = Regex.Escape(value).Replace("\\?", ".").Replace("\\*", ".*");
+            return fullMatch ? ("^" + regex + "$") : regex;
         }
 
         public static Regex WildcardToRegularExpression(string value, RegexOptions opts = RegexOptions.None)
