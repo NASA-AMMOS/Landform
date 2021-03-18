@@ -86,11 +86,9 @@ namespace OPS.Pipeline
         [ConfigEnvironmentVariable("LANDFORM_USE_NAVCAM_FOR_TEXTURING")]
         public bool UseNavcamForTexturing { get; set; } = true;
 
-        //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/261
         [ConfigEnvironmentVariable("LANDFORM_USE_MASTCAM_FOR_ALIGNMENT")]
         public bool UseMastcamForAlignment { get; set; } = false;
 
-        //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/261
         [ConfigEnvironmentVariable("LANDFORM_USE_MASTCAM_FOR_MESHING")]
         public bool UseMastcamForMeshing { get; set; } = false;
 

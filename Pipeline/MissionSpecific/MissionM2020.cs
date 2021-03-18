@@ -21,6 +21,12 @@ namespace OPS.Pipeline
             return CONFIG_FILENAME;
         }
 
+        [ConfigEnvironmentVariable("LANDFORM_USE_MASTCAM_FOR_ALIGNMENT")]
+        public bool UseMastcamForAlignment { get; set; } = true;
+
+        [ConfigEnvironmentVariable("LANDFORM_USE_MASTCAM_FOR_MESHING")]
+        public bool UseMastcamForMeshing { get; set; } = true;
+
         [ConfigEnvironmentVariable("LANDFORM_PREFER_LINEAR_GEOMETRY_PRODUCTS")]
         public bool PreferLinearGeometryProducts { get; set; } = false;
 
@@ -257,6 +263,16 @@ namespace OPS.Pipeline
         public override double? GetMaximumFocusDistance(PDSMetadata metadata)
         {
             throw new NotImplementedException("max focus distance not implemented for 2020 instruments yet");
+        }
+
+        public override bool UseMastcamForAlignment()
+        {
+            return MissionM2020Config.Instance.UseMastcamForAlignment;
+        }
+
+        public override bool UseMastcamForMeshing()
+        {
+            return MissionM2020Config.Instance.UseMastcamForMeshing;
         }
 
         public override bool PreferLinearGeometryProducts()
