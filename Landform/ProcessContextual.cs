@@ -763,6 +763,7 @@ namespace OPS.Landform
             sep = sep < 0 ? sols.Length : sep;
             int primarySol = int.Parse(sols.Substring(0, sep));
             var allSols = new HashSet<int>(IngestAlignmentInputs.ExpandSolSpecifier(sols));
+            RemoveBlacklistedSols(allSols, primarySol);
             if (allSols.Count == 0)
             {
                 pipeline.LogInfo("no sols");
@@ -841,6 +842,24 @@ namespace OPS.Landform
             BuildContextualTileset(p.RDRDir, p.PrimarySol, p.Sols, p.PrimarySiteDrive, p.SiteDrives);
         }
 
+        private void RemoveBlacklistedSols(HashSet<int> sols, int primarySol)
+        {
+            HashSet<int> blacklisted = null;
+            if (solBlacklist.Length > 0)
+            {
+                blacklisted = new HashSet<int>();
+                blacklisted.UnionWith(sols);
+                blacklisted.IntersectWith(solBlacklist);
+                blacklisted.Remove(primarySol);
+                if (blacklisted.Count > 0)
+                {
+                    pipeline.LogInfo("removing {0} blacklisted sols: {1}",
+                                     blacklisted.Count, MakeSolRanges(blacklisted));
+                    sols.ExceptWith(blacklisted);
+                }
+            }
+        }
+
         /// <summary>
         /// rdrDir is e.g.
         /// * "s3://BUCKET/ods/VER/sol/#####/ids/rdr"
@@ -870,18 +889,7 @@ namespace OPS.Landform
             }
             rdrDir = StringHelper.NormalizeUrl(rdrDir, preserveTrailingSlash: false);
 
-            HashSet<int> blacklisted = null;
-            if (solBlacklist.Length > 0)
-            {
-                blacklisted = new HashSet<int>();
-                blacklisted.UnionWith(sols);
-                blacklisted.IntersectWith(solBlacklist);
-                blacklisted.Remove(primarySol);
-                if (blacklisted.Count > 0)
-                {
-                    sols.ExceptWith(blacklisted);
-                }
-            }
+            RemoveBlacklistedSols(sols, primarySol);
 
             string missionStr = mission != null ? mission.GetMission().ToString() : "None";
             string fullMissionStr = mission != null ? mission.GetMissionWithVenue() : "None";
@@ -927,11 +935,6 @@ namespace OPS.Landform
 
             pipeline.LogInfo("building contextual tileset {0} from {1} sitedrives in {2} sols",
                              project, siteDrives.Count, sols.Count);
-
-            if (blacklisted != null)
-            {
-                pipeline.LogInfo("excluded {0} blacklisted sols: {1}", blacklisted.Count, MakeSolRanges(blacklisted));
-            }
 
             try
             {
