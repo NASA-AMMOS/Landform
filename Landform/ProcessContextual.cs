@@ -769,6 +769,7 @@ namespace OPS.Landform
                 pipeline.LogInfo("no sols");
                 return null;
             }
+            pipeline.LogInfo("primary sol {0}, all sols {1}", primarySol, MakeSolRanges(allSols));
 
             if (string.IsNullOrEmpty(siteDrives) || siteDrives.ToLower() == "auto")
             {
