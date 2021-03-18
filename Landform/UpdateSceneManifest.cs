@@ -105,34 +105,40 @@ namespace OPS.Landform
         [Option(Default = null, HelpText = "Mission flag enables mission specific behavior, optional :venue override, e.g. None, MSL, M2020, M20SOPS, M20SOPS:dev, M20SOPS:sbeta")]
         public string Mission { get; set; }
 
-        [Option(HelpText = "Path/URL to directory containing existing tilesets, can be inferred from --manifestfile", Default = null)]
+        [Option(Default = null, HelpText = "Path/URL to directory containing existing tilesets, can be inferred from --manifestfile")]
         public string TilesetDir { get; set; }
 
-        [Option(HelpText = "Path/URL to existing RDRs with sol replaced with #####, required without --nourls or --tacticalpdsimage", Default = null)]
+        [Option(Default = null, HelpText = "Path/URL to existing RDRs with sol replaced with #####, required without --nourls or --tacticalpdsimage")]
         public string RDRDir { get; set; }
 
-        [Option(HelpText = "Sol of manifest to update", Default = -1)]
+        [Option(Default = -1, HelpText = "Sol of manifest to update, negative to infer")]
         public int Sol { get; set; }
 
-        [Option(HelpText = "SiteDrive of manifest to update (SSSDDDD)", Default = null)]
+        [Option(Default = null, HelpText = "Sol ranges used to build contextual mesh, or null if unspecified")]
+        public string Sols { get; set; }
+
+        [Option(Default = null, HelpText = "SiteDrive of manifest to update (SSSDDDD), null or empty to infer")]
         public string SiteDrive { get; set; }
 
-        [Option(HelpText = "Path/URL of manifest to update, can be inferred from --tilesetdir, --sol, --sitedrive", Default = null)]
+        [Option(Default = null, HelpText = "Sitedrives used to build contextual mesh, or null if unspecified")]
+        public string SiteDrives { get; set; }
+
+        [Option(Default = null, HelpText = "Path/URL of manifest to update, can be inferred from --tilesetdir, --sol, --sitedrive")]
         public string ManifestFile { get; set; }
 
-        [Option(HelpText = "Disable contextual tileset manifest update", Default = false)]
+        [Option(Default = false, HelpText = "Disable contextual tileset manifest update")]
         public bool NoContextual { get; set; }
 
-        [Option(HelpText = "Disable tactical tileset manifest update", Default = false)]
+        [Option(Default = false, HelpText = "Disable tactical tileset manifest update")]
         public bool NoTactical { get; set; }
 
-        [Option(HelpText = "Disable sky tileset manifest update", Default = false)]
+        [Option(Default = false, HelpText = "Disable sky tileset manifest update")]
         public bool NoSky { get; set; }
 
-        [Option(HelpText = "Don't add URLs to manifest", Default = false)]
+        [Option(Default = false, HelpText = "Don't add URLs to manifest")]
         public bool NoURLs { get; set; }
 
-        [Option(HelpText = "PDS image to use for tactical mesh, otherwise search for existing tilesets", Default = null)]
+        [Option(Default = null, HelpText = "PDS image to use for tactical mesh, otherwise search for existing tilesets")]
         public string TacticalPDSImage { get; set; }
 
         [Option(Default = null, HelpText = "AWS profile or omit to use default credentials (can be \"none\")")]
@@ -150,40 +156,40 @@ namespace OPS.Landform
         [Option(Default = "mission", HelpText = "Comma separated priority list of image RDR file extensions")]
         public string ImageRDRExts { get; set; }
 
-        [Option(HelpText = "Don't convert tileset file:// URIs to relative paths", Default = false)]
+        [Option(Default = false, HelpText = "Don't convert tileset file:// URIs to relative paths")]
         public bool NoRelativeFileURIs { get; set; }
 
-        [Option(HelpText = "Don't convert tileset s3:// URIs to relative paths instead of absolute https:// URIs", Default = false)]
+        [Option(Default = false, HelpText = "Don't convert tileset s3:// URIs to relative paths instead of absolute https:// URIs")]
         public bool NoRelativeS3URIs { get; set; }
 
         [Option(Default = "mission", HelpText = "S3Proxy (or \"mission\")")]
         public string S3Proxy { get; set; }
 
-        [Option(HelpText = "Cull images with no backprojected pixels from contextual mesh manifest", Default = false)]
+        [Option(Default = false, HelpText = "Cull images with no backprojected pixels from contextual mesh manifest")]
         public bool CullImagesWithoutBackprojectedPixels { get; set; }
 
-        [Option(HelpText = "Don't cull images that don't intersect scene mesh hull from contextual mesh manifest", Default = false)]
+        [Option(Default = false, HelpText = "Don't cull images that don't intersect scene mesh hull from contextual mesh manifest")]
         public bool NoFilterImagesToMeshHull { get; set; }
 
-        [Option(HelpText = "Don't cull unreferenced image and frame manifests", Default = false)]
+        [Option(Default = false, HelpText = "Don't cull unreferenced image and frame manifests")]
         public bool NoCullOrphanImagesAndFrames { get; set; }
 
-        [Option(HelpText = "Don't prefer RDRs outside the browse subdirectory", Default = false)]
+        [Option(Default = false, HelpText = "Don't prefer RDRs outside the browse subdirectory")]
         public bool NoPreferNonBrowseRDRs { get; set; }
 
-        [Option(HelpText = "Don't allow using RDRs in the browse subdirectory", Default = false)]
+        [Option(Default = false, HelpText = "Don't allow using RDRs in the browse subdirectory")]
         public bool NoAllowBrowseRDRs { get; set; }
 
-        [Option(HelpText = "Don't filter tactical meshes to the best ID in each equivalency group of version-like variants", Default = false)]
+        [Option(Default = false, HelpText = "Don't filter tactical meshes to the best ID in each equivalency group of version-like variants")]
         public bool NoFilterTacticalMeshIDs { get; set; }
 
-        [Option(HelpText = "Min year to search for YYYY/DOY style RDR paths when --rdrdir doesn't contain a ### wildcard", Default = 2020)]
+        [Option(Default = 2020, HelpText = "Min year to search for YYYY/DOY style RDR paths when --rdrdir doesn't contain a ### wildcard")]
         public int YearDOYSearchYearMin { get; set; }
 
-        [Option(HelpText = "Max year to search for YYYY/DOY style RDR paths when --rdrdir doesn't contain a ### wildcard", Default = 2021)]
+        [Option(Default = 2021, HelpText = "Max year to search for YYYY/DOY style RDR paths when --rdrdir doesn't contain a ### wildcard")]
         public int YearDOYSearchYearMax { get; set; }
 
-        [Option(HelpText = "Option disabled for this command", Default = null)]
+        [Option(Default = null, HelpText = "Option disabled for this command")]
         public override string OnlyForSiteDrives { get; set; }
     } 
 
@@ -730,7 +736,8 @@ namespace OPS.Landform
 
             var backprojectedPixels = new Dictionary<int, int>();
             var images = FilterImages(imgObs, MeshVariant.Default, TilingCommand.TILING_DIR, backprojectedPixels);
-            sceneManifest.AddOrUpdateContextualTileset(tilesetId, tilesetUrl, options.SiteDrive,
+            sceneManifest.AddOrUpdateContextualTileset(tilesetId, tilesetUrl, options.Sol, options.SiteDrive,
+                                                       options.Sols, options.SiteDrives,
                                                        frameCache, options.UsePriors, options.OnlyAligned,
                                                        images, backprojectedPixels, pipeline);
 
@@ -742,8 +749,9 @@ namespace OPS.Landform
                 {
                     images = FilterImages(imgObs, MeshVariant.Sky, BuildSkySphere.SKY_TILING_DIR, backprojectedPixels);
                     sceneManifest.AddOrUpdateContextualTileset(skyTilesetId, !options.NoURLs ? skyTilesetUrl : null,
-                                                               options.SiteDrive, frameCache,
-                                                               options.UsePriors, options.OnlyAligned,
+                                                               options.Sol, options.SiteDrive,
+                                                               options.Sols, options.SiteDrives,
+                                                               frameCache, options.UsePriors, options.OnlyAligned,
                                                                images, backprojectedPixels, pipeline);
                 }
             }

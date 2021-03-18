@@ -1012,7 +1012,8 @@ namespace OPS.Landform
                     BuildTileset(project, allowUnmasked);
                     
                     RunCommand("update-scene-manifest", project, "--notactical", "--nourls", "--nosky", allowUnmasked,
-                               "--sol", solStr, "--sitedrive", sdStr, "--manifestfile", tilesetDir + "/" + SCENE_JSON);
+                               "--sol", solStr, "--sitedrive", sdStr, "--sols", solRanges, "--sitedrives", sdsStr,
+                               "--manifestfile", tilesetDir + "/" + SCENE_JSON);
 
                     SaveTileset(tilesetDir, project, destDir);
 
@@ -1030,6 +1031,7 @@ namespace OPS.Landform
                 {
                     RunCommand("update-scene-manifest", project, allowUnmasked, "--tilesetdir", destDir,
                                "--rdrdir", rdrDir, "--sol", solStr, "--sitedrive", sdStr,
+                               "--sols", solRanges, "--sitedrives", sdsStr,
                                "--awsprofile", awsProfile, "--awsregion", awsRegion);
                 }
 
