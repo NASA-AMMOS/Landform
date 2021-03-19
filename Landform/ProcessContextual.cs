@@ -1599,6 +1599,12 @@ namespace OPS.Landform
                                     keepers[list.SiteDrive] = filtered;
                                     distance[list.SiteDrive] = dist;
                                 }
+                                else
+                                {
+                                    pipeline.LogInfo("not including sitedrive {0} in contextual mesh for {1}, " +
+                                                     "PlacesDB distance {2:F3} > {3:F3}",
+                                                     list.SiteDrive, primarySD, dist, maxDistance);
+                                }
                             }
                             catch (Exception ex)
                             {
@@ -1613,6 +1619,12 @@ namespace OPS.Landform
                                              "PlacesDB not available to check distance <= {2}",
                                              list.SiteDrive, primarySD, maxDistance);
                         }
+                    }
+                    else
+                    {
+                        pipeline.LogInfo("not including sitedrive {0} in contextual mesh for {1}, " +
+                                         "included sols {2} not in range {3}-{4}",
+                                         list.SiteDrive, primarySD, MakeSolRanges(list.Sols), minSol, maxSol);
                     }
                 }
             }
@@ -1639,6 +1651,18 @@ namespace OPS.Landform
                 while (queue.Count > 0 && (totalSDs > maxSDs || totalWedges > maxWedges))
                 {
                     var dead = queue.Dequeue();
+                    string distMsg = placesDB != null? $", distance {distance[dead]:F3}" : "";
+                    string limitMsg = "";
+                    if (totalSDs > maxSDs)
+                    {
+                        limitMsg = $"total sitedrives {totalSDs} <= {maxSDs}";
+                    }
+                    if (totalWedges > maxWedges)
+                    {
+                        limitMsg += (limitMsg != "" ? ", " : "") + $"total wedges {totalWedges} <= {maxWedges}";
+                    }
+                    pipeline.LogInfo("not including sitedrive {0} ({1} wedges{2}) in contextual mesh for {3} " +
+                                     "to enforce {4}", dead, keepers[dead].NumWedges, distMsg, primarySD, limitMsg);
                     totalSDs--;
                     totalWedges -= keepers[dead].NumWedges;
                     keepers.Remove(dead);
