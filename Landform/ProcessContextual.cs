@@ -254,17 +254,17 @@ namespace OPS.Landform
         [Option(Default = false, HelpText = "Worker message queue is Landform owned")]
         public bool LandformOwnedWorkerQueue { get; set; }
 
-        [Option(Default = 4, HelpText = "Minimum number of wedges for primary site drive in a contextual mesh, non-positive for no limit")]
+        [Option(Default = ProcessContextual.DEF_MIN_PRIMARY_SITEDRIVE_WEDGES, HelpText = "Minimum number of wedges for primary site drive in a contextual mesh, non-positive for no limit")]
         public int MinPrimarySiteDriveWedges { get; set; }
 
-        [Option(Default = 500, HelpText = "Maximum number of wedges for which to build a contextual mesh (does not apply to primary sitedrive; culls additional sitedrives in order of increasing distance, then size), non-positive for no limit")]
+        [Option(Default = ProcessContextual.DEF_MAX_WEDGES, HelpText = "Maximum number of wedges for which to build a contextual mesh (does not apply to primary sitedrive; culls additional sitedrives in order of increasing distance, then size), non-positive for no limit")]
         public int MaxContextualMeshWedges { get; set; }
 
-        [Option(Default = 10, HelpText = "Max number of site drives to include in contextual mesh, non-positive for no limit")]
+        [Option(Default = ProcessContextual.DEF_MAX_SITEDRIVES, HelpText = "Max number of site drives to include in contextual mesh, non-positive for no limit")]
         public int MaxSiteDrives{ get; set; }
 
         //https://github.jpl.nasa.gov/OnSight/Landform/issues/1105
-        [Option(Default = BuildGeometry.DEF_SURFACE_EXTENT, HelpText = "Max distance in meters from origin of a site drive to origin of primary site drive to include in contextual mesh, non-positive for no limit")]
+        [Option(Default = ProcessContextual.DEF_MAX_SITEDRIVE_DISTANCE, HelpText = "Max distance in meters from origin of a site drive to origin of primary site drive to include in contextual mesh, non-positive for no limit")]
         public double MaxSiteDriveDistance { get; set; }
 
         [Option(Default = ProcessContextual.DEF_MAX_SOL_RANGE, HelpText = "Max difference between sol and primary sol to include in contextual mesh, negative to use default")]
@@ -294,6 +294,10 @@ namespace OPS.Landform
         //of navcam orthomosaics
         public const int DEF_DEBOUNCE_SEC = 30 * 60; //30 minutes
 
+        public const int DEF_MIN_PRIMARY_SITEDRIVE_WEDGES = 4;
+        public const int DEF_MAX_WEDGES = 1000;
+        public const int DEF_MAX_SITEDRIVES = 32;
+        public const double DEF_MAX_SITEDRIVE_DISTANCE = 2 * BuildGeometry.DEF_SURFACE_EXTENT;
         public const int DEF_MAX_SOL_RANGE = 200;
 
         protected ProcessContextualOptions options;
