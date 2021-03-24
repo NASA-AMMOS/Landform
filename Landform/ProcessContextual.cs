@@ -1651,6 +1651,9 @@ namespace OPS.Landform
                     prioritized = prioritized.OrderByDescending(sd => distance[sd]).ToList();
                 }
 
+                //delete older sitedrives first
+                prioritized = prioritized.OrderBy(sd => keepers[sd].MaxSol).ToList();
+
                 var queue = new Queue<SiteDrive>(prioritized);
                 while (queue.Count > 0 && (totalSDs > maxSDs || totalWedges > maxWedges))
                 {
