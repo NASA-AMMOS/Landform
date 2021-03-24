@@ -16,6 +16,8 @@ namespace OPS.Pipeline
         //only for meshing products, texturing products not included
         public readonly Dictionary<RoverProductId, string> IDToURL = new Dictionary<RoverProductId, string>();
 
+        public readonly HashSet<RoverProductId> TextureIDs = new HashSet<RoverProductId>();
+
         //sitedrive shared across all entries
         //initialized by constructor or from the first added URL
         //valid iff RDRDir is not null or empty
@@ -31,6 +33,7 @@ namespace OPS.Pipeline
         public string RDRDir { get; private set; }
 
         public int NumWedges { get { return IDToURL.Count; } }
+        public int NumTextures { get { return TextureIDs.Count; } }
 
         //note there can be sols with no wedges
         //because Add(url) can be called for both RAS and XYZ products
@@ -253,6 +256,7 @@ namespace OPS.Pipeline
                         return reason;
                     }
                 }
+                TextureIDs.Add(id);
             }
             else
             {

@@ -1285,7 +1285,8 @@ namespace OPS.Landform
             pipeline.LogInfo("found {0} sitedrives for sols {1}", ret.Count, solRanges);
             foreach (var sd in ret.Keys)
             {
-                pipeline.LogInfo("{0}: sols {1}, {2} wedges", sd, MakeSolRanges(ret[sd].Sols), ret[sd].NumWedges);
+                pipeline.LogInfo("{0}: sols {1}, {2} wedges, {3} textures",
+                                 sd, MakeSolRanges(ret[sd].Sols), ret[sd].NumWedges, ret[sd].NumTextures);
             }
 
             return ret;
@@ -1389,8 +1390,9 @@ namespace OPS.Landform
             {
                 foreach (var sd in ret.Keys.OrderBy(sd => sd))
                 {
-                    pipeline.LogVerbose("changed sitedrive {0}: {1} sols, {2} wedges before additions{3}{4}",
-                                        sd, ret[sd].Value.NumSols, ret[sd].Value.NumWedges,
+                    pipeline.LogVerbose("changed sitedrive {0}: {1} sols, {2} wedges {3} textures before additions" +
+                                        "{4}{5}",
+                                        sd, ret[sd].Value.NumSols, ret[sd].Value.NumWedges, ret[sd].Value.NumTextures,
                                         ret[sd].Value.NumWedges > 0 ? ":\n  " : "",
                                         string.Join("\n  ", ret[sd].Value.IDToURL.Values.OrderBy(url => url)));
                 }
@@ -1528,9 +1530,11 @@ namespace OPS.Landform
             {
                 foreach (var sd in ret.Keys.OrderBy(sd => sd))
                 {
-                    pipeline.LogVerbose("{0}changed sitedrive {1}: {2} sols, {3} wedges after additions{4}{5}",
+                    pipeline.LogVerbose("{0}changed sitedrive {1}: {2} sols, {3} wedges, {4} textures after additions" +
+                                        "{5}{6}",
                                         changedSDs.Contains(sd) ? "" : "un", sd, ret[sd].Value.NumSols,
-                                        ret[sd].Value.NumWedges, ret[sd].Value.NumWedges > 0 ? ":\n  " : "",
+                                        ret[sd].Value.NumWedges, ret[sd].Value.NumTextures,
+                                        ret[sd].Value.NumWedges > 0 ? ":\n  " : "",
                                         string.Join("\n  ", ret[sd].Value.IDToURL.Values.OrderBy(url => url)));
                 }
             }
