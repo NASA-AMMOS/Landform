@@ -1637,6 +1637,21 @@ namespace OPS.Landform
             int totalWedges = keepers.Values.Sum(list => list.NumWedges);
             if (maxSDs < int.MaxValue || maxWedges < int.MaxValue)
             {
+                var oversize = keepers.Values
+                    .Where(l => l.SiteDrive != primarySD) //never cull the primary sitedrive
+                    .Where(l => l.NumWedges > maxWedges)
+                    .Select(l => l.SiteDrive)
+                    .ToList();
+                foreach (var dead in oversize) {
+                    pipeline.LogInfo("not including oversize sitedrive {0} ({1} > {2} wedges) in contextual mesh " +
+                                     "for {3} to enforce total wedges {4} <= {5}",
+                                     dead, keepers[dead].NumWedges, maxWedges, primarySD, totalWedges, maxWedges);
+                    foreach (var id in keepers[dead].IDToURL.Keys) pipeline.LogInfo(id.ToString()); //TODO DEBUG
+                    totalSDs--;
+                    totalWedges -= keepers[dead].NumWedges;
+                    keepers.Remove(dead);
+                }
+
                 //default to deleting smaller sitedrives first
                 var prioritized = keepers.Values
                     .Where(l => l.SiteDrive != primarySD) //never cull the primary sitedrive
@@ -1668,8 +1683,10 @@ namespace OPS.Landform
                     {
                         limitMsg += (limitMsg != "" ? ", " : "") + $"total wedges {totalWedges} <= {maxWedges}";
                     }
-                    pipeline.LogInfo("not including sitedrive {0} ({1} wedges{2}) in contextual mesh for {3} " +
-                                     "to enforce {4}", dead, keepers[dead].NumWedges, distMsg, primarySD, limitMsg);
+                    pipeline.LogInfo("not including sitedrive {0} (sols {1}, {2} wedges{3}) in contextual mesh " +
+                                     "for {4} to enforce {5}",
+                                     dead, MakeSolRanges(keepers[dead].Sols), keepers[dead].NumWedges, distMsg,
+                                     primarySD, limitMsg);
                     totalSDs--;
                     totalWedges -= keepers[dead].NumWedges;
                     keepers.Remove(dead);
