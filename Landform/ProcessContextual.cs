@@ -296,7 +296,7 @@ namespace OPS.Landform
 
         public const int DEF_MIN_PRIMARY_SITEDRIVE_WEDGES = 4;
         public const int DEF_MAX_WEDGES = 1000;
-        public const int DEF_MAX_SITEDRIVES = 32;
+        public const int DEF_MAX_SITEDRIVES = 64;
         public const double DEF_MAX_SITEDRIVE_DISTANCE = 2 * BuildGeometry.DEF_SURFACE_EXTENT;
         public const int DEF_MAX_SOL_RANGE = 200;
 
