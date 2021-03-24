@@ -13,9 +13,9 @@ namespace OPS.Pipeline
     {
         private static readonly Regex YEAR_DOY_REGEX = new Regex(@"/([0-9]{4})/[^/]+/");
 
-        //only for meshing products, texturing products not included
         public readonly Dictionary<RoverProductId, string> IDToURL = new Dictionary<RoverProductId, string>();
 
+        public readonly HashSet<RoverProductId> WedgeIDs = new HashSet<RoverProductId>();
         public readonly HashSet<RoverProductId> TextureIDs = new HashSet<RoverProductId>();
 
         //sitedrive shared across all entries
@@ -32,7 +32,8 @@ namespace OPS.Pipeline
         //e.g. s3://BUCKET/ods/VENUE/sol/#####/ids/rdr/
         public string RDRDir { get; private set; }
 
-        public int NumWedges { get { return IDToURL.Count; } }
+        public int NumIDs { get { return IDToURL.Count; } }
+        public int NumWedges { get { return WedgeIDs.Count; } }
         public int NumTextures { get { return TextureIDs.Count; } }
 
         //note there can be sols with no wedges
@@ -53,7 +54,6 @@ namespace OPS.Pipeline
         //(url, id) => rejection reason
         private Func<string, RoverProductId, string> wedgeFilter, textureFilter;
 
-        //sol => XYZ IDs (non-null but empty if sol only contains texturing observations)
         private Dictionary<int, HashSet<RoverProductId>> SolToIDs = new Dictionary<int, HashSet<RoverProductId>>();
 
         public SiteDriveList(MissionSpecific mission = null, ILogger logger = null,
@@ -118,21 +118,15 @@ namespace OPS.Pipeline
 
         public SiteDriveList FilterToSolRange(int min, int max)
         {
-            if (NumWedges < 1 || MinSol >= min && MaxSol <= max)
+            if (NumIDs < 1 || MinSol >= min && MaxSol <= max)
             {
                 return this;
             }
-            var ret = new SiteDriveList(mission, logger, wedgeFilter);
+            var ret = new SiteDriveList(mission, logger, wedgeFilter, textureFilter);
             foreach (int sol in SolToIDs.Keys)
             {
                 if (sol >= min && sol <= max)
                 {
-                    if (SolToIDs[sol].Count == 0) //sol only had texture data
-                    {
-                        ret.Sols.Add(sol);
-                        ret.MinSol = Math.Min(ret.MinSol, sol);
-                        ret.MaxSol = Math.Max(ret.MaxSol, sol);
-                    }
                     foreach (var id in SolToIDs[sol])
                     {
                         ret.Add(IDToURL[id]);
@@ -144,19 +138,10 @@ namespace OPS.Pipeline
 
         public SiteDriveList FilterProductIDs(Func<IEnumerable<RoverProductId>, IEnumerable<RoverProductId>> filter)
         {
-            var ret = new SiteDriveList(mission, logger, wedgeFilter);
+            var ret = new SiteDriveList(mission, logger, wedgeFilter, textureFilter);
             foreach (var id in filter(IDToURL.Keys))
             {
                 ret.Add(IDToURL[id]);
-            }
-            foreach (int sol in SolToIDs.Keys)
-            {
-                if (SolToIDs[sol].Count == 0) //sol only had texture data
-                {
-                    ret.Sols.Add(sol);
-                    ret.MinSol = Math.Min(ret.MinSol, sol);
-                    ret.MaxSol = Math.Max(ret.MaxSol, sol);
-                }
             }
             return ret;
         }
@@ -204,10 +189,7 @@ namespace OPS.Pipeline
                 }
             }
 
-            bool isMesh = RoverProduct.IsPointCloud(id.ProductType) && mission.UseForMeshing(id);
-            bool isTexture = RoverProduct.IsImage(id.ProductType) && mission.UseForTexturing(id);
-
-            if (isMesh)
+            if (RoverProduct.IsPointCloud(id.ProductType) && mission.UseForMeshing(id))
             {
                 if (wedgeFilter != null)
                 {
@@ -217,36 +199,9 @@ namespace OPS.Pipeline
                         return reason;
                     }
                 }
-                
-                if (IDToURL.ContainsKey(id))
-                {
-                    if (url == IDToURL[id])
-                    {
-                        return null; //duplicate: same id and URL
-                    }
-                    bool sameBase =
-                        StringHelper.StripUrlExtension(StringHelper.NormalizeUrl(url)) ==
-                        StringHelper.StripUrlExtension(StringHelper.NormalizeUrl(IDToURL[id]));
-                    if (sameBase)
-                    {
-                        string curExt = StringHelper.GetUrlExtension(IDToURL[id]).TrimStart('.').ToLower();
-                        string newExt = StringHelper.GetUrlExtension(url).TrimStart('.').ToLower();
-                        int curPDSPriority = Array.FindIndex(pdsExts, ext => curExt == ext);
-                        int newPDSPriority = Array.FindIndex(pdsExts, ext => newExt == ext);
-                        if (curPDSPriority >= 0 && newPDSPriority >= 0 && newPDSPriority > curPDSPriority)
-                        {
-                            return null; //new url only differs in ext, both are PDS, and new is a lower priority type
-                        }
-                    }
-                    else if (logger != null) //don't warn if e.g. replacing foo.VIC with foo.IMG
-                    {
-                        logger.LogWarn("duplicate product ID {0}, replacing URL {1} with {2}", idStr, IDToURL[id], url);
-                    }
-                }
-
-                IDToURL[id] = url;
+                WedgeIDs.Add(id);
             }
-            else if (isTexture)
+            else if (RoverProduct.IsImage(id.ProductType) && mission.UseForTexturing(id))
             {
                 if (textureFilter != null)
                 {
@@ -263,6 +218,33 @@ namespace OPS.Pipeline
                 return "product not used for meshing or texturing";
             }
                 
+            if (IDToURL.ContainsKey(id))
+            {
+                if (url == IDToURL[id])
+                {
+                    return null; //duplicate: same id and URL
+                }
+                bool sameBase =
+                    StringHelper.StripUrlExtension(StringHelper.NormalizeUrl(url)) ==
+                    StringHelper.StripUrlExtension(StringHelper.NormalizeUrl(IDToURL[id]));
+                if (sameBase)
+                {
+                    string curExt = StringHelper.GetUrlExtension(IDToURL[id]).TrimStart('.').ToLower();
+                    string newExt = StringHelper.GetUrlExtension(url).TrimStart('.').ToLower();
+                    int curPDSPriority = Array.FindIndex(pdsExts, ext => curExt == ext);
+                    int newPDSPriority = Array.FindIndex(pdsExts, ext => newExt == ext);
+                    if (curPDSPriority >= 0 && newPDSPriority >= 0 && newPDSPriority > curPDSPriority)
+                    {
+                        return null; //new url only differs in ext, both are PDS, and new is a lower priority type
+                    }
+                }
+                else if (logger != null) //don't warn if e.g. replacing foo.VIC with foo.IMG
+                {
+                    logger.LogWarn("duplicate product ID {0}, replacing URL {1} with {2}", idStr, IDToURL[id], url);
+                }
+            }
+            IDToURL[id] = url;
+
             if (RDRDir == null)
             {
                 SiteDrive = sd;
@@ -276,10 +258,7 @@ namespace OPS.Pipeline
                 SolToIDs[sol] = new HashSet<RoverProductId>();
             }
 
-            if (isMesh)
-            {
-                SolToIDs[sol].Add(id);
-            }
+            SolToIDs[sol].Add(id);
 
             MinSol = Math.Min(MinSol, sol);
             MaxSol = Math.Max(MaxSol, sol);

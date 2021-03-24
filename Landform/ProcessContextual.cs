@@ -1393,7 +1393,7 @@ namespace OPS.Landform
                     pipeline.LogVerbose("changed sitedrive {0}: {1} sols, {2} wedges {3} textures before additions" +
                                         "{4}{5}",
                                         sd, ret[sd].Value.NumSols, ret[sd].Value.NumWedges, ret[sd].Value.NumTextures,
-                                        ret[sd].Value.NumWedges > 0 ? ":\n  " : "",
+                                        ret[sd].Value.NumIDs > 0 ? ":\n  " : "",
                                         string.Join("\n  ", ret[sd].Value.IDToURL.Values.OrderBy(url => url)));
                 }
             }
@@ -1534,7 +1534,7 @@ namespace OPS.Landform
                                         "{5}{6}",
                                         changedSDs.Contains(sd) ? "" : "un", sd, ret[sd].Value.NumSols,
                                         ret[sd].Value.NumWedges, ret[sd].Value.NumTextures,
-                                        ret[sd].Value.NumWedges > 0 ? ":\n  " : "",
+                                        ret[sd].Value.NumIDs > 0 ? ":\n  " : "",
                                         string.Join("\n  ", ret[sd].Value.IDToURL.Values.OrderBy(url => url)));
                 }
             }
