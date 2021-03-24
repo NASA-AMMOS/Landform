@@ -1266,12 +1266,24 @@ namespace OPS.Landform
             {
                 if (ret[sd].NumWedges > 0)
                 {
-                    var sdList = ret[sd]
+                    var filteredSD = ret[sd]
                         .FilterProductIDs(ids => RoverObservationComparator.FilterProductIdGroups(ids, mission));
-                    if (sdList.NumWedges > 0)
+                    if (filteredSD.NumWedges > 0)
                     {
-                        filtered[sd] = sdList;
+                        filtered[sd] = filteredSD;
                     }
+                    else
+                    {
+                        pipeline.LogInfo("culled empty sitedrive after filtering {0}: " +
+                                         "sols {1}, {2} wedges, {3} textures -> sols {4}, {5} wedges, {6} textures",
+                                         sd, MakeSolRanges(ret[sd].Sols), ret[sd].NumWedges, ret[sd].NumTextures,
+                                         MakeSolRanges(filteredSD.Sols), filteredSD.NumWedges, filteredSD.NumTextures);
+                    }
+                }
+                else
+                {
+                    pipeline.LogInfo("culled sitedrive with no wedges {0}: sols {1}, {2} wedges, {3} textures",
+                                     sd, MakeSolRanges(ret[sd].Sols), ret[sd].NumWedges, ret[sd].NumTextures);
                 }
             }
             int culled = ret.Count - filtered.Count;
@@ -1315,16 +1327,31 @@ namespace OPS.Landform
                 {
                     if (ret[sd].Value.NumWedges > 0)
                     {
-                        var sdList = ret[sd].Value
+                        var filteredSD = ret[sd].Value
                             .FilterProductIDs(ids => RoverObservationComparator.FilterProductIdGroups(ids, mission));
-                        if (sdList.NumWedges > 0)
+                        if (filteredSD.NumWedges > 0)
                         {
-                            filtered[sd] = new Stamped<SiteDriveList>(sdList, ret[sd].Timestamp);
+                            filtered[sd] = new Stamped<SiteDriveList>(filteredSD, ret[sd].Timestamp);
+                        }
+                        else
+                        {
+                            var sdl = ret[sd].Value;
+                            pipeline.LogInfo("culled empty sitedrive after filtering {0}: " +
+                                             "sols {1}, {2} wedges, {3} textures -> sols {4}, {5} wedges, {6} textures",
+                                             sd, MakeSolRanges(sdl.Sols), sdl.NumWedges, sdl.NumTextures,
+                                             MakeSolRanges(filteredSD.Sols), filteredSD.NumWedges,
+                                             filteredSD.NumTextures);
                         }
                     }
                     else if (passthroughEmpty)
                     {
                         filtered[sd] = ret[sd];
+                    }
+                    else
+                    {
+                        var sdl = ret[sd].Value;
+                        pipeline.LogInfo("culled sitedrive with no wedges {0}: sols {1}, {2} wedges, {3} textures",
+                                         sd, MakeSolRanges(sdl.Sols), sdl.NumWedges, sdl.NumTextures);
                     }
                 }
                 int culled = ret.Count - filtered.Count;
