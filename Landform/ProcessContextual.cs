@@ -370,7 +370,7 @@ namespace OPS.Landform
                 }
                 if (p.Timestamp > 0)
                 {
-                    ret += string.Format("; timestamp {1} UTC", UTCTime.MSSinceEpochToDate(p.Timestamp));
+                    ret += string.Format("; timestamp {0} UTC", UTCTime.MSSinceEpochToDate(p.Timestamp));
                 }
             }
             return ret;
