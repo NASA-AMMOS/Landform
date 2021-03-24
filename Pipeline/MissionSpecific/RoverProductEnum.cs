@@ -304,11 +304,21 @@ namespace OPS.Pipeline
             return prodType == RoverProductType.Image || prodType == RoverProductType.RoverMask;
         }
 
+        public static bool IsImage(RoverProductType prodType)
+        {
+            return prodType == RoverProductType.Image;
+        }
+
         public static bool IsGeometry(RoverProductType prodType)
         {
             return prodType == RoverProductType.RoverMask || prodType == RoverProductType.RangeError ||
                 prodType == RoverProductType.Range || prodType == RoverProductType.Points ||
                 prodType == RoverProductType.Normals;
+        }
+
+        public static bool IsPointCloud(RoverProductType prodType)
+        {
+            return prodType == RoverProductType.Range || prodType == RoverProductType.Points;
         }
 
         public static bool IsMonochrome(RoverProductColor color)

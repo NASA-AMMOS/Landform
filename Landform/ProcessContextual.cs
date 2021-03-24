@@ -353,23 +353,24 @@ namespace OPS.Landform
             public HashSet<int> Sols = new HashSet<int>();
             public SiteDrive PrimarySiteDrive;
             public HashSet<SiteDrive> SiteDrives = new HashSet<SiteDrive>();
+            public int NumWedges = -1; //used only for information and sorting, negative if unknown
+            public long Timestamp; //UTC milliseconds since epoch
         }
-
-        private string Dump(ContextualMeshParameters parameters, bool verbose = false, ContextualMeshMessage cmm = null)
+        
+        private string DumpParameters(ContextualMeshParameters p, bool verbose = false)
         {
-            var ret = string.Format("contextual mesh {0}_{1}",
-                                    SolToString(parameters.PrimarySol), parameters.PrimarySiteDrive);
+            var ret = string.Format("contextual mesh {0}_{1}", SolToString(p.PrimarySol), p.PrimarySiteDrive);
             if (verbose)
             {
                 ret += string.Format(" for {0}; sols {1}; sitedrives {2}",
-                                     parameters.RDRDir, MakeSolRanges(parameters.Sols),
-                                     string.Join(",", parameters.SiteDrives));
-                if (cmm != null)
+                                     p.RDRDir, MakeSolRanges(p.Sols), string.Join(",", p.SiteDrives));
+                if (p.NumWedges >= 0)
                 {
-                    ret += string.Format("; {0} wedges; timestamp {1} UTC",
-                                         cmm.numWedges >= 0 ? cmm.numWedges.ToString() : "??",
-                                         cmm.timestamp > 0 ? UTCTime.MSSinceEpochToDate(cmm.timestamp).ToString()
-                                         : "??");
+                    ret += string.Format("; {0} wedges", p.NumWedges);
+                }
+                if (p.Timestamp > 0)
+                {
+                    ret += string.Format("; timestamp {1} UTC", UTCTime.MSSinceEpochToDate(p.Timestamp));
                 }
             }
             return ret;
@@ -407,7 +408,7 @@ namespace OPS.Landform
                     {
                         return "(invalid contextual mesh message)";
                     }
-                    return Dump(parameters, verbose, cmm);
+                    return DumpParameters(parameters, verbose);
                 }
                 catch (Exception ex) //this entire method is never supposed to throw
                 {
@@ -758,6 +759,9 @@ namespace OPS.Landform
                 ret.SiteDrives.UnionWith(SiteDrive.ParseList(msg.siteDrives));
             }
 
+            ret.NumWedges = msg.numWedges;
+            ret.Timestamp = msg.timestamp;
+
             return ret;
         }
 
@@ -832,21 +836,6 @@ namespace OPS.Landform
             }
         }
 
-        private void BuildContextualTileset()
-        {
-            var parameters = MakeParameters(options.RDRDir, options.Sols, options.SiteDrives);
-            if (parameters != null)
-            {
-                BuildContextualTileset(parameters);
-            }
-        }
-
-        private void BuildContextualTileset(ContextualMeshParameters p)
-        {
-            pipeline.LogInfo(Dump(p, verbose: true));
-            BuildContextualTileset(p.RDRDir, p.PrimarySol, p.Sols, p.PrimarySiteDrive, p.SiteDrives);
-        }
-
         private void RemoveBlacklistedSols(HashSet<int> sols, int primarySol)
         {
             HashSet<int> blacklisted = null;
@@ -865,6 +854,15 @@ namespace OPS.Landform
             }
         }
 
+        private void BuildContextualTileset()
+        {
+            var parameters = MakeParameters(options.RDRDir, options.Sols, options.SiteDrives);
+            if (parameters != null)
+            {
+                BuildContextualTileset(parameters);
+            }
+        }
+
         /// <summary>
         /// rdrDir is e.g.
         /// * "s3://BUCKET/ods/VER/sol/#####/ids/rdr"
@@ -874,27 +872,31 @@ namespace OPS.Landform
         /// * "./foo/bar"
         /// * null -> use options.RDRDir
         /// </summary>
-        private void BuildContextualTileset(string rdrDir, int primarySol, HashSet<int> sols,
-                                            SiteDrive primarySiteDrive, HashSet<SiteDrive> siteDrives)
+        private void BuildContextualTileset(ContextualMeshParameters p)
         {
-            if (!sols.Contains(primarySol))
-            {
-                throw new ArgumentException("sols must contain primarySol");
-            }
+            pipeline.LogInfo(DumpParameters(p, verbose: true));
 
-            if (!siteDrives.Contains(primarySiteDrive))
-            {
-                throw new ArgumentException("siteDrives must contain primarySiteDrive");
-            }
-
-            rdrDir = rdrDir ?? options.RDRDir;
+            string rdrDir = p.RDRDir ?? options.RDRDir;
             if (String.IsNullOrEmpty(rdrDir))
             {
                 throw new ArgumentException("rdrDir empty");
             }
             rdrDir = StringHelper.NormalizeUrl(rdrDir, preserveTrailingSlash: false);
 
+            int primarySol = p.PrimarySol;
+            HashSet<int> sols = p.Sols;
+            if (!sols.Contains(primarySol))
+            {
+                throw new ArgumentException("sols must contain primarySol");
+            }
             RemoveBlacklistedSols(sols, primarySol);
+
+            SiteDrive primarySiteDrive = p.PrimarySiteDrive;
+            HashSet<SiteDrive> siteDrives = p.SiteDrives;
+            if (!siteDrives.Contains(primarySiteDrive))
+            {
+                throw new ArgumentException("siteDrives must contain primarySiteDrive");
+            }
 
             string missionStr = mission != null ? mission.GetMission().ToString() : "None";
             string fullMissionStr = mission != null ? mission.GetMissionWithVenue() : "None";
@@ -940,7 +942,6 @@ namespace OPS.Landform
 
             pipeline.LogInfo("building contextual tileset {0} from {1} sitedrives in {2} sols",
                              project, siteDrives.Count, sols.Count);
-
             try
             {
                 Cleanup(venueDir);
@@ -1161,7 +1162,8 @@ namespace OPS.Landform
 
         private SiteDriveList MakeList(String rdrDir, SiteDrive sd)
         {
-            return new SiteDriveList(rdrDir, sd, mission, pipeline, (url, id) => FilterWedge(id));
+            return new SiteDriveList(rdrDir, sd, mission, pipeline,
+                                     (url, id) => FilterWedge(id), (url, id) => FilterTexture(id));
         }
 
         private Dictionary<SiteDrive, SiteDriveList> FindAllSiteDrives(string rdrDir, HashSet<int> sols)
@@ -1646,7 +1648,6 @@ namespace OPS.Landform
                     pipeline.LogInfo("not including oversize sitedrive {0} ({1} > {2} wedges) in contextual mesh " +
                                      "for {3} to enforce total wedges {4} <= {5}",
                                      dead, keepers[dead].NumWedges, maxWedges, primarySD, totalWedges, maxWedges);
-                    foreach (var id in keepers[dead].IDToURL.Keys) pipeline.LogInfo(id.ToString()); //TODO DEBUG
                     totalSDs--;
                     totalWedges -= keepers[dead].NumWedges;
                     keepers.Remove(dead);

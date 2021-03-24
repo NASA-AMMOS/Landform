@@ -48,17 +48,19 @@ namespace OPS.Pipeline
         private string[] pdsExts; //iff mission != null
 
         //(url, id) => rejection reason
-        private Func<string, RoverProductId, string> wedgeFilter; //optional
+        private Func<string, RoverProductId, string> wedgeFilter, textureFilter;
 
         //sol => XYZ IDs (non-null but empty if sol only contains texturing observations)
         private Dictionary<int, HashSet<RoverProductId>> SolToIDs = new Dictionary<int, HashSet<RoverProductId>>();
 
         public SiteDriveList(MissionSpecific mission = null, ILogger logger = null,
-                             Func<string, RoverProductId, string> wedgeFilter = null)
+                             Func<string, RoverProductId, string> wedgeFilter = null,
+                             Func<string, RoverProductId, string> textureFilter = null)
         {
             this.mission = mission;
             this.logger = logger;
             this.wedgeFilter = wedgeFilter;
+            this.textureFilter = textureFilter;
             if (mission != null)
             {
                 string exts = mission.GetPDSExts(); //comma separated, in order of highest to lowest priority
@@ -70,8 +72,9 @@ namespace OPS.Pipeline
         }
 
         public SiteDriveList(string rdrDir, SiteDrive siteDrive, MissionSpecific mission = null, ILogger logger = null,
-                             Func<string, RoverProductId, string> wedgeFilter = null)
-            : this(mission, logger, wedgeFilter)
+                             Func<string, RoverProductId, string> wedgeFilter = null,
+                             Func<string, RoverProductId, string> textureFilter = null)
+            : this(mission, logger, wedgeFilter, textureFilter)
         {
             if (string.IsNullOrEmpty(rdrDir))
             {
@@ -198,7 +201,9 @@ namespace OPS.Pipeline
                 }
             }
 
-            bool isMesh = mission.UseForMeshing(id);
+            bool isMesh = RoverProduct.IsPointCloud(id.ProductType) && mission.UseForMeshing(id);
+            bool isTexture = RoverProduct.IsImage(id.ProductType) && mission.UseForTexturing(id);
+
             if (isMesh)
             {
                 if (wedgeFilter != null)
@@ -238,7 +243,18 @@ namespace OPS.Pipeline
 
                 IDToURL[id] = url;
             }
-            else if (!mission.UseForTexturing(id))
+            else if (isTexture)
+            {
+                if (textureFilter != null)
+                {
+                    string reason = textureFilter(url, id);
+                    if (!string.IsNullOrEmpty(reason))
+                    {
+                        return reason;
+                    }
+                }
+            }
+            else
             {
                 return "product not used for meshing or texturing";
             }
