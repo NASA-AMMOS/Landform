@@ -18,6 +18,11 @@ namespace OPS.Pipeline.TilingServer
         public string InputName;
         public ChunkInputMessage() { }
         public ChunkInputMessage(string projectName) : base(projectName) { }
+
+        public override string Info()
+        {
+            return string.Format("[{0}] ChunkInput input {1}", ProjectName, InputName);
+        }
     }
 
     public class ChunkInput : PipelineOperation

@@ -53,6 +53,11 @@ namespace OPS.Pipeline
         public string TileId;
         public AddInputMessage() { }
         public AddInputMessage(string projectName) : base(projectName) { }
+
+        public override string Info()
+        {
+            return string.Format("[{0}] AddInput input {1} tile {2}", ProjectName, Name, TileId);
+        }
     }
 
     public class RunProjectMessage : PipelineMessage
@@ -65,6 +70,11 @@ namespace OPS.Pipeline
     {
         public string TileId;
         public TileCompletedMessage(string projectName) : base(projectName) { }
+
+        public override string Info()
+        {
+            return string.Format("[{0}] TileCompleted tile {1}", ProjectName, TileId);
+        }
     }
 
     public class StatusMessage : PipelineMessage

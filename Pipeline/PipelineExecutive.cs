@@ -87,11 +87,14 @@ namespace OPS.Pipeline
                     }
                     catch (Exception ex)
                     {
-                        pipeline.LogException(ex, msg.Info() + ": master task error", stackTrace: true);
                         MasterError = ex;
                         if (ThrowOnMasterError)
                         {
                             throw;
+                        }
+                        else
+                        {
+                            pipeline.LogException(ex, msg.Info() + ": master task error", stackTrace: true);
                         }
                     }
                 }
@@ -107,11 +110,14 @@ namespace OPS.Pipeline
                 }
                 catch (Exception ex)
                 {
-                    pipeline.LogException(ex, msg.Info() + ": worker task error", stackTrace: true);
                     WorkerError = ex;
                     if (ThrowOnWorkerError)
                     {
                         throw;
+                    }
+                    else
+                    {
+                        pipeline.LogException(ex, msg.Info() + ": worker task error", stackTrace: true);
                     }
                 }
                 return false; //now discard message
@@ -125,6 +131,9 @@ namespace OPS.Pipeline
     //but the ensuing work will be performed asynchronously at a later point as messages are processed
     public class DeferredExecutive : PipelineExecutive
     {
+        public bool QuitOnMasterError = true;
+        public bool QuitOnWorkerError = true;
+
         private ConcurrentQueue<PipelineMessage> masterQueue;
         private ConcurrentQueue<PipelineMessage> workerQueue;
 
@@ -175,7 +184,7 @@ namespace OPS.Pipeline
         }
 
         protected void MessageLoop(ConcurrentQueue<PipelineMessage> queue, Action<PipelineMessage> handler, string what,
-                                   Action periodic = null)
+                                   Action periodic = null, Func<Exception, bool> error = null)
         {
             while (!quit)
             {
@@ -190,8 +199,19 @@ namespace OPS.Pipeline
                     }
                     catch (Exception ex)
                     {
-                        string err = string.Format("{0}: {1} task error", msg.Info(), what);
-                        pipeline.LogException(ex, err, stackTrace: true);
+                        string errMsg = $"{msg.Info()}: {what} task error";
+                        if (error != null)
+                        {
+                            if (error(new Exception(errMsg, ex)))
+                            {
+                                quit = true;
+                                return;
+                            }
+                        }
+                        else
+                        {
+                            pipeline.LogException(ex, errMsg, stackTrace: true);
+                        }
                     }
                 }
 
@@ -212,18 +232,10 @@ namespace OPS.Pipeline
         {
             void handler(PipelineMessage msg)
             {
-                try
+                var stateMachine = GetStateMachine(msg);
+                if (stateMachine != null)
                 {
-                    var stateMachine = GetStateMachine(msg);
-                    if (stateMachine != null)
-                    {
-                        stateMachine.ProcessMessage(msg);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    pipeline.LogException(ex, msg.Info() + ": master task error", stackTrace: true);
-                    MasterError = ex;
+                    stateMachine.ProcessMessage(msg);
                 }
             }
 
@@ -241,7 +253,8 @@ namespace OPS.Pipeline
                 }
             }
 
-            MessageLoop(masterQueue, handler, "master", periodic);
+            MessageLoop(masterQueue, handler, "master", periodic,
+                        ex => { MasterError = ex; return QuitOnMasterError; } );
         }
 
         protected void WorkerLoop()
@@ -254,21 +267,12 @@ namespace OPS.Pipeline
                                                                status, done, error));
                 }
 
-                try
-                {
-                    sendStatus("started");
-                    workerDispatcher.Handle(msg); 
-                    sendStatus("complete", done: true);
-                }
-                catch (Exception ex)
-                {
-                    sendStatus("error: " + ex.Message, done: true, error: true);
-                    pipeline.LogException(ex, msg.Info() + ": worker task error", stackTrace: true);
-                    WorkerError = ex;
-                }
+                sendStatus("started");
+                workerDispatcher.Handle(msg); 
+                sendStatus("complete", done: true);
             }
             
-            MessageLoop(workerQueue, handler, "worker");
+            MessageLoop(workerQueue, handler, "worker", null, ex => { WorkerError = ex; return QuitOnWorkerError; });
         }
     }
 }

@@ -73,13 +73,14 @@ namespace OPS.TilingServer
 
                         if (executive != null)
                         {
-                            if (executive.MasterError != null)
+                            Exception ex = executive.MasterError ?? executive.WorkerError;
+                            if (ex != null)
                             {
-                                throw executive.MasterError;
-                            }
-                            if (executive.WorkerError != null)
-                            {
-                                throw executive.WorkerError;
+                                if (executive is DeferredExecutive)
+                                {
+                                    ((DeferredExecutive)executive).Quit();
+                                }
+                                throw ex;
                             }
                         }
                     }
@@ -95,10 +96,6 @@ namespace OPS.TilingServer
             }
             catch (Exception ex)
             {
-                if (executive is DeferredExecutive)
-                {
-                    (executive as DeferredExecutive).Quit();
-                }
                 pipeline.LogException(ex);
                 return 1;
             }

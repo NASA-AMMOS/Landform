@@ -19,6 +19,11 @@ namespace OPS.Pipeline.TilingServer
         public List<string> TileIds;
         public BuildLeavesMessage() { }
         public BuildLeavesMessage(string projectName) : base(projectName) { }
+
+        public override string Info()
+        {
+            return string.Format("[{0}] BuildLeaves tiles {1}", ProjectName, string.Join(",", TileIds));
+        }
     }
 
     public class BuildLeaves : PipelineOperation

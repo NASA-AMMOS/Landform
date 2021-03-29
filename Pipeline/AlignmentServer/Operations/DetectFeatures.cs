@@ -17,6 +17,11 @@ namespace OPS.Pipeline.AlignmentServer
         public string MaskUrl;
         public DetectFeaturesMessage() {}
         public DetectFeaturesMessage(string projectName) : base(projectName) {}
+
+        public override string Info()
+        {
+            return string.Format("[{0}] DetectFeatures image {1}", ProjectName, ImageUrl);
+        }
     }
 
     public class FeaturesDetectedMessage : PipelineMessage

@@ -674,7 +674,7 @@ namespace OPS.Pipeline
         private static int nextMessageId = -1;
         private static string NextMessageId()
         {
-            return "msg " + Interlocked.Increment(ref nextMessageId);
+            return Interlocked.Increment(ref nextMessageId).ToString();
         }
 
         protected override void EnqueueToMasterImpl(PipelineMessage message)

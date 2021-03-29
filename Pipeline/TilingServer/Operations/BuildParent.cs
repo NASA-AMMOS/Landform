@@ -19,6 +19,11 @@ namespace OPS.Pipeline.TilingServer
         public string TileId;
         public BuildParentMessage() { }
         public BuildParentMessage(string projectName) : base(projectName) { }
+
+        public override string Info()
+        {
+            return string.Format("[{0}] BuildParent tile {1}", ProjectName, TileId);
+        }
     }
 
     public class BuildParent : PipelineOperation

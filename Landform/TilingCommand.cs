@@ -693,15 +693,11 @@ namespace OPS.Landform
 
                 if (executive != null)
                 {
-                    if (executive.MasterError != null)
+                    Exception ex = executive.MasterError ?? executive.WorkerError;
+                    if (ex != null)
                     {
                         executive.Quit();
-                        throw executive.MasterError;
-                    }
-                    if (executive.WorkerError != null)
-                    {
-                        executive.Quit();
-                        throw executive.WorkerError;
+                        throw ex;
                     }
                 }
             }

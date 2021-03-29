@@ -38,14 +38,14 @@ namespace OPS.Pipeline
         public PipelineMessage() { }
         public PipelineMessage(string projectName) { ProjectName = projectName; }
 
-        public string Info()
+        public virtual string Info()
         {
             var typeName = GetType().Name;
             if (typeName.EndsWith("Message"))
             {
                 typeName = typeName.Substring(0, typeName.Length - "Message".Length);
             }
-            return string.Format("[{0}] {1} {2}", ProjectName, typeName, MessageId);
+            return string.Format("[{0}] {1} msg {2}", ProjectName, typeName, MessageId);
         }
     }
 
