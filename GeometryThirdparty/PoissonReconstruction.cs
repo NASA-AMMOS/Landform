@@ -25,6 +25,12 @@ namespace OPS.Geometry
         public bool PoissonExeLegacy { get; set; }
     }
 
+
+    /// Poisson Surface Reconstruction
+    /// Michael Kazhdan, Matthew Bolitho, Hugues Hoppe
+    /// Eurographics Symposium on Geometry Processing (2006)
+    /// http://www.cs.jhu.edu/~misha/MyPapers/SGP06.pdf
+    /// http://www.cs.jhu.edu/~misha/Code/PoissonRecon
     public class PoissonReconstruction
     {
         public enum BoundaryType { Free = 1, Dirichlet = 2, Neumann = 3 };
@@ -40,8 +46,6 @@ namespace OPS.Geometry
         public const bool DEF_PASS_ENVELOPE_TO_POISSON = false;
         public const bool DEF_CLIP_TO_ENVELOPE = true;
         public const double DEF_MIN_ISLAND_RATIO = 0.2;
-
-        private static readonly ILog logger = LogManager.GetLogger(typeof(PoissonReconstruction));
 
         public class Options
         {
@@ -106,7 +110,7 @@ namespace OPS.Geometry
         public static Mesh Reconstruct(Mesh pointCloud, Options options = null,
                                        Action<string> rawReconstructedMeshFile = null,
                                        Action<Mesh> untrimmedMeshWithValueScaledNormals = null,
-                                       bool quiet = true)
+                                       ILogger logger = null)
         {
             var cfg = PoissonConfig.Instance;
             string reconstructExe = Path.Combine(PathHelper.GetApplicationPath(), "ExternalApps", cfg.PoissonExe);
@@ -121,7 +125,7 @@ namespace OPS.Geometry
             }
             if (pointCloud.ContainsZeroLengthNormals())
             {
-                logger.Warn("Poisson input mesh had zero length normals - removing");
+                if (logger != null) logger.LogWarn("Poisson input mesh had zero length normals - removing");
                 pointCloud.RemoveZeroLengthNormals();
                 if (pointCloud.Vertices.Count < 3)
                 {
@@ -130,12 +134,12 @@ namespace OPS.Geometry
             }
             if (pointCloud.HasUVs)
             {
-                logger.Warn("Poisson meshes cannot have UVs - removing");
+                if (logger != null) logger.LogWarn("Poisson meshes cannot have UVs - removing");
                 pointCloud.HasUVs = false;
             }
             if (pointCloud.HasColors && cfg.PoissonExeLegacy)
             {
-                logger.Warn("Poission (legacy) meshes cannot have colors - removing");
+                if (logger != null) logger.LogWarn("Poission (legacy) meshes cannot have colors - removing");
                 pointCloud = new Mesh(pointCloud);
                 pointCloud.ClearColors();
             }
@@ -151,10 +155,10 @@ namespace OPS.Geometry
                         notNormalCount++;
                     }
                 }
-                if (notNormalCount > 0)
+                if (notNormalCount > 0 && logger != null)
                 {
-                    logger.WarnFormat("Poisson input has {0} non-unit normals, " +
-                                      "but not using normals for confidence", notNormalCount);
+                    logger.LogWarn("Poisson input has {0} non-unit normals, but not using normals for confidence",
+                                   notNormalCount);
                 }
             }
 
@@ -227,9 +231,9 @@ namespace OPS.Geometry
                     ProgramRunner pr = new ProgramRunner(reconstructExe, arguments, captureOutput: true);
                     try
                     {
-                        if (!quiet)
+                        if (logger != null)
                         {
-                            logger.InfoFormat("running command: {0} {1}", reconstructExe, arguments);
+                            logger.LogVerbose("running command: {0} {1}", reconstructExe, arguments);
                         }
                         int exitCode = pr.Run();
                         
@@ -264,52 +268,51 @@ namespace OPS.Geometry
                             throw new MeshException("Poisson empty output");
                         }
 
-                        if (!quiet)
+                        if (logger != null)
                         {
-                            logger.InfoFormat("reconstructed mesh has {0} faces", Fmt.KMG(result.Faces.Count));
+                            logger.LogInfo("reconstructed mesh has {0} faces", Fmt.KMG(result.Faces.Count));
                         }
                     }
                     catch (Exception ex)
                     {
-                        logger.Error(pr.OutputText);
-                        logger.Error(pr.ErrorText);
+                        if (logger != null)
+                        {
+                            logger.LogError(pr.OutputText);
+                            logger.LogError(pr.ErrorText);
+                        }
                         throw new MeshException("failed to run " + (cfg.PoissonExeLegacy ? "(legacy) " : "") +
                                                 reconstructExe + " " + arguments + ": " + ex.Message);
                     }
 
                     if (options != null && options.Envelope.HasValue && options.ClipToEnvelope)
                     {
-                        if (!quiet)
-                        {
-                            logger.Info("clipping mesh to envelope bounds");
-                        }
+                        if (logger != null) logger.LogInfo("clipping mesh to envelope bounds");
                         result.Clip(options.Envelope.Value, normalize: false);
                         if (result.Vertices.Count == 0 || result.Faces.Count == 0)
                         {
                             throw new MeshException("empty output after clipping to envelope");
                         }
-                        if (!quiet)
+                        if (logger != null)
                         {
-                            logger.InfoFormat("clipped mesh has {0} faces", Fmt.KMG(result.Faces.Count));
+                            logger.LogInfo("clipped mesh has {0} faces", Fmt.KMG(result.Faces.Count));
                         }
                     }
 
                     if (options != null && options.MinIslandRatio > 0)
                     {
-                        if (!quiet)
+                        if (logger != null)
                         {
-                            logger.InfoFormat("removing islands less than {0} of largest island diameter",
-                                              options.MinIslandRatio);
+                            logger.LogInfo("removing islands less than {0} times largest island diameter",
+                                           options.MinIslandRatio);
                         }
                         int nr = result.RemoveIslands(options.MinIslandRatio);
                         if (result.Vertices.Count == 0 || result.Faces.Count == 0)
                         {
                             throw new MeshException("empty output after removing islands");
                         }
-                        if (!quiet)
+                        if (logger != null)
                         {
-                            logger.InfoFormat("removed {0} islands, mesh has {1} faces",
-                                              nr, Fmt.KMG(result.Faces.Count));
+                            logger.LogInfo("removed {0} islands, mesh has {1} faces", nr, Fmt.KMG(result.Faces.Count));
                         }
                     }
 
@@ -320,7 +323,7 @@ namespace OPS.Geometry
 
                     if (options != null && options.TrimmerLevel > 0)
                     {
-                        result = Trim(result, options);
+                        result = Trim(result, options, logger);
                     }
                 });
             });
@@ -328,7 +331,7 @@ namespace OPS.Geometry
             return result;
         }
 
-        public static Mesh Trim(Mesh meshWithValueScaledNormals, Options options, bool quiet = true)
+        public static Mesh Trim(Mesh meshWithValueScaledNormals, Options options, ILogger logger = null)
         {
             if (options == null || options.TrimmerLevel <= 0)
             {
@@ -352,9 +355,9 @@ namespace OPS.Geometry
                                                  inputFile, outputFile, options.TrimmerLevel,
                                                  options.MinIslandRatio > 0 ?
                                                  "--aRatio " + options.MinIslandRatio : "");
-                if (!quiet)
+                if (logger != null)
                 {
-                    logger.InfoFormat("running command: {0} {1}", trimmerExe, arguments);
+                    logger.LogVerbose("running command: {0} {1}", trimmerExe, arguments);
                 }
                 
                 var pr = new ProgramRunner(trimmerExe, arguments, captureOutput: true);
@@ -383,8 +386,11 @@ namespace OPS.Geometry
                 }
                 catch (Exception ex)
                 {
-                    logger.Error(pr.OutputText);
-                    logger.Error(pr.ErrorText);
+                    if (logger != null)
+                    {
+                        logger.LogError(pr.OutputText);
+                        logger.LogError(pr.ErrorText);
+                    }
                     throw new MeshException("failed to run " + (cfg.PoissonExeLegacy ? "(legacy) " : "") +
                                             trimmerExe + " " + arguments + ": " + ex.Message);
                 }
@@ -395,9 +401,9 @@ namespace OPS.Geometry
                 {
                     throw new MeshException("trimmer empty output");
                 }
-                if (!quiet)
+                if (logger != null)
                 {
-                    logger.InfoFormat("trimmed mesh has {0} faces", Fmt.KMG(result.Faces.Count));
+                    logger.LogInfo("trimmed mesh has {0} faces", Fmt.KMG(result.Faces.Count));
                 }
             });
             return result;

@@ -2,6 +2,7 @@
 using System.Linq;
 using System.Collections.Generic;
 using Microsoft.Xna.Framework;
+using OPS.Util;
 
 namespace OPS.Geometry
 {
@@ -31,7 +32,8 @@ namespace OPS.Geometry
         /// </summary>
         public static Mesh Decimated(this Mesh m, int targetFaces,
                                      MeshDecimationMethod method = MeshDecimationMethod.ResampleFSSR,
-                                     BoundingBox? clippingBounds = null, Vector3? upAxis = null)
+                                     BoundingBox? clippingBounds = null, Vector3? upAxis = null,
+                                     ILogger logger = null)
         {
             bool hadNormals = m.HasNormals;
             switch (method)
@@ -51,12 +53,14 @@ namespace OPS.Geometry
                 }
                 case MeshDecimationMethod.ResampleFSSR:
                 {
-                    m = ResampleDecimated(m, targetFaces, MeshReconstructionMethod.FSSR, clippingBounds, upAxis);
+                    m = ResampleDecimated(m, targetFaces, MeshReconstructionMethod.FSSR, clippingBounds, upAxis,
+                                          logger: logger);
                     break;
                 }
                 case MeshDecimationMethod.ResamplePoisson:
                 {
-                    m = ResampleDecimated(m, targetFaces, MeshReconstructionMethod.Poisson, clippingBounds, upAxis);
+                    m = ResampleDecimated(m, targetFaces, MeshReconstructionMethod.Poisson, clippingBounds, upAxis,
+                                          logger: logger);
                     break;
                 }
                 case MeshDecimationMethod.MeshLab:
@@ -99,7 +103,7 @@ namespace OPS.Geometry
         public static Mesh ResampleDecimated(this Mesh m, int targetFaces,
                                              MeshReconstructionMethod method = MeshReconstructionMethod.FSSR,
                                              BoundingBox? clippingBounds = null, Vector3? upAxis = null,
-                                             double samplesPerFace = DEF_SAMPLES_PER_FACE)
+                                             double samplesPerFace = DEF_SAMPLES_PER_FACE, ILogger logger = null)
         {
             double area = m.SurfaceArea();
             if (area < 1e-10)
@@ -120,17 +124,27 @@ namespace OPS.Geometry
             m.NormalizeNormals();
             double density = samplesPerFace * targetFaces / area;
             Mesh pc = new SurfacePointSampler().GenerateSampledMesh(m, density, area: area);
+            if (logger != null)
+            {
+                logger.LogInfo("ResampleDecimated {0} src tris {1}, src area {2:F3}, {3:F3} samples/face, " +
+                               "{4} target faces, {5:F3} density, {6} pts",
+                               method, Fmt.KMG(m.Faces.Count), area, samplesPerFace, Fmt.KMG(targetFaces), density,
+                               Fmt.KMG(pc.Vertices.Count));
+            }
             pc.HasUVs = false;
             switch (method)
             {
                 case MeshReconstructionMethod.FSSR:
                 {
-                    m = FSSR.Reconstruct(pc);
+                    //double globalScale = area / pc.Vertices.Count;
+                    double fudge = 4;
+                    double globalScale = fudge / Math.Sqrt(2 * density); //https://mathoverflow.net/a/124740
+                    m = FSSR.Reconstruct(pc, globalScale, logger: logger);
                     break;
                 }
                 case MeshReconstructionMethod.Poisson:
                 {
-                    m = PoissonReconstruction.Reconstruct(pc);
+                    m = PoissonReconstruction.Reconstruct(pc, logger: logger);
                     break;
                 }
                 default: throw new Exception("unknown mesh reconstruction method " + method);
@@ -138,13 +152,21 @@ namespace OPS.Geometry
             m.Clean();
             if (m.Faces.Count > targetFaces)
             {
-                //Console.WriteLine("edge collapse {0} -> {1}", m.Faces.Count, targetFaces);
+                if (logger != null)
+                {
+                    logger.LogInfo("ResampleDecimated {0} edge collapse {1} -> {2}",
+                                   method, Fmt.KMG(m.Faces.Count), Fmt.KMG(targetFaces));
+                }
                 m = EdgeCollapse.QuadricEdgeCollapse(m, targetFaces,
                                                      perimeterPenaltyFactor: EDGE_COLLAPSE_PERIMETER_FACTOR,
                                                      notTouched: upAxis.HasValue ? m.Corners(upAxis.Value) : null);
                 m.Clean();
             }
-            //else Console.WriteLine("skipping edge collapse {0} <= {1}", m.Faces.Count, targetFaces);
+            else if (logger != null)
+            {
+                logger.LogInfo("ResampleDecimated {0} skipping edge collapse {1} <= {2}",
+                               method, Fmt.KMG(m.Faces.Count), Fmt.KMG(targetFaces));
+            }
             if (clippingBounds.HasValue)
             {
                 m.Clip(clippingBounds.Value);

@@ -553,23 +553,55 @@ namespace OPS.Landform
                 FixupLODs(ranges);
             }
 
-            for (int i = 0; i < meshLOD.Count; i++)
+            if (requireUVs)
             {
-                if (requireUVs && !meshLOD[i].HasUVs)
+                int lodCountWas = meshLOD.Count;
+                for (int i = 0; i < meshLOD.Count; i++)
                 {
-                    if (canGenUVs)
+                    if (!meshLOD[i].HasUVs)
                     {
-                        AtlasMesh(meshLOD[i], sceneTextureResolution, "LOD " + i);
-                    }
-                    else
-                    {
-                        throw new Exception("atlassing disabled and mesh missing UVs" + (i > 0 ? $" at LOD {i}" : ""));
+                        if (canGenUVs)
+                        {
+                            AtlasMesh(meshLOD[i], sceneTextureResolution, "LOD " + i);
+                        }
+                        else
+                        {
+                            throw new Exception("atlassing disabled and mesh missing UVs" +
+                                                (i > 0 ? $" at LOD {i}" : ""));
+                        }
                     }
                 }
 
-                if (requireNormals && !meshLOD[i].HasNormals)
+                //if texture projecting is enabled then mesh vertices outside the camera frustum can be discarded
+                //generally that shouldn't happen (much)
+
+                meshLOD = meshLOD
+                    .Where(m => m != null && m.Faces.Count > 0)
+                    .OrderByDescending(m => m.Faces.Count)
+                    .ToList();
+                
+                if (meshLOD.Count == 0)
                 {
-                    meshLOD[i].GenerateVertexNormals();
+                    pipeline.LogWarn("0 non-empty levels of detail after atlassing");
+                    meshLOD = new List<Mesh>() { new Mesh(hasNormals: requireNormals, hasUVs: requireUVs) };
+                }
+                else if (meshLOD.Count < lodCountWas)
+                {
+                    pipeline.LogWarn("discarded {0} empty levels of detail after atlassing",
+                                     (lodCountWas - meshLOD.Count));
+                }
+
+                mesh = meshLOD.First();
+            }
+
+            if (requireNormals)
+            {
+                for (int i = 0; i < meshLOD.Count; i++)
+                {
+                    if (!meshLOD[i].HasNormals)
+                    {
+                        meshLOD[i].GenerateVertexNormals();
+                    }
                 }
             }
         }
@@ -621,11 +653,19 @@ namespace OPS.Landform
                             pipeline.LogInfo("decimating {0} LOD {1} from {2} to {3} triangles for fixed up lod {4}",
                                              st, s, Fmt.KMG(src.Faces.Count), Fmt.KMG(target), i);
                         }
-                        newLODs[i] = src.Decimated(target, tcopts.MeshDecimator);
+                        newLODs[i] = src.Decimated(target, tcopts.MeshDecimator, logger: pipeline);
                         pipeline.LogInfo("decimated {0} tri {1} LOD {2} for fixed up LOD {3} ({4}-{5}) " +
                                          "to {6} (target {7}) tris with {8}", Fmt.KMG(src.Faces.Count), st, s, i,
                                          Fmt.KMG(ranges[i][0]), Fmt.KMG(ranges[i][1]),
                                          Fmt.KMG(newLODs[i].Faces.Count), Fmt.KMG(target), tcopts.MeshDecimator);
+                        if (newLODs[i].Faces.Count < ranges[i][0] || newLODs[i].Faces.Count > ranges[i][1])
+                        {
+                            pipeline.LogWarn("not using fixed up LOD {0}, face count {1} out of range {2}-{3}",
+                                             i, Fmt.KMG(newLODs[i].Faces.Count), Fmt.KMG(ranges[i][0]),
+                                             Fmt.KMG(ranges[i][1]));
+                            newLODs[i] = null;
+                                             
+                        }
                     }
                     else
                     {
@@ -665,7 +705,7 @@ namespace OPS.Landform
                 sceneTexture != null && sceneTexture.CameraModel != null && meshToCamera.HasValue;
         }
 
-        protected void ProjectTexture(Mesh mesh)
+        protected void ProjectTexture(Mesh mesh, string name = null)
         {
             if (sceneTexture == null)
             {
@@ -679,11 +719,22 @@ namespace OPS.Landform
             {
                 throw new Exception("cannot project texture coordinates, no mesh-to-image transform");
             }
+            int vertsWas = mesh.Vertices.Count;
             mesh.ProjectTexture(sceneTexture, meshToCamera.Value);
+            if (mesh.Vertices.Count == 0)
+            {
+                pipeline.LogWarn("all {0} verts of {1}mesh outside camera frustum and removed by texture projection",
+                                 Fmt.KMG(vertsWas), !string.IsNullOrEmpty(name) ? (name + " ") : "");
+            }
         }
 
         protected override void AtlasMesh(Mesh mesh, int resolution, string name = null)
         {
+            if (mesh.Vertices.Count == 0)
+            {
+                pipeline.LogInfo("cannot atlas {0}mesh, no vertices", !string.IsNullOrEmpty(name) ? (name + " ") : "");
+                return;
+            }
             if (tcopts.AtlasMode == AtlasMode.Project && TextureProjectionEnabled())
             {
                 string msg = string.Format("atlassing {0}mesh ({1} triangles) with texture projection",
@@ -696,7 +747,7 @@ namespace OPS.Landform
                 {
                     pipeline.LogVerbose(msg);
                 }
-                ProjectTexture(mesh);
+                ProjectTexture(mesh, name);
                 numProjectAtlas++;
             }
             else if (tcopts.AtlasMode != AtlasMode.Project)

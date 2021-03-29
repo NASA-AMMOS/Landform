@@ -941,13 +941,39 @@ namespace OPS.Landform
                 if (maxDiff > SYNTHESIZE_LOD_RELATIVE_THRESHOLD * srcMesh.Faces.Count)
                 {
                     int target = srcMesh.Faces.Count - (int)(0.5 * maxDiff);
-                    pipeline.LogInfo("inserting new LOD by decimating LOD {0} ({1} tris) to {2} tris with {3}",
+                    pipeline.LogInfo("synthesizing new LOD by decimating LOD {0} ({1} tris) to {2} tris with {3}",
                                      srcLOD, Fmt.KMG(srcMesh.Faces.Count), Fmt.KMG(target), options.MeshDecimator);
-                    newMesh = srcMesh.Decimated(target, options.MeshDecimator); //preserves normals
-                    if (genUVs)
+                    newMesh = srcMesh.Decimated(target, options.MeshDecimator, logger: pipeline); //preserves normals
+                    if (newMesh.Faces.Count < (srcMesh.Faces.Count - maxDiff) ||
+                        newMesh.Faces.Count > srcMesh.Faces.Count)
                     {
-                        AtlasMesh(newMesh, sceneTextureResolution, "new LOD");
+                        pipeline.LogWarn("not using synthesized mesh, face count {0} out of range {1}-{2}",
+                                         Fmt.KMG(newMesh.Faces.Count), Fmt.KMG(srcMesh.Faces.Count - maxDiff),
+                                         Fmt.KMG(srcMesh.Faces.Count));
+                        newMesh = srcMesh;
                     }
+                    else if (genUVs)
+                    {
+                        try
+                        {
+                            AtlasMesh(newMesh, sceneTextureResolution, "new LOD");
+                            if (newMesh.Faces.Count == 0 || newMesh.Vertices.Count == 0)
+                            {
+                                throw new Exception("empty mesh after atlassing");
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            pipeline.LogException(ex, "error atlassing synthesized mesh, not using");
+                            newMesh = srcMesh;
+                        }
+                    }
+                }
+                else
+                {
+                    pipeline.LogInfo("duplicating existing LOD {0}, difference {1} to next LOD < {2} * {3}",
+                                     srcLOD, Fmt.KMG(maxDiff), SYNTHESIZE_LOD_RELATIVE_THRESHOLD,
+                                     Fmt.KMG(srcMesh.Faces.Count));
                 }
 
                 //insert newMesh at appropriate spot
@@ -958,15 +984,13 @@ namespace OPS.Landform
                 {
                     newIdx++;
                 }
-                if (newMesh != srcMesh)
-                {
-                    pipeline.LogInfo("inserting new LOD with {0} tris " +
-                                     "between LODs {1} ({2} tris) and {3} ({4} tris)",
-                                     Fmt.KMG(newMesh.Faces.Count), newIdx - 1,
-                                     Fmt.KMG(newIdx - 1 >= 0 ? meshLOD[newIdx - 1].Faces.Count : 0), newIdx,
-                                     Fmt.KMG(newIdx < meshLOD.Count ? meshLOD[newIdx].Faces.Count : 0));
-                    
-                }
+
+                pipeline.LogInfo("inserting new LOD with {0} tris " +
+                                 "between LODs {1} ({2} tris) and {3} ({4} tris)",
+                                 Fmt.KMG(newMesh.Faces.Count), newIdx - 1,
+                                 Fmt.KMG(newIdx - 1 >= 0 ? meshLOD[newIdx - 1].Faces.Count : 0), newIdx,
+                                 Fmt.KMG(newIdx < meshLOD.Count ? meshLOD[newIdx].Faces.Count : 0));
+                
                 meshLOD.Insert(newIdx, newMesh); //inserts new item *before* existing item at specified index
             }
 

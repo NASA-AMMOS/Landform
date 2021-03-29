@@ -838,7 +838,7 @@ namespace OPS.Landform
                 case MeshReconstructionMethod.FSSR:
                 {
                     mesh = FSSR.Reconstruct(pc, options.FSSRScale, options.FSSRScale == 0, saveUncleanedMesh,
-                                            quiet: false);
+                                            logger: pipeline);
                     break;
                 }
                 case MeshReconstructionMethod.Poisson:
@@ -846,7 +846,7 @@ namespace OPS.Landform
                     mesh = PoissonReconstruction.Reconstruct(pc, poissonOpts,
                                                              rawReconstructedMeshFile: saveRawReconstructedMesh,
                                                              untrimmedMeshWithValueScaledNormals: saveUntrimmedMesh,
-                                                             quiet: false);
+                                                             logger: pipeline);
                     break;
                 }
                 default: throw new Exception("unsupported reconstruction method: " + options.ReconstructionMethod);

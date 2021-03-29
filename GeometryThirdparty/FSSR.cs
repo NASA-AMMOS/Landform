@@ -12,14 +12,17 @@ using OPS.Imaging;
 namespace OPS.Geometry
 {
     /// <summary>
+    /// Floating scale surface reconstruction
+    /// Simon Fuhrmann, Michael Goesele
+    /// ACM Transactions on GraphicsJuly 2014 Article No.: 46
+    /// https://github.com/pmoulon/fssr
+    /// https://www.gcc.tu-darmstadt.de/media/gcc/papers/Fuhrmann-2014-FSS.pdf
     /// Class to support running FSSR
     /// Depends on bundled executables fssrecon.exe and meshclean.exe
     /// </summary>
     public class FSSR
     {
         public const double DEF_ENLARGE_PIXEL_SCALE = 2;
-
-        private static readonly ILog logger = LogManager.GetLogger(typeof(FSSR));
 
         /// <summary>
         /// Build a mesh from the provided point cloud or mesh with faces
@@ -29,7 +32,7 @@ namespace OPS.Geometry
         public static Mesh Reconstruct(Mesh pointCloud, double globalScale = -1,
                                        bool useNormalLengthAsVertexScale = false,
                                        Action<Mesh> uncleanedMesh = null, bool runClean = true,
-                                       bool quiet = true)
+                                       ILogger logger = null)
         {
             if (pointCloud.Vertices.Count < 3)
             {
@@ -41,7 +44,7 @@ namespace OPS.Geometry
             }
             if (pointCloud.ContainsZeroLengthNormals())
             {
-                logger.Warn("FSSR input mesh had zero length normals - removing");
+                if (logger != null) logger.LogWarn("FSSR input mesh had zero length normals - removing");
                 pointCloud.RemoveZeroLengthNormals();
                 if (pointCloud.Vertices.Count < 3)
                 {
@@ -50,35 +53,37 @@ namespace OPS.Geometry
             }
             if (pointCloud.HasUVs)
             {
-                logger.Warn("FSSR meshes cannot have UVs - removing");
+                if (logger != null) logger.LogWarn("FSSR meshes cannot have UVs - removing");
                 pointCloud.HasUVs = false;
             }
             if (pointCloud.HasColors)
             {
-                logger.Warn("FSSR meshes cannot have colors - removing");
+                if (logger != null) logger.LogWarn("FSSR meshes cannot have colors - removing");
                 pointCloud = new Mesh(pointCloud);
                 pointCloud.ClearColors();
             }
 
             if (globalScale <= 0 && !useNormalLengthAsVertexScale)
             {
+                //this is a very rough method
+                //see MeshExtensions.ResampleDecimated() for a more tuned calculation when the mesh area is available
                 double maxDim = pointCloud.Bounds().MaxDimension();
                 globalScale = DEF_ENLARGE_PIXEL_SCALE * (maxDim / Math.Sqrt(pointCloud.Vertices.Count));
-                if (!quiet)
+                if (logger != null)
                 {
-                    logger.InfoFormat("computed global scale {0} for point cloud with max bound {1}m and {2} vertices",
-                                      globalScale, maxDim, pointCloud.Vertices.Count);
+                    logger.LogInfo("computed global scale {0} for point cloud with max bound {1}m and {2} vertices",
+                                   globalScale, maxDim, pointCloud.Vertices.Count);
                 }
             }
-            else if (!quiet)
+            else if (logger != null)
             {
                 if (useNormalLengthAsVertexScale)
                 {
-                    logger.InfoFormat("using point cloud normal lengths as individual vertex scale values");
+                    logger.LogInfo("using point cloud normal lengths as individual vertex scale values");
                 }
                 else
                 {
-                    logger.InfoFormat("using global scale value {0}", globalScale);
+                    logger.LogInfo("using global scale value {0}", globalScale);
                 }
             }
 
@@ -101,10 +106,7 @@ namespace OPS.Geometry
                 ProgramRunner pr = new ProgramRunner(fssrExe, arguments, captureOutput: true);
                 try
                 {
-                    if (!quiet)
-                    {
-                        logger.InfoFormat("running command: {0} {1}", fssrExe, arguments);
-                    }
+                    if (logger != null) logger.LogVerbose("running command: {0} {1}", fssrExe, arguments);
                     int exitCode = pr.Run();
 
                     if (exitCode != 0)
@@ -126,15 +128,18 @@ namespace OPS.Geometry
                         throw new MeshException("FSSR empty output");
                     }
 
-                    if (!quiet)
+                    if (logger != null)
                     {
-                        logger.InfoFormat("reconstructed mesh has {0} faces", Fmt.KMG(result.Faces.Count));
+                        logger.LogInfo("reconstructed mesh has {0} faces", Fmt.KMG(result.Faces.Count));
                     }
                 }
                 catch (Exception ex)
                 {
-                    logger.Error(pr.OutputText);
-                    logger.Error(pr.ErrorText);
+                    if (logger != null)
+                    {
+                        logger.LogError(pr.OutputText);
+                        logger.LogError(pr.ErrorText);
+                    }
                     throw new MeshException("failed to run " + fssrExe + " " + arguments + ": " + ex.Message);
                 }
 
@@ -150,10 +155,7 @@ namespace OPS.Geometry
                     pr = new ProgramRunner(cleanExe, arguments, captureOutput: true);
                     try
                     {
-                        if (!quiet)
-                        {
-                            logger.InfoFormat("running command: {0} {1}", cleanExe, arguments);
-                        }
+                        if (logger != null) logger.LogVerbose("running command: {0} {1}", cleanExe, arguments);
                         int exitCode = pr.Run();
                         
                         if (exitCode != 0)
@@ -175,15 +177,18 @@ namespace OPS.Geometry
                             throw new MeshException("FSSR clean empty output");
                         }
                         
-                        if (!quiet)
+                        if (logger != null)
                         {
-                            logger.InfoFormat("cleaned mesh has {0} faces", Fmt.KMG(result.Faces.Count));
+                            logger.LogInfo("cleaned mesh has {0} faces", Fmt.KMG(result.Faces.Count));
                         }
                     }
                     catch (Exception ex)
                     {
-                        logger.Error(pr.OutputText);
-                        logger.Error(pr.ErrorText);
+                        if (logger != null)
+                        {
+                            logger.LogError(pr.OutputText);
+                            logger.LogError(pr.ErrorText);
+                        }
                         throw new MeshException("failed to run " + cleanExe + " " + arguments + ": " + ex.Message);
                     }
                 }
