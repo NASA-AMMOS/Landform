@@ -132,6 +132,7 @@ namespace OPS.Landform
         protected List<Mesh> meshLOD; //meshLOD[0] = mesh, coarser LODs populated iff --loadlods
         protected MeshOperator meshOp; //finest LOD
         protected List<MeshOperator> meshOpForLOD; //meshOpForLOD[0] = meshOp, coarser LODs populated iff --loadlods
+        protected Matrix? meshTransform;
 
         protected double medianHue = -1;
 
@@ -512,6 +513,15 @@ namespace OPS.Landform
                 pipeline.LogInfo("input mesh contains {0} non-empty level(s) of detail", meshLOD.Count);
             }
 
+            if (meshTransform.HasValue && meshTransform.Value != Matrix.Identity)
+            {
+                pipeline.LogInfo("applying non-identity transform to input mesh");
+                for (int i = 0; i < meshLOD.Count; i++)
+                {
+                    meshLOD[i].Transform(meshTransform.Value);
+                }
+            }
+
             mesh = meshLOD.First();
 
             for (int lod = 0; lod < meshLOD.Count; lod++)
@@ -634,6 +644,12 @@ namespace OPS.Landform
             {
                 meshLOD = newLODs.ToList();
                 mesh = meshLOD.First();
+                pipeline.LogInfo("{0} LODs after fixup:", meshLOD.Count);
+                for (int lod = 0; lod < meshLOD.Count; lod++)
+                {
+                    pipeline.LogInfo("LOD {0}: {1} vertices, {2} faces",
+                                     lod, Fmt.KMG(meshLOD[lod].Vertices.Count), Fmt.KMG(meshLOD[lod].Faces.Count));
+                }
             }
             else
             {

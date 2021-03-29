@@ -153,8 +153,6 @@ namespace OPS.Landform
         private bool tacticalFrame;
         private string inputTexturePDS;
 
-        private Matrix? tilingTransform, inverseTilingTransform;
-
         private TextureSplitOptions textureSplitOptions;
 
         public class NodeLOD : NodeComponent
@@ -634,22 +632,10 @@ namespace OPS.Landform
                         double angle = Math.Atan2(a.Y, a.X);
                         pipeline.LogInfo("rotating by {0:F1}deg in XY plane to align tiling frame with camera axis",
                                          MathHelper.ToDegrees(angle));
-                        tilingTransform = Matrix.CreateRotationZ(angle);
-                        inverseTilingTransform = Matrix.Invert(tilingTransform.Value);
-                        meshToCamera = inverseTilingTransform.Value * meshToCamera.Value; //row mats compose left->right
+                        meshTransform = Matrix.CreateRotationZ(angle);
+                        //row mats compose left->right
+                        meshToCamera = Matrix.Invert(meshTransform.Value) * meshToCamera.Value;
                     }
-                }
-            }
-        }
-
-        protected override void LoadInputMesh(bool requireUVs = false, bool requireNormals = false)
-        {
-            base.LoadInputMesh(requireUVs, requireNormals);
-            if (tilingTransform.HasValue)
-            {
-                for (int i = 0; i < meshLOD.Count; i++)
-                {
-                    meshLOD[i].Transform(tilingTransform.Value);
                 }
             }
         }
@@ -873,6 +859,26 @@ namespace OPS.Landform
                 return rootLOD < meshLOD.Count ? lod : (int)Math.Round(((double)lod / rootLOD) * (meshLOD.Count - 1));
             }
 
+            if (options.WriteDebug)
+            {
+                pipeline.LogInfo("saving {0} debug LOD meshes", meshLOD.Count);
+                for (int lod = 0; lod < meshLOD.Count; lod++)
+                {
+                    pipeline.LogInfo("LOD {0}: {1} vertices, {2} faces",
+                                     lod, Fmt.KMG(meshLOD[lod].Vertices.Count), Fmt.KMG(meshLOD[lod].Faces.Count));
+                }
+                string texFile = null;
+                if (sceneTexture != null)
+                {
+                    texFile = "sceneTexture" + imageExt;
+                    SaveImage(sceneTexture, texFile);
+                }
+                for (int i = 0; i < meshLOD.Count; i++)
+                {
+                    SaveMesh(meshLOD[i], "sceneLOD" + i, texFile);
+                }
+            }
+
             pipeline.LogInfo("using {0}/{1} LODs", rootLOD + 1, meshLOD.Count);
 
             int numFailed = 0, curNode = 0, numNodes = nodes.Count, np = 0;
@@ -887,13 +893,13 @@ namespace OPS.Landform
 
                 Interlocked.Increment(ref np);
 
-                int lod = node.GetComponent<NodeLOD>().Lod;
-
+                int lod = nearestAvailableLOD(node.GetComponent<NodeLOD>().Lod);
+                
                 pipeline.LogVerbose("building tile mesh {0}/{1} ({2:F2}%){3}: tile {4}, clipping from LOD {5}",
                                     curNode, numNodes, 100 * curNode / (float)numNodes,
                                     np > 1 ? ", processing " + np + " in parallel" : "", node.Name, lod);
 
-                Mesh tileMesh = MakeTileMesh(node, meshOpForLOD[nearestAvailableLOD(lod)]);
+                Mesh tileMesh = MakeTileMesh(node, meshOpForLOD[lod]);
 
                 if (tileMesh != null && (!withTextures || tileMesh.HasUVs))
                 {
@@ -966,6 +972,13 @@ namespace OPS.Landform
 
             mesh = meshLOD.First();
 
+            pipeline.LogInfo("{0} LODs after synthesis:", meshLOD.Count);
+            for (int lod = 0; lod < meshLOD.Count; lod++)
+            {
+                pipeline.LogInfo("LOD {0}: {1} vertices, {2} faces",
+                                 lod, Fmt.KMG(meshLOD[lod].Vertices.Count), Fmt.KMG(meshLOD[lod].Faces.Count));
+            }
+
             BuildMeshOperator();
         }
 
@@ -1030,7 +1043,7 @@ namespace OPS.Landform
                 ParentNames = new List<string>(),
             };
 
-            tileList.RootTransform = inverseTilingTransform.HasValue ? inverseTilingTransform.Value : Matrix.Identity;
+            tileList.RootTransform = meshTransform.HasValue ? Matrix.Invert(meshTransform.Value) : Matrix.Identity;
 
             var tilesToTexture = tileTree.DepthFirstTraverse()
                 .Where(l => l.HasComponent<MeshImagePair>() && l.GetComponent<MeshImagePair>().Mesh != null)
