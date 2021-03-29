@@ -127,6 +127,9 @@ namespace OPS.Landform
         [Option(HelpText = "Disable aligning tile bounds to camera axis for improved texture utilization when using texture projection", Default = false)]
         public bool NoAlignToCamera { get; set; }
 
+        [Option(HelpText = "Disable synthesizing intermediate LODs when fewer precomputed LODs than tile tree levels", Default = false)]
+        public bool NoSynthesizeExtraLODs { get; set; }
+
         [Option(HelpText = "Max input texture resolution, should be power of two, negative for unlimited", Default = -1)]
         public override int TextureResolution { get; set; }
 
@@ -849,7 +852,7 @@ namespace OPS.Landform
             int rootLOD = assignLODsAndCollectNodes(tileTree);
 
             if (rootLOD >= meshLOD.Count && (!NeedSceneTexture() || CanAtlasSceneMesh()) &&
-                !string.IsNullOrEmpty(options.FixupLODs))
+                !options.NoSynthesizeExtraLODs)
             {
                 SynthesizeExtraLODs(rootLOD + 1);
             }

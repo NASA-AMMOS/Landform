@@ -153,6 +153,9 @@ if not "%LANDFORM_TACTICAL_NO_TEXTURE_PROJECTION%"=="" set notextureprojection=-
 set noaligntocamera=
 if not "%LANDFORM_TACTICAL_NO_ALIGN_TO_CAMERA%"=="" set noaligntocamera=--noaligntocamera
 
+set nosynthesizeextralods=
+if not "%LANDFORM_TACTICAL_NO_SYNTHESIZE_EXTRA_LODS%"=="" set nonosynthesizeextralods=--nosynthesizeextralods
+
 set tileres=
 if not "%LANDFORM_TACTICAL_MAX_TILE_RESOLUTION%"=="" (
    set tileres=--maxtileresolution=%LANDFORM_TACTICAL_MAX_TILE_RESOLUTION%
@@ -182,7 +185,7 @@ set tilingopts=%tilingopts% %notexturesplitrespectmaxtexelspermeter% %maxtexelsp
 set tilingopts=%tilingopts% %poweroftwotextures% %noindices% %embedindices%
 
 set tacticalopts=%meshregex% %mesheye% %meshgeom% %noloadlods% %fixuplods% %tileres% %preferpds% %requirepds% %objopts%
-set tacticalopts=%tacticalopts% %notextureprojection% %noaligntocamera% %tilingopts%
+set tacticalopts=%tacticalopts% %notextureprojection% %noaligntocamera% %nosynthesizeextralods% %tilingopts%
 
 set appsdir=%bindir%\ExternalApps
 if exist %appsdir%\opengl32-for-ivcat.dll (

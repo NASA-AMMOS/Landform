@@ -131,6 +131,9 @@ namespace OPS.Landform
 
         [Option(HelpText = "Disable aligning tile bounds to camera axis for improved texture utilization when using texture projection", Default = false)]
         public bool NoAlignToCamera { get; set; }
+
+        [Option(HelpText = "Disable synthesizing intermediate LODs when fewer precomputed LODs than tile tree levels", Default = false)]
+        public bool NoSynthesizeExtraLODs { get; set; }
     }
 
     public class ProcessTactical : LandformService
@@ -982,6 +985,7 @@ namespace OPS.Landform
             string fixupLODs = options.FixupLODs;
             string noTextureProjection = options.NoTextureProjection ? "--notextureprojection" : "";
             string noAlignToCamera = options.NoAlignToCamera ? "--noaligntocamera" : "";
+            string noSynthesizeExtraLODs = options.NoSynthesizeExtraLODs ? "--nosynthesizeextralods" : "";
 
             pipeline.LogInfo("building tileset {0} for {1}", project, mip.url);
 
@@ -1013,7 +1017,7 @@ namespace OPS.Landform
                 {
                     BuildTilingInput(project, "--mission", fullMissionStr, "--meshframe", "tactical", "--inputmesh",
                                      meshFile, "--inputtexture", imageFile, loadLODs, "--fixuplods", fixupLODs,
-                                     noTextureProjection, noAlignToCamera);
+                                     noTextureProjection, noAlignToCamera, noSynthesizeExtraLODs);
                     
                     BuildTileset(project);
 
