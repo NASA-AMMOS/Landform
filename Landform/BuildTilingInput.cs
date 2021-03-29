@@ -139,7 +139,7 @@ namespace OPS.Landform
 
     public class BuildTilingInput : TilingCommand
     {
-        public const double SYNTHESIZE_LOD_RELATIVE_THRESHOLD = 0.5;
+        public const double SYNTHESIZE_LOD_RELATIVE_THRESHOLD = 0.1;
 
         private BuildTilingInputOptions options;
 
