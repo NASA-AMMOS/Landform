@@ -615,7 +615,7 @@ namespace OPS.Pipeline
             }
 
             var mip = node.GetComponent<MeshImagePair>();
-            if (mip == null || mip.Mesh == null)
+            if (mip == null || mip.Mesh == null || !mip.Mesh.HasFaces)
             {
                 node.GetOrAddComponent<NodeGeometricError>().Error = maxDepError;
                 info($"{node.Name} empty, geometric error {maxDepError:F3} (max of {nd} dependencies)");
@@ -626,9 +626,13 @@ namespace OPS.Pipeline
             {
                 dependencyMeshes = dependencies
                     .Select(d => d.GetComponent<MeshImagePair>())
-                    .Where(p => p != null && p.Mesh != null)
+                    .Where(p => p != null && p.Mesh != null && p.Mesh.HasFaces)
                     .Select(p => p.Mesh)
                     .ToList();
+            }
+            else
+            {
+                dependencyMeshes = dependencyMeshes.Where(m => m != null && m.HasFaces).ToList();
             }
 
             double meshError = 0; //meters
