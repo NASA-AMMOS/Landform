@@ -904,7 +904,7 @@ namespace OPS.Landform
 
                 Mesh tileMesh = MakeTileMesh(node, meshOpForLOD[lod]);
 
-                if (tileMesh != null && (!withTextures || tileMesh.HasUVs))
+                if (tileMesh != null && tileMesh.Faces.Count > 0 && (!withTextures || tileMesh.HasUVs))
                 {
                     node.AddComponent(new MeshImagePair(tileMesh));
                 }
@@ -1029,7 +1029,7 @@ namespace OPS.Landform
 
                 Mesh tileMesh = MakeTileMesh(leaf, meshOpForLOD.First());
 
-                if (tileMesh != null && (!withTextures || tileMesh.HasUVs))
+                if (tileMesh != null && tileMesh.Faces.Count > 0 && (!withTextures || tileMesh.HasUVs))
                 {
                     leaf.AddComponent<MeshImagePair>(new MeshImagePair(tileMesh));
                 }
