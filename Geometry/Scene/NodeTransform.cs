@@ -7,11 +7,22 @@ using System.Threading.Tasks;
 
 namespace OPS.Geometry
 {
+
     /// <summary>
     /// Represents an affine transformation from a node to its parent frame.
     /// </summary>
     public class NodeTransform : NodeComponent
     {
+        private NodeTransform parent;
+        private HashSet<NodeTransform> children;
+        private Quaternion rotation;
+        private Vector3 translation;
+        private Vector3 scale;
+        private Matrix matrix;
+        private bool matrixDirty;
+        private Matrix localToWorld;
+        private bool _localToWorldDirty;
+
         public NodeTransform()
         {
             parent = null;
@@ -28,7 +39,6 @@ namespace OPS.Geometry
             localToWorldDirty = false;
         }
 
-        NodeTransform parent;
         /// <summary>
         /// The transform above this node in the hierarchy. Null if this node
         /// is the root.
@@ -42,7 +52,6 @@ namespace OPS.Geometry
             }
         }
 
-        HashSet<NodeTransform> children;
         /// <summary>
         /// All immediate descendants of this node.
         /// </summary>
@@ -70,30 +79,32 @@ namespace OPS.Geometry
             get { return this.children.Count == 0; }
         }
 
-        Quaternion rotation;
+        /// <summary>
+        /// Returns true if this node is a root (has no parent)
+        /// </summary>
+        public bool IsRoot
+        {
+            get { return this.parent == null; }
+        }
+
         public Quaternion Rotation
         {
             get { return rotation; }
             set { rotation = value; matrixDirty = true; localToWorldDirty = true; }
         }
 
-        Vector3 translation;
         public Vector3 Translation
         {
             get { return translation; }
             set { translation = value; matrixDirty = true; localToWorldDirty = true; }
         }
 
-        Vector3 scale;
         public Vector3 Scale
         {
             get { return scale; }
             set { scale = value; matrixDirty = true; localToWorldDirty = true; }
         }
 
-
-        Matrix matrix;
-        bool matrixDirty;
         /// <summary>
         /// Matrix transforming this node's coordinate frame to that of its parent.
         /// 
@@ -119,8 +130,6 @@ namespace OPS.Geometry
             }
         }
 
-        Matrix localToWorld;
-        bool _localToWorldDirty;
         /// <summary>
         /// If true, the LocalToWorld matrix needs to be recomputed.
         /// </summary>

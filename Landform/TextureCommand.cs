@@ -809,18 +809,16 @@ namespace OPS.Landform
             {
                 pipeline.LogInfo("loading occlusion mesh {0}", tcopts.OcclusionMesh);
                 occlusionMesh = Mesh.Load(pipeline.GetFileCached(tcopts.OcclusionMesh, "meshes"));
-                if (occlusionMesh == null)
-                {
-                    throw new Exception("failed to load occlusion mesh");
-                }
-                if (occlusionMesh.Faces.Count == 0)
-                {
-                    throw new Exception("occlusion mesh empty");
-                }
             }
             else
             {
                 occlusionMesh = mesh;
+            }
+
+            if (occlusionMesh == null || occlusionMesh.Faces.Count == 0)
+            {
+                pipeline.LogWarn("cannot create scene caster, occlusion mesh empty");
+                return;
             }
 
             sceneCaster = new SceneCaster(occlusionMesh); //NOTE: can't change mesh after this
@@ -855,20 +853,23 @@ namespace OPS.Landform
 
         protected virtual void InitBackprojectStrategy()
         {
-            if (meshOp == null)
-            {
-                throw new Exception("must build mesh operator before initializing backproject strategy");
-            }
-            if (sceneCaster == null)
-            {
-                throw new Exception("must build scene cater before initializing backproject strategy");
-            }
             InitBackprojectStrategy(mesh, meshOp, sceneCaster, sceneCaster);
         }
 
         protected void InitBackprojectStrategy(Mesh mesh, MeshOperator meshOp, SceneCaster meshCaster,
                                                SceneCaster occlusionScene, bool useSurfaceBounds = true)
         {
+            if (meshOp == null)
+            {
+                pipeline.LogWarn("cannot create backproject strategy, no mesh operator");
+                return;
+            }
+            if (sceneCaster == null)
+            {
+                pipeline.LogWarn("cannot create backproject strategy, no scene caster");
+                return;
+            }
+
             backprojectStrategy = ObsSelectionStrategy.Create(tcopts.ObsSelectionStrategy);
 
             backprojectStrategy.Quality = tcopts.BackprojectQuality;

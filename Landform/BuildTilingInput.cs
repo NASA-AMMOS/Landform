@@ -723,6 +723,12 @@ namespace OPS.Landform
 
         private void ConfigureTextureSplitCriteria()
         {
+            if (sceneCaster == null)
+            {
+                pipeline.LogInfo("texture split disabled, no scene caster");
+                return;
+            }
+
             CameraInstance[] cams = null;
             if (imageObservations != null && frameCache != null && obsToHull != null)
             {
@@ -924,6 +930,11 @@ namespace OPS.Landform
                 {
                     node.AddComponent(new MeshImagePair(tileMesh));
                 }
+                else if (node.IsRoot && node.IsLeaf)
+                {
+                    pipeline.LogWarn("adding empty mesh to root node of empty tileset");
+                    node.AddComponent(new MeshImagePair(new Mesh(hasNormals: true, hasUVs: withTextures)));
+                }
                 else
                 {
                     Interlocked.Increment(ref numFailed);
@@ -1049,6 +1060,11 @@ namespace OPS.Landform
                 if (tileMesh != null && tileMesh.Faces.Count > 0 && (!withTextures || tileMesh.HasUVs))
                 {
                     leaf.AddComponent<MeshImagePair>(new MeshImagePair(tileMesh));
+                }
+                else if (leaf.IsRoot)
+                {
+                    pipeline.LogWarn("adding empty mesh to root node of empty tileset");
+                    leaf.AddComponent(new MeshImagePair(new Mesh(hasNormals: true, hasUVs: withTextures)));
                 }
                 else
                 {

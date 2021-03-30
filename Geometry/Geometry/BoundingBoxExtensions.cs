@@ -63,6 +63,9 @@ namespace OPS.Geometry
             return 0.5 * (box.Max + box.Min);
         }
 
+        /// <summary>
+        /// Negative if empty.
+        /// </summary>
         public static double Volume(this BoundingBox box)
         {
             Vector3 size = box.Extent();

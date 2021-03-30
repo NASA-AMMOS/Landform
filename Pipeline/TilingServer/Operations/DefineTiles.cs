@@ -417,19 +417,30 @@ namespace OPS.Pipeline.TilingServer
                 MakeTileSplitCriteria(maxFacesPerTile, maxLeafArea, texSplitOptions, useTexSplitApprox, info);
 
             var scheme = TilingSchemeBase.Create(tilingScheme, minTileExtent);
-            
+
+            var rootBounds = BoundingBoxExtensions.Union(lodMeshOps.Select(o => o.Bounds).ToArray());
+            if (rootBounds.IsEmpty())
+            {
+                BoundingBoxExtensions.Extend(ref rootBounds, Vector3.Zero);
+            }
+
             //child node names are created by adding onto parent name
             //so root name will be set to "root" after creating all descendants
             SceneNode root = new SceneNode("");
             
             // it is possible LODs might have different bounds if decimation stretches or shrinks triangles
-            root.AddComponent(new NodeBounds(BoundingBoxExtensions.Union(lodMeshOps.Select(o => o.Bounds).ToArray())));
+            root.AddComponent(new NodeBounds(rootBounds));
             
             var previousLevelNodes = new ConcurrentBag<SceneNode> { root };
             var tallies = new ConcurrentDictionary<string, int>();
             int height = 1;
-            while (previousLevelNodes.Count > 0 && (maxHeight <= 0 || height < maxHeight))
+            while (previousLevelNodes.Count > 0 && rootBounds.Volume() > 0)
             {
+                if (maxHeight > 0 && height >= maxHeight)
+                {
+                    info($"limiting tile tree height to {maxHeight}");
+                    break;
+                }
                 var currentLevelNodes = new ConcurrentBag<SceneNode>();
                 CoreLimitedParallel.ForEach(previousLevelNodes, node =>
                 {                    
@@ -551,7 +562,11 @@ namespace OPS.Pipeline.TilingServer
             info = info ?? (msg => { });
             verbose = verbose ?? (msg => { });
 
-            var totalBounds = BoundingBoxExtensions.Union(meshOps.Select(mo => mo.Bounds).ToArray());
+            var rootBounds = BoundingBoxExtensions.Union(meshOps.Select(mo => mo.Bounds).ToArray());
+            if (rootBounds.IsEmpty())
+            {
+                BoundingBoxExtensions.Extend(ref rootBounds, Vector3.Zero);
+            }
 
             //if surfaceExtent is negative then treat the whole scene like surface
             //if surfaceExtent is zero treat the whole scene like orbital (handled below)
@@ -559,8 +574,8 @@ namespace OPS.Pipeline.TilingServer
             if (surfaceBounds.HasValue)
             {
                 var sb = surfaceBounds.Value;
-                sb.Min.Z = totalBounds.Min.Z;
-                sb.Max.Z = totalBounds.Max.Z;
+                sb.Min.Z = rootBounds.Min.Z;
+                sb.Max.Z = rootBounds.Max.Z;
                 surfaceBounds = sb;
             }
 
@@ -568,7 +583,7 @@ namespace OPS.Pipeline.TilingServer
             //so root name will be set to "root" after creating all descendants
             SceneNode root = new SceneNode("");
 
-            root.AddComponent(new NodeBounds(totalBounds));
+            root.AddComponent(new NodeBounds(rootBounds));
 
             var scheme = TilingSchemeBase.Create(tilingScheme, minTileExtent);
 
@@ -576,8 +591,13 @@ namespace OPS.Pipeline.TilingServer
             var previousLevelNodes = new ConcurrentBag<SceneNode> { root };
             var tallies = new ConcurrentDictionary<string, int>();
             int height = 1;
-            while (previousLevelNodes.Count > 0 && (maxHeight <= 0 || height < maxHeight))
+            while (previousLevelNodes.Count > 0 && rootBounds.Volume() > 0)
             {
+                if (maxHeight > 0 && height >= maxHeight)
+                {
+                    info($"limiting tile tree height to {maxHeight}");
+                    break;
+                }
                 var currentLevelNodes = new ConcurrentBag<SceneNode>();
                 CoreLimitedParallel.ForEach(previousLevelNodes, node =>
                 {
