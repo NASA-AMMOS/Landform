@@ -127,14 +127,14 @@ namespace OPS.Landform
         [Option(HelpText = "Disable aligning tile bounds to camera axis for improved texture utilization when using texture projection", Default = false)]
         public bool NoAlignToCamera { get; set; }
 
-        [Option(HelpText = "Disable synthesizing intermediate LODs when fewer precomputed LODs than tile tree levels", Default = false)]
-        public bool NoSynthesizeExtraLODs { get; set; }
+        [Option(HelpText = "Enable synthesizing intermediate LODs when fewer precomputed LODs than tile tree levels", Default = false)]
+        public bool SynthesizeExtraLODs { get; set; }
 
         [Option(HelpText = "Max tile tree height, negative for unlimited", Default = -1)]
         public int MaxTreeHeight { get; set; }
 
-        [Option(HelpText = "Limit tile tree height to input LODs", Default = false)]
-        public bool LimitTreeHeightToLODs { get; set; }
+        [Option(HelpText = "Don't limit tile tree height to input LODs", Default = false)]
+        public bool NoLimitTreeHeightToLODs { get; set; }
 
         [Option(HelpText = "Max input texture resolution, should be power of two, negative for unlimited", Default = -1)]
         public override int TextureResolution { get; set; }
@@ -798,7 +798,7 @@ namespace OPS.Landform
             }
             if (meshLOD.Count > 1)
             {
-                if (options.LimitTreeHeightToLODs)
+                if (!options.NoLimitTreeHeightToLODs)
                 {
                     maxTreeHeight = meshLOD.Count;
                 }
@@ -868,8 +868,7 @@ namespace OPS.Landform
 
             int rootLOD = assignLODsAndCollectNodes(tileTree);
 
-            if (rootLOD >= meshLOD.Count && (!NeedSceneTexture() || CanAtlasSceneMesh()) &&
-                !options.NoSynthesizeExtraLODs)
+            if (rootLOD >= meshLOD.Count && (!NeedSceneTexture() || CanAtlasSceneMesh()) && options.SynthesizeExtraLODs)
             {
                 SynthesizeExtraLODs(rootLOD + 1);
             }
