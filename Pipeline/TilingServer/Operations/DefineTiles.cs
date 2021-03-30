@@ -393,7 +393,7 @@ namespace OPS.Pipeline.TilingServer
                                                       int maxFacesPerTile = -1,
                                                       double minTileExtent = 0, double maxLeafArea = 0,
                                                       TextureSplitOptions texSplitOptions = null,
-                                                      bool useTexSplitApprox = true,
+                                                      bool useTexSplitApprox = true, int maxHeight = -1,
                                                       Action<string> info = null, Action<string> verbose = null)
         {
             info = info ?? (msg => { });
@@ -422,35 +422,36 @@ namespace OPS.Pipeline.TilingServer
             //so root name will be set to "root" after creating all descendants
             SceneNode root = new SceneNode("");
             
-            // it is possible LODS might have different bounds if decimation stretches or shrinks triangles
+            // it is possible LODs might have different bounds if decimation stretches or shrinks triangles
             root.AddComponent(new NodeBounds(BoundingBoxExtensions.Union(lodMeshOps.Select(o => o.Bounds).ToArray())));
             
             var previousLevelNodes = new ConcurrentBag<SceneNode> { root };
-            for (int lod = Math.Max(lodMeshOps.Count - 2, 0);
-                 lod >= 0 && previousLevelNodes.Count > 0;
-                 lod = Math.Max(lod - 1, 0))
+            var tallies = new ConcurrentDictionary<string, int>();
+            int height = 1;
+            while (previousLevelNodes.Count > 0 && (maxHeight <= 0 || height < maxHeight))
             {
                 var currentLevelNodes = new ConcurrentBag<SceneNode>();
                 CoreLimitedParallel.ForEach(previousLevelNodes, node =>
                 {                    
                     string name = node == root ? "root" : node.Name;
                     var bounds = node.GetComponent<NodeBounds>().Bounds;
-                    bool shouldSplit = false;
+                    string splitType = null;
                     foreach (var crit in splitCriteria)
                     {
                         string reason = crit.ShouldSplit(bounds, lodMeshOps[0]); //use finest lod for split decisions
                         if (!string.IsNullOrEmpty(reason))
                         {
-                            shouldSplit = true;
-                            verbose($"attempting to split LOD {lod} tile {name}: {crit.GetType().Name} " + reason);
+                            splitType = crit.GetType().Name;
+                            verbose($"attempting to split level {height-1} tile {name}: {splitType} {reason}");
                             break;
                         }
                     }
-                    if (shouldSplit)
+                    if (splitType != null)
                     {
                         var childrenBounds = scheme.Split(bounds).Where(b => !lodMeshOps[0].Empty(b)).ToArray();
                         if (childrenBounds.Length > 1)
                         {
+                            tallies.AddOrUpdate(splitType, st => 1, (st, t) => t + 1);
                             //verbose($"split tile {name} ({tilingScheme}, min axis {bounds.MinAxis()}): " +
                             //        bounds.Fmt() + " -> " + string.Join(", ", childrenBounds.Select(cb => cb.Fmt())));
                             int counter = 0; //note this is always exactly one decimal digit
@@ -474,7 +475,18 @@ namespace OPS.Pipeline.TilingServer
                     //}
                 });
                 previousLevelNodes = currentLevelNodes;
+                if (currentLevelNodes.Count > 0)
+                {
+                    height++;
+                }
             }
+
+            info($"total tile tree height: {height}" + (maxHeight > 0 ? $" (max {maxHeight})" : ""));
+            foreach (var entry in tallies)
+            {
+                info($"split {entry.Value} tiles due to {entry.Key}");
+            }
+
             root.Name = "root";
             return root;
         }
@@ -484,7 +496,7 @@ namespace OPS.Pipeline.TilingServer
                                                         double maxLeafArea = 0, double maxOrbitalLeafArea = 0,
                                                         double surfaceExtent = -1,
                                                         TextureSplitOptions texSplitOptions = null,
-                                                        bool useTexSplitApprox = true,
+                                                        bool useTexSplitApprox = true, int maxHeight = -1,
                                                         Action<string> info = null, Action<string> verbose = null)
         {
             info = info ?? (msg => { });
@@ -508,7 +520,7 @@ namespace OPS.Pipeline.TilingServer
             }
 
             return BuildBoundsTree(meshOps, tilingScheme, splitCriteria, minTileExtent, surfaceExtent,
-                                   orbitalSplitCriteria, info: info, verbose: verbose);
+                                   orbitalSplitCriteria, maxHeight, info: info, verbose: verbose);
         }
 
         public static SceneNode BuildBoundsTree(MultiMeshClipper multiClipper, TilingScheme tilingScheme,
@@ -562,6 +574,7 @@ namespace OPS.Pipeline.TilingServer
 
             int surfaceTiles = 0, orbitalTiles = 0, surfaceSplits = 0, orbitalSplits = 0;
             var previousLevelNodes = new ConcurrentBag<SceneNode> { root };
+            var tallies = new ConcurrentDictionary<string, int>();
             int height = 1;
             while (previousLevelNodes.Count > 0 && (maxHeight <= 0 || height < maxHeight))
             {
@@ -583,22 +596,24 @@ namespace OPS.Pipeline.TilingServer
                     {
                         Interlocked.Increment(ref surfaceTiles);
                     }
-                    bool shouldSplit = false;
+                    string splitType = null;
                     foreach (var crit in sc)
                     {
                         string reason = crit.ShouldSplit(bounds, meshOps);
                         if (!string.IsNullOrEmpty(reason))
                         {
-                            shouldSplit = true;
-                            verbose($"attempting to split {tileType} tile {name}: {crit.GetType().Name} " + reason);
+                            splitType = crit.GetType().Name;
+                            verbose($"attempting to split level {height-1} {tileType} tile {name}: " +
+                                    $"{splitType} {reason}");
                             break;
                         }
                     }
-                    if (shouldSplit)
+                    if (splitType != null)
                     {
                         var childrenBounds = scheme.Split(bounds).Where(b => meshOps.Any(op => !op.Empty(b))).ToArray();
                         if (childrenBounds.Length > 1)
                         {
+                            tallies.AddOrUpdate(splitType, st => 1, (st, t) => t + 1);
                             if (sc == orbitalSplitCriteria)
                             {
                                 Interlocked.Increment(ref orbitalSplits);
@@ -638,6 +653,10 @@ namespace OPS.Pipeline.TilingServer
 
             info($"total tile tree height: {height}" + (maxHeight > 0 ? $" (max {maxHeight})" : ""));
             info($"split {surfaceSplits}/{surfaceTiles} surface tiles, {orbitalSplits}/{orbitalTiles} orbital");
+            foreach (var entry in tallies)
+            {
+                info($"split {entry.Value} tiles due to {entry.Key}");
+            }
 
             root.Name = "root";
             return root;

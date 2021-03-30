@@ -130,6 +130,12 @@ namespace OPS.Landform
         [Option(HelpText = "Disable synthesizing intermediate LODs when fewer precomputed LODs than tile tree levels", Default = false)]
         public bool NoSynthesizeExtraLODs { get; set; }
 
+        [Option(HelpText = "Max tile tree height, negative for unlimited", Default = -1)]
+        public int MaxTreeHeight { get; set; }
+
+        [Option(HelpText = "Limit tile tree height to input LODs", Default = false)]
+        public bool LimitTreeHeightToLODs { get; set; }
+
         [Option(HelpText = "Max input texture resolution, should be power of two, negative for unlimited", Default = -1)]
         public override int TextureResolution { get; set; }
 
@@ -152,6 +158,8 @@ namespace OPS.Landform
 
         private double surfaceExtent = -1;
         private BoundingBox? surfaceBounds;
+
+        private int maxTreeHeight = -1;
 
         private bool tacticalFrame;
         private string inputTexturePDS;
@@ -284,6 +292,11 @@ namespace OPS.Landform
             {
                 surfaceExtent = sceneMesh.SurfaceExtent;
                 surfaceBounds = TilingProject.GetSurfaceBoundingBox(surfaceExtent);
+            }
+
+            if (options.MaxTreeHeight > 0)
+            {
+                maxTreeHeight = options.MaxTreeHeight;
             }
 
             return true;
@@ -785,19 +798,23 @@ namespace OPS.Landform
             }
             if (meshLOD.Count > 1)
             {
+                if (options.LimitTreeHeightToLODs)
+                {
+                    maxTreeHeight = meshLOD.Count;
+                }
                 tileTree = DefineTiles
                     .BuildTileTreeFromLODs(meshOpForLOD, options.TilingScheme, options.MaxFacesPerTile,
                                            options.MinTileExtent, options.MaxLeafArea,
-                                           textureSplitOptions, !options.NoApproxTileSplit,
+                                           textureSplitOptions, !options.NoApproxTileSplit, maxTreeHeight,
                                            msg => pipeline.LogInfo(msg), msg => pipeline.LogVerbose(msg));
             }
             else
             {
                 tileTree = DefineTiles
                     .BuildTileTreeFromInputs(new List<MeshImagePair>() { new MeshImagePair(mesh) },
-                                             options.TilingScheme, options.MaxFacesPerTile,
-                                             options.MinTileExtent, options.MaxLeafArea, options.MaxOrbitalLeafArea,
-                                             surfaceExtent, textureSplitOptions, !options.NoApproxTileSplit,
+                                             options.TilingScheme, options.MaxFacesPerTile, options.MinTileExtent,
+                                             options.MaxLeafArea, options.MaxOrbitalLeafArea, surfaceExtent,
+                                             textureSplitOptions, !options.NoApproxTileSplit, maxTreeHeight,
                                              msg => pipeline.LogInfo(msg), msg => pipeline.LogVerbose(msg));
             }
             tileTree.DumpStats(msg => pipeline.LogInfo(msg));
@@ -988,8 +1005,9 @@ namespace OPS.Landform
                     newIdx++;
                 }
 
-                pipeline.LogInfo("inserting new LOD with {0} tris " +
-                                 "between LODs {1} ({2} tris) and {3} ({4} tris)",
+                pipeline.LogInfo("inserting {0} LOD with {1} tris " +
+                                 "between LODs {2} ({3} tris) and {4} ({5} tris)",
+                                 newMesh != srcMesh ? "new" : "duplicate",
                                  Fmt.KMG(newMesh.Faces.Count), newIdx - 1,
                                  Fmt.KMG(newIdx - 1 >= 0 ? meshLOD[newIdx - 1].Faces.Count : 0), newIdx,
                                  Fmt.KMG(newIdx < meshLOD.Count ? meshLOD[newIdx].Faces.Count : 0));

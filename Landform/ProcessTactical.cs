@@ -134,6 +134,9 @@ namespace OPS.Landform
 
         [Option(HelpText = "Disable synthesizing intermediate LODs when fewer precomputed LODs than tile tree levels", Default = false)]
         public bool NoSynthesizeExtraLODs { get; set; }
+
+        [Option(HelpText = "Limit tile tree height to input LODs", Default = false)]
+        public bool LimitTreeHeightToLODs { get; set; }
     }
 
     public class ProcessTactical : LandformService
@@ -986,6 +989,7 @@ namespace OPS.Landform
             string noTextureProjection = options.NoTextureProjection ? "--notextureprojection" : "";
             string noAlignToCamera = options.NoAlignToCamera ? "--noaligntocamera" : "";
             string noSynthesizeExtraLODs = options.NoSynthesizeExtraLODs ? "--nosynthesizeextralods" : "";
+            string limitTreeHeightToLODs = options.LimitTreeHeightToLODs ? "--limittreeheighttolods" : "";
 
             pipeline.LogInfo("building tileset {0} for {1}", project, mip.url);
 
@@ -1017,7 +1021,8 @@ namespace OPS.Landform
                 {
                     BuildTilingInput(project, "--mission", fullMissionStr, "--meshframe", "tactical", "--inputmesh",
                                      meshFile, "--inputtexture", imageFile, loadLODs, "--fixuplods", fixupLODs,
-                                     noTextureProjection, noAlignToCamera, noSynthesizeExtraLODs);
+                                     noTextureProjection, noAlignToCamera, noSynthesizeExtraLODs,
+                                     limitTreeHeightToLODs);
                     
                     BuildTileset(project);
 
