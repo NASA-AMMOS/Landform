@@ -30,7 +30,7 @@ namespace OPS.Pipeline
             m.Decompose(out scale, out q, out trans);
             scale = new Vector3(1, 1, 1);
             Matrix rot = Matrix.CreateRotationX(MathHelper.ToRadians(90)) * Matrix.CreateFromQuaternion(q);
-            return Matrix.Transpose(Matrix.CreateScale(scale) * rot * Matrix.CreateTranslation(trans));
+            return Matrix.CreateScale(scale) * rot * Matrix.CreateTranslation(trans);
         }
 
         public static Tile3D.Tileset BuildTileset(SceneNode root, Func<SceneNode, string> nodeToUrl,
@@ -291,7 +291,13 @@ namespace OPS.Pipeline
 
         public static List<double> MatrixToList(Matrix m)
         {            
-            m = Matrix.Transpose(m); //3DTiles stores matrices in column major order
+            //3DTiles uses column matrices in column major order
+            //http://docs.opengeospatial.org/cs/18-053r2/18-053r2.html#37
+            //XNA Matrix is a row matrix in row major order
+            //https://docs.microsoft.com/en-us/previous-versions/windows/silverlight/dotnet-windows-silverlight/bb197911(v=xnagamestudio.35)#remarks
+            //row major -> column major is a transpose
+            //but row matrix -> column matrix is also a transpose
+            //so the transposes cancel out
             return new double[]
             {
                 m.M11, m.M12, m.M13, m.M14,
@@ -303,11 +309,10 @@ namespace OPS.Pipeline
 
         public static Matrix ListToMatrix(List<double> list)
         {
-           Matrix m = new Matrix(list[0], list[1], list[2], list[3],
-                                 list[4], list[5], list[6], list[7],
-                                 list[8], list[9], list[10], list[11],
-                                 list[12], list[13], list[14], list[15]);
-           return Matrix.Transpose(m); //3DTiles stores matrices in column major order
+           return new Matrix(list[0], list[1], list[2], list[3],
+                             list[4], list[5], list[6], list[7],
+                             list[8], list[9], list[10], list[11],
+                             list[12], list[13], list[14], list[15]);
         }
 
         /// <summary>

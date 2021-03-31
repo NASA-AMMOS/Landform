@@ -635,21 +635,32 @@ namespace OPS.Landform
             {
                 pipeline.LogInfo("enabled texture projection");
 
+                var camToMesh = Matrix.Invert(meshToCamera.Value);
+
+                if (options.WriteDebug)
+                {
+                    var hull = ConvexHull.FromImage(texImg, farClip: options.TextureFarClip);
+                    SaveMesh(ConvexHull.Transformed(hull, camToMesh).Mesh, "textureProjectorFrustumHull");
+                }
+
                 options.AtlasMode = AtlasMode.Project;
 
                 if (!options.NoAlignToCamera && texImg.CameraModel is CAHV)
                 {
                     Vector3 a = Vector3.Normalize((texImg.CameraModel as CAHV).A);
-                    a = Vector3.TransformNormal(a, Matrix.Invert(meshToCamera.Value));
+                    a = Vector3.TransformNormal(a, camToMesh);
                     a.Z = 0;
                     if (a.Length() > MathE.EPSILON)
                     {
                         a = Vector3.Normalize(a);
-                        double angle = Math.Atan2(a.Y, a.X);
+                        double angle = -Math.Atan2(a.Y, a.X);
                         pipeline.LogInfo("rotating by {0:F1}deg in XY plane to align tiling frame with camera axis",
                                          MathHelper.ToDegrees(angle));
-                        meshTransform = Matrix.CreateRotationZ(angle);
-                        //row mats compose left->right
+                        Vector3 c = (texImg.CameraModel as CAHV).C;
+                        c = Vector3.Transform(c, camToMesh);
+                        c.Z = 0;
+                        meshTransform = //row mats compose left->right
+                            Matrix.CreateTranslation(-c) * Matrix.CreateRotationZ(angle) * Matrix.CreateTranslation(c);
                         meshToCamera = Matrix.Invert(meshTransform.Value) * meshToCamera.Value;
                     }
                 }
