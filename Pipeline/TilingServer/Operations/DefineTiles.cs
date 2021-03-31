@@ -197,7 +197,8 @@ namespace OPS.Pipeline.TilingServer
                     tilingNode.IndexUrl = input.IndexUrl;
 
                     //don't add pair to sceneNode, would be a memory leak
-                    var pair = tilingNode.LoadMeshImagePair(pipeline, cleanMesh: true);
+                    var pair = tilingNode.LoadMeshImagePair(pipeline, cleanMesh: true,
+                                                            warn: msg => pipeline.LogWarn($"tile {id}: {msg}"));
                     if (pair != null)
                     {
                         var meshBounds = pair.Mesh.Bounds();

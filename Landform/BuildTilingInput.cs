@@ -1207,8 +1207,8 @@ namespace OPS.Landform
 
                 var mip = tile.GetComponent<MeshImagePair>();
 
-                int resolution = GetTileResolution(mip.Mesh, tile.GetComponent<NodeBounds>().Bounds);
-                
+                int resolution = GetTileResolution(mip.Mesh, tile.GetComponent<NodeBounds>().Bounds, tile.Name);
+
                 if (!mip.Mesh.HasFaces)
                 {
                     if (textureMode != TextureMode.None)
@@ -1224,6 +1224,7 @@ namespace OPS.Landform
                 }
                 else if (textureMode == TextureMode.Bake)
                 {
+                    pipeline.LogVerbose("baking texture for tile " + tile.Name);
                     var tmp = bakeClipper.BakeTexture(mip.Mesh, resolution, maxTextureStretch,
                                                       msg => pipeline.LogVerbose(msg));
                     if (tmp != null)
@@ -1235,10 +1236,12 @@ namespace OPS.Landform
                 }
                 else if (textureMode == TextureMode.Backproject)
                 {                
+                    pipeline.LogVerbose("backprojecting texture for tile " + tile.Name);
                     BackprojectTile(mip, tile.Name, sceneCaster, sceneCaster, null, resolution);
                 }
                 else if (textureMode == TextureMode.Clip)
                 {
+                    pipeline.LogVerbose("clipping texture for tile " + tile.Name);
                     var texClipper = new TexturedMeshClipper(powerOfTwoTextures: options.PowerOfTwoTextures,
                                                              logger: pipeline, logPrefix: tile.Name);
                     var tmp = texClipper.RemapMeshClipImage(mip.Mesh, sceneTexture, sceneIndex, resolution);
@@ -1247,10 +1250,22 @@ namespace OPS.Landform
                     mip.Index = tmp.Index;
                 }
 
+                if (mip.Image != null && mip.Mesh != null && options.WriteDebug)
+                {
+                    SaveImage(mip.Image, tile.Name + "_rawTexture");
+                    SaveMesh(mip.Mesh, tile.Name + "_rawTexture", tile.Name + "_rawTexture");
+                }
+
                 if (mip.Mesh != null && mip.Mesh.HasFaces && mip.Image != null && maxTextureStretch < 1 &&
                     !options.PowerOfTwoTextures)
                 {
+                    pipeline.LogVerbose("clipping image and remapping UVs for tile " + tile.Name);
                     mip.Image = mip.Mesh.ClipImageAndRemapUVs(mip.Image, ref mip.Index);
+                    if (mip.Image != null && mip.Mesh != null && options.WriteDebug)
+                    {
+                        SaveImage(mip.Image, tile.Name + "_clippedTexture");
+                        SaveMesh(mip.Mesh, tile.Name + "_clippedTexture", tile.Name + "_clippedTexture");
+                    }
                 }
 
                 if (mip.Mesh != null && (!withTextures || mip.Image != null))
@@ -1330,14 +1345,14 @@ namespace OPS.Landform
             pipeline.Debug = wasDebug;
         }
 
-        private int GetTileResolution(Mesh tileMesh, BoundingBox tileBounds)
+        private int GetTileResolution(Mesh tileMesh, BoundingBox tileBounds, string tileName = null)
         {
             double texelsPerMeter =
                 TilingProject.GetMaxTexelsPerMeter(tileBounds, surfaceBounds, options.MaxTexelsPerMeter,
                                                    options.MaxOrbitalTexelsPerMeter);
             return SceneNodeTilingExtensions.
                 GetTileResolution(tileMesh, maxTileResolution, texelsPerMeter, options.PowerOfTwoTextures,
-                                  msg => pipeline.LogVerbose(msg));
+                                  msg => pipeline.LogVerbose((tileName != null ? $"tile {tileName}: " : "") + msg));
         }
 
         private Mesh MakeTileMesh(SceneNode tile, MeshOperator meshOp)
@@ -1354,6 +1369,10 @@ namespace OPS.Landform
             try
             {
                 tileMesh = meshOp.Clipped(tileBounds);
+                if (options.WriteDebug)
+                {
+                    SaveMesh(tileMesh, tile.Name + "_clipped");
+                }
             }
             catch (Exception ex)
             {
@@ -1367,31 +1386,34 @@ namespace OPS.Landform
                 return tileMesh;
             }
 
-            AtlasTile(tileMesh, tileBounds, -1, " " + tile.Name);
+            AtlasTile(tileMesh, tileBounds, -1, tile.Name);
 
             return tileMesh;
         }
 
-        private void AtlasTile(Mesh tileMesh, BoundingBox tileBounds, int tileRes, string tileName = "")
+        private void AtlasTile(Mesh tileMesh, BoundingBox tileBounds, int tileRes, string tileName = null)
         {
-            tileRes = tileRes > 0 ? tileRes : GetTileResolution(tileMesh, tileBounds);
+            tileRes = tileRes > 0 ? tileRes : GetTileResolution(tileMesh, tileBounds, tileName);
 
+            bool didAtlas = false;
             if (textureMode == TextureMode.Bake || textureMode == TextureMode.Backproject)
             {
                 if (!tileMesh.HasUVs || !options.NoRedoTileMeshUVs)
                 {
                     if (TilingProject.IsOrbitalTile(tileBounds, surfaceBounds))
                     {
-                        HeightmapAtlasMesh(tileMesh, "orbital tile" + tileName);
+                        HeightmapAtlasMesh(tileMesh, "orbital tile" + (tileName != null ? $" {tileName}" : ""));
+                        didAtlas = true;
                     }
                     else
                     {
-                        AtlasMesh(tileMesh, tileRes, "tile" + tileName);
+                        AtlasMesh(tileMesh, tileRes, "tile" + (tileName != null ? $" {tileName}" : ""));
+                        didAtlas = true;
                     }
                 }
                 else
                 {
-                    pipeline.LogVerbose("using existing UVs on tile{0}", tileName);
+                    pipeline.LogVerbose("using existing UVs on tile " + (tileName != null ? $" {tileName}" : ""));
                 }
                 tileMesh.RescaleUVsForTexture(tileRes, tileRes, maxTextureStretch);
             }
@@ -1399,14 +1421,24 @@ namespace OPS.Landform
             {
                 if ((!tileMesh.HasUVs || !options.NoRedoTileMeshUVs) && TextureProjectionEnabled())
                 {
-                    pipeline.LogVerbose("(re-)atlasing tile mesh{0} with texture projection", tileName);
+                    pipeline.LogVerbose("(re-)atlasing tile{0} mesh with texture projection",
+                                        (tileName != null ? $" {tileName}" : ""));
                     ProjectTexture(tileMesh);
+                    didAtlas = true;
                 }
                 else if (!tileMesh.HasUVs)
                 {
                     throw new Exception($"cannot clip texture for tile{tileName}: " +
                                         "scene mesh missing UVs and texture projection disabled");
                 }
+                else
+                {
+                    pipeline.LogVerbose("using existing UVs on tile" + (tileName != null ? $" {tileName}" : ""));
+                }
+            }
+            if (didAtlas && tileName != null && options.WriteDebug)
+            {
+                SaveMesh(tileMesh, tileName + "_atlassed");
             }
         }
     }

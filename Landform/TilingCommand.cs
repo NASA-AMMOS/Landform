@@ -397,7 +397,7 @@ namespace OPS.Landform
 
             if (mip.Index != null && tilingOpts.WriteDebug)
             {
-                SaveImage(Backproject.GenerateIndexPreviewImage(mip.Index), tileName + "_index_preview");
+                SaveImage(Backproject.GenerateIndexPreviewImage(mip.Index), tileName + "_indexPreview");
             }
 
             //each tile name is of the form ABCDE... where
