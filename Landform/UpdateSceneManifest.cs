@@ -406,23 +406,6 @@ namespace OPS.Landform
                 rdrSols.Add(options.Sol);
             }
 
-            if ((string.IsNullOrEmpty(options.ManifestFile) || !options.NoContextual ||
-                (!options.NoTactical && string.IsNullOrEmpty(options.TacticalPDSImage))) &&
-                string.IsNullOrEmpty(options.SiteDrive))
-            {
-                throw new Exception("--sitedrive required");
-            }
-
-            if (!string.IsNullOrEmpty(options.SiteDrive))
-            {
-                if (!SiteDrive.IsSiteDriveString(options.SiteDrive))
-                {
-                    throw new Exception(string.Format("\"{0}\" not recognized as a sitedrive", options.SiteDrive));
-                }
-                options.SiteDrive = (new SiteDrive(options.SiteDrive)).ToString(); //canonicalize
-                pipeline.LogInfo("site drive: {0}", options.SiteDrive);
-            }
-
             if (!string.IsNullOrEmpty(options.OnlyForSiteDrives))
             {
                 throw new Exception("--onlyforsitedrives not implemented for this command");
@@ -434,6 +417,29 @@ namespace OPS.Landform
             }
 
             //mission and project have now been initialized
+
+            if (string.IsNullOrEmpty(options.SiteDrive) && project != null &&
+                SiteDrive.IsSiteDriveString(project.MeshFrame))
+            {
+                options.SiteDrive = project.MeshFrame;
+            }
+
+            if (!string.IsNullOrEmpty(options.SiteDrive))
+            {
+                if (!SiteDrive.IsSiteDriveString(options.SiteDrive))
+                {
+                    throw new Exception(string.Format("\"{0}\" not recognized as a sitedrive", options.SiteDrive));
+                }
+                options.SiteDrive = (new SiteDrive(options.SiteDrive)).ToString(); //canonicalize
+                pipeline.LogInfo("site drive: {0}", options.SiteDrive);
+            }
+            else
+            {
+                if (string.IsNullOrEmpty(options.ManifestFile) || !options.NoContextual)
+                {
+                    throw new Exception("--sitedrive required");
+                }
+            }
 
             if (string.IsNullOrEmpty(options.ManifestFile))
             {
@@ -502,11 +508,6 @@ namespace OPS.Landform
             return true;
         }
 
-        protected override string GetMeshFrame()
-        {
-            return options.SiteDrive;
-        }
-
         protected override MissionSpecific GetMission()
         {
             return !string.IsNullOrEmpty(options.Mission) ? MissionSpecific.GetInstance(options.Mission) :
@@ -520,6 +521,16 @@ namespace OPS.Landform
                 return null;
             }
             return base.GetProject();
+        }
+
+        protected override string GetAutoMeshFrame()
+        {
+            return options.NoContextual ? "passthrough" : base.GetAutoMeshFrame();
+        }
+
+        protected override bool PassthroughMeshFrameAllowed()
+        {
+            return options.NoContextual;
         }
 
         protected override void SetOutDir(string outDir)
@@ -541,7 +552,17 @@ namespace OPS.Landform
 
         protected string GetFile(string url, bool filenameUnique = true)
         {
-            return LandformShell.GetFile(pipeline, () => storageHelper, url, "manifest", filenameUnique,
+            //try to re-use cached downloads from ProcessContextual or ProcessTactical
+            string cacheDir = "manifest";
+            if (!options.NoContextual)
+            {
+                cacheDir = "contextual";
+            }
+            else if (!options.NoTactical)
+            {
+                cacheDir = "tactical";
+            }
+            return LandformShell.GetFile(pipeline, () => storageHelper, url, cacheDir, filenameUnique,
                                          options.MaxRetries);
         }
 
