@@ -155,8 +155,8 @@ if not "%LANDFORM_TACTICAL_FIXUP_LODS%"=="" set fixuplods=--fixuplods=%LANDFORM_
 set notextureprojection=
 if not "%LANDFORM_TACTICAL_NO_TEXTURE_PROJECTION%"=="" set notextureprojection=--notextureprojection
 
-set noaligntocamera=
-if not "%LANDFORM_TACTICAL_NO_ALIGN_TO_CAMERA%"=="" set noaligntocamera=--noaligntocamera
+set aligntocamera=
+if not "%LANDFORM_TACTICAL_ALIGN_TO_CAMERA%"=="" set aligntocamera=--aligntocamera
 
 set synthesizeextralods=
 if not "%LANDFORM_TACTICAL_SYNTHESIZE_EXTRA_LODS%"=="" set synthesizeextralods=--synthesizeextralods
@@ -193,7 +193,7 @@ set tilingopts=%tilingopts% %notexturesplitrespectmaxtexelspermeter% %maxtexelsp
 set tilingopts=%tilingopts% %poweroftwotextures% %skirtmode% %noindices% %embedindices%
 
 set tacticalopts=%meshregex% %mesheye% %meshgeom% %noloadlods% %fixuplods% %tileres% %preferpds% %requirepds% %objopts%
-set tacticalopts=%tacticalopts% %notextureprojection% %noaligntocamera% %synthesizeextralods% %nolimittreeheighttolods%
+set tacticalopts=%tacticalopts% %notextureprojection% %aligntocamera% %synthesizeextralods% %nolimittreeheighttolods%
 set tacticalopts=%tacticalopts% %tilingopts%
 
 set appsdir=%bindir%\ExternalApps
