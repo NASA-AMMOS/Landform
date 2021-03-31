@@ -128,6 +128,11 @@ if not "%LANDFORM_CONTEXTUAL_MAX_GLANCING_ANGLE_DEGREES%"=="" (
     set maxglancingangledegrees=--maxglancingangledegrees=%LANDFORM_CONTEXTUAL_MAX_GLANCING_ANGLE_DEGREES%
 )
 
+set skirtmode=
+if not "%LANDFORM_CONTEXTUAL_SKIRT_MODE%"=="" (
+   set skirtmode=--skirtmode=%LANDFORM_CONTEXTUAL_SKIRT_MODE%
+)
+
 set noindices=
 if not "%LANDFORM_CONTEXTUAL_NO_INDICES%"=="" set noindices=--nopublishindeximages
 
@@ -228,7 +233,7 @@ set svcopts=%svcopts% %msgopts%
 set tilingopts=%tilesetimageformat% %tilesetindexformat% %noindices% %embedindices%
 set tilingopts=%tilingopts% %maxfacespertile% %maxtileresolution% %mintileextent% %maxleafarea% %maxorbitalleafarea%
 set tilingopts=%tilingopts% %notexturesplitrespectmaxtexelspermeter% %maxtexelspermeter% %maxorbitaltexelspermeter%
-set tilingopts=%tilingopts% %maxtexturestretch% %poweroftwotextures% %colorize% %maxglancingangledegrees%
+set tilingopts=%tilingopts% %maxtexturestretch% %poweroftwotextures% %colorize% %maxglancingangledegrees% %skirtmode%
 
 set contextualopts=--maxfetch=%maxfetch% %nocombinedmanifest% %orbitalopts% %skyopts% %minmaxopts%
 set contextualopts=%contextualopts% %tilingopts% %allowunmasked% %solblacklist% %extent% %surfaceextent%

@@ -117,6 +117,9 @@ namespace OPS.Landform
 
         [Option(HelpText = "Max backproject glancing angle relative to mesh normal, 90 to disable glance filter", Default = TexturingDefaults.BACKPROJECT_MAX_GLANCING_ANGLE_DEGREES)]
         public double MaxGlancingAngleDegrees { get; set; }
+
+        [Option(HelpText = "Skirt up direction (X, Y, Z, None, Normal)", Default = TilingDefaults.SKIRT_MODE)]
+        public SkirtMode SkirtMode { get; set; }
     }
 
     public abstract class LandformShell : LandformCommand
@@ -652,6 +655,9 @@ namespace OPS.Landform
 
             args.Add("--maxglancingangledegrees");
             args.Add(lsopts.MaxGlancingAngleDegrees.ToString());
+
+            args.Add("--skirtmode");
+            args.Add(lsopts.SkirtMode.ToString());
         }
 
         protected void BuildTilingInput(string project, params string[] extraArgs)

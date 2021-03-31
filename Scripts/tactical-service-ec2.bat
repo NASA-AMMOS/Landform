@@ -124,6 +124,11 @@ if not "%LANDFORM_TACTICAL_MAX_TEXTURE_STRETCH%"=="" (
 set poweroftwotextures=
 if not "%LANDFORM_TACTICAL_POWER_OF_TWO_TEXTURES%"=="" set poweroftwotextures=--poweroftwotextures
 
+set skirtmode=
+if not "%LANDFORM_TACTICAL_SKIRT_MODE%"=="" (
+   set skirtmode=--skirtmode=%LANDFORM_TACTICAL_SKIRT_MODE%
+)
+
 set noindices=
 if not "%LANDFORM_TACTICAL_NO_INDICES%"=="" set noindices=--nopublishindeximages
 
@@ -185,7 +190,7 @@ set svcopts=%svcopts% %msgopts%
 set tilingopts=%tilesetimageformat% %tilesetindexformat%
 set tilingopts=%tilingopts% %maxfacespertile% %maxtileresolution% %mintileextent% %maxleafarea%
 set tilingopts=%tilingopts% %notexturesplitrespectmaxtexelspermeter% %maxtexelspermeter% %maxtexturestretch%
-set tilingopts=%tilingopts% %poweroftwotextures% %noindices% %embedindices%
+set tilingopts=%tilingopts% %poweroftwotextures% %skirtmode% %noindices% %embedindices%
 
 set tacticalopts=%meshregex% %mesheye% %meshgeom% %noloadlods% %fixuplods% %tileres% %preferpds% %requirepds% %objopts%
 set tacticalopts=%tacticalopts% %notextureprojection% %noaligntocamera% %synthesizeextralods% %nolimittreeheighttolods%
