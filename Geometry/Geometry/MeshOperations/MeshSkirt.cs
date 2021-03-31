@@ -134,22 +134,38 @@ namespace OPS.Geometry
                                                               posToIndex.ContainsKey(e.Src.Position) &&
                                                               posToIndex.ContainsKey(e.Dst.Position)))
                 {
-                    var sv1 = skirtMap[e.Src];
-                    var sv2 = skirtMap[e.Dst];
+                    var svs = skirtMap[e.Src];
+                    var svd = skirtMap[e.Dst];
                     
-                    var st1 = new Triangle(e.Src, sv1, e.Dst);
-                    var st2 = new Triangle(sv1, sv2, e.Dst);
-                    
-                    if (st1.TryComputeNormal(out Vector3 n1) && st2.TryComputeNormal(out Vector3 n2))
+                    var sts = new Triangle(e.Src, svs, e.Dst);
+                    var std = new Triangle(svs, svd, e.Dst);
+
+                    Vector3 ns = Vector3.Zero;
+                    Vector3 nd = Vector3.Zero;
+
+                    int srcID = posToIndex[e.Src.Position];
+                    int dstID = posToIndex[e.Dst.Position];
+
+                    // src---dst
+                    //  |    /|
+                    //  |sts/ |
+                    //  |  /  |
+                    //  | /std|
+                    //  |/    |
+                    // svs---svd 
+                        
+                    if (std.TryComputeNormal(out nd))
                     {
-                        n1 *= st1.Area();
-                        n2 *= st2.Area();
-                        sv1.Normal += n1 + n2;
-                        sv2.Normal += n2;
-                        int srcID = posToIndex[e.Src.Position];
-                        int dstID = posToIndex[e.Dst.Position];
-                        mesh.Faces.Add(new Face(srcID, sv1.ID, dstID));
-                        mesh.Faces.Add(new Face(sv1.ID, sv2.ID, dstID));
+                        nd *= std.Area();
+                        svd.Normal += nd;
+                        mesh.Faces.Add(new Face(svs.ID, svd.ID, dstID));
+                    }
+
+                    if (sts.TryComputeNormal(out ns))
+                    {
+                        ns *= sts.Area();
+                        svs.Normal += ns + nd;
+                        mesh.Faces.Add(new Face(srcID, svs.ID, dstID));
                     }
                 }
             }
