@@ -17,7 +17,7 @@ namespace OPS.Pipeline
         public const double MIN_TILE_EXTENT = 0.5;
         public const double MAX_LEAF_AREA = 128;
         public const MeshReconstructionMethod PARENT_RECONSTRUCTION_METHOD = MeshReconstructionMethod.FSSR;
-        public const SkirtMode SKIRT_MODE = SkirtMode.Normal;
+        public const SkirtMode SKIRT_MODE = SkirtMode.Z;
 
         //UVAtlas may crap out for some 16k tri meshes...
         //but 8192 is not quite enough to avoid splitting some 64x64 orbital tiles

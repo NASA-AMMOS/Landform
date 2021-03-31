@@ -23,7 +23,7 @@ Accepts the following arugments:
 * *poweroftwotextures*: use power of two textures; default false
 * *convertlinearrgbtosrgb*: convert from linear to sRGB colorspace before saving tileset and export images; default true
 * *embedindeximages*: convert from linear to sRGB colorspace before saving tileset and export images; default false
-* *skirtmode*: skirt mode; one of `X`, `Y`, `Z`, `None`, `Normal`; default `Normal`
+* *skirtmode*: skirt mode; one of `X`, `Y`, `Z`, `None`, `Normal`; default `Z`
 * *exportmeshformat*: additional mesh format to write, one of `obj`, `ply`, `stl`, or none; default none
 * *exportimageformat*: additional image format to write, one of `tif`, `png`, `jpg`, or none; default none
 

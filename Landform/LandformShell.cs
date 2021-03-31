@@ -119,7 +119,7 @@ namespace OPS.Landform
         public double MaxGlancingAngleDegrees { get; set; }
 
         [Option(HelpText = "Skirt up direction (X, Y, Z, None, Normal)", Default = TilingDefaults.SKIRT_MODE)]
-        public SkirtMode SkirtMode { get; set; }
+        public virtual SkirtMode SkirtMode { get; set; }
     }
 
     public abstract class LandformShell : LandformCommand
