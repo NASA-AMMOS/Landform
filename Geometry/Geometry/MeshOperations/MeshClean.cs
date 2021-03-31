@@ -25,6 +25,13 @@ namespace OPS.Geometry
         /// </summary>
         public static bool FaceIsValid(this Mesh mesh, Face f)
         {
+            if (f.P0 < 0 || f.P0 >= mesh.Vertices.Count ||
+                f.P1 < 0 || f.P1 >= mesh.Vertices.Count ||
+                f.P2 < 0 || f.P2 >= mesh.Vertices.Count)
+            {
+                return false;
+            }
+
             // Are any two of the vertices referenced by this face the same index
             if (!f.IsValid())
             {
@@ -273,11 +280,9 @@ namespace OPS.Geometry
 
         /// <summary>
         /// Remove any vertices that are identical
-        /// Also checks for and removes any identical faces
         /// </summary>
         public static void RemoveDuplicateVertices(this Mesh mesh, IEqualityComparer<Vertex> comparer = null)
         {
-            // Make a list of unique vertices and compute a mapping between old and new indices
             Dictionary<Vertex, int> vertexToIndex = new Dictionary<Vertex, int>(mesh.Vertices.Count, comparer);
             Dictionary<int, int> oldToNewIndex = new Dictionary<int, int>(mesh.Vertices.Count);
             List<Vertex> uniqueVertices = new List<Vertex>(mesh.Vertices.Count);
@@ -291,9 +296,7 @@ namespace OPS.Geometry
                 }
                 oldToNewIndex.Add(i, vertexToIndex[v]);
             }
-            // Update the vertex list
             mesh.Vertices = uniqueVertices;
-            // Update the face indices
             for (int i = 0; i < mesh.Faces.Count; i++)
             {
                 Face f = mesh.Faces[i];
@@ -302,8 +305,6 @@ namespace OPS.Geometry
                 f.P2 = oldToNewIndex[f.P2];
                 mesh.Faces[i] = f;
             }
-            mesh.RemoveInvalidFaces();
-            mesh.RemoveIdenticalFaces();
         }
 
         /// <summary>
@@ -328,7 +329,6 @@ namespace OPS.Geometry
                     verbose($"removed {nv - mesh.Vertices.Count} duplicate vertices");
                 }
             }
-
             if (mesh.HasFaces)
             {
                 int nf = mesh.Faces.Count;
