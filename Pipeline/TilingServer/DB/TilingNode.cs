@@ -666,8 +666,11 @@ namespace OPS.Pipeline.TilingServer
         private Object imageReadWriteLock = new Object();
         private Object indexReadWriteLock = new Object();
 
-        public MeshImagePair LoadMeshImagePair(PipelineCore pipeline, bool loadImage = true, bool cleanMesh = false)
+        public MeshImagePair LoadMeshImagePair(PipelineCore pipeline, bool loadImage = true, bool cleanMesh = false,
+                                               Action<string> warn = null)
         {
+            warn = warn ?? (msg => {});
+
             if (MeshUrl == null)
             {
                 return null;
@@ -689,20 +692,15 @@ namespace OPS.Pipeline.TilingServer
                     if (mesh == null)
                     {
                         mesh = Mesh.Load(pipeline.GetFileCached(MeshUrl, "meshes"));
+                        if (!mesh.HasNormals)
+                        {
+                            warn($"generating normals on mesh for tiling node {Id}");
+                            mesh.GenerateVertexNormals();
+                        }
                         if (cleanMesh)
                         {
-                            if (!mesh.HasNormals)
-                            {
-                                mesh.GenerateVertexNormals();
-                            }
-                            mesh.RemoveInvalidFaces();
-                            mesh.Clean();
+                            mesh.Clean(warn: warn);
                         }
-                        else if (!mesh.HasNormals)
-                        {
-                            throw new Exception("no normals on mesh for tiling node " + Id);
-                        }
-                        
                         if (meshCache != null)
                         {
                             meshCache[MeshUrl] = mesh;

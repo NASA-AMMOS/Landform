@@ -53,7 +53,7 @@ namespace OPS.Geometry
 
                     // total byte length including header
                     int headerBytes = 28;
-                    UInt32 totalLength = (UInt32)(headerBytes + featureTableJson.Length + glbData.Length);
+                    int totalLength = headerBytes + featureTableJson.Length + glbData.Length;
                     bw.Write(GLTFFile.UIntBytes(totalLength));     
 
                     // feature table header

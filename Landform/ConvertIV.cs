@@ -209,6 +209,7 @@ namespace OPS.Landform
                             logger.InfoFormat("texture file {0}", tft != null ? tft : "(not found)");
                             for (int lod = 0; lod < lodMeshes.Count; lod++)
                             {
+                                CleanMesh(lodMeshes[lod]);
                                 string dest = string.Format("{0}_LOD{1:00}{2}", bn, lod, ext);
                                 logger.InfoFormat("saving {0} ({1} tris)", dest, Fmt.KMG(lodMeshes[lod].Faces.Count));
                                 lodMeshes[lod].Save(Path.Combine(destDir, dest), tft); //destDir="" ok
@@ -220,6 +221,7 @@ namespace OPS.Landform
                             logger.InfoFormat("converting {0} to {1}{2}", files[i], ext, dirMsg);
                             tft = handleEmbeddedTexureFilename(tfe);
                             logger.InfoFormat("texture file {0}", tft != null ? tft : "(not found)");
+                            CleanMesh(mesh);
                             mesh.Save(Path.Combine(destDir, bn + ext), tft); //destDir="" ok
                         }
                     }          
@@ -232,6 +234,17 @@ namespace OPS.Landform
             }
 
             return 0;
+        }
+
+        private void CleanMesh(Mesh mesh)
+        {
+            logger.InfoFormat("loaded mesh with {0} vertices, {1} faces, {2} normals, {3} colors, {4} texcoords",
+                              mesh.Vertices.Count, mesh.Faces.Count, mesh.HasNormals ? "with" : "without",
+                              mesh.HasColors ? "with" : "without", mesh.HasUVs ? "with" : "without");
+            mesh.Clean(verbose: msg => logger.Info(msg), warn: msg => logger.Warn(msg));
+            logger.InfoFormat("cleaned mesh has {0} vertices, {1} faces, {2} normals, {3} colors, {4} texcoords",
+                              mesh.Vertices.Count, mesh.Faces.Count, mesh.HasNormals ? "with" : "without",
+                              mesh.HasColors ? "with" : "without", mesh.HasUVs ? "with" : "without");
         }
     }
 }
