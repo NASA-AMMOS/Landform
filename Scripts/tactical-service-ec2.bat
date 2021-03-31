@@ -164,6 +164,9 @@ if not "%LANDFORM_TACTICAL_SYNTHESIZE_EXTRA_LODS%"=="" set synthesizeextralods=-
 set nolimittreeheighttolods=
 if not "%LANDFORM_TACTICAL_NO_LIMIT_TREE_HEIGHT_TO_LODS%"=="" set nolimittreeheighttolods=--nolimittreeheighttolods
 
+set enforcemaxfacespertile=
+if not "%LANDFORM_TACTICAL_ENFORCE_MAX_FACES_PER_TILE%"=="" set enforcemaxfacespertile=--enforcemaxfacespertile
+
 set tileres=
 if not "%LANDFORM_TACTICAL_MAX_TILE_RESOLUTION%"=="" (
    set tileres=--maxtileresolution=%LANDFORM_TACTICAL_MAX_TILE_RESOLUTION%
@@ -194,7 +197,7 @@ set tilingopts=%tilingopts% %poweroftwotextures% %skirtmode% %noindices% %embedi
 
 set tacticalopts=%meshregex% %mesheye% %meshgeom% %noloadlods% %fixuplods% %tileres% %preferpds% %requirepds% %objopts%
 set tacticalopts=%tacticalopts% %notextureprojection% %aligntocamera% %synthesizeextralods% %nolimittreeheighttolods%
-set tacticalopts=%tacticalopts% %tilingopts%
+set tacticalopts=%tacticalopts% %enforcemaxfacespertile% %tilingopts%
 
 set appsdir=%bindir%\ExternalApps
 if exist %appsdir%\opengl32-for-ivcat.dll (

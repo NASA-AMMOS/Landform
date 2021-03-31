@@ -261,6 +261,7 @@
     <Compile Include="MissionSpecific\RoverReachability.cs" />
     <Compile Include="MissionSpecific\SolDateTime.cs" />
     <Compile Include="Tiling\AreaSplitCriteria.cs" />
+    <Compile Include="Tiling\FaceCount.cs" />
     <Compile Include="Tiling\MeshImagePairStats.cs" />
     <Compile Include="Tiling\SceneManifest.cs" />
     <Compile Include="Tiling\TextureBaker.cs" />

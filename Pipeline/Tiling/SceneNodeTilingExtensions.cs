@@ -794,6 +794,19 @@ namespace OPS.Pipeline
                         }
                     }
                 }
+                else
+                {
+                    var faceCounts = level
+                        .Where(node => node.HasComponent<FaceCount>())
+                        .Select(node => node.GetComponent<FaceCount>())
+                        .ToList();
+                    if (faceCounts.Count > 0)
+                    {
+                        int minTris = faceCounts.Select(fc => fc.NumTris).Min();
+                        int maxTris = faceCounts.Select(fc => fc.NumTris).Max();
+                        writeLine($"  {Fmt.KMG(minTris)}-{Fmt.KMG(maxTris)} tris");
+                    }
+                }
             }
 
             var levels = nodes.GroupBy(n => n.Transform.Depth()).OrderBy(g => g.Key);
@@ -843,6 +856,19 @@ namespace OPS.Pipeline
             if (meshStats.Count > 0)
             {
                 dumpTextureStats(meshStats);
+            }
+            else
+            {
+                var faceCounts = nodes
+                    .Where(node => node.HasComponent<FaceCount>())
+                    .Select(node => node.GetComponent<FaceCount>())
+                    .ToList();
+                if (faceCounts.Count > 0)
+                {
+                    int minTris = faceCounts.Select(fc => fc.NumTris).Min();
+                    int maxTris = faceCounts.Select(fc => fc.NumTris).Max();
+                    writeLine($"{faceCounts.Count} meshes, {Fmt.KMG(minTris)}-{Fmt.KMG(maxTris)} triangles");
+                }
             }
         }
     }

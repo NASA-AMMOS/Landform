@@ -394,6 +394,7 @@ namespace OPS.Pipeline.TilingServer
                                                       double minTileExtent = 0, double maxLeafArea = 0,
                                                       TextureSplitOptions texSplitOptions = null,
                                                       bool useTexSplitApprox = true, int maxHeight = -1,
+                                                      bool enforceMaxFaces = true,
                                                       Action<string> info = null, Action<string> verbose = null)
         {
             info = info ?? (msg => { });
@@ -434,9 +435,14 @@ namespace OPS.Pipeline.TilingServer
             var previousLevelNodes = new ConcurrentBag<SceneNode> { root };
             var tallies = new ConcurrentDictionary<string, int>();
             int height = 1;
+            var fsc = splitCriteria.FirstOrDefault(c => c is FaceSplitCriteria);
+            int maxFaces = fsc != null ? ((FaceSplitCriteria)fsc).maxFaces : -1;
             while (previousLevelNodes.Count > 0 && rootBounds.Volume() > 0)
             {
-                if (maxHeight > 0 && height >= maxHeight)
+                if (maxHeight > 0 && height >= maxHeight &&
+                    (!enforceMaxFaces || maxFaces <= 0 || previousLevelNodes
+                     .Where(n => n.HasComponent<FaceCount>())
+                     .All(n => n.GetComponent<FaceCount>().NumTris <= maxFaces)))
                 {
                     info($"limiting tile tree height to {maxHeight}");
                     break;
@@ -468,7 +474,8 @@ namespace OPS.Pipeline.TilingServer
                             int counter = 0; //note this is always exactly one decimal digit
                             foreach (var childBounds in childrenBounds)
                             {
-                                var child = CreateChildNode(node, childBounds, ref counter, lodMeshOps[0]);
+                                var child = CreateChildNode(node, childBounds, enforceMaxFaces && maxHeight > 0,
+                                                            ref counter, lodMeshOps[0]);
                                 currentLevelNodes.Add(child);
                                 //verbose($"made child {child.Name} " +
                                 //        $"({childBounds.Fmt()} -> {child.GetComponent<NodeBounds>().Bounds.Fmt()}) " +
@@ -508,6 +515,7 @@ namespace OPS.Pipeline.TilingServer
                                                         double surfaceExtent = -1,
                                                         TextureSplitOptions texSplitOptions = null,
                                                         bool useTexSplitApprox = true, int maxHeight = -1,
+                                                        bool enforceMaxFaces = true,
                                                         Action<string> info = null, Action<string> verbose = null)
         {
             info = info ?? (msg => { });
@@ -531,18 +539,18 @@ namespace OPS.Pipeline.TilingServer
             }
 
             return BuildBoundsTree(meshOps, tilingScheme, splitCriteria, minTileExtent, surfaceExtent,
-                                   orbitalSplitCriteria, maxHeight, info: info, verbose: verbose);
+                                   orbitalSplitCriteria, maxHeight, enforceMaxFaces, info: info, verbose: verbose);
         }
 
         public static SceneNode BuildBoundsTree(MultiMeshClipper multiClipper, TilingScheme tilingScheme,
                                                 TileSplitCriteria[] splitCriteria, double minTileExtent = 0,
                                                 double surfaceExtent = -1,
                                                 TileSplitCriteria[] orbitalSplitCriteria = null,
-                                                int maxHeight = -1,
+                                                int maxHeight = -1, bool enforceMaxFaces = true,
                                                 Action<string> info = null, Action<string> verbose = null)
         {
             return BuildBoundsTree(multiClipper.GetMeshOps(), tilingScheme, splitCriteria, minTileExtent,
-                                   surfaceExtent, orbitalSplitCriteria, maxHeight, info, verbose);
+                                   surfaceExtent, orbitalSplitCriteria, maxHeight, enforceMaxFaces, info, verbose);
         }
 
         //build a tile tree based on the geometry of the finest LOD mesh, represented by one or more meshOps
@@ -556,6 +564,7 @@ namespace OPS.Pipeline.TilingServer
                                                 TileSplitCriteria[] splitCriteria, double minTileExtent = 0,
                                                 double surfaceExtent = -1,
                                                 TileSplitCriteria[] orbitalSplitCriteria = null, int maxHeight = -1,
+                                                bool enforceMaxFaces = true,
                                                 Action<string> info = null, Action<string> verbose = null)
         {
             bool isVerbose = verbose != null;
@@ -591,9 +600,13 @@ namespace OPS.Pipeline.TilingServer
             var previousLevelNodes = new ConcurrentBag<SceneNode> { root };
             var tallies = new ConcurrentDictionary<string, int>();
             int height = 1;
+            int maxFaces = -1;
             while (previousLevelNodes.Count > 0 && rootBounds.Volume() > 0)
             {
-                if (maxHeight > 0 && height >= maxHeight)
+                if (maxHeight > 0 && height >= maxHeight &&
+                    (!enforceMaxFaces || maxFaces <= 0 || previousLevelNodes
+                     .Where(n => n.HasComponent<FaceCount>())
+                     .All(n => n.GetComponent<FaceCount>().NumTris <= maxFaces)))
                 {
                     info($"limiting tile tree height to {maxHeight}");
                     break;
@@ -616,6 +629,8 @@ namespace OPS.Pipeline.TilingServer
                     {
                         Interlocked.Increment(ref surfaceTiles);
                     }
+                    var fsc = sc.FirstOrDefault(c => c is FaceSplitCriteria);
+                    maxFaces = fsc != null ? ((FaceSplitCriteria)fsc).maxFaces : -1;
                     string splitType = null;
                     foreach (var crit in sc)
                     {
@@ -647,7 +662,8 @@ namespace OPS.Pipeline.TilingServer
                             int counter = 0; //note this is always exactly one decimal digit
                             foreach (var childBounds in childrenBounds)
                             {
-                                var child = CreateChildNode(node, childBounds, ref counter, meshOps);
+                                var child = CreateChildNode(node, childBounds, enforceMaxFaces && maxHeight > 0,
+                                                            ref counter, meshOps);
                                 currentLevelNodes.Add(child);
                                 //verbose($"made child {child.Name} " +
                                 //        $"({childBounds.Fmt()} -> {child.GetComponent<NodeBounds>().Bounds.Fmt()}) " +
@@ -712,8 +728,8 @@ namespace OPS.Pipeline.TilingServer
             return new MeshImagePair(mesh, image);
         }
 
-        private static SceneNode CreateChildNode(SceneNode parent, BoundingBox bounds, ref int counter,
-                                                 params MeshOperator[] meshOps)
+        private static SceneNode CreateChildNode(SceneNode parent, BoundingBox bounds, bool estimateFaceCount,
+                                                 ref int counter, params MeshOperator[] meshOps)
         {
             string childName = parent.Name + counter++;
             string parentName = !string.IsNullOrEmpty(parent.Name) ? parent.Name : "root";
@@ -747,6 +763,10 @@ namespace OPS.Pipeline.TilingServer
 
             SceneNode child = new SceneNode(childName, parent.Transform);
             child.AddComponent(new NodeBounds(bounds));
+            if (estimateFaceCount)
+            {
+                child.AddComponent(new FaceCount(meshOps.Sum(op => op.CountFaces(bounds))));
+            }
             return child;
         }
     }

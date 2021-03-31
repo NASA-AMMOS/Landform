@@ -136,6 +136,9 @@ namespace OPS.Landform
         [Option(HelpText = "Don't limit tile tree height to input LODs", Default = false)]
         public bool NoLimitTreeHeightToLODs { get; set; }
 
+        [Option(HelpText = "Enforce max faces per tile even if it means increasing tree height above limit (LODs will be re-used or synthesized if enabled)", Default = false)]
+        public bool EnforceMaxFacesPerTile { get; set; }
+
         [Option(HelpText = "Max input texture resolution, should be power of two, negative for unlimited", Default = -1)]
         public override int TextureResolution { get; set; }
 
@@ -823,6 +826,7 @@ namespace OPS.Landform
                     .BuildTileTreeFromLODs(meshOpForLOD, options.TilingScheme, options.MaxFacesPerTile,
                                            options.MinTileExtent, options.MaxLeafArea,
                                            textureSplitOptions, !options.NoApproxTileSplit, maxTreeHeight,
+                                           options.EnforceMaxFacesPerTile,
                                            msg => pipeline.LogInfo(msg), msg => pipeline.LogVerbose(msg));
             }
             else
@@ -832,6 +836,7 @@ namespace OPS.Landform
                                              options.TilingScheme, options.MaxFacesPerTile, options.MinTileExtent,
                                              options.MaxLeafArea, options.MaxOrbitalLeafArea, surfaceExtent,
                                              textureSplitOptions, !options.NoApproxTileSplit, maxTreeHeight,
+                                             options.EnforceMaxFacesPerTile,
                                              msg => pipeline.LogInfo(msg), msg => pipeline.LogVerbose(msg));
             }
             tileTree.DumpStats(msg => pipeline.LogInfo(msg));
@@ -892,7 +897,12 @@ namespace OPS.Landform
 
             int nearestAvailableLOD(int lod)
             {
-                return rootLOD < meshLOD.Count ? lod : (int)Math.Round(((double)lod / rootLOD) * (meshLOD.Count - 1));
+                int maxAvailableLOD = meshLOD.Count - 1;
+                if (rootLOD > maxAvailableLOD)
+                {
+                    lod = (int)Math.Ceiling(((double)lod / rootLOD) * maxAvailableLOD);
+                }
+                return Math.Max(Math.Min(lod, maxAvailableLOD), 0);
             }
 
             if (options.WriteDebug)
