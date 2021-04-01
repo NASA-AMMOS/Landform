@@ -18,7 +18,8 @@ namespace OPS.RayTrace
     /// </summary>
     public class SceneCaster
     {
-        const SceneFlags SCENE_FLAGS = SceneFlags.Static | SceneFlags.Coherent | SceneFlags.Incoherent | SceneFlags.Robust;
+        const SceneFlags SCENE_FLAGS =
+            SceneFlags.Static | SceneFlags.Coherent | SceneFlags.Incoherent | SceneFlags.Robust;
         const TraversalFlags TRAVERSAL_FLAGS = TraversalFlags.Single;
 
         private readonly Device device;
@@ -186,12 +187,13 @@ namespace OPS.RayTrace
                 var position = ray.Position + ray.Direction * hit.Distance;
 
                 // Negate the normal direction coming out of embree.  Its poorly documented in the images on this page
-                // https://embree.github.io/api.html but it looks like they use a different winding order than we assume
-                // for our normals
+                // https://www.embree.org/api.html#rtchit
+                // but it looks like they use a different winding order than we assume for our normals
+                // what is documented is that it's not normalized
                 var faceNormal = -new Vector3(hit.NX, hit.NY, hit.NZ);
-                if (faceNormal.Length() > MathE.EPSILON)
+                if (faceNormal.LengthSquared() > 0)
                 {
-                    faceNormal = hit.Instance.NormalToWorldSpace(faceNormal);
+                    faceNormal = hit.Instance.NormalToWorldSpace(Vector3.Normalize(faceNormal));
                 }
 
                 var mesh = hit.Instance.Mesh;

@@ -188,19 +188,6 @@ namespace OPS.Geometry
             }
         }
 
-        protected override void WriteVertexNormalHeader(StreamWriter sw)
-        {
-            var dt = writeNormalAsFloat ? "float" : "double";
-            sw.WriteLine($"property {dt} nx");
-            sw.WriteLine($"property {dt} ny");
-            sw.WriteLine($"property {dt} nz");
-            if (writeNormalLengthsAsValue)
-            {
-                dt = writeValueAsFloat ? "float" : "double";
-                sw.WriteLine($"property {dt} value");
-            }
-        }
-
         protected override void WriteVertexUVHeader(StreamWriter sw)
         {
             string dt = writeUVAsFloat ? "float" : "double";
@@ -258,6 +245,19 @@ namespace OPS.Geometry
             }
         }
 
+        protected override void WriteVertexNormalHeader(StreamWriter sw)
+        {
+            var dt = writeNormalAsFloat ? "float" : "double";
+            sw.WriteLine($"property {dt} nx");
+            sw.WriteLine($"property {dt} ny");
+            sw.WriteLine($"property {dt} nz");
+            if (writeNormalLengthsAsValue)
+            {
+                dt = writeValueAsFloat ? "float" : "double";
+                sw.WriteLine($"property {dt} value");
+            }
+        }
+
         protected override void WriteVertexNormal(Vertex v, Stream s)
         {
             Vector3 n = v.Normal;
@@ -270,12 +270,28 @@ namespace OPS.Geometry
                     n.Normalize();
                 }
             }
-            WriteFloatValue((float)n.X, s);
-            WriteFloatValue((float)n.Y, s);
-            WriteFloatValue((float)n.Z, s);
+            if (writeNormalAsFloat)
+            {
+                WriteFloatValue((float)n.X, s);
+                WriteFloatValue((float)n.Y, s);
+                WriteFloatValue((float)n.Z, s);
+            }
+            else
+            {
+                WriteDoubleValue(n.X, s);
+                WriteDoubleValue(n.Y, s);
+                WriteDoubleValue(n.Z, s);
+            }
             if (writeNormalLengthsAsValue)
             {
-                WriteFloatValue((float)val, s);
+                if (writeValueAsFloat)
+                {
+                    WriteFloatValue((float)val, s);
+                }
+                else
+                {
+                    WriteDoubleValue(val, s);
+                }
             }
         }
     }
@@ -336,12 +352,6 @@ namespace OPS.Geometry
             : base(writeNormalLengthsAsValue: writeNormalLengthsAsValue, writeAlpha: writeAlpha)
         { }
 
-        protected override void WriteVertexUV(Vertex v, Stream s)
-        {
-            base.WriteVertexUV(v, s);
-            base.WriteVertexUV(v, s);
-        }
-
         protected override void WriteVertexUVHeader(StreamWriter sw)
         {
             base.WriteVertexUVHeader(sw);
@@ -350,12 +360,19 @@ namespace OPS.Geometry
             sw.WriteLine($"property {dt} t");
         }
 
+        protected override void WriteVertexUV(Vertex v, Stream s)
+        {
+            base.WriteVertexUV(v, s);
+            base.WriteVertexUV(v, s);
+        }
+
         protected override void WriteFaceHeader(Mesh m, StreamWriter sw)
         {
             base.WriteFaceHeader(m, sw);
             if (m.HasUVs)
             {
-                sw.WriteLine("property list uchar float texcoord");
+                string dt = writeUVAsFloat ? "float" : "double";
+                sw.WriteLine($"property list uchar {dt} texcoord");
             }
         }
 
@@ -365,12 +382,24 @@ namespace OPS.Geometry
             if (m.HasUVs)
             {
                 s.WriteByte(6);
-                WriteFloatValue((float)m.Vertices[f.P0].UV.U, s);
-                WriteFloatValue((float)m.Vertices[f.P0].UV.V, s);
-                WriteFloatValue((float)m.Vertices[f.P1].UV.U, s);
-                WriteFloatValue((float)m.Vertices[f.P1].UV.V, s);
-                WriteFloatValue((float)m.Vertices[f.P2].UV.U, s);
-                WriteFloatValue((float)m.Vertices[f.P2].UV.V, s);
+                if (writeUVAsFloat)
+                {
+                    WriteFloatValue((float)m.Vertices[f.P0].UV.U, s);
+                    WriteFloatValue((float)m.Vertices[f.P0].UV.V, s);
+                    WriteFloatValue((float)m.Vertices[f.P1].UV.U, s);
+                    WriteFloatValue((float)m.Vertices[f.P1].UV.V, s);
+                    WriteFloatValue((float)m.Vertices[f.P2].UV.U, s);
+                    WriteFloatValue((float)m.Vertices[f.P2].UV.V, s);
+                }
+                else
+                {
+                    WriteDoubleValue(m.Vertices[f.P0].UV.U, s);
+                    WriteDoubleValue(m.Vertices[f.P0].UV.V, s);
+                    WriteDoubleValue(m.Vertices[f.P1].UV.U, s);
+                    WriteDoubleValue(m.Vertices[f.P1].UV.V, s);
+                    WriteDoubleValue(m.Vertices[f.P2].UV.U, s);
+                    WriteDoubleValue(m.Vertices[f.P2].UV.V, s);
+                }
             }
         }
     }

@@ -239,7 +239,7 @@ namespace OPS.Geometry
         }
 
         /// <summary>
-        /// Merge verticies that are within distance eps and delete any collapsed or duplicate faces
+        /// Merge verticies that are within distance eps and delete any invalid, collapsed, or duplicate faces
         /// </summary>
         public static void MergeNearbyVertices(this Mesh mesh, double eps)
         {
@@ -279,7 +279,7 @@ namespace OPS.Geometry
         }
 
         /// <summary>
-        /// Remove any vertices that are identical
+        /// Remove any vertices that are identical and delete any invalid or duplicate faces
         /// </summary>
         public static void RemoveDuplicateVertices(this Mesh mesh, IEqualityComparer<Vertex> comparer = null)
         {
@@ -305,6 +305,8 @@ namespace OPS.Geometry
                 f.P2 = oldToNewIndex[f.P2];
                 mesh.Faces[i] = f;
             }
+            mesh.RemoveInvalidFaces();
+            mesh.RemoveIdenticalFaces();
         }
 
         /// <summary>
@@ -320,15 +322,6 @@ namespace OPS.Geometry
         {
             verbose = verbose ?? (msg => {});
             warn = warn ?? (msg => {});
-            if (removeDuplicateVerts)
-            {
-                int nv = 0;
-                mesh.RemoveDuplicateVertices();
-                if (mesh.Vertices.Count < nv)
-                {
-                    verbose($"removed {nv - mesh.Vertices.Count} duplicate vertices");
-                }
-            }
             if (mesh.HasFaces)
             {
                 int nf = mesh.Faces.Count;
@@ -350,6 +343,15 @@ namespace OPS.Geometry
                 if (mesh.Faces.Count < nf)
                 {
                     verbose($"removed {nf - mesh.Faces.Count} duplicate faces");
+                }
+            }
+            if (removeDuplicateVerts)
+            {
+                int nv = 0;
+                mesh.RemoveDuplicateVertices();
+                if (mesh.Vertices.Count < nv)
+                {
+                    verbose($"removed {nv - mesh.Vertices.Count} duplicate vertices");
                 }
             }
             if (normalize && mesh.HasNormals)

@@ -20,7 +20,6 @@ namespace GeometryThirdpartyTest
             Assert.IsTrue(UVAtlas.Atlas(mesh, 512, 512));
             Triangle newT1 = mesh.Triangles()[0];
             Triangle newT2 = mesh.Triangles()[1];
-            Assert.AreEqual((newT1.V1.UV - newT1.V0.UV).LengthSquared()*2, (newT2.V2.UV - newT2.V1.UV).LengthSquared(), 1e-7);
             foreach(Triangle t in mesh.Triangles())
             {
                 foreach(Vertex v in t.Vertices())

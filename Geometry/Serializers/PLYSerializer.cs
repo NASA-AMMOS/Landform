@@ -7,7 +7,8 @@ using System.Threading.Tasks;
 
 namespace OPS.Geometry
 {
-    public class PLYSerializerException : MeshSerializerException{
+    public class PLYSerializerException : MeshSerializerException
+    {
         public PLYSerializerException() { }
         public PLYSerializerException(string message) : base(message) { }
         public PLYSerializerException(string message, Exception inner) : base(message, inner) { }
@@ -45,9 +46,8 @@ namespace OPS.Geometry
         /// <summary>
         /// Write a ply file using the Maximum Compatibility PLYWriter
         /// </summary>
-        /// <param name="m">
-        /// The mesh to export.  Assumes vertex color values range 0-1.  Will scale these to 0-255 if byte based color proprties are chosen        
-        /// </param>
+        /// <param name="m">The mesh to export.  Assumes vertex color values range 0-1.  Will scale these to 0-255 if
+        /// byte based color proprties are chosen</param>
         /// <param name="filename">Output filename</param>
         /// <param name="comments"></param>
         public static void Write(Mesh m, string filename, string textureFilename = null, List<string> comments = null)
@@ -58,11 +58,13 @@ namespace OPS.Geometry
         /// <summary>
         /// Write a ply file
         /// </summary>
-        /// <param name="m">The mesh to export.  Assumes vertex color values range 0-1.  Will scale these to 0-255 if byte based color proprties are chosen</param>
+        /// <param name="m">The mesh to export.  Assumes vertex color values range 0-1.  Will scale these to 0-255 if
+        /// byte based color proprties are chosen</param>
         /// <param name="filename"></param>
         /// <param name="plyWriter">The type of PLYWriter to use</param>
         /// <param name="comments"></param>
-        public static void Write(Mesh m, string filename, PLYWriter plyWriter, string textureFilename = null, List<string> comments = null)
+        public static void Write(Mesh m, string filename, PLYWriter plyWriter, string textureFilename = null,
+                                 List<string> comments = null)
         {      
             using (StreamWriter sw = new StreamWriter(filename, false))
             {

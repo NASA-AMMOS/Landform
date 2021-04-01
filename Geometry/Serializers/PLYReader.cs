@@ -320,9 +320,8 @@ namespace OPS.Geometry
         /// <summary>
         /// Reads and a ply file
         /// </summary>
-        /// <param name="textureFilename">This will be filled with the texture associated with the ply if there is one.  Null otherwise.</param>
-        /// <param name="defaultAlpha">Some PLY files only contain RGB colors.  If so, use this value as the default alpha.  Suggested value is 1</param>
-        /// <returns></returns>
+        /// <param name="textureFilename">This will be filled with the texture associated with the ply if there is one.
+        /// alpha.  Suggested value is 1</param>
         public Mesh Read(out string textureFilename, double defaultAlpha = 1, bool onlyGetImageFilename = false)
         {
             Mesh result = new Mesh();
