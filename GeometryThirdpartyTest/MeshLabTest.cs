@@ -8,6 +8,7 @@ using OPS.Geometry;
 using System.IO;
 using OPS.Util;
 
+#if ENABLE_MESHLAB
 namespace GeometryThirdpartyTest
 {
     [TestClass]
@@ -187,3 +188,4 @@ namespace GeometryThirdpartyTest
         }
     }
 }
+#endif

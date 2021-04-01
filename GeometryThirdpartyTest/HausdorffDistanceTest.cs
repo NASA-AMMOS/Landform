@@ -7,6 +7,7 @@ using OPS.Geometry;
 using OPS.Util;
 using OPS.Test;
 
+#if ENABLE_MESHLAB
 namespace GeometryThirdpartyTest
 {
     /// <summary>
@@ -53,3 +54,4 @@ namespace GeometryThirdpartyTest
         }
     }
 }
+#endif

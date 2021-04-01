@@ -20,6 +20,7 @@ namespace OPS.Geometry
     {
         private static readonly ILog logger = LogManager.GetLogger(typeof(MeshLab));
 
+#if ENABLE_MESHLAB
         /// <summary>
         /// Expose ability to override the meshlab server directory to outside packages that don't have access to MeshLabRunner directly
         /// Set this to the directory containing your meshlab executable
@@ -286,5 +287,36 @@ namespace OPS.Geometry
         {
             MeshLabRunner.SaveAs(outputFilename, mesh, imagefilename);
         }
+#else
+        public static Mesh ComputeNormals(Mesh m)
+        {
+            throw new NotImplementedException();
+        }
+
+        public static Mesh Sample(Mesh m, int approximateNumberSamples = 2000)
+        {
+            throw new NotImplementedException();
+        }
+
+        public static Mesh Decimated(Mesh m, int targetFaces = 2000)
+        {
+            throw new NotImplementedException();
+        }
+
+        public static Mesh ResampleDecimated(Mesh m, int numSamples = 2000, int targetFaces = 2000)
+        {
+            throw new NotImplementedException();
+        }
+
+        public static HausdorffDistanceStats BidirectionalHausdorffDistance(Mesh m1, Mesh m2, double maxDist = 0, int numSamples = 250000)
+        {
+            throw new NotImplementedException();
+        }
+
+        public static void SaveAs(string outputFilename, Mesh mesh, string imagefilename = null)
+        {
+            throw new NotImplementedException();
+        }
+#endif
     }
 }
