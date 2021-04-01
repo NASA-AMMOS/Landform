@@ -17,6 +17,11 @@ namespace OPS.Pipeline.AlignmentServer
         public string MaskUrl;
         public DetectFeaturesMessage() {}
         public DetectFeaturesMessage(string projectName) : base(projectName) {}
+
+        public override string Info()
+        {
+            return string.Format("[{0}] DetectFeatures image {1}", ProjectName, ImageUrl);
+        }
     }
 
     public class FeaturesDetectedMessage : PipelineMessage
@@ -52,7 +57,8 @@ namespace OPS.Pipeline.AlignmentServer
             }
             else
             {
-                LogError("failed to detect features for image {0} in project {1}", shortUrl, project.Name);
+                LogWarn("failed to detect features for image {0} in project {1}", shortUrl, project.Name);
+                //not fatal to fail on one image
             }
         }
     }

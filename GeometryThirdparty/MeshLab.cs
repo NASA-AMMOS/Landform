@@ -16,10 +16,11 @@ namespace OPS.Geometry
     /// Exposes mesh operations that are implemented in MeshLab
     /// Filters are tested against MeshLab_2016
     /// </summary>
-    public class MeshLab
+    public static class MeshLab
     {
         private static readonly ILog logger = LogManager.GetLogger(typeof(MeshLab));
 
+#if ENABLE_MESHLAB
         /// <summary>
         /// Expose ability to override the meshlab server directory to outside packages that don't have access to MeshLabRunner directly
         /// Set this to the directory containing your meshlab executable
@@ -112,7 +113,7 @@ namespace OPS.Geometry
         /// <param name="m"></param>
         /// <param name="targetFaces"></param>
         /// <returns></returns>
-        public static Mesh Decimate(Mesh m, int targetFaces = 2000)
+        public static Mesh Decimated(Mesh m, int targetFaces = 2000)
         {
             if (m.Faces.Count == 0)
             {
@@ -146,7 +147,6 @@ namespace OPS.Geometry
             return result;
         }
 
-
         /// <summary>
         /// Decimate a mesh to the desired number of faces by sampling it's surface and remeshing the sampled point cloud
         /// Does not retain uvs or colors but will recompute normals if they exist in the input mesh
@@ -156,7 +156,7 @@ namespace OPS.Geometry
         /// <param name="numSamples"></param>
         /// <param name="targetFaces"></param>
         /// <returns></returns>
-        public static Mesh ResampleDecimation(Mesh m, int numSamples = 2000, int targetFaces = 2000)
+        public static Mesh ResampleDecimated(Mesh m, int numSamples = 2000, int targetFaces = 2000)
         {
             if (m.Faces.Count == 0)
             {
@@ -240,7 +240,8 @@ namespace OPS.Geometry
                     }
                 }
             }
-            return Mesh.Clip(result, bounds);
+            result.Clip(bounds);
+            return result;
         }
         
         /// <summary>
@@ -286,5 +287,36 @@ namespace OPS.Geometry
         {
             MeshLabRunner.SaveAs(outputFilename, mesh, imagefilename);
         }
+#else
+        public static Mesh ComputeNormals(Mesh m)
+        {
+            throw new NotImplementedException();
+        }
+
+        public static Mesh Sample(Mesh m, int approximateNumberSamples = 2000)
+        {
+            throw new NotImplementedException();
+        }
+
+        public static Mesh Decimated(Mesh m, int targetFaces = 2000)
+        {
+            throw new NotImplementedException();
+        }
+
+        public static Mesh ResampleDecimated(Mesh m, int numSamples = 2000, int targetFaces = 2000)
+        {
+            throw new NotImplementedException();
+        }
+
+        public static HausdorffDistanceStats BidirectionalHausdorffDistance(Mesh m1, Mesh m2, double maxDist = 0, int numSamples = 250000)
+        {
+            throw new NotImplementedException();
+        }
+
+        public static void SaveAs(string outputFilename, Mesh mesh, string imagefilename = null)
+        {
+            throw new NotImplementedException();
+        }
+#endif
     }
 }

@@ -20,8 +20,8 @@ bucket=${tmp%%/*}
 
 s3ls="aws --profile=credss-default s3 ls"
 
-pattern=tileset.json
-if [ $withscenes ]; then pattern="scene.json|$pattern"; fi
+pattern="tileset\\.json|tileset_[^/]+\\.json"
+if [ $withscenes ]; then pattern="scene\\.json|$pattern"; fi
 
 export TZ=utc
 

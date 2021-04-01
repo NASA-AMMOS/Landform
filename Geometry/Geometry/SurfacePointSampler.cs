@@ -41,9 +41,9 @@ namespace OPS.Geometry
         /// too close together</param>
         /// <returns>New mesh containing a point cloud of samples across the surface of the given mesh</returns>
         public Mesh GenerateSampledMesh(Mesh input, double density, int presampleFactor = 20,
-                                        bool normalizeNormals = true)
+                                        bool normalizeNormals = true, double area = -1)
         {
-            Vertex[] sampled = Sample(input, density, presampleFactor, normalizeNormals);
+            Vertex[] sampled = Sample(input, density, presampleFactor, normalizeNormals, false, area);
             Mesh pointCloud = new Mesh(hasNormals: input.HasNormals, hasColors: input.HasColors, hasUVs: input.HasUVs);
             pointCloud.Vertices = new List<Vertex>(sampled);
             return pointCloud;
@@ -75,11 +75,15 @@ namespace OPS.Geometry
         /// are too close together</param>
         /// <returns>Vertex array containing a point cloud of samples across the surface of the given mesh</returns>
         public Vertex[] Sample(Mesh input, double density, int presampleFactor = 20, bool normalizeNormals = true,
-                               bool positionsOnly = false)
+                               bool positionsOnly = false, double area = -1)
         {
             random = new Random(randomSeed);
 
-            double area = input.SurfaceArea();
+            if (area < 0)
+            {
+                area = input.SurfaceArea();
+            }
+
             if (area < 1e-6)
             {
                 throw new Exception("cannot sample zero area mesh");

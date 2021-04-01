@@ -126,8 +126,23 @@ namespace OPS.Landform
         [Option(Default = TextureCommand.DEF_FIXUP_LODS, HelpText = "Create or fix LOD meshes, comma separated list of min-max ranges, finest to coarsest")]
         public string FixupLODs{ get; set; }
 
-        [Option(Default = 512, HelpText = "Max tile image resolution, negative for unlimited, 0 disables texturing")]
-        public int MaxTileResolution { get; set; }
+        [Option(HelpText = "Disable generating UVs by texture projection", Default = false)]
+        public bool NoTextureProjection { get; set; }
+
+        [Option(HelpText = "Align tile bounds to camera axis for improved texture utilization when using texture projection", Default = false)]
+        public bool AlignToCamera { get; set; }
+
+        [Option(HelpText = "Enable synthesizing intermediate LODs when fewer precomputed LODs than tile tree levels", Default = false)]
+        public bool SynthesizeExtraLODs { get; set; }
+
+        [Option(HelpText = "Don't limit tile tree height to input LODs", Default = false)]
+        public bool NoLimitTreeHeightToLODs { get; set; }
+
+        [Option(HelpText = "Don't enforce max faces per tile even if it means increasing tree height above limit (LODs will be re-used or synthesized if enabled)", Default = false)]
+        public bool EnforceMaxFacesPerTile { get; set; }
+
+        [Option(HelpText = "Skirt up direction (X, Y, Z, None, Normal)", Default = SkirtMode.None)]
+        public override SkirtMode SkirtMode { get; set; }
     }
 
     public class ProcessTactical : LandformService
@@ -973,11 +988,14 @@ namespace OPS.Landform
             string project = !string.IsNullOrEmpty(options.ProjectName) ? options.ProjectName : mip.id;
             string venue = string.Format("tactical_{0}_{1}", missionStr, project);
             string venueDir = storageDir + "/" + venue;
-            string tilesetDir = GetTilesetDir(venue, "passthrough", project);
+            string tilesetDir = venueDir + "/" + TilingCommand.TILESET_DIR + "/" + project;
             string destDir = TILESET_SUBDIR; //default output to ./TILESET_SUBDIR (e.g. if input is a filename)
             string loadLODs = !options.NoLoadExistingLODs ? "--loadlods" : "";
             string fixupLODs = options.FixupLODs;
-            string tileRes = options.MaxTileResolution.ToString();
+            string noTextureProjection = options.NoTextureProjection ? "--notextureprojection" : "";
+            string alignToCamera = options.AlignToCamera ? "--aligntocamera" : "";
+            string synthesizeExtraLODs = options.SynthesizeExtraLODs ? "--synthesizeextralods" : "";
+            string noLimitTreeHeightToLODs = options.NoLimitTreeHeightToLODs ? "--nolimittreeheighttolods" : "";
 
             pipeline.LogInfo("building tileset {0} for {1}", project, mip.url);
 
@@ -1007,11 +1025,11 @@ namespace OPS.Landform
 
                 if (!options.NoTileset)
                 {
-                    RunCommand("build-tiling-input", project, "--mission", fullMissionStr, "--meshframe", "tactical",
-                               "--inputmesh", meshFile, "--inputtexture", imageFile, "--tileresolution", tileRes,
-                               loadLODs, "--fixuplods", fixupLODs);
-
-                    BuildTileset(project, "--tileresolution", tileRes);
+                    BuildTilingInput(project, "--mission", fullMissionStr, "--meshframe", "tactical", "--inputmesh",
+                                     meshFile, "--inputtexture", imageFile, loadLODs, "--fixuplods", fixupLODs,
+                                     noTextureProjection, alignToCamera, synthesizeExtraLODs, noLimitTreeHeightToLODs);
+                    
+                    BuildTileset(project);
 
                     if (IsPDS(imageFile))
                     {

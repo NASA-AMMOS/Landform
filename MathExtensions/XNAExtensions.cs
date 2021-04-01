@@ -10,6 +10,15 @@ namespace OPS.MathExtensions
     public static class XNAExtensions
     {
         /// <summary>
+        /// https://computergraphics.stackexchange.com/a/1719
+        /// </summary>
+        public static double Curvature(Vector3 p1, Vector3 p2, Vector3 n1, Vector3 n2)
+        {
+            var d = p2 - p1;
+            return (n2 - n1).Dot(d) / d.LengthSquared();
+        }
+
+        /// <summary>
         /// convert XNA Matrix to row major 16 element array
         /// </summary>
         public static double[] ToDoubleArray(this Matrix mat)
@@ -162,6 +171,18 @@ namespace OPS.MathExtensions
         public static bool IsFinite(this Vector2 v)
         {
             return MathE.IsFinite(v.X) && MathE.IsFinite(v.Y);
+        }
+
+        public static RTree.Rectangle ToRectangle(this Vector3 v)
+        {
+            return new RTree.Rectangle((float)v.X, (float)v.Y,
+                                       (float)v.X, (float)v.Y,
+                                       (float)v.Z, (float)v.Z); //yes, z last
+        }
+
+        public static RTree.Point ToRTreePoint(this Vector3 v)
+        {
+            return new RTree.Point((float)v.X, (float)v.Y, (float)v.Z);
         }
     }
 

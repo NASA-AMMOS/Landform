@@ -463,7 +463,8 @@ namespace OPS.Pipeline
                         var key = ti.MakeKey(obj);
                         if (!quiet)
                         {
-                            LogDebug("{0} -> {1}[{2}]={3}", file, t.FullName, key, StringHelper.CollapseWhitespace(json));
+                            LogDebug("{0} -> {1}[{2}]={3}", file, t.FullName, key,
+                                     StringHelper.CollapseWhitespace(json));
                         }
                         dbCache.AddOrUpdate(key, _ => json, (_, __) => json);
                     }
@@ -476,7 +477,8 @@ namespace OPS.Pipeline
             }
             if (!quiet && nt > 0)
             {
-                LogInfo("initialized {0} database tables, {1} total items, {2:F3} sec", nt, ni, UTCTime.Now() - startSec);
+                LogInfo("initialized {0} database tables, {1} total items, {2:F3} sec", nt, ni,
+                        UTCTime.Now() - startSec);
             }
         }
 
@@ -672,7 +674,7 @@ namespace OPS.Pipeline
         private static int nextMessageId = -1;
         private static string NextMessageId()
         {
-            return "msg " + Interlocked.Increment(ref nextMessageId);
+            return Interlocked.Increment(ref nextMessageId).ToString();
         }
 
         protected override void EnqueueToMasterImpl(PipelineMessage message)

@@ -47,10 +47,13 @@ namespace OPS.Landform
         [Option(HelpText = "Observation image texture variant (Original, Blurred, Blended)", Default = TextureVariant.Original)]
         public virtual TextureVariant TextureVariant { get; set; }
 
-        [Option(HelpText = "A tunable parameter for the Observation Selection Strategy used in backproject (range 0-1)", Default = 0.3)]
+        [Option(HelpText = "A tunable parameter for the Observation Selection Strategy used in backproject (range 0-1)", Default = TexturingDefaults.BACKPROJECT_QUALITY)]
         public virtual double BackprojectQuality { get; set; }
 
-        [Option(HelpText = "The smallest distance (meters) for a raycast determined to be significant, prevents self intersections", Default = 0.0001)]
+        [Option(HelpText = "Max backproject glancing angle relative to mesh normal, 90 to disable glance filter", Default = TexturingDefaults.BACKPROJECT_MAX_GLANCING_ANGLE_DEGREES)]
+        public double MaxGlancingAngleDegrees { get; set; }
+
+        [Option(HelpText = "The smallest distance (meters) for a raycast determined to be significant, prevents self intersections", Default = TexturingDefaults.RAYCAST_TOLERANCE)]
         public virtual double RaycastTolerance { get; set; }
 
         [Option(HelpText = "Write extended backproject debug info", Default = false)]
@@ -59,10 +62,10 @@ namespace OPS.Landform
         [Option(HelpText = "Verbose backproject spew", Default = false)]
         public bool VerboseBackproject { get; set; }
 
-        [Option(HelpText = "The strategy used to pick which of the many source image candidates for a given area is selected in backproject (Exhaustive, Spatial)", Default = ObsSelectionStrategyName.Spatial)]
+        [Option(HelpText = "The strategy used to pick which of the many source image candidates for a given area is selected in backproject (Exhaustive, Spatial)", Default = TexturingDefaults.OBS_SEL_STRATEGY)]
         public virtual ObsSelectionStrategyName ObsSelectionStrategy { get; set; }
         
-        [Option(Required = false, HelpText = "Observation image blur radius", Default = 7)]
+        [Option(Required = false, HelpText = "Observation image blur radius", Default = TexturingDefaults.OBSERVATION_BLUR_RADIUS)]
         public int ObservationBlurRadius { get; set; }
 
         [Option(HelpText = "Redo blurred observation textures", Default = false)]
@@ -74,31 +77,34 @@ namespace OPS.Landform
         [Option(HelpText = "Redo observation image stats", Default = false)]
         public bool RedoObservationStats { get; set; }
 
-        [Option(HelpText = "Number of inpaint missing pixels for backproject, 0 to disable inpaint, negative for unlimited", Default = 4)]
+        [Option(HelpText = "Number of inpaint missing pixels for backproject, 0 to disable inpaint, negative for unlimited", Default = TexturingDefaults.BACKPROJECT_INPAINT_MISSING)]
         public int BackprojectInpaintMissing { get; set; }
 
-        [Option(HelpText = "Number of inpaint gutter pixels for backproject, 0 to disable inpaint, negative for unlimited", Default = -1)]
+        [Option(HelpText = "Number of inpaint gutter pixels for backproject, 0 to disable inpaint, negative for unlimited", Default = TexturingDefaults.BACKPROJECT_INPAINT_GUTTER)]
         public int BackprojectInpaintGutter { get; set; }
 
         [Option(HelpText = "Just show list of image observations selected for texturing", Default = false)]
         public bool ListImageObservations { get; set; }
 
-        [Option(HelpText = "Length of the convex hull to use when finding observations to texture width (meters)", Default = 100)]
+        [Option(HelpText = "Length of the convex hull to use when finding observations to texture width (meters)", Default = TexturingDefaults.TEXTURE_FAR_CLIP)]
         public virtual double TextureFarClip { get; set; }
 
-        [Option(HelpText = "Prefer color images (Never, Always, EquivalentScores)", Default = PreferColorMode.EquivalentScores)]
+        [Option(HelpText = "Prefer color images (Never, Always, EquivalentScores)", Default = TexturingDefaults.OBS_SEL_PREFER_COLOR)]
         public virtual PreferColorMode PreferColor { get; set; }
 
         [Option(HelpText = "Colorize mono images to median chrominance", Default = false)]
-        public virtual bool Colorize { get; set; }
+        public bool Colorize { get; set; }
 
         [Option(HelpText = "Override median hue [0-360], negative disables (e.g. 33)", Default = -1)]
         public double OverrideMedianHue { get; set; }
+
+        [Option(HelpText = "Disable generating UVs by texture projection", Default = false)]
+        public bool NoTextureProjection { get; set; }
     }
 
     public class TextureCommand : GeometryCommand
     {
-        public const string DEF_FIXUP_LODS = "90000-300000,20000-90000,4000-20000,1000-4000,100-1000";
+        public const string DEF_FIXUP_LODS = "90000-300000,20000-100000,4000-30000,1000-5000,100-2000";
 
         protected TextureCommandOptions tcopts;
 
@@ -120,13 +126,17 @@ namespace OPS.Landform
 
         protected SceneMesh sceneMesh;
         protected Image sceneTexture;
+        protected Matrix? meshToCamera; //non-null iff texture projection enabled
 
         protected Mesh mesh; //finest LOD
         protected List<Mesh> meshLOD; //meshLOD[0] = mesh, coarser LODs populated iff --loadlods
         protected MeshOperator meshOp; //finest LOD
         protected List<MeshOperator> meshOpForLOD; //meshOpForLOD[0] = meshOp, coarser LODs populated iff --loadlods
+        protected Matrix? meshTransform;
 
         protected double medianHue = -1;
+
+        protected int numProjectAtlas;
 
         protected TextureCommand(TextureCommandOptions tcopts) : base(tcopts)
         {
@@ -141,6 +151,11 @@ namespace OPS.Landform
 
         protected override bool ParseArgumentsAndLoadCaches(string outDir)
         {
+            if (tcopts.TextureFarClip > 0)
+            {
+                PDSImage.farLimit = tcopts.TextureFarClip;
+            }
+
             if (tcopts.DecimateWedgeImages < 0 || tcopts.DecimateWedgeImages > 1)
             {
                 throw new Exception("--decimatewedgeimages is not implemented for this command");
@@ -169,11 +184,7 @@ namespace OPS.Landform
             {
                 orbitalImages = observationCache.GetAllObservations().Where(obs => obs.IsOrbitalImage).ToList();
 
-                roverImages = observationCache.GetAllObservations()
-                    .Where(obs => (obs is RoverObservation) &&
-                           (((RoverObservation)obs).ObservationType == RoverProductType.Image))
-                    .Cast<RoverObservation>()
-                    .ToList();
+                roverImages = getRoverObservations(obs => obs.ObservationType == RoverProductType.Image);
 
                 FilterRoverImages();
 
@@ -224,9 +235,7 @@ namespace OPS.Landform
 
         protected virtual void FilterRoverImages()
         {
-            var comparator = new RoverObservationComparator(mission.GetRoverObservationComparator());
-            comparator.logger = pipeline.Verbose ? pipeline : null;
-            comparator.SetPreferLinearRasterProducts(mission.PreferLinearRasterProducts());
+            var comparator = new RoverObservationComparator(mission, pipeline);
             roverImages = comparator
                 .KeepBestRoverObservations(roverImages, RoverObservationComparator.LinearVariants.Best,
                                            RoverProductType.Image)
@@ -271,40 +280,6 @@ namespace OPS.Landform
         protected override string DescribeObservationFilter()
         {
             return " texturing images and masks";
-        }
-
-        /// <summary>
-        /// this override also handles --meshframe=auto
-        /// if the project exists and contains only one scene mesh and --meshframe=auto
-        /// then that sceneMesh is loaded and meshFrame is set to its name
-        /// this allows later commands like local-build-tileset to work without an explicit --meshframe option
-        /// and it also handles the case that the scene mesh was specially built, e.g. for only specific observations
-        /// </summary>
-        protected override Project GetProject()
-        {
-            var project = base.GetProject(); //throws if project doesn't exist
-            meshFrame = tcopts.MeshFrame.ToLower().Trim();
-            if (meshFrame == "auto")
-            {
-                var sceneMeshes = project.GetSceneMeshes();
-                if (sceneMeshes.Count() == 1)
-                {
-                    var sceneMesh = SceneMesh.Load(pipeline, project.Name, sceneMeshes.First());
-                    if (sceneMesh.Variant == MeshVariant.Default)
-                    {
-                        meshFrame = sceneMesh.Frame;
-                        this.sceneMesh = sceneMesh;
-                        pipeline.LogInfo("only one scene mesh in project {0}: {1}, implied mesh frame {2}",
-                                         project.Name, sceneMesh.Name, meshFrame);
-                    }
-                }
-            }
-            return project;
-        }
-
-        protected override string GetMeshFrame()
-        {
-            return !string.IsNullOrEmpty(meshFrame) ? meshFrame : tcopts.MeshFrame.ToLower().Trim();
         }
 
         protected void BuildBlurredObservationImages()
@@ -369,8 +344,6 @@ namespace OPS.Landform
 
         protected void BuildObservationImageMasks()
         {
-            var comparator =
-                mission != null ? mission.GetRoverObservationComparator() : new RoverObservationComparator();
             int no = roverImages.Count;
             int np = 0, nc = 0;
             CoreLimitedParallel.ForEach(roverImages, obs =>
@@ -389,16 +362,8 @@ namespace OPS.Landform
                 try
                 {
                     Image img = pipeline.LoadImage(obs.Url);
-                    
-                    var off = observationCache.GetAllObservationsForFrame(frameCache.GetFrame(obs.FrameName))
-                    .Where(o => o is RoverObservation)
-                    .ToList();
-                    
-                    var maskObs = comparator
-                    .KeepBestRoverObservations(off, RoverObservationComparator.LinearVariants.Both,
-                                               RoverProductType.RoverMask)
-                    .Where(o => o.IsLinear == obs.IsLinear)
-                    .FirstOrDefault();
+
+                    var maskObs = getBestMaskObservation(obs);
                     
                     Image maskImage = ImageMasker.MakeMask(pipeline, masker, maskObs != null ? maskObs.Url : null, img);
                     
@@ -476,18 +441,17 @@ namespace OPS.Landform
                              lumaMed, lumaMAD, hueMed, numColor, roverImages.Count);
         }
 
-        protected void LoadInputMesh(bool requireUVs = true, bool requireNormals = true,
-                                     bool onlyGenerateUVsWithTextureProjection = false)
+        protected virtual void LoadInputMesh(bool requireUVs = false, bool requireNormals = false)
         {
             if (sceneMesh == null && project != null) //might have already been loaded in GetProject()
             {
-                sceneMesh = SceneMesh.Find(pipeline, project.Name, meshFrame);
+                sceneMesh = SceneMesh.Find(pipeline, project.Name, MeshVariant.Default);
             }
 
             if (!string.IsNullOrEmpty(tcopts.InputMesh))
             {
                 pipeline.LogInfo("loading input mesh from {0}{1}", tcopts.InputMesh,
-                                 sceneMesh != null ? (", overriding scene mesh " + sceneMesh.Name) : "");
+                                 sceneMesh != null ? ", overriding scene mesh " : "");
                 string meshFile = pipeline.GetFileCached(tcopts.InputMesh, "meshes");
                 if (tcopts.LoadLODs)
                 {
@@ -541,21 +505,34 @@ namespace OPS.Landform
 
             if (meshLOD.Count == 0)
             {
-                throw new Exception("failed to load input mesh");
+                pipeline.LogWarn("input mesh contains 0 non-empty levels of detail");
+                meshLOD = new List<Mesh>() { new Mesh(hasNormals: requireNormals, hasUVs: requireUVs) };
+            }
+            else
+            {
+                pipeline.LogInfo("input mesh contains {0} non-empty level(s) of detail", meshLOD.Count);
+            }
+
+            if (meshTransform.HasValue && meshTransform.Value != Matrix.Identity)
+            {
+                pipeline.LogInfo("applying non-identity transform to input mesh");
+                for (int i = 0; i < meshLOD.Count; i++)
+                {
+                    meshLOD[i].Transform(meshTransform.Value);
+                }
             }
 
             mesh = meshLOD.First();
 
-            pipeline.LogInfo("input mesh contains {0} non-empty level(s) of detail", meshLOD.Count);
             for (int lod = 0; lod < meshLOD.Count; lod++)
             {
                 pipeline.LogInfo("LOD {0}: {1} vertices, {2} faces",
                                  lod, Fmt.KMG(meshLOD[lod].Vertices.Count), Fmt.KMG(meshLOD[lod].Faces.Count));
             }
 
-            bool genUVs = !onlyGenerateUVsWithTextureProjection || TextureProjectionEnabled();
+            bool canGenUVs = CanAtlasSceneMesh();
 
-            if (tcopts.LoadLODs && !string.IsNullOrEmpty(tcopts.FixupLODs) && (!requireUVs || genUVs))
+            if (tcopts.LoadLODs && !string.IsNullOrEmpty(tcopts.FixupLODs) && (!requireUVs || canGenUVs))
             {
                 int[][] ranges = null;
                 try
@@ -576,23 +553,55 @@ namespace OPS.Landform
                 FixupLODs(ranges);
             }
 
-            for (int i = 0; i < meshLOD.Count; i++)
+            if (requireUVs)
             {
-                if (requireUVs && !meshLOD[i].HasUVs)
+                int lodCountWas = meshLOD.Count;
+                for (int i = 0; i < meshLOD.Count; i++)
                 {
-                    if (genUVs)
+                    if (!meshLOD[i].HasUVs)
                     {
-                        AtlasMesh(meshLOD[i], sceneTextureResolution, "LOD " + i);
-                    }
-                    else
-                    {
-                        throw new Exception("atlassing disabled and mesh missing UVs" + (i > 0 ? $" at LOD {i}" : ""));
+                        if (canGenUVs)
+                        {
+                            AtlasMesh(meshLOD[i], sceneTextureResolution, "LOD " + i);
+                        }
+                        else
+                        {
+                            throw new Exception("atlassing disabled and mesh missing UVs" +
+                                                (i > 0 ? $" at LOD {i}" : ""));
+                        }
                     }
                 }
 
-                if (requireNormals && !meshLOD[i].HasNormals)
+                //if texture projecting is enabled then mesh vertices outside the camera frustum can be discarded
+                //generally that shouldn't happen (much)
+
+                meshLOD = meshLOD
+                    .Where(m => m != null && m.Faces.Count > 0)
+                    .OrderByDescending(m => m.Faces.Count)
+                    .ToList();
+                
+                if (meshLOD.Count == 0)
                 {
-                    meshLOD[i].GenerateVertexNormals();
+                    pipeline.LogWarn("0 non-empty levels of detail after atlassing");
+                    meshLOD = new List<Mesh>() { new Mesh(hasNormals: requireNormals, hasUVs: requireUVs) };
+                }
+                else if (meshLOD.Count < lodCountWas)
+                {
+                    pipeline.LogWarn("discarded {0} empty levels of detail after atlassing",
+                                     (lodCountWas - meshLOD.Count));
+                }
+
+                mesh = meshLOD.First();
+            }
+
+            if (requireNormals)
+            {
+                for (int i = 0; i < meshLOD.Count; i++)
+                {
+                    if (!meshLOD[i].HasNormals)
+                    {
+                        meshLOD[i].GenerateVertexNormals();
+                    }
                 }
             }
         }
@@ -600,11 +609,22 @@ namespace OPS.Landform
         protected void FixupLODs(int[][] ranges)
         {
             var newLODs = new Mesh[ranges.Length];
+            var used = new bool[meshLOD.Count];
             for (int i = 0; i < ranges.Length; i++)
             {
-                int s = meshLOD.FindIndex(m => (ranges[i][0] <= m.Faces.Count && m.Faces.Count <= ranges[i][1]));
+                int s = -1;
+                for (int j = 0; j < meshLOD.Count; j++)
+                {
+                    int fc = meshLOD[j].Faces.Count; 
+                    if (!used[j] && (ranges[i][0] <= fc && fc <= ranges[i][1]))
+                    {
+                        s = j;
+                        break;
+                    }
+                }
                 if (s >= 0)
                 {
+                    used[s] = true;
                     Mesh src = meshLOD[s];
                     pipeline.LogInfo("using source LOD {0} with {1} tris for fixed up LOD {2} ({3}-{4})",
                                      s, Fmt.KMG(src.Faces.Count), i, Fmt.KMG(ranges[i][0]), Fmt.KMG(ranges[i][1]));
@@ -633,11 +653,19 @@ namespace OPS.Landform
                             pipeline.LogInfo("decimating {0} LOD {1} from {2} to {3} triangles for fixed up lod {4}",
                                              st, s, Fmt.KMG(src.Faces.Count), Fmt.KMG(target), i);
                         }
-                        newLODs[i] = src.Decimate(target, tcopts.MeshDecimator);
+                        newLODs[i] = src.Decimated(target, tcopts.MeshDecimator, logger: pipeline);
                         pipeline.LogInfo("decimated {0} tri {1} LOD {2} for fixed up LOD {3} ({4}-{5}) " +
                                          "to {6} (target {7}) tris with {8}", Fmt.KMG(src.Faces.Count), st, s, i,
                                          Fmt.KMG(ranges[i][0]), Fmt.KMG(ranges[i][1]),
                                          Fmt.KMG(newLODs[i].Faces.Count), Fmt.KMG(target), tcopts.MeshDecimator);
+                        if (newLODs[i].Faces.Count < ranges[i][0] || newLODs[i].Faces.Count > ranges[i][1])
+                        {
+                            pipeline.LogWarn("not using fixed up LOD {0}, face count {1} out of range {2}-{3}",
+                                             i, Fmt.KMG(newLODs[i].Faces.Count), Fmt.KMG(ranges[i][0]),
+                                             Fmt.KMG(ranges[i][1]));
+                            newLODs[i] = null;
+                                             
+                        }
                     }
                     else
                     {
@@ -656,6 +684,12 @@ namespace OPS.Landform
             {
                 meshLOD = newLODs.ToList();
                 mesh = meshLOD.First();
+                pipeline.LogInfo("{0} LODs after fixup:", meshLOD.Count);
+                for (int lod = 0; lod < meshLOD.Count; lod++)
+                {
+                    pipeline.LogInfo("LOD {0}: {1} vertices, {2} faces",
+                                     lod, Fmt.KMG(meshLOD[lod].Vertices.Count), Fmt.KMG(meshLOD[lod].Faces.Count));
+                }
             }
             else
             {
@@ -663,24 +697,108 @@ namespace OPS.Landform
             }
         }
 
+        //BuildTilingInput.SetupTextureProjection() is the only place that meshToCamera can get set
+        //to actually enable texture projection
+        protected bool TextureProjectionEnabled()
+        {
+            return !tcopts.NoTextureProjection &&
+                sceneTexture != null && sceneTexture.CameraModel != null && meshToCamera.HasValue;
+        }
+
+        protected void ProjectTexture(Mesh mesh, string name = null)
+        {
+            if (sceneTexture == null)
+            {
+                throw new Exception("cannot project texture coordinates, no scene texture");
+            }
+            if (sceneTexture.CameraModel == null)
+            {
+                throw new Exception("cannot project texture coordinates, scene texture has no camera model");
+            }
+            if (!meshToCamera.HasValue)
+            {
+                throw new Exception("cannot project texture coordinates, no mesh-to-image transform");
+            }
+            int vertsWas = mesh.Vertices.Count;
+            mesh.ProjectTexture(sceneTexture, meshToCamera.Value);
+            if (mesh.Vertices.Count == 0)
+            {
+                pipeline.LogWarn("all {0} verts of {1}mesh outside camera frustum and removed by texture projection",
+                                 Fmt.KMG(vertsWas), !string.IsNullOrEmpty(name) ? (name + " ") : "");
+            }
+        }
+
+        protected override void AtlasMesh(Mesh mesh, int resolution, string name = null)
+        {
+            if (mesh.Vertices.Count == 0)
+            {
+                pipeline.LogInfo("cannot atlas {0}mesh, no vertices", !string.IsNullOrEmpty(name) ? (name + " ") : "");
+                return;
+            }
+            if (tcopts.AtlasMode == AtlasMode.Project && TextureProjectionEnabled())
+            {
+                string msg = string.Format("atlassing {0}mesh ({1} triangles) with texture projection",
+                                           !string.IsNullOrEmpty(name) ? (name + " ") : "", Fmt.KMG(mesh.Faces.Count));
+                if (mesh.Faces.Count > ATLAS_LOG_THRESHOLD)
+                {
+                    pipeline.LogInfo(msg);
+                }
+                else
+                {
+                    pipeline.LogVerbose(msg);
+                }
+                ProjectTexture(mesh, name);
+                numProjectAtlas++;
+            }
+            else if (tcopts.AtlasMode != AtlasMode.Project)
+            {
+                base.AtlasMesh(mesh, resolution, name);
+            }
+            else
+            {
+                throw new Exception($"cannot atlas {name}mesh, texture projection not available");
+            }
+        }
+
+        protected override void DumpAtlasStats()
+        {
+            if (numProjectAtlas > 0)
+            {
+                pipeline.LogInfo("projection atlassed {0} meshes", numProjectAtlas);
+            }
+            base.DumpAtlasStats();
+        }
+
+        protected virtual bool CanAtlasSceneMesh()
+        {
+            if (tcopts.AtlasMode == AtlasMode.None)
+            {
+                return false;
+            }
+            if (tcopts.AtlasMode == AtlasMode.Project && !TextureProjectionEnabled())
+            {
+                return false;
+            }
+            return true;
+        }
+
         protected virtual void LoadTileList()
         {
+            if (sceneMesh == null)
+            {
+                throw new Exception("no scene mesh");
+            }
+
             if (sceneMesh.TileListGuid == Guid.Empty)
             {
-                throw new Exception(string.Format("scene mesh {0} has no tile list", sceneMesh.Name));
+                throw new Exception(string.Format("scene mesh has no tile list"));
             }
 
             tileList = pipeline.GetDataProduct<TileList>(project, sceneMesh.TileListGuid);
 
-            if (tileList.MeshFrame != meshFrame)
-            {
-                throw new Exception(string.Format("tile list in frame {0}, expected {1}",
-                                                  tileList.MeshFrame, meshFrame));
-            }
-
             if (tileList.LeafNames == null || tileList.LeafNames.Count == 0)
             {
-                throw new Exception("leaf list empty");
+                pipeline.LogWarn("leaf list empty");
             }
         }
 
@@ -691,18 +809,16 @@ namespace OPS.Landform
             {
                 pipeline.LogInfo("loading occlusion mesh {0}", tcopts.OcclusionMesh);
                 occlusionMesh = Mesh.Load(pipeline.GetFileCached(tcopts.OcclusionMesh, "meshes"));
-                if (occlusionMesh == null)
-                {
-                    throw new Exception("failed to load occlusion mesh");
-                }
-                if (occlusionMesh.Faces.Count == 0)
-                {
-                    throw new Exception("occlusion mesh empty");
-                }
             }
             else
             {
                 occlusionMesh = mesh;
+            }
+
+            if (occlusionMesh == null || occlusionMesh.Faces.Count == 0)
+            {
+                pipeline.LogWarn("cannot create scene caster, occlusion mesh empty");
+                return;
             }
 
             sceneCaster = new SceneCaster(occlusionMesh); //NOTE: can't change mesh after this
@@ -713,8 +829,8 @@ namespace OPS.Landform
             var meshOps = new MeshOperator[meshLOD.Count];
             CoreLimitedParallel.For(0, meshLOD.Count, lod =>
             {
-                meshOps[lod] = new MeshOperator(meshLOD[lod],
-                                                buildFaceTree: true, buildVertexTree: false, buildUVFaceTree: false);
+                meshOps[lod] = new MeshOperator(meshLOD[lod], buildFaceTree: true,
+                                                buildVertexTree: !meshLOD[lod].HasFaces, buildUVFaceTree: false);
             });
             meshOpForLOD = meshOps.ToList();
             meshOp = meshOpForLOD.First();
@@ -737,20 +853,23 @@ namespace OPS.Landform
 
         protected virtual void InitBackprojectStrategy()
         {
-            if (meshOp == null)
-            {
-                throw new Exception("must build mesh operator before initializing backproject strategy");
-            }
-            if (sceneCaster == null)
-            {
-                throw new Exception("must build scene cater before initializing backproject strategy");
-            }
             InitBackprojectStrategy(mesh, meshOp, sceneCaster, sceneCaster);
         }
 
         protected void InitBackprojectStrategy(Mesh mesh, MeshOperator meshOp, SceneCaster meshCaster,
                                                SceneCaster occlusionScene, bool useSurfaceBounds = true)
         {
+            if (meshOp == null)
+            {
+                pipeline.LogWarn("cannot create backproject strategy, no mesh operator");
+                return;
+            }
+            if (sceneCaster == null)
+            {
+                pipeline.LogWarn("cannot create backproject strategy, no scene caster");
+                return;
+            }
+
             backprojectStrategy = ObsSelectionStrategy.Create(tcopts.ObsSelectionStrategy);
 
             backprojectStrategy.Quality = tcopts.BackprojectQuality;
@@ -766,6 +885,7 @@ namespace OPS.Landform
                 var texObs = observationCache.GetObservation(Observation.ORBITAL_IMAGE_INDEX);
                 backprojectStrategy.OrbitalMetersPerPixel =
                     (texObs.CameraModel as ConformalCameraModel).AvgMetersPerPixel;
+                backprojectStrategy.OrbitalIsColor = texObs.Bands > 1;
                 if (useSurfaceBounds && sceneMesh != null)
                 {
                     backprojectStrategy.SurfaceExtent = sceneMesh.SurfaceExtent;
@@ -836,6 +956,9 @@ namespace OPS.Landform
 
                 quality = tcopts.BackprojectQuality,
                 obsSelectionStrategy = strategy,
+
+                raycastTolerance = tcopts.RaycastTolerance,
+                maxGlancingAngleDegrees = tcopts.MaxGlancingAngleDegrees,
 
                 meshName = meshName,
                 quiet = quiet,
@@ -1017,10 +1140,10 @@ namespace OPS.Landform
 
         protected void SaveBackprojectIndexDebug(Image index, bool withMesh = true, string suffix = "")
         {
-            string name = sceneMesh.Name + "_backprojectIndex" + suffix;
+            string name = meshFrame + "_backprojectIndex" + suffix;
             SaveFloatTIFF(index, name);
             Image previewImg = Backproject.GenerateIndexPreviewImage(index);
-            name = sceneMesh.Name + "_backprojectIndexFalseColor" + suffix;
+            name = meshFrame + "_backprojectIndexFalseColor" + suffix;
             pipeline.LogInfo("saving backproject index false color debug image");
             SaveImage(previewImg, name);
             if (withMesh && mesh != null)
@@ -1034,7 +1157,7 @@ namespace OPS.Landform
                                                    TextureVariant textureVariant = TextureVariant.Original,
                                                    bool withMesh = true, string suffix = "")
         {
-            string name = sceneMesh.Name + "_backprojectTexture";
+            string name = meshFrame + "_backprojectTexture";
             if (textureVariant != TextureVariant.Original)
             {
                 name += "_" + textureVariant.ToString();
@@ -1063,7 +1186,7 @@ namespace OPS.Landform
 
         protected void SaveSceneMesh(string outputMesh, bool withIndex = false)
         {
-            var meshURL = CheckOutputURL(outputMesh, sceneMesh.Name, outputFolder, MeshSerializers.Instance);
+            var meshURL = CheckOutputURL(outputMesh, project.Name, outputFolder, MeshSerializers.Instance);
             var imgURL = StringHelper.ChangeUrlExtension(meshURL, imageExt);
 
             if (withIndex)

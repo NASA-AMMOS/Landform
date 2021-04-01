@@ -48,7 +48,7 @@ using OPS.Pipeline.TilingServer;
 ///
 /// Example:
 ///
-/// Landform.exe build-tileset windjana --meshframe 0311472
+/// Landform.exe build-tileset windjana
 ///
 /// </summary>
 namespace OPS.Landform
@@ -56,14 +56,17 @@ namespace OPS.Landform
     [Verb("build-tileset", HelpText = "builds a tileset from pre-built tiles")]
     public class BuildTilesetOptions : TilingCommandOptions
     {
-        [Option(HelpText = "Option disabled for this command", Default = false)]
-        public override bool NoSave { get; set; }
-
         [Option(HelpText = "option disabled for this command", Default = false)]
         public override bool NoOrbital { get; set; }
 
         [Option(HelpText = "Option disabled for this command", Default = false)]
         public override bool NoSurface { get; set; }
+
+        [Option(HelpText = "Option disabled for this command", Default = false)]
+        public override bool NoSave { get; set; }
+
+        [Option(HelpText = "Build flat tileset", Default = false)]
+        public bool Flat { get; set; }
     }
 
     public class BuildTileset : TilingCommand
@@ -84,10 +87,18 @@ namespace OPS.Landform
                     return 0; //help
                 }
 
-                RunPhase("create tiling project", CreateTilingProject);
-                RunPhase("add tiling inputs", AddTilingInputs);
-                RunPhase("build tiles and define parents", BuildTilesAndDefineParents);
-                RunPhase("build parent tiles and save tileset", BuildParentTilesAndSaveTileset);
+                if (options.Flat)
+                {
+                    RunPhase("create flat tileset", MakeFlatTileset);
+                    RunPhase("saving flat tileset", SaveTileset);
+                }
+                else
+                {
+                    RunPhase("create tiling project", CreateTilingProject);
+                    RunPhase("add tiling inputs", AddTilingInputs);
+                    RunPhase("build tiles and define parents", BuildTilesAndDefineParents);
+                    RunPhase("build parent tiles and save tileset", BuildParentTilesAndSaveTileset);
+                }
             }
             catch (Exception ex)
             {
@@ -128,8 +139,6 @@ namespace OPS.Landform
             PipelineOperation.LessSpew = PipelineStateMachine.LessSpew = !(pipeline.Verbose || pipeline.Debug);
             PipelineOperation.SingleWorkflowSpew = PipelineStateMachine.SingleWorkflowSpew = true;
 
-            tilesetFolder = DecorateOutDir(TILESET_DIR);
-
             LoadTileList();
 
             withTextures &= !string.IsNullOrEmpty(tileList.ImageExt);
@@ -142,9 +151,9 @@ namespace OPS.Landform
             return true;
         }
 
-        protected override bool DeleteLocalProductsBeforeRedo()
+        protected override bool DeleteProductsBeforeRedo()
         {
-            //see comments in BuildTilingInput.DeleteLocalProducts()
+            //see comments in TilingCommand.DeleteProducts()
             return false;
         }
             

@@ -24,7 +24,7 @@ namespace OPS.Geometry
 
         /// <summary>
         /// compute approximate max abs curvature at each valid point
-        /// uses Mesh.Curvature()
+        /// uses XNAExtensions.Curvature()
         /// </summary>
         public static Image Curvatures(Image points, Image normals, bool normalize = true,
                                        Neighborhood neighborhood = DEF_CURVATURE_NEIGHBORHOOD)
@@ -81,8 +81,8 @@ namespace OPS.Geometry
                         float maxAbsCurvature = 0;
                         for (int i = 1; i < n; i++)
                         {
-                            var c = (float)Math.Abs(Mesh.Curvature(hoodPoints[0], hoodPoints[i],
-                                                                   hoodNorms[0], hoodNorms[i]));
+                            var c = (float)Math.Abs(XNAExtensions.Curvature(hoodPoints[0], hoodPoints[i],
+                                                                            hoodNorms[0], hoodNorms[i]));
                             maxAbsCurvature = Math.Max(maxAbsCurvature, c);
                         }
                         ret[0, row, col] = maxAbsCurvature;
@@ -224,7 +224,7 @@ namespace OPS.Geometry
         /// mask and decimate a normals image   
         /// if mask image is provided then any pixels which are 0 there are ignored
         /// </summary>
-        public static Image MaskAndDecimateNormals(Image img, int blocksize, Image mask = null)
+        public static Image MaskAndDecimateNormals(Image img, int blocksize, Image mask = null, bool normalize = false)
         {
             if (mask != null)
             {
@@ -234,21 +234,24 @@ namespace OPS.Geometry
             {
                 img = img.Decimated(blocksize);
             }
-            for (int row = 0; row < img.Height; row++)
+            if (normalize)
             {
-                for (int col = 0; col < img.Width; col++)
+                for (int row = 0; row < img.Height; row++)
                 {
-                    if (img.IsValid(row, col))
+                    for (int col = 0; col < img.Width; col++)
                     {
-                        var n = new Vector3(img[0, row, col], img[1, row, col], img[2, row, col]);
-                        if (n.LengthSquared() < 0.0001)
+                        if (img.IsValid(row, col))
                         {
-                            img.SetMaskValue(row, col, true);
-                        }
-                        else
-                        {
-                            n.Normalize();
-                            img.SetBandValues(row, col, n.ToFloatArray());
+                            var n = new Vector3(img[0, row, col], img[1, row, col], img[2, row, col]);
+                            if (n.LengthSquared() < 0.0001)
+                            {
+                                img.SetMaskValue(row, col, true);
+                            }
+                            else
+                            {
+                                n.Normalize();
+                                img.SetBandValues(row, col, n.ToFloatArray());
+                            }
                         }
                     }
                 }

@@ -63,10 +63,53 @@ namespace OPS.Geometry
             return 0.5 * (box.Max + box.Min);
         }
 
+        /// <summary>
+        /// Negative if empty.
+        /// </summary>
         public static double Volume(this BoundingBox box)
         {
             Vector3 size = box.Extent();
             return size.X * size.Y * size.Z;
+        }
+
+        public static Vector3 GetBoxAxisDirection(BoxAxis axis)
+        {
+            switch (axis)
+            {
+                case BoxAxis.X: return Vector3.UnitX;
+                case BoxAxis.Y: return Vector3.UnitY;
+                case BoxAxis.Z: return Vector3.UnitZ;
+                default: throw new ArgumentException("unknown axis: " + axis);
+            }
+        }
+
+        public static BoxAxis GetBoxAxis(Vector3 dir)
+        {
+            if (dir == Vector3.UnitX)
+            {
+                return BoxAxis.X;
+            }
+            if (dir == Vector3.UnitY)
+            {
+                return BoxAxis.Y;
+            }
+            if (dir == Vector3.UnitZ)
+            {
+                return BoxAxis.Z;
+            }
+            throw new Exception("no box axis for direction " + dir);
+        }
+
+        public static double GetExtentInAxis(this BoundingBox box, BoxAxis axis)
+        {
+            var sz = box.Extent();
+            switch (axis)
+            {
+                case BoxAxis.X: return sz.X;
+                case BoxAxis.Y: return sz.Y;
+                case BoxAxis.Z: return sz.Z;
+                default: throw new ArgumentException("unknown axis: " + axis);
+            }
         }
 
         public static Vector2 GetFaceSizePerpendicularToAxis(this BoundingBox box, BoxAxis axis)
@@ -79,6 +122,12 @@ namespace OPS.Geometry
                 case BoxAxis.Z: return new Vector2(sz.X, sz.Y);
                 default: throw new ArgumentException("unknown axis: " + axis);
             }
+        }
+
+        public static double GetFaceAreaPerpendicularToAxis(this BoundingBox box, BoxAxis axis)
+        {
+            var sz = box.GetFaceSizePerpendicularToAxis(axis);
+            return sz.X * sz.Y;
         }
 
         public static double MaxDimension(this BoundingBox box)
@@ -669,13 +718,6 @@ namespace OPS.Geometry
                                        (float)box.Min.Z, (float)box.Max.Z); //yes, z last
         }
 
-        public static RTree.Rectangle ToRectangle(this Vector3 v)
-        {
-            return new RTree.Rectangle((float)v.X, (float)v.Y,
-                                       (float)v.X, (float)v.Y,
-                                       (float)v.Z, (float)v.Z); //yes, z last
-        }
-
         public static BoundingBox ToBoundingBox(this RTree.Rectangle rect)
         {
             RTree.dimension dimx = rect.get(0).Value;
@@ -933,6 +975,9 @@ namespace OPS.Geometry
 
         public static string FmtExtent(this BoundingBox box, int decimalPlaces = 3)
         {
+            if (box.IsEmpty()) {
+                return "(empty)";
+            }
             Vector3 sz = box.Extent();
             string fmt = string.Format("{{0:f{0}}}x{{1:f{0}}}x{{2:f{0}}}", decimalPlaces);
             return string.Format(fmt, sz.X, sz.Y, sz.Z);

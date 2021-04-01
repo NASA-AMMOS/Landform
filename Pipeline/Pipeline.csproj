@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="14.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <Import Project="..\packages\EmguCV.3.1.0.1\build\EmguCV.props" Condition="Exists('..\packages\EmguCV.3.1.0.1\build\EmguCV.props')" />
   <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
@@ -165,13 +165,11 @@
   <ItemGroup>
     <Compile Include="AlignmentServer\DB\BirdsEyeView.cs" />
     <Compile Include="AlignmentServer\DB\BirdsEyeViewFeatures.cs" />
-    <Compile Include="AlignmentServer\DB\CameraModelConverter.cs" />
     <Compile Include="AlignmentServer\DB\FeatureMatches.cs" />
     <Compile Include="AlignmentServer\DB\Frame.cs" />
     <Compile Include="AlignmentServer\DB\FrameCache.cs" />
     <Compile Include="AlignmentServer\DB\FrameGeohash.cs" />
     <Compile Include="AlignmentServer\DB\FrameTransform.cs" />
-    <Compile Include="AlignmentServer\DB\XNAMatrixConverter.cs" />
     <Compile Include="AlignmentServer\DB\Observation.cs" />
     <Compile Include="AlignmentServer\DB\ObservationCache.cs" />
     <Compile Include="AlignmentServer\DB\Overlap.cs" />
@@ -182,9 +180,6 @@
     <Compile Include="AlignmentServer\DB\SceneMesh.cs" />
     <Compile Include="AlignmentServer\DB\SpatialIndex.cs" />
     <Compile Include="AlignmentServer\DB\SpatialMatches.cs" />
-    <Compile Include="AlignmentServer\DB\SquareMatrixConverter.cs" />
-    <Compile Include="AlignmentServer\DB\Vector3Converter.cs" />
-    <Compile Include="AlignmentServer\DB\VectorNConverter.cs" />
     <Compile Include="AlignmentServer\Operations\DetectFeatures.cs" />
     <Compile Include="AlignmentServer\Operations\MatchImages.cs" />
     <Compile Include="Alignment\BuildSceneGraph.cs" />
@@ -206,6 +201,13 @@
     <Compile Include="DataProducts\TextureProjector.cs" />
     <Compile Include="DataProducts\TileList.cs" />
     <Compile Include="DataProducts\PlyGZDataProduct.cs" />
+    <Compile Include="DB\CameraModelConverter.cs" />
+    <Compile Include="DB\SquareMatrixConverter.cs" />
+    <Compile Include="DB\Vector3Converter.cs" />
+    <Compile Include="DB\VectorNConverter.cs" />
+    <Compile Include="DB\XNAMatrixConverter.cs" />
+    <Compile Include="MissionSpecific\M2020RoverProductId.cs" />
+    <Compile Include="MissionSpecific\MSLRoverProductId.cs" />
     <Compile Include="MissionSpecific\SiteDriveList.cs" />
     <Compile Include="OrbitalConfig.cs" />
     <Compile Include="MissionSpecific\MissionM2020.cs" />
@@ -240,6 +242,7 @@
     <Compile Include="Texturing\ObsSelectionSpatial.cs" />
     <Compile Include="Texturing\ObsSelectionStrategy.cs" />
     <Compile Include="Texturing\ProjectedPixelDistances.cs" />
+    <Compile Include="Texturing\Texturing.cs" />
     <Compile Include="TilingServer\DB\TilingNode.cs" />
     <Compile Include="TilingServer\DB\TilingInput.cs" />
     <Compile Include="TilingServer\DB\TilingProject.cs" />
@@ -257,12 +260,14 @@
     <Compile Include="MissionSpecific\CuriosityRoverModel.cs" />
     <Compile Include="MissionSpecific\RoverReachability.cs" />
     <Compile Include="MissionSpecific\SolDateTime.cs" />
+    <Compile Include="Tiling\AreaSplitCriteria.cs" />
+    <Compile Include="Tiling\FaceCount.cs" />
     <Compile Include="Tiling\MeshImagePairStats.cs" />
     <Compile Include="Tiling\SceneManifest.cs" />
     <Compile Include="Tiling\TextureBaker.cs" />
     <Compile Include="MissionSpecific\SiteDrive.cs" />
     <Compile Include="Tiling\FaceSplitCriteria.cs" />
-    <Compile Include="Tiling\ITileSplitCriteria.cs" />
+    <Compile Include="Tiling\TileSplitCriteria.cs" />
     <Compile Include="Tiling\LegacyScene.cs" />
     <Compile Include="Tiling\MeshImagePair.cs" />
     <Compile Include="MissionSpecific\PDSParser.cs" />
@@ -279,6 +284,7 @@
     <Compile Include="Tiling\TextureSplitCriteria.cs" />
     <Compile Include="Tiling\Tile3DBuilder.cs" />
     <Compile Include="Tiling\TilesetSchema.cs" />
+    <Compile Include="Tiling\Tiling.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config" />

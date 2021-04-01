@@ -18,6 +18,8 @@ using OPS.Pipeline.AlignmentServer;
 
 namespace OPS.Pipeline
 {
+    public enum NormalScale { None, Confidence, PointScale };
+
     /// <summary>
     /// collects the Observations in the same frame that contribute to building a mesh
     /// also known as a "wedge"
@@ -206,7 +208,7 @@ namespace OPS.Pipeline
 
                 if (mission != null)
                 {
-                    Comparator =  mission.GetRoverObservationComparator();
+                    Comparator = new RoverObservationComparator(mission);
                     LinearPreference = GetLinearPreference(mission);
                     MeshExts = StringHelper.ParseList(mission.GetTacticalMeshExts().ToLower());
                 }
@@ -410,7 +412,7 @@ namespace OPS.Pipeline
 
             public int Decimate = 1;
 
-            public bool ScaleNormalsByConfidence = false; //does not apply to generated normals
+            public NormalScale NormalScale = NormalScale.None; //does not apply to generated normals
 
             public bool ApplyTexture = false; //Mesh.ProjectTexture() the texture, if any (doesn't apply to point cloud)
             public bool RemoveVertsOutsideView = true; //option for Mesh.ProjectTexture()
@@ -435,7 +437,7 @@ namespace OPS.Pipeline
 
         /// <summary>
         /// load and possibly decimate the points, normals, and texture images, if any
-        /// mask (and confidence) images are generated until real products are available
+        /// mask (and confidence, scale) images are generated until real products are available
         /// (https://github.jpl.nasa.gov/OnSight/Landform/issues/259)
         /// if decimation is applied the mask image is baked into the points and normals images and then discarded
         /// does nothing if the images have already been loaded
@@ -524,16 +526,23 @@ namespace OPS.Pipeline
             }
 
             NormalsImage = null;
+            Image normScale = null;
             if (Normals != null)
             {
                 pipeline.LogVerbose("loading normals {0}", Normals.Url);
-                var confidence = opts.ScaleNormalsByConfidence && pointsRaw != null ?
-                    (new PDSImage(pointsRaw)).GenerateConfidence()
-                    : null;
+                if (pointsRaw != null && opts.NormalScale != NormalScale.None)
+                {
+                    switch (opts.NormalScale)
+                    {
+                        case NormalScale.Confidence: normScale = (new PDSImage(pointsRaw)).GenerateConfidence(); break;
+                        case NormalScale.PointScale: normScale = (new PDSImage(pointsRaw)).GenerateScale(); break;
+                        default: throw new ArgumentException("unknown normal scaling mode " + opts.NormalScale);
+                    }
+                }
                 try
                 {
                     NormalsImage = (new PDSImage(pipeline.LoadImage(Normals.Url)))
-                        .ConvertNormals(confidence, opts.NormalFilter);
+                        .ConvertNormals(normScale, PointsImage, opts.NormalFilter);
                 }
                 catch (Exception ex)
                 {
@@ -544,7 +553,8 @@ namespace OPS.Pipeline
             MaskImage = null;
             if (masker != null)
             {
-                MaskImage = masker.LoadOrBuild(pipeline, Mask != null ? Mask.Url : null, pointsRaw.Metadata as PDSMetadata);
+                MaskImage =
+                    masker.LoadOrBuild(pipeline, Mask != null ? Mask.Url : null, pointsRaw.Metadata as PDSMetadata);
             }
 
             bool appliedMask = false;
@@ -559,7 +569,8 @@ namespace OPS.Pipeline
             if (opts.Decimate > 1 && NormalsImage != null)
             {
                 pipeline.LogVerbose("decimating normals {0}", Normals.Name);
-                NormalsImage = OrganizedPointCloud.MaskAndDecimateNormals(NormalsImage, opts.Decimate, MaskImage);
+                NormalsImage = OrganizedPointCloud.MaskAndDecimateNormals(NormalsImage, opts.Decimate, MaskImage,
+                                                                          normalize: normScale == null);
                 appliedMask = true;
             }
 
@@ -609,17 +620,18 @@ namespace OPS.Pipeline
             {
                 if (TextureImage != null)
                 {
-                    mesh.ProjectTexture(TextureImage, opts.RemoveVertsOutsideView);
+                    mesh.ProjectTexture(TextureImage, removeVertsOutsideView: opts.RemoveVertsOutsideView);
                 }
-                else if (PointsImage != null)
+                else if (PointsImage != null && PointsImage.CameraModel != null)
                 {
+                    //PointsImage.CameraModel is null when the PointsImage was decimated
                     pipeline.LogWarn("no texture image for {0}, using points image to project texture coordinates",
                                      refObs.Name);
-                    mesh.ProjectTexture(PointsImage, opts.RemoveVertsOutsideView);
+                    mesh.ProjectTexture(PointsImage, removeVertsOutsideView: opts.RemoveVertsOutsideView);
                 }
                 else
                 {
-                    pipeline.LogWarn("no points or texture image for {0}, cannot project texture coordinates",
+                    pipeline.LogWarn("no image with camera model for {0}, cannot project texture coordinates",
                                      refObs.Name);
                 }
             }
@@ -712,7 +724,7 @@ namespace OPS.Pipeline
             }
             else
             {
-                mesh = lodMeshes.Last().Decimate(maxTris, opts.MeshDecimator);
+                mesh = lodMeshes.Last().Decimated(maxTris, opts.MeshDecimator);
                 pipeline.LogVerbose("{0}; decimated coarsest LOD {1} ({2} <= {3} tris) with {4} for wedge mesh {5}",
                                     msg, lodMeshes.Count - 1, Fmt.KMG(mesh.Faces.Count), Fmt.KMG(maxTris),
                                     opts.MeshDecimator, meshUrl);
@@ -749,7 +761,8 @@ namespace OPS.Pipeline
             if (PointsImage != null)
             {
                 var mesh = OrganizedPointCloud.BuildPointCloudMesh(PointsImage, NormalsImage, MaskImage);
-                return FinishMesh(pipeline, frameCache, opts, Points == null ? Range : Points, mesh, requireFaces: false);
+                return FinishMesh(pipeline, frameCache, opts, Points == null ? Range : Points, mesh,
+                                  requireFaces: false);
             }
             else
             {
@@ -794,7 +807,7 @@ namespace OPS.Pipeline
             if (PointsImage != null && NormalsImage != null)
             {
                 var mesh = PoissonReconstruction.Reconstruct(PointsImage, NormalsImage, MaskImage,
-                                                             opts.ScaleNormalsByConfidence);
+                                                             opts.NormalScale == NormalScale.Confidence);
                 return FinishMesh(pipeline, frameCache, opts, Points, mesh);
             }
             else
@@ -814,7 +827,8 @@ namespace OPS.Pipeline
             LoadOrGenerateImages(pipeline, masker, opts, loadTexture: opts.ApplyTexture);
             if (PointsImage != null && NormalsImage != null)
             {
-                var mesh = FSSR.Reconstruct(PointsImage, NormalsImage, MaskImage);
+                var mesh = FSSR.Reconstruct(PointsImage, NormalsImage, MaskImage,
+                                            opts.NormalScale == NormalScale.PointScale);
                 return FinishMesh(pipeline, frameCache, opts, Points, mesh);
             }
             else

@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace OPS.Util
@@ -142,17 +143,20 @@ namespace OPS.Util
 
         public static void For(int fromInclusive, int toExclusive, Action<int> action)
         {            
+            int i = -1;
             Parallel.For(fromInclusive, toExclusive,
-                         new ParallelOptions() { MaxDegreeOfParallelism = maxParallelism }, action);
+                         new ParallelOptions() { MaxDegreeOfParallelism = maxParallelism },
+                         randomIndex => action(Interlocked.Increment(ref i)));
         }
 
         //parallel for with thread local data
         public static void For<TLocal>(int fromInclusive, int toExclusive, Func<TLocal> localInit,
                                        Func<int,TLocal,TLocal> action, Action<TLocal> localFinally)
         {            
+            int i = -1;
             Parallel.For(fromInclusive, toExclusive,
                          new ParallelOptions() { MaxDegreeOfParallelism = maxParallelism }, localInit,
-                         (i, opts, local) => action(i, local), localFinally);
+                         (randomIndex, opts, local) => action(Interlocked.Increment(ref i), local), localFinally);
         }
     }
 }

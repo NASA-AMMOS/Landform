@@ -13,7 +13,7 @@ using OPS.RayTrace;
 namespace PipelineTest
 {
     [TestClass()]
-    public class ISplitCriteriaTests
+    public class SplitCriteriaTests
     {
         [TestMethod()]
         public void FaceShouldSplitTest()
@@ -21,37 +21,32 @@ namespace PipelineTest
             BoundingBox box = new BoundingBox(-1 * Vector3.One, Vector3.One);
             MeshOperator op = new MeshOperator(box.ToMesh());
 
-            ITileSplitCriteria split = new FaceSplitCriteria(7);
-            Assert.IsTrue(split.ShouldSplit(box, op));
+            TileSplitCriteria split = new FaceSplitCriteria(7);
+            Assert.IsTrue(!string.IsNullOrEmpty(split.ShouldSplit(box, op)));
 
             BoundingBox quarterBox = new BoundingBox(Vector3.Zero, Vector3.One);
-            Assert.IsFalse(split.ShouldSplit(quarterBox, op));
+            Assert.IsFalse(!string.IsNullOrEmpty(split.ShouldSplit(quarterBox, op)));
         }
 
         [TestMethod()]
-        public void TextureShouldSplitTest()
+        public void TextureSplitTest()
         {
             int destTextureResolution = 256; //65536 texels / m^2 (half that for approx)
             int srcImageResolution = 1000; //1M pixels / m^2
-            Assert.IsTrue(StandardTexSplit(destTextureResolution, srcImageResolution,false));
-            Assert.IsTrue(StandardTexSplit(destTextureResolution, srcImageResolution,true));
+            string msg = $"src res {srcImageResolution}, dst res {destTextureResolution}";
+            Assert.IsTrue(StandardTexSplit(destTextureResolution, srcImageResolution, approx: false), msg);
+            Assert.IsTrue(StandardTexSplit(destTextureResolution, srcImageResolution, approx: true), msg + " approx");
 
-            srcImageResolution = 360; //129600 pixels / m^2
-            Assert.IsTrue(StandardTexSplit(destTextureResolution, srcImageResolution, false));
-            Assert.IsTrue(StandardTexSplit(destTextureResolution, srcImageResolution, true));
-        }
-
-        [TestMethod()]
-        public void TextureShouldntSplitTest()
-        {
-            int destTextureResolution = 256; //65536 texels / m^2 (half that for approx)
-            int srcImageResolution = 350; //122500 pixels / m^2
-            Assert.IsFalse(StandardTexSplit(destTextureResolution, srcImageResolution, false));
-            Assert.IsTrue(StandardTexSplit(destTextureResolution, srcImageResolution, true));
+            destTextureResolution = 256; //65536 texels / m^2 (half that for approx)
+            srcImageResolution = 350; //122500 pixels / m^2
+            msg = $"src res {srcImageResolution}, dst res {destTextureResolution}";
+            Assert.IsFalse(StandardTexSplit(destTextureResolution, srcImageResolution, false), msg);
+            Assert.IsTrue(StandardTexSplit(destTextureResolution, srcImageResolution, true), msg + " approx");
 
             srcImageResolution = 250; //62500 pixels / m^2
-            Assert.IsFalse(StandardTexSplit(destTextureResolution, srcImageResolution, false));
-            Assert.IsFalse(StandardTexSplit(destTextureResolution, srcImageResolution, true));
+            msg = $"src res {srcImageResolution}, dst res {destTextureResolution}";
+            Assert.IsFalse(StandardTexSplit(destTextureResolution, srcImageResolution, false), msg);
+            Assert.IsFalse(StandardTexSplit(destTextureResolution, srcImageResolution, true), msg + " approx");
         }
 
         private static bool StandardTexSplit(int destTextureResolution, int srcImageResolution, bool approx)
@@ -98,31 +93,31 @@ namespace PipelineTest
             {
                 new CameraInstance()
                 {
-                    cameraToMesh = Matrix.Identity,
-                    meshToCamera = Matrix.Identity,
-                    cameraModel = cahv,
-                    hullInMesh = camHull,
-                    widthPixels = srcImageResolution,
-                    heightPixels = srcImageResolution
+                    CameraToMesh = Matrix.Identity,
+                    MeshToCamera = Matrix.Identity,
+                    CameraModel = cahv,
+                    HullInMesh = camHull,
+                    WidthPixels = srcImageResolution,
+                    HeightPixels = srcImageResolution
                 }
             };
 
-            SplitByTextureOpts opts = new SplitByTextureOpts()
+            TextureSplitOptions opts = new TextureSplitOptions()
             {
-                pctPixelsToTest = 0.5,
-                pctSampledPixelsSatisfied = 0.75,
-                splitPixelTexelRatio = 2.0,
-                tileResolution = destTextureResolution,
-                cameraInstances = cameraInstances,
-                scInMesh = sc
+                PercentPixelsToTest = 0.5,
+                PercentPixelsSatisfied = 0.75,
+                MaxPixelsPerTexel = 2.0,
+                MaxTileResolution = destTextureResolution,
+                CameraInstances = cameraInstances,
+                SceneCaster = sc
             };
 
-            ITileSplitCriteria split = new TextureSplitCriteriaBackproject(opts);
+            TileSplitCriteria split = new TextureSplitCriteriaBackproject(opts);
             if (approx)
             {
                 split = new TextureSplitCriteriaApproximate(opts);
             }
-            return split.ShouldSplit(box, op);
+            return !string.IsNullOrEmpty(split.ShouldSplit(box, op));
         }
     }
 }

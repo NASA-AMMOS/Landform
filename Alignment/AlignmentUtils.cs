@@ -145,10 +145,10 @@ namespace OPS.Alignment
             {
                 var mp = Vector3.Transform(modelPts[i], modelToRoot);
                 var dp = Vector3.Transform(dataPts[i], dataToRoot);
-                meshes.Add(Mesh.Transformed(pointMesh, Matrix.CreateTranslation(mp)));
-                meshes.Add(Mesh.Transformed(pointMesh, Matrix.CreateTranslation(dp)));
+                meshes.Add(pointMesh.Transformed(Matrix.CreateTranslation(mp)));
+                meshes.Add(pointMesh.Transformed(Matrix.CreateTranslation(dp)));
                 var lineMat = BoundingBoxExtensions.StretchCubeAlongLineSegment(mp, dp, lineSize);
-                meshes.Add(Mesh.Transformed(lineMesh, lineMat));
+                meshes.Add(lineMesh.Transformed(lineMat));
             }
             var ret = new Mesh(hasNormals: true, hasColors: true);
             ret.Vertices = new List<Vertex>(meshes.Sum(mesh => mesh.Vertices.Count));

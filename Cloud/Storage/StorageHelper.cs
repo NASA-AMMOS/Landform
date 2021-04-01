@@ -138,11 +138,13 @@ namespace OPS.Cloud
         /// <param name="files">Include file URLs in output</param>
         /// <returns>returns list of S3 URLs</returns>
         public IEnumerable<string> SearchObjects(string s3url, string pattern = "*", bool recursive = true,
-                                                 bool ignoreCase = false, bool folders = false, bool files = true)
+                                                 bool ignoreCase = false, bool folders = false, bool files = true,
+                                                 bool patternIsRegex = false)
         {
             S3Url location = new S3Url(s3url);
             var opts = ignoreCase ? RegexOptions.IgnoreCase : RegexOptions.None;
-            var regex = StringHelper.WildcardToRegularExpression(pattern, opts);
+            var regex =
+                patternIsRegex ? new Regex(pattern, opts) : StringHelper.WildcardToRegularExpression(pattern, opts);
             using (var client = GetClient(s3url))
             {
                 var request = new ListObjectsV2Request { BucketName = location.BucketName };

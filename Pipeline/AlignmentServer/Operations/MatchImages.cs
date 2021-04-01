@@ -22,6 +22,11 @@ namespace OPS.Pipeline.AlignmentServer
         public Guid DataFeaturesGuid;
         public MatchImagesMessage() { }
         public MatchImagesMessage(string projectName) : base(projectName) { }
+
+        public override string Info()
+        {
+            return string.Format("[{0}] MatchImages model {1} data {2}", ProjectName, ModelImageUrl, DataImageUrl);
+        }
     }
 
     public class ImagesMatchedMessage : PipelineMessage

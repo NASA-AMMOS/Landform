@@ -14,6 +14,13 @@ using OPS.Pipeline.AlignmentServer;
 
 namespace OPS.Pipeline.TilingServer
 {
+    public class SceneNodeTilingNode : NodeComponent
+    {
+        public TilingNode TilingNode;
+        public SceneNodeTilingNode() { }
+        public SceneNodeTilingNode(TilingNode node) { this.TilingNode = node; }
+    }
+
     [DynamoDBTable("TilingNode")]
     [DynamoDBReadCapacity(100, 200)]
     [DynamoDBWriteCapacity(15, 50)] //increased write capacity from 5 to 15 to reduce backoffs in node creation/deletion
@@ -26,6 +33,8 @@ namespace OPS.Pipeline.TilingServer
         public string ProjectName;
 
         public string ParentId;
+
+        public int Depth;
 
         public bool IsLeaf;
 
@@ -52,18 +61,19 @@ namespace OPS.Pipeline.TilingServer
         //This constructor must be public for DynamoDB but should not be used
         public TilingNode() { }
 
-        protected TilingNode(string id, string projectName, string parentId, bool isLeaf)
+        protected TilingNode(string id, string projectName, string parentId, bool isLeaf, int depth)
         {
             Id = id;
             IsLeaf = isLeaf;
             ProjectName = projectName;
             ParentId = parentId;
+            Depth = depth;
         }
 
         public static TilingNode Create(PipelineCore pipeline, string id, string projectName, string parentId,
-                                        bool isLeaf, bool save = true)
+                                        bool isLeaf, int depth, bool save = true)
         {
-            var node = new TilingNode(id, projectName, parentId, isLeaf);
+            var node = new TilingNode(id, projectName, parentId, isLeaf, depth);
             if (save)
             {
                 node.Save(pipeline);
@@ -287,7 +297,7 @@ namespace OPS.Pipeline.TilingServer
                 if (!string.IsNullOrEmpty(project.ExportIndexFormat) && pair.Index != null)
                 {
                     exIndexExt = TilingProject.ToExt(project.ExportIndexFormat);
-                    exIndexFile = Id + TileList.INDEX_FILE_SUFFIX + exIndexExt;
+                    exIndexFile = Id + TilingDefaults.INDEX_FILE_SUFFIX + exIndexExt;
                     exIndexUrl = pipeline.GetStorageUrl(project.ExportDir, ProjectName, exIndexFile);
                 }
             }
@@ -326,7 +336,8 @@ namespace OPS.Pipeline.TilingServer
                 string imageExt = TilingProject.ToExt(project.InternalImageFormat);
                 string imageFile = Id + imageExt;
                 string indexExt = TilingProject.ToExt(project.InternalIndexFormat);
-                string indexFile = !string.IsNullOrEmpty(indexExt) ? Id + TileList.INDEX_FILE_SUFFIX + indexExt : null;
+                string indexFile = !string.IsNullOrEmpty(indexExt) ?
+                    Id + TilingDefaults.INDEX_FILE_SUFFIX + indexExt : null;
                 if (!string.IsNullOrEmpty(project.InternalTileDir) && pair.Image != null)
                 {
                     ImageUrl = pipeline.GetStorageUrl(project.InternalTileDir, ProjectName, imageFile);
@@ -351,7 +362,7 @@ namespace OPS.Pipeline.TilingServer
                             TemporaryFile.GetAndDelete(indexExt, tmpIndex =>
                             {
                                 Tile3DBuilder.SaveTileIndex(pair.Index, tmpIndex,
-                                                            msg => pipeline.LogWarn($"{msg} for tile {Id}"));
+                                                            msg => pipeline.LogVerbose($"{msg} for tile {Id}"));
                                 upload(tmpIndex, IndexUrl);
                                 if(exIndexUrl != null && exIndexExt == indexExt)
                                 {
@@ -467,7 +478,7 @@ namespace OPS.Pipeline.TilingServer
                     if (pair.Index != null && tmpIndex != null)
                     {
                         Tile3DBuilder.SaveTileIndex(pair.Index, tmpIndex,
-                                                    msg => pipeline.LogWarn($"{msg} for tile {Id}"));
+                                                    msg => pipeline.LogVerbose($"{msg} for tile {Id}"));
                         if (exIndexUrl != null && exIndexExt == tileIndexExt && !uploadedExIndex)
                         {
                             upload(tmpIndex, exIndexUrl);
@@ -495,10 +506,11 @@ namespace OPS.Pipeline.TilingServer
                         
                         if (tmpIndex != null)
                         {
-                            if (!project.EmbedIndexes)
+                            if (!project.EmbedIndexImages)
                             {
                                 IndexUrl =
-                                StringHelper.StripUrlExtension(tileUrl) + TileList.INDEX_FILE_SUFFIX + tileIndexExt;
+                                StringHelper.StripUrlExtension(tileUrl) +
+                                    TilingDefaults.INDEX_FILE_SUFFIX + tileIndexExt;
                                 upload(tmpIndex, IndexUrl);
                                 tmpIndex = null; //Don't also add to b3dm
                             }
@@ -542,7 +554,8 @@ namespace OPS.Pipeline.TilingServer
             {
                 TemporaryFile.GetAndDelete(exIndexExt, tmpIndex =>
                 {
-                    Tile3DBuilder.SaveTileIndex(pair.Index, tmpIndex, msg => pipeline.LogWarn($"{msg} for tile {Id}"));
+                    Tile3DBuilder.SaveTileIndex(pair.Index, tmpIndex,
+                                                msg => pipeline.LogVerbose($"{msg} for tile {Id}"));
                     upload(tmpIndex, exImageUrl);
                     uploadedExIndex = true;
                 });
@@ -653,8 +666,11 @@ namespace OPS.Pipeline.TilingServer
         private Object imageReadWriteLock = new Object();
         private Object indexReadWriteLock = new Object();
 
-        public MeshImagePair LoadMeshImagePair(PipelineCore pipeline, bool loadImage = true, bool cleanMesh = false)
+        public MeshImagePair LoadMeshImagePair(PipelineCore pipeline, bool loadImage = true, bool cleanMesh = false,
+                                               Action<string> warn = null)
         {
+            warn = warn ?? (msg => {});
+
             if (MeshUrl == null)
             {
                 return null;
@@ -676,20 +692,15 @@ namespace OPS.Pipeline.TilingServer
                     if (mesh == null)
                     {
                         mesh = Mesh.Load(pipeline.GetFileCached(MeshUrl, "meshes"));
+                        if (!mesh.HasNormals)
+                        {
+                            warn($"generating normals on mesh for tiling node {Id}");
+                            mesh.GenerateVertexNormals();
+                        }
                         if (cleanMesh)
                         {
-                            if (!mesh.HasNormals)
-                            {
-                                mesh.GenerateVertexNormals();
-                            }
-                            mesh.RemoveInvalidFaces();
-                            mesh.Clean();
+                            mesh.Clean(warn: warn);
                         }
-                        else if (!mesh.HasNormals)
-                        {
-                            throw new Exception("no normals on mesh for tiling node " + Id);
-                        }
-                        
                         if (meshCache != null)
                         {
                             meshCache[MeshUrl] = mesh;
@@ -746,7 +757,7 @@ namespace OPS.Pipeline.TilingServer
                         }
                         if (index == null)
                         {
-                            index = pipeline.LoadImage(IndexUrl);
+                            index = pipeline.LoadImage(IndexUrl, ImageConverters.PassThrough);
                             if (indexCache != null)
                             {
                                 indexCache[IndexUrl] = index;
@@ -763,6 +774,7 @@ namespace OPS.Pipeline.TilingServer
         {
             SceneNode node = new SceneNode(Id);
             node.AddComponent(new NodeBounds(GetBoundsChecked()));
+            node.AddComponent(new SceneNodeTilingNode(this));
             if (GeometricError.HasValue)
             {
                 node.AddComponent(new NodeGeometricError(GeometricError.Value));

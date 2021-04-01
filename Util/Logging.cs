@@ -216,6 +216,8 @@ namespace OPS.Util
             string logFile = null;
             if (!string.IsNullOrEmpty(logDir))
             {
+                //must be absolute or fa.ActivateOptions() will assume directory containing exe, not cwd 
+                logDir = Path.GetFullPath(logDir);
                 if (string.IsNullOrEmpty(logFilename))
                 {
                     logFilename = Path.GetFileName(GetLogFile());

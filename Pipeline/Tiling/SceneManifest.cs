@@ -42,6 +42,36 @@ namespace OPS.Pipeline
         }
     }
 
+    public class SceneManifestVector2Converter : JsonConverter
+    {
+        private class Vector2Proxy
+        {
+            public double x, y;
+        }
+
+        public override bool CanRead { get { return true; } }
+
+        public override bool CanWrite { get { return true; } }
+
+        public override bool CanConvert(Type type)
+        {
+            return type == typeof(Vector2);
+        }
+
+        public override object ReadJson(JsonReader reader, Type  type, object existing, JsonSerializer serializer)
+        {
+            var proxy = serializer.Deserialize<Vector2Proxy>(reader);
+            return new Vector2(x: proxy.x, y: proxy.y);
+        }
+
+        public override void WriteJson(JsonWriter writer, object value, JsonSerializer serializer)
+        {
+            var v2 = (Vector2)value;
+            var proxy = new Vector2Proxy { x = v2.X, y = v2.Y };
+            serializer.Serialize(writer, proxy);
+        }
+    }
+
     public class SceneManifestQuaternionConverter : JsonConverter
     {
         private class QuaternionProxy
@@ -79,6 +109,7 @@ namespace OPS.Pipeline
         public List<TilesetManifest> tilesets = new List<TilesetManifest>();
         public List<ImageManifest> images = new List<ImageManifest>();
         public List<FrameManifest> frames = new List<FrameManifest>();
+        public List<SiteDriveManifest> site_drives = new List<SiteDriveManifest>();
     }
 
     public class TilesetManifest
@@ -92,6 +123,14 @@ namespace OPS.Pipeline
         public List<string> groups = new List<string>(); //instrument type, unified mesh, contextual mesh
     }
 
+    public class ContextualTilesetManifest : TilesetManifest
+    {
+        public string contextual_primary_sol;
+        public string contextual_primary_site_drive;
+        public string contextual_sol_ranges;
+        public string contextual_site_drives;
+    }
+
     public class ImageManifest
     {
         public string id;
@@ -101,6 +140,7 @@ namespace OPS.Pipeline
         public string frame_id;
         public int index;
         public int backprojected_pixels;
+        public int backprojected_pixels_sky;
         public int width;
         public int height;
         public int bands;
@@ -121,6 +161,23 @@ namespace OPS.Pipeline
 
         [JsonConverter(typeof(SceneManifestVector3Converter))]
         public Vector3 scale = Vector3.One;
+    }
+
+    public class SiteDriveManifest
+    {
+        public string id;
+        public string frame_id;
+
+        public int? site;
+        public int? drive;
+
+        [JsonConverter(typeof(SceneManifestVector2Converter))]
+        public Vector2? northing_easting_meters = null;
+
+        public double? elevation_meters = null;
+
+        [JsonConverter(typeof(SceneManifestVector2Converter))]
+        public Vector2? lat_lon_degrees = null;
     }
 
     public class CameraModelManifest
@@ -178,6 +235,7 @@ namespace OPS.Pipeline
         public Dictionary<string, TilesetManifest> Tilesets = new Dictionary<string, TilesetManifest>();
         public Dictionary<string, ImageManifest> Images = new Dictionary<string, ImageManifest>();
         public Dictionary<string, FrameManifest> Frames = new Dictionary<string, FrameManifest>();
+        public Dictionary<string, SiteDriveManifest> SiteDrives = new Dictionary<string, SiteDriveManifest>();
 
         public static SceneManifestHelper Create()
         {
@@ -208,6 +266,10 @@ namespace OPS.Pipeline
             {
                 helper.Frames[frame.id] = frame;
             }
+            foreach (var sd in helper.SceneManifest.site_drives)
+            {
+                helper.SiteDrives[sd.id] = sd;
+            }
 
             return helper;
         }
@@ -230,6 +292,18 @@ namespace OPS.Pipeline
                 return Tilesets[id];
             }
             var tileset = new TilesetManifest() { id = id };
+            Tilesets[id] = tileset;
+            SceneManifest.tilesets.Add(tileset);
+            return tileset;
+        }
+
+        public ContextualTilesetManifest GetOrAddContextualTileset(string id)
+        {
+            if (Tilesets.ContainsKey(id) && Tilesets[id] is ContextualTilesetManifest)
+            {
+                return (ContextualTilesetManifest)Tilesets[id];
+            }
+            var tileset = new ContextualTilesetManifest() { id = id };
             Tilesets[id] = tileset;
             SceneManifest.tilesets.Add(tileset);
             return tileset;
@@ -277,6 +351,31 @@ namespace OPS.Pipeline
             frame.translation = Vector3.Zero;
             frame.rotation = Quaternion.Identity;
             return frame;
+        }
+
+        public SiteDriveManifest GetOrAddSiteDrive(string siteDrive, Frame frame) {
+            if (SiteDrives.ContainsKey(siteDrive))
+            {
+                return SiteDrives[siteDrive];
+            }
+            var sdm = new SiteDriveManifest() { id = siteDrive };
+            sdm.frame_id = "sitedrive_" + siteDrive;
+            if (SiteDrive.TryParse(siteDrive, out SiteDrive sd)) {
+                sdm.site = sd.Site;
+                sdm.drive = sd.Drive;
+            }
+            if (frame.HasEastingNorthing) {
+                sdm.northing_easting_meters = new Vector2(frame.NorthingMeters, frame.EastingMeters);
+            }
+            if (frame.HasElevation) {
+                sdm.elevation_meters = frame.ElevationMeters;
+            }
+            if (frame.HasLonLat) {
+                sdm.lat_lon_degrees = new Vector2(frame.LatitudeDegrees, frame.LongitudeDegrees);
+            }
+            SiteDrives[siteDrive] = sdm;
+            SceneManifest.site_drives.Add(sdm);
+            return sdm;
         }
 
         public void CullOrphanImagesAndFrames(ILogger logger = null)
@@ -472,6 +571,7 @@ namespace OPS.Pipeline
             image.frame_id = imageFrameId;
             image.index = 0;
             image.backprojected_pixels = 0;
+            image.backprojected_pixels_sky = 0;
             image.width = parser.metadata.Width;
             image.height = parser.metadata.Height;
             image.bands = parser.metadata.Bands;
@@ -495,7 +595,8 @@ namespace OPS.Pipeline
             imageFrame.rotation = parser.RoverOriginRotation; //rover -> sitedrive (aka local_level)
         }
 
-        public void AddOrUpdateContextualTileset(string tilesetId, string tilesetUrl, string siteDrive,
+        public void AddOrUpdateContextualTileset(string tilesetId, string tilesetUrl, int primarySol,
+                                                 string primarySiteDrive, string solRanges, string siteDrives,
                                                  FrameCache frameCache, bool usePriors, bool onlyAligned,
                                                  List<RoverObservation> images,
                                                  Dictionary<int, int> backprojectedPixels = null, ILogger logger = null)
@@ -506,13 +607,28 @@ namespace OPS.Pipeline
                                Tilesets.ContainsKey(tilesetId) ? "updating" : "adding", tilesetId);
             }
 
-            var sdFrame = GetOrAddSiteDriveFrame(siteDrive);
+            bool sky = tilesetId.EndsWith("_sky");
 
-            var tileset = GetOrAddTileset(tilesetId);
+            var sdFrame = GetOrAddSiteDriveFrame(primarySiteDrive);
+
+            if (frameCache.ContainsFrame(primarySiteDrive)) {
+                GetOrAddSiteDrive(primarySiteDrive, frameCache.GetFrame(primarySiteDrive));
+            }
+
+            var tileset = GetOrAddContextualTileset(tilesetId);
             tileset.uri = tilesetUrl;
             tileset.frame_id = sdFrame.id; //contextual mesh is always in sitedrive frame
             tileset.groups.Clear();
             tileset.groups.Add("contextual");
+            if (sky)
+            {
+                tileset.groups.Add("sky");
+            }
+
+            tileset.contextual_primary_sol = primarySol.ToString();
+            tileset.contextual_sol_ranges = solRanges;
+            tileset.contextual_primary_site_drive = primarySiteDrive;
+            tileset.contextual_site_drives = siteDrives;
 
             if (logger != null)
             {
@@ -533,7 +649,15 @@ namespace OPS.Pipeline
                 image.thumbnail = null; //see SceneManifestHelper.UpdateImageURIs()
                 image.frame_id = "contextual_" + obs.FrameName;
                 image.index = obs.Index;
-                image.backprojected_pixels = bpp != null && bpp.ContainsKey(obs.Index) ? bpp[obs.Index] : 0;
+                int nbpp = bpp != null && bpp.ContainsKey(obs.Index) ? bpp[obs.Index] : 0;
+                if (sky)
+                {
+                    image.backprojected_pixels_sky += nbpp;
+                }
+                else
+                {
+                    image.backprojected_pixels += nbpp;
+                }
                 image.width = obs.Width;
                 image.height = obs.Height;
                 image.bands = obs.Bands;
@@ -545,7 +669,7 @@ namespace OPS.Pipeline
                 {
                     var frame = GetOrAddFrame(image.frame_id);
                     frame.parent_id = sdFrame.id;
-                    var xform = frameCache.GetObservationTransform(obs, siteDrive, usePriors, onlyAligned);
+                    var xform = frameCache.GetObservationTransform(obs, primarySiteDrive, usePriors, onlyAligned);
                     frame.translation = xform.MeanTranslation;
                     frame.rotation = xform.MeanRotation;
                 }
@@ -554,24 +678,6 @@ namespace OPS.Pipeline
             }
             tileset.sols.Clear();
             tileset.sols.AddRange(sols);
-        }
-
-        public void AddOrUpdateSkyTileset(string tilesetId, string tilesetUrl, string siteDrive, ILogger logger = null)
-        {
-            if (logger != null)
-            {
-                logger.LogInfo("{0} manifest for sky tileset {1}",
-                               Tilesets.ContainsKey(tilesetId) ? "updating" : "adding", tilesetId);
-            }
-            var sdFrame = GetOrAddSiteDriveFrame(siteDrive);
-            var tileset = GetOrAddTileset(tilesetId);
-            tileset.uri = tilesetUrl;
-            tileset.frame_id = sdFrame.id; //contextual mesh is always in sitedrive frame
-            tileset.groups.Clear();
-            tileset.groups.Add("contextual");
-            tileset.groups.Add("sky");
-            tileset.image_ids.Clear();
-            tileset.sols.Clear();
         }
     }
 }

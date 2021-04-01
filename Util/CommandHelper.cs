@@ -39,6 +39,15 @@ namespace OPS.Util
             
             [Option(Default = false, HelpText = "Log debug info")]
             public bool Debug { get; set; }
+
+            [Option(Default = false, HelpText = "Disable parallism, e.g. for debugging")]
+            public bool SingleThreaded { get; set; }
+        
+            [Option(Default = null, HelpText = "0 to use all available cores, N to use up to N, -M to reserve M")]
+            public int? MaxCores { get; set; }
+
+            [Option(Default = null, HelpText = "negative to use a time-dependent random seed")]
+            public int? RandomSeed { get; set; }
         }
 
         public static bool HasFlag(string[] args, string flag)
@@ -124,7 +133,18 @@ namespace OPS.Util
                 }
             }
 
+            CoreLimitedParallel.SetMaxCores(opts.SingleThreaded ? 1 : (opts.MaxCores ?? 0));
+
+            NumberHelper.RandomSeed = opts.RandomSeed ?? -1;
+
             return true;
+        }
+
+        public static void DumpConfig(ILog logger)
+        {
+            logger.InfoFormat("Architecture: {0}", (IntPtr.Size == 4 ? "x86" : "x64"));
+            logger.InfoFormat("using {0} of {1} CPU cores",
+                              CoreLimitedParallel.GetMaxCores(), CoreLimitedParallel.GetAvailableCores());
         }
 
         public static object ParseCommandLineOpts(string[] args, IEnumerable<Type> optsTypes, bool allowUnknown = false)

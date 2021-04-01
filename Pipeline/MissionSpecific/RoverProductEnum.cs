@@ -23,7 +23,9 @@ namespace OPS.Pipeline
         //M2020
         FrontHazcamB, FrontHazcamLeftB, FrontHazcamRightB,
         MastcamZ, MastcamZLeft, MastcamZRight,
-        SHERLOCACI, SHERLOCWATSON, SHERLOCWATSONLeft, SHERLOCWATSONRight
+        SHERLOCACI, SHERLOCWATSON, SHERLOCWATSONLeft, SHERLOCWATSONRight,
+        MEDASkycam,
+        SupercamRMI
     }
 
     /// <summary>
@@ -68,21 +70,53 @@ namespace OPS.Pipeline
         {
             { "FL", RoverProductCamera.FrontHazcamLeft },
             { "FR", RoverProductCamera.FrontHazcamRight },
+            //FA M2020 front hazcam anaglyph (RCE-A)
+            //FG M2020 front hazcam colorglyph (RCE-A)
             { "RL", RoverProductCamera.RearHazcamLeft },
             { "RR", RoverProductCamera.RearHazcamRight },
+            //RA M2020 rear hazcam anaglyph
+            //RG M2020 rear hazcam colorglyph
             { "NL", RoverProductCamera.NavcamLeft },
             { "NR", RoverProductCamera.NavcamRight },
+            //NA M2020 navcam anaglyph
+            //NG M2020 navcam colorglyph
             { "ML", RoverProductCamera.MastcamLeft }, //MastcamZLeft for M2020, see MissionM2020.TranslateCamera()
             { "MR", RoverProductCamera.MastcamRight }, //MastcamZRight for M2020, see MissionM2020.TranslateCamera()
             { "ZL", RoverProductCamera.MastcamZLeft }, //M2020
             { "ZR", RoverProductCamera.MastcamZRight }, //M2020
+            //ZA M2020 Mastcam-Z anaglyph
+            //ZG M2020 Mastcam-Z colorglyph
             { "MH", RoverProductCamera.MAHLI }, //MSL
             { "BL", RoverProductCamera.FrontHazcamLeftB }, //M2020
             { "BR", RoverProductCamera.FrontHazcamRightB }, //M2020
+            //BA M2020 front hazcam anaglyph (RCE-B)
+            //BG M2020 front hazcam colorglyph (RCE-B)
             { "SC", RoverProductCamera.SHERLOCACI }, //M2020
+            //SE M2020 SHERLOC engineering imager
             { "SI", RoverProductCamera.SHERLOCWATSON }, //M2020
             { "SL", RoverProductCamera.SHERLOCWATSONLeft }, //M2020
             { "SR", RoverProductCamera.SHERLOCWATSONRight }, //M2020
+            //SA M2020 SHERLOC Watson anaglyph
+            //SG M2020 SHERLOC Watson colorglyph
+            { "WS", RoverProductCamera.MEDASkycam }, //M2020
+            { "LR", RoverProductCamera.SupercamRMI }, //M2020
+            //PC M2020 PIXL MCC
+            //CC M2020 cachecam 
+            //EA, EB, EC M2020 EDL parachute uplook cam
+            //EL M2020 LCAM lander vision system
+            //EM M2020 EDL microphone
+            //ES M2020 EDL descent stage downlook cam
+            //EU M2020 EDL rover uplook cam
+            //HN M2020 helicopter navigation cam 
+            //HS M2020 helicopter return to earth cam
+            //WE M2020 (non-imaging) MEDA Environment
+            //OX M2020 (non-imaging) MOXIE
+            //PE M2020 (non-imaging) PIXL Engineering
+            //PS M2020 (non-imaging) PIXL Spectrometer
+            //LS M2020 (non-imaging) SuperCam Non-Imaging Data
+            //SS M2020 (non-imaging) SHERLOC Spectrometer
+            //XM M2020 (non-imaging) RIMFAX Mobile
+            //XS M2020 (non-imaging) RIMFAX Stationary
         };
 
         private static ConcurrentDictionary<RoverProductCamera, string> invRDRCameraTypes =
@@ -270,11 +304,21 @@ namespace OPS.Pipeline
             return prodType == RoverProductType.Image || prodType == RoverProductType.RoverMask;
         }
 
+        public static bool IsImage(RoverProductType prodType)
+        {
+            return prodType == RoverProductType.Image;
+        }
+
         public static bool IsGeometry(RoverProductType prodType)
         {
             return prodType == RoverProductType.RoverMask || prodType == RoverProductType.RangeError ||
                 prodType == RoverProductType.Range || prodType == RoverProductType.Points ||
                 prodType == RoverProductType.Normals;
+        }
+
+        public static bool IsPointCloud(RoverProductType prodType)
+        {
+            return prodType == RoverProductType.Range || prodType == RoverProductType.Points;
         }
 
         public static bool IsMonochrome(RoverProductColor color)
@@ -303,8 +347,11 @@ namespace OPS.Pipeline
     public enum RoverProductProducer
     {
         Unknown,
-        OPGS,
-        MSSS
+        OPGS, //JPL
+        MSSS, //MSL Mastcam
+        ASU, //M2020 Mastcam-Z
+        IRAP, //French Institut de Recherche en Astrophysique et Planetologie (M2020 SCAM RMI)
+        SMES //Spanish Ministry of Education and Science (M2020 MEDA Skycam)
     }
 
     public enum RoverStereoEye

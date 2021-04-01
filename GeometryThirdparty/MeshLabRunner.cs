@@ -7,6 +7,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
+#if ENABLE_MESHLAB
 namespace OPS.Geometry
 {
     /// <summary>
@@ -193,3 +194,4 @@ namespace OPS.Geometry
         }
     }
 }
+#endif

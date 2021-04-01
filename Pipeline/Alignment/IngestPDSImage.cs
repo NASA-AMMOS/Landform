@@ -142,6 +142,12 @@ namespace OPS.Pipeline
                     pipeline.LogVerbose("rejected {0} by metadata: {1}", url, reason);
                     return new Result(url, dataUrl, Status.Skipped);
                 }
+
+                if (metadata.CameraModel == null)
+                {
+                    pipeline.LogVerbose("rejected {0} by mtadata: no camera model", url);
+                    return new Result(url, dataUrl, Status.Skipped);
+                }
                 
                 var observationName = parser.ProductIdString;
                 var siteDriveName = parser.SiteDrive;
@@ -310,7 +316,7 @@ namespace OPS.Pipeline
             }
             catch (Exception ex)
             {
-                pipeline.LogError("error ingesting {0}: {1}", url, ex.Message);
+                pipeline.LogException(ex, "error ingesting " + url);
                 return new Result(url, null, Status.Failed);
             }
         }

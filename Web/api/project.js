@@ -15,17 +15,22 @@ async function createProject(req, res) {
   try {
 
     const args = parseArgs(req, {
-      tilingscheme: { type: 'enum', options: ['Bin', 'QuadX', 'QuadY', 'QuadZ', 'QuadAuto', 'Oct', 'UserDefined'] },
-      skirtmode: { type: 'enum', options: ['None', 'Normal', 'X', 'Y', 'Z'] },
-      reconstructionmethod: { type: 'enum', options: ['Poisson', 'FSSR'] },
-      facespertile: { type: 'int' },
-      textureresolution: { type: 'int' },
-      texturemode: { type: 'enum', options: ['None', 'Clip', 'Bake' ] },
       projecttype: { type: 'enum', options: ['GenericTiling'] },
+      tilingscheme: { type: 'enum', options: ['Bin', 'QuadX', 'QuadY', 'QuadZ', 'QuadAuto', 'Oct', 'UserDefined'] },
+      maxfacespertile: { type: 'int' },
+      mintileextent: { type: 'float' },
+      maxleafarea: { type: 'float' },
+      parentreconstructionmethod: { type: 'enum', options: ['Poisson', 'FSSR'] },
+      texturemode: { type: 'enum', options: ['None', 'Clip', 'Bake' ] },
+      maxtextureresolution: { type: 'int' },
+      maxtexelspermeter: { type: 'float' },
+      maxtexturestretch: { type: 'float' },
+      poweroftwotextures: { type: 'bool' },
       convertlinearrgbtosrgb: { type: 'bool', default: true },
+      embedindeximages: { type: 'bool' },
+      skirtmode: { type: 'enum', options: ['None', 'Normal', 'X', 'Y', 'Z'] },
       exportmeshformat: { type: 'enum', options: ['', 'obj', 'ply', 'stl'] },
       exportimageformat: { type: 'enum', options: ['', 'tif', 'png', 'jpg'] },
-      maxleafgroupsize: { type: 'int' },
     }, { commandLine: true });
 
     const task = await tilingTask('createproject', [req.params.name, ...args]);

@@ -23,10 +23,6 @@ namespace OPS.Pipeline
 {
     public class Backproject
     {
-        public const int MAX_SAMPLES_PER_BATCH = 500000;
-        public const float RAYCAST_NEAR_METERS = 0.001f;
-        public static readonly float[] NO_OBSERVATION_COLOR = new float[] { 0.5f, 0.5f, 0.5f };
-
         public class ObsPixel
         {
             public Observation Obs; //may be (a) RoverObservation, (b) orbital image, (c) null (no observation)
@@ -224,7 +220,7 @@ namespace OPS.Pipeline
                                               float[] missingColor = null, double preadjustLuminance = 0,
                                               double colorizeHue = -1)
         {
-            missingColor = missingColor ?? NO_OBSERVATION_COLOR;
+            missingColor = missingColor ?? TexturingDefaults.BACKPROJECT_NO_OBSERVATION_COLOR;
 
             var stats = new Stats();
 
@@ -478,6 +474,9 @@ namespace OPS.Pipeline
 
             public bool onlyCompletelyUnobstructed; //skip pts in frame but occluded in *any* obs (other than orbital)
 
+            public double raycastTolerance;
+            public double maxGlancingAngleDegrees = 90; //only respected if occlusionScene == meshCaster != null
+            
             public string meshName;
 
             public bool quiet, verbose;
@@ -597,6 +596,14 @@ namespace OPS.Pipeline
                 BuildContexts(opts.obsToHull, intersectingObservations, opts.mission, opts.frameCache,
                               opts.observationCache, opts.meshFrame, opts.usePriors, opts.onlyAligned, warn);
 
+            double maxGlancingAngleCosine = 0;
+            if (opts.maxGlancingAngleDegrees > 0 && (opts.meshCaster != null) &&
+                (opts.meshCaster == opts.occlusionScene))
+            {
+                maxGlancingAngleCosine = Math.Cos(MathHelper.ToRadians(opts.maxGlancingAngleDegrees));
+            }
+            info($"max glancing angle {opts.maxGlancingAngleDegrees:F2}deg, cosine {maxGlancingAngleCosine:F2}");
+
             if (opts.writeDebug)
             {
                 info("building debug coverage images");
@@ -618,7 +625,8 @@ namespace OPS.Pipeline
             //if orbital is available we'll try backprojecting these pixels from it below
             var failed = new List<int>(samplePoints.Count);
 
-            int numBatches = (int)Math.Ceiling(((double)samplePoints.Count) / MAX_SAMPLES_PER_BATCH);
+            int numBatches =
+                (int)Math.Ceiling(((double)samplePoints.Count) / TexturingDefaults.BACKPROJECT_MAX_SAMPLES_PER_BATCH);
 
             if (intersectingContexts.Count == 0) //no usable surface observations
             {
@@ -628,8 +636,9 @@ namespace OPS.Pipeline
 
             for (int batch = 0; batch < numBatches; batch++)
             {
-                int startIdx = batch * MAX_SAMPLES_PER_BATCH;
-                int batchSize = Math.Min(samplePoints.Count - startIdx, MAX_SAMPLES_PER_BATCH);
+                int startIdx = batch * TexturingDefaults.BACKPROJECT_MAX_SAMPLES_PER_BATCH;
+                int batchSize =
+                    Math.Min(samplePoints.Count - startIdx, TexturingDefaults.BACKPROJECT_MAX_SAMPLES_PER_BATCH);
 
                 if (numBatches > 1)
                 {
@@ -676,7 +685,8 @@ namespace OPS.Pipeline
                 {
                     var contexts = intersectingContexts;
                     var obstructed = remaining
-                        .GroupBy(i => contexts.Any(c => IsObstructed(samplePoints[i].Point, opts.occlusionScene, c)))
+                        .GroupBy(i => contexts.Any(c => IsObstructed(samplePoints[i].Point, opts.occlusionScene, c,
+                                                                     opts.raycastTolerance)))
                         .ToDictionary(group => group.Key, group => group.ToList());
                     if (obstructed.ContainsKey(true))
                     {
@@ -701,7 +711,7 @@ namespace OPS.Pipeline
                     {
                         failed.AddRange(dead[true]);
                         numFailed += dead[true].Count;
-                        verbose($"{Fmt.KMG(dead.Count)} pixels with no preference {level} observation");
+                        verbose($"{Fmt.KMG(dead.Count)} pixels with no preference {level} or lower observation");
                         remaining = dead.ContainsKey(false) ? dead[false] : new List<int>();
                     }
                     
@@ -723,10 +733,17 @@ namespace OPS.Pipeline
                     foreach (var group in groups)
                     {
                         var wl = BackprojectSurfaceObs(opts.pipeline, opts.project, opts.occlusionScene, masker,
-                                                       group.Key, samplePoints, group, results);
+                                                       opts.raycastTolerance, maxGlancingAngleCosine,
+                                                       group.Key, samplePoints, group, results, opts.verbose);
                         nw += wl.winners.Count;
                         no += (wl.winners.Count > 0) ? 1 : 0;
                         losers.AddRange(wl.losers);
+                        if (opts.verbose)
+                        {
+                            verbose($"backprojected {Fmt.KMG(wl.winners.Count)}/{Fmt.KMG(group.Count())} pixels " +
+                                    $"into preference {level} observation {group.Key.Obs.Name}, " +
+                                    $"{Fmt.KMG(wl.losers.Count)} failed: " + wl.GetStats());
+                        }
                     }
                     remaining = losers;
                     numWinners += nw;
@@ -753,10 +770,15 @@ namespace OPS.Pipeline
                 info($"failed to backproject {Fmt.KMG(nf)} pixels to surface observations");
                 if (orbitalImage != null)
                 {
-                    info("backprojecting into orbital image");
                     var indices = failed ?? Enumerable.Range(0, samplePoints.Count);
-                    var wl = BackprojectOrbitalObs(orbitalImage, opts.occlusionScene, samplePoints, indices,
-                                                   opts.meshToOrbital, opts.skyDirInMesh, results);
+                    info($"attempting to backproject {Fmt.KMG(indices.Count())} pixels into orbital image");
+                    var wl = BackprojectOrbitalObs(opts.occlusionScene, orbitalImage, opts.meshToOrbital,
+                                                   opts.skyDirInMesh, samplePoints, indices, results, opts.verbose);
+                    if (opts.verbose)
+                    {
+                        verbose($"backprojected {Fmt.KMG(wl.winners.Count)} pixels into orbital observation, " +
+                                $"{Fmt.KMG(wl.losers.Count)} failed: " + wl.GetStats());
+                    }
                     stats.BackprojectedOrbitalPixels = wl.winners.Count;
                     failed = wl.losers;
                 }
@@ -802,7 +824,7 @@ namespace OPS.Pipeline
         {
             warn = warn ?? (msg => {});
             var contexts = new List<Context>();
-            var comparator = mission.GetRoverObservationComparator();
+            var comparator = new RoverObservationComparator(mission);
             foreach (var obs in observations)
             {
                 var obsToMesh = frameCache.GetObservationTransform(obs, meshFrame, usePriors, onlyAligned);
@@ -877,25 +899,26 @@ namespace OPS.Pipeline
         {
             public List<int> winners, losers;
 
+            public int numOccluded;
+            public int numMasked;
+            public int numOutOfFrame;
+            public int numCameraModelExceptions;
+            public int numOutOfHull;
+            public int numNonFinite;
+            
             public WinnersAndLosers(int capacity)
             {
-                if (capacity > 0)
-                {
-                    winners = new List<int>(capacity);
-                    losers = new List<int>(capacity);
-                }
+                winners = new List<int>(Math.Max(capacity, 1));
+                losers = new List<int>(Math.Max(capacity, 1));
             }
 
             public WinnersAndLosers Add(int idx, bool winner)
             {
                 if (winner)
                 {
-                    if (winners != null)
-                    {
-                        winners.Add(idx);
-                    }
+                    winners.Add(idx);
                 }
-                else if (losers != null)
+                else
                 {
                     losers.Add(idx);
                 }
@@ -906,16 +929,24 @@ namespace OPS.Pipeline
             {
                 lock (this)
                 {
-                    if (winners != null && other.winners != null)
-                    {
-                        winners.AddRange(other.winners);
-                    }
-                    if (losers != null && other.losers != null)
-                    {
-                        losers.AddRange(other.losers);
-                    }
+                    winners.AddRange(other.winners);
+                    losers.AddRange(other.losers);
+                    numOccluded += other.numOccluded;
+                    numMasked += other.numMasked;
+                    numOutOfFrame += other.numOutOfFrame;
+                    numCameraModelExceptions += other.numCameraModelExceptions;
+                    numOutOfHull += other.numOutOfHull;
+                    numNonFinite += other.numNonFinite;
                 }
                 return this;
+            }
+
+            public string GetStats()
+            {
+                return $"{Fmt.KMG(numOccluded)} occluded, {Fmt.KMG(numMasked)} masked, " +
+                    $"{Fmt.KMG(numOutOfFrame)} out of frame, " +
+                    $"{Fmt.KMG(numCameraModelExceptions)} camera model exceptions, " +
+                    $"{Fmt.KMG(numOutOfHull)} out of hull, {Fmt.KMG(numNonFinite)} non finite";
             }
         }
 
@@ -927,7 +958,9 @@ namespace OPS.Pipeline
         public static WinnersAndLosers CoreBackproject(SceneCaster occlusionScene, Image mask, ConvexHull obsHullInMesh,
                                                        Matrix meshToObs, Matrix obsToMesh, CameraModel camera,
                                                        Observation obs, List<PixelPoint> samplePoints,
-                                                       IEnumerable<int> indices, IDictionary<Pixel, ObsPixel> results)
+                                                       IEnumerable<int> indices, IDictionary<Pixel, ObsPixel> results,
+                                                       double raycastTolerance = TexturingDefaults.RAYCAST_TOLERANCE,
+                                                       double maxGlancingAngleCosine = 0, bool stats = false)
         {
             int ni = indices != null ? indices.Count() : 0;
             var winners = new WinnersAndLosers(ni);
@@ -942,38 +975,62 @@ namespace OPS.Pipeline
             {
                 var sample = samplePoints[index];
                 bool winner = false;
-#if BACKPROJECT_CHECK_HULL
-                //testing the frustum hull can be a bit expensive
-                //camera.Project() gives a better answer with reasonable perf
-                //in the nonlin case the hull can be poorly fitting
-                if (sample.Point.IsFinite() && obsHullInMesh.Contains(sample.Point))
-#else
                 if (sample.Point.IsFinite()) //sampleTransform (used e.g. by BuildSkySphere) can kill points
-#endif
                 {
-                    try
+#if BACKPROJECT_CHECK_HULL
+                    //testing the frustum hull can be a bit expensive
+                    //camera.Project() gives a better answer with reasonable perf
+                    //in the nonlin case the hull can be poorly fitting
+                    if (obsHullInMesh.Contains(sample.Point))
                     {
-                        Vector2 px = camera.Project(Vector3.Transform(sample.Point, meshToObs), out double range);
-                        if (range > 0 && px.X >= 0 && px.X < obs.Width && px.Y >= 0 && px.Y < obs.Height)
+#endif
+                        try
                         {
-                            //test if rover masked or missing data
-                            //any neighbor pixels that are set to zero will cause the bilinear sample to be less than 1
-                            //mask: 0 means bad, 1 means good (opposite of Image.Mask)
-                            if (mask == null || mask.BilinearSample(0, (float)px.Y, (float)px.X) >= 1)
+                            Vector2 px = camera.Project(Vector3.Transform(sample.Point, meshToObs), out double range);
+                            if (range > 0 && px.X >= 0 && px.X < obs.Width && px.Y >= 0 && px.Y < obs.Height)
                             {
-                                //raycast the scene to test if the desired position is occluded by terrain
-                                if (!IsOccluded(camera, px, sample.Point, occlusionScene, range, obsToMesh))
+                                //test if rover masked or missing data
+                                //any neighbor pixels that are zero will cause the bilinear sample to be less than 1
+                                //mask: 0 means bad, 1 means good (opposite of Image.Mask)
+                                if (mask == null || mask.BilinearSample(0, (float)px.Y, (float)px.X) >= 1)
                                 {
-                                    results[SubpixelToPixel(sample.Pixel)] = new ObsPixel(obs, px);
-                                    winner = true;
+                                    //raycast the scene to test if the desired position is occluded by terrain
+                                    if (!IsOccluded(camera, obsToMesh, px, occlusionScene, range,
+                                                    raycastTolerance, maxGlancingAngleCosine))
+                                    {
+                                        results[SubpixelToPixel(sample.Pixel)] = new ObsPixel(obs, px);
+                                        winner = true;
+                                    }
+                                    else if (stats)
+                                    {
+                                        Interlocked.Increment(ref winners.numOccluded);
+                                    }
+                                }
+                                else if (stats)
+                                {
+                                    Interlocked.Increment(ref winners.numMasked);
                                 }
                             }
+                            else if (stats)
+                            {
+                                Interlocked.Increment(ref winners.numOutOfFrame);
+                            }
                         }
+                        catch (CameraModelException) //happens infrequently
+                        {
+                            if (stats) Interlocked.Increment(ref winners.numCameraModelExceptions);
+                        }
+#if BACKPROJECT_CHECK_HULL
                     }
-                    catch (CameraModelException)
+                    else if (stats)
                     {
-                        winner = false; //happens infrequently, but not in frame
+                        Interlocked.Increment(ref winners.numOutOfHull);
                     }
+#endif
+                }
+                else if (stats)
+                {
+                    Interlocked.Increment(ref winners.numNonFinite);
                 }
 #if NO_PARALLEL_RAYCASTS
                 winners.Add(index, winner);
@@ -999,19 +1056,21 @@ namespace OPS.Pipeline
 
         public static WinnersAndLosers BackprojectSurfaceObs(PipelineCore pipeline, Project project,
                                                              SceneCaster occlusionScene, RoverMasker masker,
+                                                             double raycastTolerance, double maxGlancingAngleCosine,
                                                              Context ctx, List<PixelPoint> samplePoints,
                                                              IEnumerable<int> indices,
-                                                             IDictionary<Pixel, ObsPixel> results)
+                                                             IDictionary<Pixel, ObsPixel> results, bool stats)
         {
             Image mask = ImageMasker.GetOrCreateMask(pipeline, project, ctx.Obs, masker, ctx.MaskObs); //cached
             return CoreBackproject(occlusionScene, mask, ctx.FrustumHull, ctx.MeshToObs, ctx.ObsToMesh, ctx.CameraModel,
-                                   ctx.Obs, samplePoints, indices, results);
+                                   ctx.Obs, samplePoints, indices, results, raycastTolerance, maxGlancingAngleCosine,
+                                   stats);
         }
 
-        public static WinnersAndLosers BackprojectOrbitalObs(Observation orbitalObs, SceneCaster occlusionScene,
-                                                             List<PixelPoint> samplePoints, IEnumerable<int> indices,
+        public static WinnersAndLosers BackprojectOrbitalObs(SceneCaster occlusionScene, Observation orbitalObs,
                                                              Matrix meshToOrbital, Vector3 skyDirInMesh,
-                                                             IDictionary<Pixel, ObsPixel> results)
+                                                             List<PixelPoint> samplePoints, IEnumerable<int> indices,
+                                                             IDictionary<Pixel, ObsPixel> results, bool stats)
         {
             int ni = indices.Count();
             var winners = new WinnersAndLosers(ni);
@@ -1027,7 +1086,8 @@ namespace OPS.Pipeline
                 if (sample.Point.IsFinite()) //sampleTransform (used e.g. by BuildSkySphere) can kill points
                 {
                     var rayToSky = new Ray(sample.Point, skyDirInMesh);
-                    if (occlusionScene == null || occlusionScene.RaycastDistance(rayToSky, RAYCAST_NEAR_METERS) == null)
+                    if (occlusionScene == null ||
+                        occlusionScene.RaycastDistance(rayToSky, TexturingDefaults.RAYCAST_TOLERANCE) == null)
                     {
                         try
                         {
@@ -1037,12 +1097,28 @@ namespace OPS.Pipeline
                                 results[SubpixelToPixel(sample.Pixel)] = new ObsPixel(orbitalObs, px);
                                 winner = true;
                             }
+                            else if (stats)
+                            {
+                                Interlocked.Increment(ref winners.numOutOfFrame);
+                            }
                         }
                         catch (CameraModelException)
                         {
                             winner = false; //happens infrequently, but not in frame
+                            if (stats)
+                            {
+                                Interlocked.Increment(ref winners.numCameraModelExceptions);
+                            }
                         }
                     }
+                    else if (stats)
+                    {
+                        Interlocked.Increment(ref winners.numOccluded);
+                    }
+                }
+                else if (stats)
+                {
+                    Interlocked.Increment(ref winners.numNonFinite);
                 }
 #if NO_PARALLEL_RAYCASTS
                 winners.Add(index, winner);
@@ -1074,50 +1150,6 @@ namespace OPS.Pipeline
             return InFrame(meshPoint, context, out Vector2 px);
         }
 
-        public static bool IsObstructed(Vector3 meshPoint, SceneCaster occlusionScene, Backproject.Context context)
-        {
-            try
-            {
-                var px = context.CameraModel.Project(Vector3.Transform(meshPoint, context.MeshToObs), out double range);
-                bool ok = range > 0 && px.X >= 0 && px.X < context.Obs.Width && px.Y >= 0 && px.Y < context.Obs.Height;
-                return ok && IsOccluded(context.CameraModel, px, meshPoint, occlusionScene, range, context.ObsToMesh);
-            }
-            catch (CameraModelException)
-            {
-                return false; //happens infrequently, but not in frame
-            }
-        }
-
-        /// <summary>
-        /// helper function to test if there is another part of the mesh between the camera and the test point
-        /// </summary>
-        public static bool IsOccluded(CameraModel camera, Vector2 pixel, Vector3 meshPos, SceneCaster occlusionScene,
-                                      double rangeMeshToImage, Matrix obsToMesh)
-        {
-            if (occlusionScene == null)
-            {
-                return false;
-            }
-
-            Ray? rayCamToMesh = GetRayToMesh(camera, obsToMesh, pixel);
-            if (!rayCamToMesh.HasValue)
-            {
-                return false;
-            }
-            
-            Ray rayMeshToCam = new Ray(meshPos, -rayCamToMesh.Value.Direction);
-
-            //from embree docs:
-            //The implementation makes no guarantees that primitives whose hit distance is exactly at
-            //(or very close to) tnear or tfar are hit or missed. 
-            //If you want to exclude intersections at tnear just pass a slightly enlarged tnear
-            double? dist = occlusionScene.RaycastDistance(rayMeshToCam, RAYCAST_NEAR_METERS);
-
-            //if hit something else before camera, occluded
-            return (dist != null) && (dist < rangeMeshToImage);
-        }
-
-
         public static Ray? GetRayToMesh(CameraModel camera, Matrix obsToMesh, Vector2 pixel)
         {
             try
@@ -1137,19 +1169,76 @@ namespace OPS.Pipeline
             }
         }
 
-        // raycast the mesh with an occulusion check
+        public static bool IsObstructed(Vector3 meshPoint, SceneCaster occlusionScene, Backproject.Context context,
+                                        double raycastTolerance = TexturingDefaults.RAYCAST_TOLERANCE)
+        {
+            try
+            {
+                var px = context.CameraModel.Project(Vector3.Transform(meshPoint, context.MeshToObs), out double range);
+                bool ok = range > 0 && px.X >= 0 && px.X < context.Obs.Width && px.Y >= 0 && px.Y < context.Obs.Height;
+                return ok && IsOccluded(context.CameraModel, context.ObsToMesh, px, occlusionScene, range, 
+                                        raycastTolerance);
+            }
+            catch (CameraModelException)
+            {
+                return false; //happens infrequently, but not in frame
+            }
+        }
+
+        public static bool IsOccluded(CameraModel camera, Matrix obsToMesh, Vector2 pixel,
+                                      SceneCaster occlusionScene, double rangeMeshToImage,
+                                      double raycastTolerance = TexturingDefaults.RAYCAST_TOLERANCE,
+                                      double maxGlancingAngleCosine = 0)
+        {
+            if (occlusionScene == null)
+            {
+                return false;
+            }
+
+            Ray? rayCamToMesh = GetRayToMesh(camera, obsToMesh, pixel);
+            if (!rayCamToMesh.HasValue)
+            {
+                return false;
+            }
+            
+            var hit = occlusionScene.Raycast(rayCamToMesh.Value);
+
+            if (hit == null)
+            {
+                return false; //ray did not hit scene
+            }
+
+            if (hit.Distance < (rangeMeshToImage - raycastTolerance))
+            {
+                return true; //if hit something else before camera, occluded
+            }
+
+            Vector3 n = hit.PointNormal.HasValue ? hit.PointNormal.Value : hit.FaceNormal;
+
+            if (maxGlancingAngleCosine > 0 && Vector3.Dot(-rayCamToMesh.Value.Direction, n) < maxGlancingAngleCosine)
+            {
+                return true; //glancing angle too great
+            }
+
+            return false;
+        }
+
         public static Vector3? RaycastMesh(CameraModel camera, Matrix obsToMesh, Vector2 pixel,
-                                           BoundingBox meshBounds, SceneCaster meshCaster,
-                                           SceneCaster occlusionScene, double raycastTolerance = float.Epsilon)
+                                           SceneCaster occlusionScene, SceneCaster meshCaster, BoundingBox meshBounds,
+                                           double raycastTolerance = TexturingDefaults.RAYCAST_TOLERANCE)
         {            
-            //check if pixel ray hit the mesh
-            Vector3? meshPos = RaycastMesh(camera, obsToMesh, pixel, meshCaster);
-            if (!meshPos.HasValue)
+            Ray? rayCamToMesh = GetRayToMesh(camera, obsToMesh, pixel);
+            if (!rayCamToMesh.HasValue)
             {
                 return null;
             }
 
-            //check if occluded by the scene
+            //check if pixel ray hit the mesh
+            Vector3? meshPos = meshCaster.RaycastPosition(rayCamToMesh.Value);
+            if (!meshPos.HasValue)
+            {
+                return null;
+            }
 
             //meshBounds may be a subset of the bounds of meshCaster
             //which is one way to ask for raycasts only on a subset of a big mesh
@@ -1161,21 +1250,13 @@ namespace OPS.Pipeline
 
             //another way to ask for raycasts on a subset of a big mesh
             //is to have meshCaster represent a subset of occlusionScene
-            //
             //this can also be used to just raycast against one mesh and occlude with a different one entirely
             //e.g. for sky sphere meshCaster is a tile on the skysphere and occlusionScene represents the terrain mesh
-            if (occlusionScene != null && occlusionScene != meshCaster)
+            if (occlusionScene != null && occlusionScene != meshCaster &&
+                IsOccluded(camera, obsToMesh, pixel, occlusionScene,
+                           Vector3.Distance(rayCamToMesh.Value.Position, meshPos.Value), raycastTolerance))
             {
-                Vector3? occluderPos = RaycastMesh(camera, obsToMesh, pixel, occlusionScene);
-                if (occluderPos.HasValue)
-                {
-                    double distanceToOccluder = Vector3.DistanceSquared(occluderPos.Value, obsToMesh.Translation);
-                    double distanceToMesh = Vector3.DistanceSquared(meshPos.Value, obsToMesh.Translation);
-                    if ((distanceToOccluder - distanceToMesh) < raycastTolerance)
-                    {
-                        return null; //occluded by other geometry
-                    }
-                }
+                return null;
             }
 
             return meshPos;
@@ -1188,12 +1269,7 @@ namespace OPS.Pipeline
             {
                 return null;
             }
-
-            //from embree docs:
-            //The implementation makes no guarantees that primitives whose hit distance is exactly at
-            //(or very close to) tnear or tfar are hit or missed. 
-            //If you want to exclude intersections at tnear just pass a slightly enlarged tnear
-            return sc.RaycastPosition(rayCamToMesh.Value, RAYCAST_NEAR_METERS);
+            return sc.RaycastPosition(rayCamToMesh.Value);
         }
      
         public static IDictionary<string, ConvexHull> //indexed by observation name

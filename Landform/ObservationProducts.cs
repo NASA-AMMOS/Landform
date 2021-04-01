@@ -42,12 +42,12 @@ using OPS.Pipeline.AlignmentServer;
 ///
 /// Generate merged unaligned sitedrive meshes:
 ///
-/// Landform.exe observation-products windjana --onlymergedsitedrivemeshes --onlyforphases=meshing --meshframe 0311472
+/// Landform.exe observation-products windjana --onlymergedsitedrivemeshes --onlyforphases=meshing
 ///   --usepriors
 ///
 /// Generate merged aligned sitedrive meshes:
 ///
-/// Landform.exe observation-products windjana --onlymergedsitedrivemeshes --onlyforphases=meshing --meshframe 0311472
+/// Landform.exe observation-products windjana --onlymergedsitedrivemeshes --onlyforphases=meshing
 ///
 /// Just spew stats:
 ///
@@ -109,8 +109,8 @@ namespace OPS.Landform
         [Option(HelpText = "Disable generating organized mesh normals when normal image missing", Default = false)]
         public bool NoGenerateNormals { get; set; }
 
-        [Option(HelpText = "Scale normals by confidence (for Poisson reconstruction)", Default = false)]
-        public bool ScaleNormalsByConfidence { get; set; }
+        [Option(HelpText = "Normal scaling mode, one of None, Confidence, PointScale", Default = NormalScale.None)]
+        public NormalScale NormalScale { get; set; }
 
         [Option(HelpText = "Don't split output by site drive", Default = false)]
         public bool SuppressSiteDriveDirectories { get; set; }
@@ -135,6 +135,9 @@ namespace OPS.Landform
 
         [Option(HelpText = "Only generate statistics", Default = false)]
         public bool StatsOnly { get; set; }
+
+        [Option(HelpText = "Synonym for --statsonly", Default = false)]
+        public bool DryRun { get; set; }
 
         [Option(HelpText = "Write mask images", Default = false)]
         public bool MaskImages { get; set; }
@@ -214,6 +217,7 @@ namespace OPS.Landform
                 options.DeltaRangeImages = true;
             }
 
+            options.StatsOnly |= options.DryRun;
             if (options.StatsOnly)
             {
                 options.MergedSiteDriveMeshes = false;
@@ -267,12 +271,6 @@ namespace OPS.Landform
             withTextures = buildWedgeMeshes && options.ColorMeshesBy == MeshColor.Texture;
             buildWedgeImages = withTextures || !options.NoWedgeImages;
             
-            if (options.MergedSiteDriveMeshes && options.MeshFrame == "rover")
-            {
-                pipeline.LogWarn("cannot write merged sitedrive meshes in rover frame, using newest sitedrive");
-                options.MeshFrame = "newest";
-            }
-
             if (!ParseArgumentsAndLoadCaches("alignment/ObservationProducts"))
             {
                 return false; // help
@@ -325,7 +323,7 @@ namespace OPS.Landform
                     UsePriors = options.UsePriors,
                     OnlyAligned = options.OnlyAligned,
                     Decimate = options.DecimateWedgeMeshes,
-                    ScaleNormalsByConfidence = options.ScaleNormalsByConfidence,
+                    NormalScale = options.NormalScale,
                     ApplyTexture = withTextures,
                     MaxTriangleAspect = options.MaxTriangleAspect,
                     IsolatedPointSize = options.IsolatedPointSize,
@@ -409,6 +407,10 @@ namespace OPS.Landform
                         pipeline.LogWarn("meshing failed on obs {0} ({1} reconstruction, {2} points, {3} normals): {4}",
                                          obs.Name, options.ReconstructionMethod, npts, nn,
                                          ex != null ? ex.Message : "insufficient data or unknown error");
+                        if (pipeline.StackTraces && ex != null)
+                        {
+                            pipeline.LogException(ex);
+                        }
                     }
                 }
 
@@ -628,15 +630,20 @@ namespace OPS.Landform
                     var maskUrl = obs.Mask != null ? obs.Mask.Url : null;
                     mask = masker.LoadOrBuild(pipeline, maskUrl, normals.Metadata as PDSMetadata);
                 }
-                Image confidence = null;
-                if (options.ScaleNormalsByConfidence)
+                Image scale = null;
+                PDSImage points = new PDSImage(pipeline.LoadImage(obs.Points.Url));
+                switch (options.NormalScale)
                 {
-                    confidence = new PDSImage(pipeline.LoadImage(obs.Points.Url)).GenerateConfidence();
+                    case NormalScale.Confidence: scale = points.GenerateConfidence(); break;
+                    case NormalScale.PointScale: scale = points.GenerateScale(); break;
+                    case NormalScale.None: break;
+                    default: throw new ArgumentException("unknown normal scaling mode " + options.NormalScale);
                 }
-                normals = (new PDSImage(normals)).ConvertNormals(confidence);
+                normals = (new PDSImage(normals)).ConvertNormals(scale, points.ConvertPoints());
                 if (normals != null)
                 {
-                    normals = OrganizedPointCloud.MaskAndDecimateNormals(normals, mbs, mask);
+                    normals = OrganizedPointCloud.MaskAndDecimateNormals(normals, mbs, mask,
+                                                                         normalize: options.ConvertNormalsToTilts);
                     if (options.ConvertNormalsToTilts)
                     {
                         normals = OrganizedPointCloud.NormalsToTilt(normals, options.TiltMode);
@@ -671,7 +678,7 @@ namespace OPS.Landform
                 {
                     var normals = (new PDSImage(pipeline.LoadImage(obs.Normals.Url))).ConvertNormals();
                     points = OrganizedPointCloud.MaskAndDecimatePoints(points, mbs, mask);
-                    normals = OrganizedPointCloud.MaskAndDecimateNormals(normals, mbs, mask);
+                    normals = OrganizedPointCloud.MaskAndDecimateNormals(normals, mbs, mask, normalize: true);
                     curvatures = OrganizedPointCloud.Curvatures(points, normals, !options.StretchContrast,
                                                                 options.CurvatureNeighborhood);
                 }
@@ -759,15 +766,16 @@ namespace OPS.Landform
                 {
                     if (withTextures)
                     {
-                        var pair = Mesh.MergeMeshesAndTextures(inputs
-                                                               .Select(t => new Tuple<Mesh, Image>(t.Item2, t.Item3))
-                                                               .ToArray());
+                        var pair =
+                            MeshMerge.MergeMeshesAndTextures(inputs
+                                                             .Select(t => new Tuple<Mesh, Image>(t.Item2, t.Item3))
+                                                             .ToArray());
                         mesh = pair.Item1;
                         img = pair.Item2;
                     }
                     else
                     {
-                        mesh = Mesh.Merge(inputs.Select(pr => pr.Item2).ToArray());
+                        mesh = MeshMerge.Merge(inputs.Select(pr => pr.Item2).ToArray());
                     }
                 }
                 catch (Exception ex)

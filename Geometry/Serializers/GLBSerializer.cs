@@ -45,7 +45,7 @@ namespace OPS.Geometry
                 bw.Write(GLTFFile.UIntBytes(2)); // version 2
 
                 int headerBytes = 3 * 4 + 2 * 4 + 2 * 4;
-                UInt32 totalLength = (UInt32) (headerBytes + jsonBytes.Length + gltf.Data.Length);
+                int totalLength = headerBytes + jsonBytes.Length + gltf.Data.Length;
                 bw.Write(GLTFFile.UIntBytes(totalLength)); // total length of file
 
                 // json chunk

@@ -248,36 +248,24 @@ namespace OPS.Geometry
             return avg;
         }
 
-        /// <summary>
-        //  public double RMS;
-        //  public double AverageDistance;
-        //  public double Variance;
-        //  public double Range;
-        /// </summary>
-        public class RoughnessPlyWriter : PLYMaximumCompatibilityWriter
+        public class RoughnessPLYWriter : PLYMaximumCompatibilityWriter
         {
-
-            /// <summary>
-            /// Scale value to use for all points in the mesh
-            /// </summary>
-            public RoughnessPlyWriter(bool writeXYZValuesAsFloat) : base(writeXYZValuesAsFloat) { }
-
             protected override void WriteVertexStructureHeader(Mesh m, StreamWriter sw)
             {
-
                 base.WriteVertexStructureHeader(m, sw);
-                sw.WriteLine("property " + NumberFormat + " roughness_rms");
-                sw.WriteLine("property " + NumberFormat + " average_distance");
-                sw.WriteLine("property " + NumberFormat + " variance");
-                sw.WriteLine("property " + NumberFormat + " range");
-                sw.WriteLine("property " + NumberFormat + " distance_from_center");
+                string dt = writeValueAsFloat ? "float" : "double";
+                sw.WriteLine($"property {dt} roughness_rms");
+                sw.WriteLine($"property {dt} average_distance");
+                sw.WriteLine($"property {dt} variance");
+                sw.WriteLine($"property {dt} range");
+                sw.WriteLine($"property {dt} distance_from_center");
             }
 
             public override void WriteVertex(Mesh m, Vertex v, Stream s)
             {
                 base.WriteVertex(m, v, s);
                 VertexWithRoughness rv = (VertexWithRoughness)v;
-                if (writeXYZValuesAsFloat)
+                if (writeValueAsFloat)
                 {
                     WriteFloatValue((float)rv.RMS, s);
                     WriteFloatValue((float)rv.AverageDistance, s);

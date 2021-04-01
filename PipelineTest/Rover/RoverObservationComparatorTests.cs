@@ -50,22 +50,17 @@ namespace RoverTest
             Assert.IsTrue(obsLin.IsLinear);
             Assert.IsTrue(!obsNonLin.IsLinear);
 
-            RoverObservationComparator comp = new RoverObservationComparator(preferMSSS: false,
-                                                                             preferLinearGeometryProducts: true,
-                                                                             preferLinearRasterProducts: true,
-                                                                             preferColor: true,
-                                                                             preferEyeForGeometry: RoverStereoEye.Left,
-                                                                             mission:new MissionMSL());
+            RoverObservationComparator comp = new RoverObservationComparator(new MissionMSL());
 
             List<Observation> allObs = new List<Observation>(2) { obsLin, obsNonLin };
             var result = comp.KeepBestRoverObservations(allObs, RoverObservationComparator.LinearVariants.Best);
             Assert.IsTrue(result.Count() == 1);
-            Assert.IsTrue(result.First() == obsLin);
+            Assert.IsTrue(result.First() == obsNonLin);
 
             allObs = new List<Observation>(2) {obsNonLin, obsLin };
             result = comp.KeepBestRoverObservations(allObs, RoverObservationComparator.LinearVariants.Best);
             Assert.IsTrue(result.Count() == 1);
-            Assert.IsTrue(result.First() == obsLin);
+            Assert.IsTrue(result.First() == obsNonLin);
 
         }
 
@@ -104,22 +99,17 @@ namespace RoverTest
             Assert.IsTrue(obsLin.IsLinear);
             Assert.IsTrue(!obsNonLin.IsLinear);
 
-            RoverObservationComparator comp = new RoverObservationComparator(preferMSSS: false,
-                                                                             preferLinearGeometryProducts: true,
-                                                                             preferLinearRasterProducts: true,
-                                                                             preferColor: true,
-                                                                             preferEyeForGeometry: RoverStereoEye.Left,
-                                                                             mission: new MissionMSL());
+            RoverObservationComparator comp = new RoverObservationComparator(new MissionMSL());
 
             List<Observation> allObs = new List<Observation>(2) { obsLin, obsNonLin };
             var result = comp.KeepBestRoverObservations(allObs, RoverObservationComparator.LinearVariants.Both);
             Assert.IsTrue(result.Count() == 2);
-            Assert.IsTrue(result.First() == obsLin);
+            Assert.IsTrue(result.First() == obsNonLin);
 
             allObs = new List<Observation>(2) { obsNonLin, obsLin };
             result = comp.KeepBestRoverObservations(allObs, RoverObservationComparator.LinearVariants.Both);
             Assert.IsTrue(result.Count() == 2);
-            Assert.IsTrue(result.First() == obsLin);
+            Assert.IsTrue(result.First() == obsNonLin);
 
         }
 
@@ -168,12 +158,7 @@ namespace RoverTest
             Assert.IsTrue(obsLinCol.Color == RoverProductColor.FullColor);
             Assert.IsTrue(obsNonLin.Color == RoverProductColor.Grayscale);
 
-            RoverObservationComparator comp = new RoverObservationComparator(preferMSSS: false,
-                                                                             preferLinearGeometryProducts: true,
-                                                                             preferLinearRasterProducts: true,
-                                                                             preferColor: true,
-                                                                             preferEyeForGeometry: RoverStereoEye.Left,
-                                                                             mission:new MissionMSL());
+            RoverObservationComparator comp = new RoverObservationComparator(new MissionMSL());
 
             List<Observation> allObs = new List<Observation>(3) { obsLinBW, obsNonLin, obsLinCol };
             var result = comp.KeepBestRoverObservations(allObs, RoverObservationComparator.LinearVariants.Best);
@@ -227,18 +212,13 @@ namespace RoverTest
             Assert.IsTrue(obsLinV2.IsLinear);
             Assert.IsTrue(!obsNonLinV2.IsLinear);
           
-            RoverObservationComparator comp = new RoverObservationComparator(preferMSSS: false,
-                                                                             preferLinearGeometryProducts: true,
-                                                                             preferLinearRasterProducts: true,
-                                                                             preferColor: true,
-                                                                             preferEyeForGeometry: RoverStereoEye.Left,
-                                                                             mission:new MissionMSL());
+            RoverObservationComparator comp = new RoverObservationComparator(new MissionMSL());
 
             List<Observation> allObs = new List<Observation>(3) { obsLinV1, obsNonLinV2, obsLinV2 };
             var result = comp.KeepBestRoverObservations(allObs, RoverObservationComparator.LinearVariants.Both);
             Assert.IsTrue(result.Count() == 2);
-            Assert.IsTrue(result.First() == obsLinV2);
-            Assert.IsTrue(result.ElementAt(1) == obsNonLinV2);
+            Assert.IsTrue(result.First() == obsNonLinV2);
+            Assert.IsTrue(result.ElementAt(1) == obsLinV2);
         }
 
         [TestMethod()]
@@ -273,12 +253,7 @@ namespace RoverTest
             var obsLinMSSS = makeObs(filenameLin, new CAHV(), RoverProductProducer.MSSS);
             var obsNonLinOPGS = makeObs(filenameNonLin, new CAHVORE(), RoverProductProducer.OPGS);
             
-            var linComp = new RoverObservationComparator(preferMSSS: false,
-                                                         preferLinearGeometryProducts: true,
-                                                         preferLinearRasterProducts: true,
-                                                         preferColor: true,
-                                                         preferEyeForGeometry: RoverStereoEye.Left,
-                                                         mission: new MissionMSL());
+            var linComp = new RoverObservationComparator(new MissionMSL());
             
             var allObs = new List<Observation>(3) { obsNonLinOPGS, obsLinMSSS };
             

@@ -238,7 +238,7 @@ namespace OPS.Pipeline
 
                     if (options.OnlyKeepBestImages && obsForFrame.Length > 0)
                     {
-                        var comparator = MissionSpecific.GetInstance(project.Mission).GetRoverObservationComparator();
+                        var comparator = new RoverObservationComparator(MissionSpecific.GetInstance(project.Mission));
                         obsForFrame = new RoverObservation[] { obsForFrame.OrderBy(obs => obs, comparator).First() };
                     }
 

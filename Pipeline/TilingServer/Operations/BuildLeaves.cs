@@ -19,12 +19,15 @@ namespace OPS.Pipeline.TilingServer
         public List<string> TileIds;
         public BuildLeavesMessage() { }
         public BuildLeavesMessage(string projectName) : base(projectName) { }
+
+        public override string Info()
+        {
+            return string.Format("[{0}] BuildLeaves tiles {1}", ProjectName, string.Join(",", TileIds));
+        }
     }
 
     public class BuildLeaves : PipelineOperation
     {
-        public const int DEF_MAX_TEXTURE_RESOLUTION = 256;
-
         private readonly BuildLeavesMessage message;
 
         public BuildLeaves(PipelineCore pipeline, BuildLeavesMessage message) : base(pipeline, message)
@@ -111,11 +114,11 @@ namespace OPS.Pipeline.TilingServer
             LogLess("building acceleration datastructures");
             bool inputHasImages = false;
             bool inputHasUVs = true;
-            var clipper = new MultiMeshClipper();
+            var clipper = new MultiMeshClipper(powerOfTwoTextures: project.PowerOfTwoTextures, logger: pipeline);
             foreach (var group in inputGroups)
             {
                 var meshes = group.Chunks.Select(c => Mesh.Load(pipeline.GetFileCached(c.MeshUrl, "meshes"))).ToArray();
-                var mergedMesh = Mesh.Merge(meshes);
+                var mergedMesh = MeshMerge.Merge(meshes);
                 mergedMesh.Clean();
                 SparsePipelineImage image = null;
                 string chunkBaseUrl = group.Chunks[0].ImageUrl;
@@ -124,7 +127,8 @@ namespace OPS.Pipeline.TilingServer
                     inputHasImages = true;
                     TilingInput ti = group.Input;
                     image = new SparsePipelineImage(pipeline, ti.ImageBands, ti.ImageWidth, ti.ImageHeight,
-                                                    chunkBaseUrl, ChunkInput.IMAGE_EXT, ChunkInput.CHUNK_RESOLUTION);
+                                                    chunkBaseUrl, ChunkInput.SPARSE_IMAGE_CHUNK_EXT,
+                                                    ChunkInput.SPARSE_IMAGE_CHUNK_RES);
                 }
                 if (!mergedMesh.HasUVs && inputNeedsUVs && textureProjector != null)
                 {
@@ -136,7 +140,7 @@ namespace OPS.Pipeline.TilingServer
                 clipper.AddInput(new MeshImagePair(mergedMesh, image));
             }
 
-            int maxTexRes = project.TextureResolution;
+            int maxTexRes = project.MaxTextureResolution;
 
             if (inputNeedsUVs && !inputHasUVs)
             {
@@ -151,10 +155,6 @@ namespace OPS.Pipeline.TilingServer
                     case TextureMode.None: maxTexRes = 0; break;
                     case TextureMode.Bake: 
                     {
-                        if (maxTexRes < 0)
-                        {
-                            maxTexRes = DEF_MAX_TEXTURE_RESOLUTION;
-                        }
                         clipper.InitTextureBaker();
                         break;
                     }
@@ -168,6 +168,8 @@ namespace OPS.Pipeline.TilingServer
                 }
             }
 
+            BoundingBox? surfaceBounds = project.GetSurfaceBoundingBox();
+
             LogLess("building {0} leaves", leaves.Count);
             int nc = inputGroups.SelectMany(g => g.Chunks).Count();
             int nl = 0;
@@ -180,21 +182,37 @@ namespace OPS.Pipeline.TilingServer
                 MeshImagePair pair = null;
                 if (inputHasImages && inputHasUVs && maxTexRes != 0)
                 {
+                    int tileResolution = maxTexRes;
+                    Mesh mesh = null;
+                    if (project.TextureMode == TextureMode.Bake || project.TextureMode == TextureMode.Clip)
+                    {
+                        mesh = clipper.Clip(bounds);
+                        double texelsPerMeter = project.GetMaxTexelsPerMeter(bounds, surfaceBounds);
+                        tileResolution = SceneNodeTilingExtensions
+                            .GetTileResolution(mesh, maxTexRes, texelsPerMeter, project.PowerOfTwoTextures);
+                    }
+
                     if (project.TextureMode == TextureMode.Bake)
                     {
-                        var mesh = clipper.Clip(bounds);
-                        LogLess("baking {0}x{0} leaf texture, {1}", maxTexRes, maxTexRes,
+                        LogLess("baking {0}x{0} leaf texture, {1}", tileResolution, tileResolution,
                                 mesh.HasUVs ? "using exising UVs" : "assigning new UVs with UVAtlas");
                         if (mesh.HasUVs)
                         {
-                            mesh.RescaleUVsForTexture(maxTexRes, maxTexRes);
+                            mesh.RescaleUVsForTexture(tileResolution, tileResolution, project.MaxTextureStretch);
                         }
-                        pair = clipper.BakeTexture(mesh, maxTexRes, msg => LogLess(msg)); //will UVAtlas if necessary
+                        //BakeTexture() will call UVAtlas if necessary
+                        pair =
+                            clipper.BakeTexture(mesh, tileResolution, project.MaxTextureStretch, msg => LogLess(msg));
                     }
                     else if (project.TextureMode == TextureMode.Clip)
                     {
                         LogLess("clipping leaf texture");
-                        pair = clipper.ClipWithTexture(bounds, maxTexRes);
+                        pair = clipper.ClipWithTexture(bounds, tileResolution, project.MaxTexelsPerMeter);
+                    }
+                    if (pair.Mesh != null && pair.Image != null &&
+                        project.MaxTextureStretch < 1 && !project.PowerOfTwoTextures)
+                    {
+                        pair.Image = pair.Mesh.ClipImageAndRemapUVs(pair.Image, ref pair.Index);
                     }
                 }
                 else
@@ -213,7 +231,7 @@ namespace OPS.Pipeline.TilingServer
                 }
                 else
                 {
-                    LogError("failed to build leaf");
+                    throw new Exception("failed to build leaf " + leaf.Id);
                 }
 
                 pipeline.EnqueueToMaster(new TileCompletedMessage(projectName) { TileId = leaf.Id });

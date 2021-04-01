@@ -252,6 +252,14 @@ namespace OPS.Geometry
         }
 
         /// <summary>
+        /// Returns true if this node is a root (has no parent)
+        /// </summary>
+        public bool IsRoot
+        {
+            get { return Transform.IsRoot;  }
+        }
+
+        /// <summary>
         /// Traverse all leaf nodes reachable from this node in depth first order
         /// </summary>
         /// <returns></returns>

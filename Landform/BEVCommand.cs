@@ -17,6 +17,8 @@ using OPS.Pipeline.AlignmentServer;
 
 namespace OPS.Landform
 {
+    public enum SiteDrivePriority { Newest, Oldest, Biggest, Smallest, ProjectThenBiggest };
+    
     public class BEVCommandOptions : WedgeCommandOptions
     {
         [Option(HelpText = "Option disabled for this command", Default = false)]
@@ -84,9 +86,6 @@ namespace OPS.Landform
 
         [Option(HelpText = "Optimize color contrast number of standard deviations", Default = 2)]
         public double StretchStdDevs { get; set; }
-
-        [Option(HelpText = "Debug mesh coordinate frame: if set must be a sitedrive SSSSSDDDDD or SSSDDDD, defaults to project root if unset", Default = null)]
-        public string MeshFrame { get; set; }
 
         [Option(HelpText = "Option disabled for this command", Default = false)]
         public override bool NoSurface { get; set; }
@@ -218,16 +217,30 @@ namespace OPS.Landform
             //lexicographically sort siteDrives so that older ones come before newer just to give a canonical order
             siteDrives = siteDrives.Distinct().OrderBy(sd => sd).ToArray();
 
-            if (!string.IsNullOrEmpty(bcopts.MeshFrame))
+            if (SiteDrive.IsSiteDriveString(meshFrame))
             {
-                if (!SiteDrive.IsSiteDriveString(bcopts.MeshFrame))
-                {
-                    throw new Exception("--meshframe must be a site drive in the form SSSDDDD or SSSSSDDDDD");
-                }
-                dbgMeshTransform = Matrix.Invert(BestTransform(new SiteDrive(bcopts.MeshFrame)));
+                dbgMeshTransform = Matrix.Invert(BestTransform(new SiteDrive(meshFrame)));
             }
 
             return true;
+        }
+
+        protected IEnumerable<SiteDrive> SortSiteDrives(IEnumerable<SiteDrive>sds, SiteDrivePriority priority)
+        {
+            switch (priority)
+            {
+                case SiteDrivePriority.Newest: return sds.OrderByDescending(sd => sd.ToString());
+                case SiteDrivePriority.Oldest: return sds.OrderBy(sd => sd.ToString());
+                case SiteDrivePriority.Biggest: return sds.OrderByDescending(sd => dems[sd].Area);
+                case SiteDrivePriority.Smallest: return sds.OrderBy(sd => dems[sd].Area);
+                case SiteDrivePriority.ProjectThenBiggest: return sds
+                    .OrderByDescending(sd => dems[sd].Area)
+                    .OrderBy(sd => sd, Comparer<SiteDrive>.Create((sda, sdb) =>
+                                                                  sda == sdb ? 0 :
+                                                                  sda.ToString() == project.MeshFrame ? -1 :
+                                                                  sdb.ToString() == project.MeshFrame ? 1 : 0));
+                default: throw new Exception("unknown site drive priority: " + priority);
+            }
         }
 
         protected abstract HashSet<TransformSource> GetDefaultExcludedAdjustedTransformSources();
@@ -242,13 +255,14 @@ namespace OPS.Landform
             return " alignment";
         }
 
-        protected override void SaveMesh(Mesh mesh, string name, string texture = null)
+        protected override void SaveMesh(Mesh mesh, string name, string texture = null,
+                                         bool writeNormalLengthsAsValue = false)
         {
             if (dbgMeshTransform.HasValue)
             {
-                mesh = Mesh.Transformed(mesh, dbgMeshTransform.Value);
+                mesh = mesh.Transformed(dbgMeshTransform.Value);
             }
-            base.SaveMesh(mesh, name, texture);
+            base.SaveMesh(mesh, name, texture, writeNormalLengthsAsValue);
         }
 
         protected virtual bool AutoUseMeshRDRs()
@@ -440,7 +454,7 @@ namespace OPS.Landform
                     }
                     catch (Exception ex)
                     {
-                        pipeline.LogException(ex, "error creating mesh for wedge " + obs.Name);
+                        pipeline.LogWarn("error creating mesh for wedge {0}: {1}", obs.Name, ex.Message);
                         Interlocked.Increment(ref nf);
                     }
                     finally
@@ -595,13 +609,13 @@ namespace OPS.Landform
                     
                     if (renderBEV && bcopts.BEVColoring == BirdsEyeView.ColorMode.Texture)
                     {
-                        var pair = Mesh.MergeMeshesAndTextures(pairs);
+                        var pair = MeshMerge.MergeMeshesAndTextures(pairs);
                         mesh = pair.Item1;
                         img = pair.Item2;
                     }
                     else
                     {
-                        mesh = Mesh.MergeWithCommonAttributes(pairs.Select(pr => pr.Item1).ToArray());
+                        mesh = MeshMerge.MergeWithCommonAttributes(pairs.Select(pr => pr.Item1).ToArray());
                     }
 
                     if (renderBEV)
@@ -644,7 +658,12 @@ namespace OPS.Landform
                         pipeline.LogVerbose("rendering BEV image for site drive {0}...", siteDrive);
 
                         var bev = Rasterizer.Rasterize(mesh, img, out Vector2 originPixel, sdBEVOpts);
-                        
+
+                        if (bev.Width == 0 || bev.Height == 0)
+                        {
+                            throw new Exception("BEV has zero dimension");
+                        }
+
                         pipeline.LogVerbose("birds eye view for site drive {0}: {1}x{2}, origin ({3:f1}, {4:f1}), " +
                                             "{5} meters/pixel ({6} with decimation), sparse block size {7}, " +
                                             "valid block ratio {8}, inpaint {9}, smoothing {10}, decimation {11}, " +
@@ -696,6 +715,11 @@ namespace OPS.Landform
                             var opts = sdBEVOpts.Clone();
 
                             dem = Rasterizer.Rasterize(mesh, null, out Vector2 originPixel, opts);
+
+                            if (dem.Width == 0 || dem.Height == 0)
+                            {
+                                throw new Exception("DEM has zero dimension");
+                            }
 
                             if (bev != null && (dem.Width != bev.Width || dem.Height != bev.Height))
                             {
@@ -752,7 +776,7 @@ namespace OPS.Landform
                 }
                 catch (Exception ex)
                 {
-                    pipeline.LogException(ex, "error rendering BEV for site drive " + siteDrive);
+                    pipeline.LogWarn("error rendering BEV for site drive {0}: {1}", siteDrive, ex.Message);
                     Interlocked.Increment(ref nf);
                 }
                 finally

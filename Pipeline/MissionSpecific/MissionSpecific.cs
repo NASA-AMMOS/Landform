@@ -34,12 +34,6 @@ namespace OPS.Pipeline
         [ConfigEnvironmentVariable("LANDFORM_ALLOW_LEGACY_MANIFEST_DB")]
         public bool AllowLegacyManifestDB { get; set; } = false;
 
-        [ConfigEnvironmentVariable("LANDFORM_ALLOW_OPGS")]
-        public bool AllowOPGS { get; set; } = true;
-
-        [ConfigEnvironmentVariable("LANDFORM_ALLOW_MSSS")]
-        public bool AllowMSSS { get; set; } = true;
-
         [ConfigEnvironmentVariable("LANDFORM_ALLOW_THUMBNAILS")]
         public bool AllowThumbnails { get; set; } = false;
 
@@ -57,9 +51,6 @@ namespace OPS.Pipeline
 
         [ConfigEnvironmentVariable("LANDFORM_ALLOW_MULTI_FRAME")]
         public bool AllowMultiFrame { get; set; } = true;
-
-        [ConfigEnvironmentVariable("LANDFORM_PREFER_MSSS_TO_OPGS")]
-        public bool PreferMSSSToOPGS { get; set; } = false;
 
         [ConfigEnvironmentVariable("LANDFORM_PREFER_LINEAR_GEOMETRY_PRODUCTS")]
         public bool PreferLinearGeometryProducts { get; set; } = true;
@@ -95,11 +86,9 @@ namespace OPS.Pipeline
         [ConfigEnvironmentVariable("LANDFORM_USE_NAVCAM_FOR_TEXTURING")]
         public bool UseNavcamForTexturing { get; set; } = true;
 
-        //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/261
         [ConfigEnvironmentVariable("LANDFORM_USE_MASTCAM_FOR_ALIGNMENT")]
         public bool UseMastcamForAlignment { get; set; } = false;
 
-        //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/261
         [ConfigEnvironmentVariable("LANDFORM_USE_MASTCAM_FOR_MESHING")]
         public bool UseMastcamForMeshing { get; set; } = false;
 
@@ -121,6 +110,17 @@ namespace OPS.Pipeline
 
         [ConfigEnvironmentVariable("LANDFORM_UNIFIED_MESH_PRODUCT_TYPE")]
         public string UnifiedMeshProductType { get; set; } = "RAS";
+
+        //comma separated list of processing types to allow
+        //sorted in order of preference (best last)
+        [ConfigEnvironmentVariable("LANDFORM_ALLOWED_PROCESSING_TYPES")]
+        public string AllowedProcessingTypes { get; set; } = "_"; 
+
+        //comma separated list of producers to allow
+        //must match RoverProductProducer enum values
+        //sorted in order of preference (best last)
+        [ConfigEnvironmentVariable("LANDFORM_ALLOWED_PRODUCERS")]
+        public string AllowedProducers { get; set; } = "OPGS"; 
     }
 
     public abstract class MissionSpecific : ConfigDefaultsProvider
@@ -243,7 +243,14 @@ namespace OPS.Pipeline
 
         public virtual RoverProductType GetProductType(PDSParser parser)
         {
-            return parser.DerivedImageType;
+            var pt = parser.DerivedImageType;
+            if (pt == RoverProductType.Unknown)
+            {
+                //MSL MSSS products may be missing DERIVED_IMAGE_PARAMS.DERIVED_IMAGE_TYPE
+                //we have also seen M20 OPGS products (in a special processing case) missing this field
+                pt = GetProductType(parser.ProductIdString);
+            }
+            return pt;
         }
 
         public virtual string GetObservationFrameName(PDSParser parser)
@@ -269,17 +276,10 @@ namespace OPS.Pipeline
             return StringHelper.GetLastUrlPathSegment(product, stripExtension: true);
         }
 
-        /// <summary>
-        /// ordering a sequence with this function should put the "better" observations earlier in the list
-        /// thus a "better" observation should be *less than* a "worse" observation, uses
-        /// PreferMSSSToOPGS(), PreferLinearGeometryProducts(), PreferLinearRasterProducts(), PreferColorToGrayscale()
-        /// so if a mission only differs from the default in one of those respects, just override that
-        /// </summary>
-        public virtual RoverObservationComparator GetRoverObservationComparator()
+        public virtual RoverObservationComparator.CompareResult
+            CompareRoverObservations(RoverObservation a, RoverObservation b, params string[] exceptCrit)
         {
-            return new RoverObservationComparator(PreferMSSSToOPGS(), PreferLinearGeometryProducts(),
-                                                  PreferLinearRasterProducts(), PreferColorToGrayscale(),
-                                                  PreferEyeForGeometry(), this);
+            return new RoverObservationComparator.CompareResult(0, "none");
         }
 
         /// <summary>
@@ -295,6 +295,12 @@ namespace OPS.Pipeline
         public virtual RoverStereoEye PreferEyeForGeometry()
         {
             return RoverStereoEye.Left;
+        }
+
+        public bool CanMakeSyntheticRoverMasks()
+        {
+            var masker = GetMasker();
+            return masker != null && masker.CanMakeSyntheticRoverMasks(); //generally masker should not be null
         }
 
         public abstract RoverMasker GetMasker();
@@ -387,22 +393,6 @@ namespace OPS.Pipeline
         }
 
         /// <summary>
-        /// whether to ingest OPGS images
-        /// </summary>
-        public virtual bool AllowOPGS()
-        {
-            return MissionConfig.Instance.AllowOPGS;
-        }
-
-        /// <summary>
-        /// whether to ingest MSSS images
-        /// </summary>
-        public virtual bool AllowMSSS()
-        {
-            return MissionConfig.Instance.AllowMSSS;
-        }
-
-        /// <summary>
         /// whether to ingest thumbnail images
         /// </summary>
         public virtual bool AllowThumbnails()
@@ -449,14 +439,6 @@ namespace OPS.Pipeline
         public virtual bool AllowMultiFrame()
         {
             return MissionConfig.Instance.AllowMultiFrame;
-        }
-
-        /// <summary>
-        /// whether to prefer MSSS images to OPGS images when both are available
-        /// </summary>
-        public virtual bool PreferMSSSToOPGS()
-        {
-            return MissionConfig.Instance.PreferMSSSToOPGS;
         }
 
         /// <summary>
@@ -723,23 +705,27 @@ namespace OPS.Pipeline
                 return false;
             }
 
-            if (!AllowOPGS() && id.Producer == RoverProductProducer.OPGS)
+            if (!GetAllowedProducers().Contains(id.Producer))
             {
-                reason = string.Format("producer {0} not allowed", id.Producer.ToString());
+                reason = string.Format("producer {0} not allowed", id.Producer);
                 return false;
             }
 
-            if (!AllowMSSS() && id.Producer == RoverProductProducer.MSSS)
+            if (id is OPGSProductId)
             {
-                reason = string.Format("producer {0} not allowed", id.Producer.ToString());
-                return false;
-            }
+                OPGSProductId opgsId = (OPGSProductId)id;
 
-            if (!AllowThumbnails() && id.Producer == RoverProductProducer.OPGS &&
-                ((OPGSProductId)id).Size != RoverProductSize.Regular)
-            {
-                reason = "thumbnails not allowed";
-                return false;
+                if (GetAllowedProcessingTypes().FindIndex(t => t == opgsId.Spec) < 0)
+                {
+                    reason = "special processing " + opgsId.Spec;
+                    return false;
+                }
+
+                if (!AllowThumbnails() && opgsId.Size != RoverProductSize.Regular)
+                {
+                    reason = "thumbnails not allowed";
+                    return false;
+                }
             }
 
             if (id.Geometry == RoverProductGeometry.Unknown)
@@ -820,15 +806,15 @@ namespace OPS.Pipeline
                 return false;
             }
 
-            if (!AllowOPGS() && parser.ProducingInstitution == RoverProductProducer.OPGS)
+            if (parser.ProducingInstitution == RoverProductProducer.Unknown)
             {
-                reason = "OPGS images not allowed";
+                reason = "unknown producer";
                 return false;
             }
 
-            if (!AllowMSSS() && parser.ProducingInstitution == RoverProductProducer.MSSS)
+            if (!GetAllowedProducers().Contains(parser.ProducingInstitution))
             {
-                reason = "MSSS images not allowed";
+                reason = string.Format("producer {0} not allowed", parser.ProducingInstitution);
                 return false;
             }
 
@@ -1036,6 +1022,45 @@ namespace OPS.Pipeline
         public virtual string DriveToString(int drive)
         {
             return OPGSProductId.DriveToString(drive);
+        }
+
+        private List<string> allowedProcessingTypes = new List<string>();
+        public List<string> GetAllowedProcessingTypes(String types)
+        {
+            lock (allowedProcessingTypes)
+            {
+                if (allowedProcessingTypes.Count == 0)
+                {
+                    allowedProcessingTypes.AddRange(StringHelper.ParseList(types));
+                }
+                return allowedProcessingTypes;
+            }
+        }
+
+        public virtual List<string> GetAllowedProcessingTypes()
+        {
+            return GetAllowedProcessingTypes(MissionConfig.Instance.AllowedProcessingTypes);
+        }
+
+        private List<RoverProductProducer> allowedProducers = new List<RoverProductProducer>();
+        public List<RoverProductProducer> GetAllowedProducers(String producers)
+        {
+            lock (allowedProducers)
+            {
+                if (allowedProducers.Count == 0)
+                {
+                    allowedProducers
+                        .AddRange(StringHelper.ParseList(producers)
+                                  .Select(p => (RoverProductProducer)Enum.Parse(typeof(RoverProductProducer), p,
+                                                                                ignoreCase: true)));
+                }
+                return allowedProducers;
+            }
+        }
+
+        public virtual List<RoverProductProducer> GetAllowedProducers()
+        {
+            return GetAllowedProducers(MissionConfig.Instance.AllowedProducers);
         }
     }
 }

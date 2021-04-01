@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Threading;
 using System.Collections.Generic;
 using System.Linq;
 using OPS.Util;
@@ -10,17 +11,27 @@ namespace OPS.Geometry
     /// </summary>
     public static class UVAtlas
     {
+        public const int DEF_RESOLUTION = 512;
+        public const int DEF_MAX_CHARTS = 0;
+        //public const double DEF_MAX_STRETCH = 0.1666;
+        public const double DEF_MAX_STRETCH = 0.5;
+        //public const double DEF_MAX_STRETCH = 1;
+        public const double DEF_GUTTER = 2;
+
+        public const int DEF_MAX_SEC = 5 * 60;
+
         /// <summary>
-        /// Returns a new mesh with UV's.
         /// Resulting UV coordinates will be normalized 0 - 1 and centered on pixels
         /// for an image with resolution `width` x `height`.
         /// UV Atlas will have at most `maxCharts` disconnected components (0 inidicates no limit)
         /// `maxStretch` should be 0-1, 0 being no stretch, 1 being no limit
         /// `gutter` indicates minimum distance between components in pixels
         /// </summary>
-        public static Mesh Atlas(Mesh mesh, int width = 512, int height = 512, int maxCharts = 0,
-                                 float maxStretch = 0.1666f, float gutter = 2, bool forceHighestQuality = false,
-                                 float adjacencyEpsilon = 0, ILogger logger = null, bool fallbackToNaive = true)
+        public static bool Atlas(Mesh mesh, int width = DEF_RESOLUTION, int height = DEF_RESOLUTION,
+                                 int maxCharts = DEF_MAX_CHARTS, double maxStretch = DEF_MAX_STRETCH,
+                                 double gutter = DEF_GUTTER, bool forceHighestQuality = false,
+                                 double adjacencyEpsilon = 0, ILogger logger = null, bool fallbackToNaive = true,
+                                 int maxSec = DEF_MAX_SEC)
         {
             int nVerts = mesh.Vertices.Count;
             float[] inX = new float[nVerts];
@@ -44,16 +55,53 @@ namespace OPS.Geometry
                 indices[i * 3 + 2] = f.P2;
             }
 
-            float[] outU, outV;
-            int[] outVertexRemap;
+            float[] outU = null, outV = null;
+            int[] outVertexRemap = null;
             UVAtlasNET.UVAtlas.Quality quality = forceHighestQuality ? 
                 UVAtlasNET.UVAtlas.Quality.UVATLAS_GEODESIC_QUALITY : 
                 UVAtlasNET.UVAtlas.Quality.UVATLAS_DEFAULT;
 
-            UVAtlasNET.UVAtlas.ReturnCode rc =
-                UVAtlasNET.UVAtlas.Atlas(inX, inY, inZ, indices,
-                                         out outU, out outV, out indices, out outVertexRemap,
-                                         maxCharts, maxStretch, gutter, width, height, quality, adjacencyEpsilon);
+            UVAtlasNET.UVAtlas.ReturnCode rc = UVAtlasNET.UVAtlas.ReturnCode.UNKNOWN;
+            try
+            {
+                bool done = false;
+                var thread = new Thread(() =>
+                {
+                    rc = UVAtlasNET.UVAtlas.Atlas(inX, inY, inZ, indices,
+                                                  out outU, out outV, out indices, out outVertexRemap,
+                                                  maxCharts, (float)maxStretch, (float)gutter, width, height, quality,
+                                                  (float)adjacencyEpsilon);
+                    done = true;
+                });
+                thread.IsBackground = true; //don't make the process hang around just for this thread
+                double startTime = UTCTime.Now();
+                thread.Start();
+                while (!done)
+                {
+                    Thread.Sleep(100);
+                    double durationSec = UTCTime.Now() - startTime;
+                    if (durationSec > maxSec)
+                    {
+                        //could call thread.Abort() here but that'll be deprecated in .NET 5
+                        //and also it won't work on unmanaged code
+                        //so for now just let it run, this should be rare...
+                        //the only way to kill UVAtlas would be to run it in a separate subprocess
+                        //but that would mean serializing out the mesh
+                        //and that would take a bit of a rearchitecture to do well
+                        //typically the entire tactical or contextual mesh pipeline is run in a separate process
+                        //and we ran UVAtlas as a background thread, so it'll eat CPU but will die with the process
+                        throw new Exception(string.Format("UVAtlas runtime {0} > {1}",
+                                                          Fmt.HMS(durationSec * 1000), Fmt.HMS(maxSec * 1000)));
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                if (logger != null)
+                {
+                    logger.LogError("UVAtlas error: " + ex.Message);
+                }
+            }
 
             if (rc != UVAtlasNET.UVAtlas.ReturnCode.SUCCESS)
             {
@@ -61,28 +109,32 @@ namespace OPS.Geometry
                 {
                     if (logger != null)
                     {
-                        logger.LogWarn("UVAtlas failed, falling back to naive atlasing");
+                        logger.LogError("UVAtlas failed, return code {0}, falling back to naive atlasing", rc);
                     }
-                    if (!NaiveAtlas.ComputeAtlas(mesh, out outU, out outV, out indices, out outVertexRemap))
+                    if (!NaiveAtlas.Compute(mesh, out outU, out outV, out indices, out outVertexRemap))
                     {
                         if (logger != null)
                         {
-                            logger.LogWarn("naive atlasing failed");
+                            logger.LogError("naive atlasing failed");
                         }
-                        return null;
+                        return false;
                     }
                 }
                 else
                 {
                     if (logger != null)
                     {
-                        logger.LogWarn("UVAtlas failed, fallback to naive atlasing disabled");
+                        logger.LogError("UVAtlas failed, fallback to naive atlasing disabled");
                     }
-                    return null;
+                    return false;
                 }
             }
 
-            return Mesh.ApplyAtlas(mesh, outU, outV, indices, outVertexRemap);
+            mesh.ApplyAtlas(outU, outV, indices, outVertexRemap);
+
+            mesh.RescaleUVsForTexture(width, height, maxStretch, gutter);
+
+            return true;
         }
     }
 }

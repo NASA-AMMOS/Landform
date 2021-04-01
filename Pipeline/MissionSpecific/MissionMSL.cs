@@ -27,6 +27,12 @@ namespace OPS.Pipeline
         
         [ConfigEnvironmentVariable("LANDFORM_ALLOW_LEGACY_MANIFEST_DB")]
         public bool AllowLegacyManifestDB { get; set; } = true;
+
+        //comma separated list of producers to allow
+        //must match RoverProductProducer enum values
+        //sorted in order of preference (best last)
+        [ConfigEnvironmentVariable("LANDFORM_ALLOWED_PRODUCERS")]
+        public string AllowedProducers { get; set; } = "OPGS";  //"OPGS,MSSS"
     }
 
     public class MissionMSL : MissionSpecific
@@ -40,16 +46,6 @@ namespace OPS.Pipeline
         public override Mission GetMission()
         {
             return Mission.MSL;
-        }
-
-        public override RoverProductType GetProductType(PDSParser parser)
-        {
-            var pt = parser.DerivedImageType;
-            if (pt == RoverProductType.Unknown && parser.ProducingInstitution == RoverProductProducer.MSSS)
-            {
-                pt = GetProductType(parser.ProductIdString);
-            }
-            return pt;
         }
 
         public override bool IsGeometricallyLinearlyCorrected(PDSParser parser)
@@ -315,9 +311,9 @@ namespace OPS.Pipeline
             //MSL mission server - don't use for dev (and requires separate credentials)
             //https://mslplaces.jpl.nasa.gov:9443/msl-ops/places
 
-            //MSL views: best_tactical, localized_pos, localized_interp 
+            //MSL views: telemetry, best_tactical, localized_pos, localized_interp 
             //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/921
-            //currently we default to best_tactical but legacy TerrainTools used localized_interp
+            //legacy TerrainTools used localized_interp
 
             //note https://github.jpl.nasa.gov/OnSight/Landform/wiki/ZZZ-OLD-Credss-workaround-for-MSL-PLACES
             //for a while we had to use this old PLACES instance to get MSL data for M2020 dev
@@ -333,7 +329,8 @@ namespace OPS.Pipeline
 
             return "{\n" +
                 $"\"Url\": \"https://places-msl.{venue}.m20.jpl.nasa.gov\",\n" +
-                "\"View\": \"best_tactical\",\n" +
+                "\"View\": \"localized_interp\",\n" +
+                "\"AlwaysCheckRMC\": false,\n" +
                 "\"AuthCookieName\": \"ssosession\",\n" +
                 $"\"AuthCookieFile\": \"~/.cssotoken/{venue}/ssosession\"\n" +
                 "}";
@@ -342,6 +339,11 @@ namespace OPS.Pipeline
         public override RoverProductGeometry GetTacticalMeshGeometry()
         {
             return RoverProductGeometry.Linearized;
+        }
+
+        public override List<RoverProductProducer> GetAllowedProducers()
+        {
+            return GetAllowedProducers(MissionMSLConfig.Instance.AllowedProducers);
         }
     }
 }

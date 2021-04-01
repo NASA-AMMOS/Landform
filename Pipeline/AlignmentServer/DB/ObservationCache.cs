@@ -40,6 +40,21 @@ namespace OPS.Pipeline.AlignmentServer
             }
         }
 
+        public bool Remove(Observation obs)
+        {
+            if (!observations.ContainsKey(obs.Name))
+            {
+                return false;
+            }
+            observations.Remove(obs.Name);
+            if (forFrame.ContainsKey(obs.FrameName))
+            {
+                forFrame[obs.FrameName].Remove(obs);
+            }
+            indexedObservations.Remove(obs.Index);
+            return true;
+        }
+
         public int Preload(Func<Observation, bool> filter = null)
         {
             void maybeAddObs(Observation obs)
@@ -61,6 +76,11 @@ namespace OPS.Pipeline.AlignmentServer
                     forFrame[obs.FrameName] = new List<Observation>(); //frame has no observations
                 }
             }
+            return observations.Count;
+        }
+
+        public int NumObservations()
+        {
             return observations.Count;
         }
 

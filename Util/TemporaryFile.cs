@@ -59,11 +59,17 @@ namespace OPS.Util
             try
             {
                 func(file);
-                PathHelper.MoveFileAtomic(file, destination, replaceExisting, moveLock);
+                if (File.Exists(file))
+                {
+                    PathHelper.MoveFileAtomic(file, destination, replaceExisting, moveLock);
+                }
             }
             catch (Exception)
             {
-                PathHelper.DeleteWithRetry(file, logger);
+                if (File.Exists(file))
+                {
+                    PathHelper.DeleteWithRetry(file, logger);
+                }
                 throw;
             }
         }
@@ -83,7 +89,10 @@ namespace OPS.Util
             }
             finally
             {
-                PathHelper.DeleteWithRetry(file, logger);
+                if (File.Exists(file))
+                {
+                    PathHelper.DeleteWithRetry(file, logger);
+                }
             }
         }
 
@@ -100,7 +109,10 @@ namespace OPS.Util
             }
             finally
             {
-                Directory.Delete(dir, true);
+                if (Directory.Exists(dir))
+                {
+                    Directory.Delete(dir, true);
+                }
             } 
         }
 
@@ -125,7 +137,10 @@ namespace OPS.Util
             {
                 for (int i = 0; i < tmpFiles.Length; i++)
                 {
-                    PathHelper.DeleteWithRetry(tmpFiles[i], logger);
+                    if (File.Exists(tmpFiles[i]))
+                    {
+                        PathHelper.DeleteWithRetry(tmpFiles[i], logger);
+                    }
                 }
             }
         }
@@ -150,7 +165,10 @@ namespace OPS.Util
             {
                 for (int i = 0; i < tmpFiles.Length; i++)
                 {
-                    PathHelper.DeleteWithRetry(tmpFiles[i], logger);
+                    if (File.Exists(tmpFiles[i]))
+                    {
+                        PathHelper.DeleteWithRetry(tmpFiles[i], logger);
+                    }
                 }
             }
         }

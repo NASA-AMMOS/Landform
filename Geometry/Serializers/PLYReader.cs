@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
+using OPS.MathExtensions;
 
 namespace OPS.Geometry
 {
@@ -12,6 +13,12 @@ namespace OPS.Geometry
     {
         protected delegate void PropertyApplyer(Vertex v, double value);
         protected delegate void MeshFlagger(Mesh m);
+
+        private string filename;                
+        private Dictionary<string, MeshFlagger> meshFlaggers = new Dictionary<string, MeshFlagger>();
+        private List<double> vertexValues = new List<double>();
+        private bool hasValue;
+        private bool readValuesAsNormalLengths;
 
         enum Section
         {
@@ -72,11 +79,11 @@ namespace OPS.Geometry
 
             protected override double ReadNext(Property p)
             {
-                if(p.Type == typeof(byte))
+                if (p.Type == typeof(byte))
                 {
                     return br.ReadByte();
                 }
-                if(p.Type == typeof(sbyte))
+                if (p.Type == typeof(sbyte))
                 {
                     return br.ReadSByte();
                 }
@@ -136,52 +143,15 @@ namespace OPS.Geometry
             }
         }
 
-
-        protected class Property
-        {
-
-            public Type Type;
-            public PropertyApplyer Apply;
-
-            
-            public Property(Type type, PropertyApplyer applier = null)
-            {
-                this.Apply = applier;
-                this.Type = type;                
-            }
-
-            public virtual double ScaleValue(double value)
-            {
-                return value;
-            }
-        }
-
-        class ColorProperty : Property
-        {
-            public ColorProperty(Type type, PropertyApplyer applier) : base(type, applier) { }
-
-            public override double ScaleValue(double value)
-            {
-                if(this.Type == typeof(byte))
-                {
-                    value = value / 255.0;
-                }
-                return value;
-            }
-        }
-
-        string filename;                
-
-        public PLYReader(string filename)
+        public PLYReader(string filename, bool readValuesAsNormalLengths = false)
         {
             this.filename = filename;
+            this.readValuesAsNormalLengths = readValuesAsNormalLengths;
             RegisterMeshFlaggers();
         }
 
         public void IgnoreApplyer(Vertex v, double value) { }
 
-        Dictionary<string, MeshFlagger> meshFlaggers = new Dictionary<string, MeshFlagger>();
-        
         protected virtual void RegisterMeshFlaggers()
         {
             MeshFlagger normals = (m) => { m.HasNormals = true; };
@@ -201,10 +171,42 @@ namespace OPS.Geometry
             meshFlaggers.Add("alpha", colors);
         }
 
+        protected class Property
+        {
+
+            public Type Type;
+            public PropertyApplyer Apply;
+            
+            public Property(Type type, PropertyApplyer applier = null)
+            {
+                this.Apply = applier;
+                this.Type = type;                
+            }
+
+            public virtual double ScaleValue(double value)
+            {
+                return value;
+            }
+        }
+
+        protected class ColorProperty : Property
+        {
+            public ColorProperty(Type type, PropertyApplyer applier) : base(type, applier) { }
+
+            public override double ScaleValue(double value)
+            {
+                if (this.Type == typeof(byte))
+                {
+                    value = value / 255.0;
+                }
+                return value;
+            }
+        }
+
         protected virtual Property CreateProperty(string propName, Type propType)
         {
 
-            if(propName == "x")
+            if (propName == "x")
             {
                 return new Property(propType, (vertex, value) =>
                 {
@@ -274,7 +276,7 @@ namespace OPS.Geometry
                     vertex.UV.V = value;
                 });
             }
-            if(propName == "red")
+            if (propName == "red")
             {
                 return new ColorProperty(propType, (vertex, value) =>
                 {
@@ -302,16 +304,25 @@ namespace OPS.Geometry
                     vertex.Color.A = value;
                 });
             }
+            if (propName == "value")
+            {
+                return new Property(propType, (vertex, value) =>
+                {
+                    if (readValuesAsNormalLengths)
+                    {
+                        vertexValues.Add(value);
+                    }
+                });
+            }
             return null;
         }
 
         /// <summary>
         /// Reads and a ply file
         /// </summary>
-        /// <param name="textureFilename">This will be filled with the texture associated with the ply if there is one.  Null otherwise.</param>
-        /// <param name="defaultAlpha">Some PLY files only contain RGB colors.  If so, use this value as the default alpha.  Suggested value is 1</param>
-        /// <returns></returns>
-        public Mesh Read(out string textureFilename, double defaultAlpha, bool onlyGetImageFilename = false)
+        /// <param name="textureFilename">This will be filled with the texture associated with the ply if there is one.
+        /// alpha.  Suggested value is 1</param>
+        public Mesh Read(out string textureFilename, double defaultAlpha = 1, bool onlyGetImageFilename = false)
         {
             Mesh result = new Mesh();
             List<Property> vertexProps = new List<Property>();
@@ -420,6 +431,12 @@ namespace OPS.Geometry
                     {
                         string[] tokens = line.Split(' ');
                         string propName = tokens[2];
+
+                        if (!typeLookup.ContainsKey(tokens[1]))
+                        {
+                            throw new PLYSerializerException($"unknown vertex property data type in PLY \"{line}\"");
+                        }
+
                         Type propType = typeLookup[tokens[1]];
 
                         if (meshFlaggers.ContainsKey(propName))
@@ -428,9 +445,9 @@ namespace OPS.Geometry
                         }
 
                         Property p = CreateProperty(propName, propType);
-                        if(p == null)
+                        if (p == null)
                         {  
-                            p = new Property(propType ,IgnoreApplyer);                            
+                            p = new Property(propType, IgnoreApplyer);                            
                         }
                         vertexProperties.Add(p);
 
@@ -451,9 +468,13 @@ namespace OPS.Geometry
                         {
                             propertyT = p;
                         }
-                        if(propName == "alpha")
+                        if (propName == "alpha")
                         {
                             hasAlpha = true;
+                        }
+                        if (propName == "value")
+                        {
+                            hasValue = true;
                         }
                     }
                     else if (line.Contains("property list") && section == Section.Face)
@@ -492,7 +513,7 @@ namespace OPS.Geometry
                         }
                         else
                         {
-                            throw new PLYSerializerException("Unknown face property");
+                            throw new PLYSerializerException("Unknown face property \"{line}\"");
                         }
                     }
                     else if (line.Contains("end_header"))
@@ -502,7 +523,8 @@ namespace OPS.Geometry
                 }
             }
 
-            // Now that we have finished reading the header, choose which UVs to pay attention to in the case that mutliple properties are defined
+            // Now that we have finished reading the header
+            // choose which UVs to pay attention to in the case that mutliple properties are defined
             // Prefer s and t over texture_u and texture_v            
             if (propertyS != null && propertyU != null)
             {
@@ -521,7 +543,8 @@ namespace OPS.Geometry
                 using (StreamReader sr = new StreamReader(filename))
                 {
                     ASCIIDataSegmentReader reader = new ASCIIDataSegmentReader(sr);
-                    ReadBody(result, vertexCount, faceCount, vertexProperties, reader, refIndexProperty, faceIndexProperty, faceUVProperty, ignoreFaceUVs);
+                    ReadBody(result, vertexCount, faceCount, vertexProperties, reader,
+                             refIndexProperty, faceIndexProperty, faceUVProperty, ignoreFaceUVs);
                 }            
             }
             else
@@ -530,16 +553,39 @@ namespace OPS.Geometry
                 using (BinaryReader br = new BinaryReader(fs))
                 {
                     BinaryDataSegmentReader reader = new BinaryDataSegmentReader(br);
-                    ReadBody(result, vertexCount, faceCount, vertexProperties, reader, refIndexProperty, faceIndexProperty, faceUVProperty, ignoreFaceUVs);
+                    ReadBody(result, vertexCount, faceCount, vertexProperties, reader,
+                             refIndexProperty, faceIndexProperty, faceUVProperty, ignoreFaceUVs);
                     if (fs.Position != fs.Length)
                     {
-                        throw new PLYSerializerException("Unexpected end of PLY file");
+                        throw new PLYSerializerException("unexpected end of PLY file");
                     }
                 }
             }
-            if(vertexCount != result.Vertices.Count  || faceCount != result.Faces.Count)
+            if (vertexCount != result.Vertices.Count)
             {
-                throw new PLYSerializerException("Unexpected number of vertices or faces in PLY file");
+                throw new PLYSerializerException(
+                    $"unexpected number of vertices {result.Vertices.Count} != {vertexCount} in PLY file");
+            }
+
+            if (faceCount != result.Faces.Count)
+            {
+                throw new PLYSerializerException(
+                    $"unexpected number of faces {result.Faces.Count} != {faceCount} in PLY file");
+            }
+
+            if (result.HasNormals && hasValue && readValuesAsNormalLengths)
+            {
+                for (int i = 0; i < result.Vertices.Count; i++)
+                {
+                    Vector3 n = result.Vertices[i].Normal;
+                    double l = n.Length();
+                    if (l > MathE.EPSILON && Math.Abs(l - 1) > MathE.EPSILON)
+                    {
+                        n.Normalize();
+                    }
+                    n *= vertexValues[i];
+                    result.Vertices[i].Normal = n;
+                }
             }
 
             if (result.HasColors && !hasAlpha)
@@ -553,7 +599,14 @@ namespace OPS.Geometry
             return result;
         }
 
-        void ReadBody(Mesh result, int vertexCount, int faceCount, List<Property> vertexProperties, DataSegmentReader reader, Property refIndexProperty, Property faceIndexProperty, Property faceUVProperty, bool ignoreFaceUVs)
+        public Mesh Read(double defaultAlpha = 1, bool onlyGetImageFilename = false)
+        {
+            return Read(out string textureFilename, defaultAlpha, onlyGetImageFilename);
+        }
+
+        private void ReadBody(Mesh result, int vertexCount, int faceCount, List<Property> vertexProperties,
+                              DataSegmentReader reader, Property refIndexProperty, Property faceIndexProperty,
+                              Property faceUVProperty, bool ignoreFaceUVs)
         {
             for (int i = 0; i < vertexCount; i++)
             {
@@ -571,7 +624,7 @@ namespace OPS.Geometry
                 int len = (int)reader.ReadNextScaledValue(refIndexProperty);
                 if (len != 3)
                 {
-                    throw new PLYSerializerException("Unexpected number of vertices in face.  Expected 3 but got " + len);
+                    throw new PLYSerializerException($"unexpected number of vertices {len} != 3 in face");
                 }
                 Face f = new Face();
                 f.P0 = (int)reader.ReadNextScaledValue(faceIndexProperty);
@@ -583,11 +636,14 @@ namespace OPS.Geometry
                     len = (int)reader.ReadNextScaledValue(refIndexProperty);
                     if (len != 6)
                     {
-                        throw new PLYSerializerException("Unexpected number of uvs in face.  Expected 6 but got " + len);
+                        throw new PLYSerializerException($"unexpected number of uvs {len} != 6 in face");
                     }
-                    Vector2 uv0 = new Vector2(reader.ReadNextScaledValue(faceUVProperty), reader.ReadNextScaledValue(faceUVProperty));
-                    Vector2 uv1 = new Vector2(reader.ReadNextScaledValue(faceUVProperty), reader.ReadNextScaledValue(faceUVProperty));
-                    Vector2 uv2 = new Vector2(reader.ReadNextScaledValue(faceUVProperty), reader.ReadNextScaledValue(faceUVProperty));
+                    Vector2 uv0 = new Vector2(reader.ReadNextScaledValue(faceUVProperty),
+                                              reader.ReadNextScaledValue(faceUVProperty));
+                    Vector2 uv1 = new Vector2(reader.ReadNextScaledValue(faceUVProperty),
+                                              reader.ReadNextScaledValue(faceUVProperty));
+                    Vector2 uv2 = new Vector2(reader.ReadNextScaledValue(faceUVProperty),
+                                              reader.ReadNextScaledValue(faceUVProperty));
                     if (ignoreFaceUVs)
                     {
                         // This ply defines both vertex and face uvs. Sanity check they are the same

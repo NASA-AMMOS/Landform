@@ -6,6 +6,7 @@ using System.Collections.Concurrent;
 using System.Threading;
 using CommandLine;
 using Microsoft.Xna.Framework;
+using RTree;
 using OPS.Util;
 using OPS.MathExtensions;
 using OPS.Geometry;
@@ -29,22 +30,20 @@ using System.IO;
 /// https://github.jpl.nasa.gov/OnSight/Landform/issues/766 (and such products may not even be available) so we use
 /// distance from the camera as a proxy.
 ///
-/// The reconstructed mesh is cleaned and clipped to a surface data bounding box typically 32m square around the origin
+/// The reconstructed mesh is cleaned and clipped to a surface data bounding box typically 64m square around the origin
 /// of the primary sitedrive frame for the contextual mesh.  Its vertex normals are recomputed from its faces to avoid
 /// issues with bad normals corrupting downstream operations such as reconstruction of parent tile meshes.
 ///
-/// Hole filling is then typically performed.  A non-convex outer boundary is computed by creating a shrinkwrap mesh
-/// and finding its largest boundary polygon.  That polygon is then triangulated and used as a "surface mask" for
-/// further operations.  The surface mesh is reconstructed from the full scene point cloud a second time, but this time
-/// with less aggressive trimming options for Poisson reconstruction (hole filling is only implemented for Poisson
-/// reconstruction).  The resulting mesh is clipped to the surface mask created from the original construction.  In this
-/// way the potential undesirable effects of less aggressive Poisson surface trimming around the outer boundary of the
-/// mesh are avoided, but the benefits of allowing more internal hole filling are gained.
+/// Hole filling is then typically performed.  A non-convex outer boundary is computed by creating a shrinkwrap mesh and
+/// finding its largest boundary polygon.  That polygon is then triangulated and used as a "surface mask" for further
+/// operations.  The surface mesh is reconstructed from the full scene point cloud a second time, but this time with
+/// less aggressive trimming options.  The resulting mesh is clipped to the surface mask created from the original
+/// construction.  In this way the potential undesirable effects of less aggressive surface trimming around the outer
+/// boundary of the mesh are avoided, but the benefits of allowing more internal hole filling are gained.
 ///
 /// If an orbital DEM is available a square portion of it centered on the origin of the primary sitedrive frame is
-/// organized meshed.  The bounds of this mesh may be larger than the surface mesh bounds.  For example, if the surface
-/// mesh bounds are 32m then the orbital mesh bounds may be 64m (or surface could be 64m and orbital 256m).  It is also
-/// possible for the orbital mesh bounds to be the same as the surface mesh bounds, but they can't be smaller.
+/// organized meshed.  The bounds of this mesh may be larger than the surface mesh bounds.  It is also possible for the
+/// orbital mesh bounds to be the same as the surface mesh bounds, but they can't be smaller.
 ///
 /// Typically the orbital mesh includes both coarse and fine portions.  A fine area is defined within a small blend
 /// radius (typicaly 3m) of the surface bounds. A reasonable level of interpolation (typically 15 samples/meter) is used
@@ -84,7 +83,7 @@ using System.IO;
 ///
 /// Example:
 ///
-/// Landform.exe build-geometry windjana --meshframe 0311472
+/// Landform.exe build-geometry windjana
 ///
 /// </summary>
 namespace OPS.Landform
@@ -104,17 +103,8 @@ namespace OPS.Landform
         [Option(HelpText = "Stereo eye to prefer (auto, left, right, any)", Default = "auto")]
         public string StereoEye { get; set; }
 
-        [Option(HelpText = "Disable clever combine point cloud merging", Default = false)]
-        public bool NoCleverCombine { get; set; }
-
-        [Option(HelpText = "Apply clever combine to individual observations within sitedrives", Default = false)]
-        public bool IntraSitedriveCleverCombine { get; set; }
-
         [Option(HelpText = "Only include faces that intersect these observations, comma separated", Default = null)]
         public string OnlyFacesForObs { get; set; }
-
-        [Option(HelpText = "Pre-clip observation point clouds to XY box of this size in meters around mesh frame origin if positive", Default = 0)]
-        public double PreClipPointCloudExtent { get; set; }
 
         [Option(HelpText = "Clip reconstructed surface to XY box of this size in meters around mesh frame origin if positive", Default = BuildGeometry.DEF_SURFACE_EXTENT)]
         public double SurfaceExtent { get; set; }
@@ -122,26 +112,29 @@ namespace OPS.Landform
         [Option(HelpText = "Final clip box XY size in meters, 0 to clip to aggregate point cloud bounds", Default = BuildGeometry.DEF_EXTENT)]
         public double Extent { get; set; }
 
-        [Option(HelpText = "Surface density based trimmer octree level (higher means more aggressive, 0 disables)", Default = 7.5)]
-        public double TrimmerLevel { get; set; }
+        [Option(HelpText = "Pre-clip observation point clouds to XY box of this size in meters around mesh frame origin if positive", Default = 0)]
+        public double PreClipPointCloudExtent { get; set; }
 
-        [Option(HelpText = "Fill holes in largest island created from surface trimmer, cull other islands (hole filling requires --reconstructionmethod=Poission)", Default = false)]
+        [Option(HelpText = "Fill holes in largest island created from surface trimmer, cull other islands", Default = false)]
         public bool NoFillHoles { get; set; }
-
-        [Option(HelpText = "Island removal based on percentage of total surface area (higher means more aggressive, 0 disables)", Default = 0.001)]
-        public double TrimmerIslandPct { get; set; }
 
         [Option(HelpText = "Remove islands whose bounding box diameter is less than this ratio of the max island bounding box diameter", Default = 0.2)]
         public double MinIslandRatio { get; set; }
 
+        [Option(HelpText = "Mask offset for clipping surface/orbital", Default = 0.05)]
+        public double MaskOffset { get; set; }
+
         [Option(HelpText = "Orbital sampling rate inside blend radius, non-positive to use DEM resolution", Default = 15)]
         public double OrbitalBlendPointsPerMeter { get; set; }
 
+        [Option(HelpText = "Orbital sampling rate to fill holes, negative to use DEM resolution, 0 to disable", Default = 15)]
+        public double OrbitalFillPointsPerMeter { get; set; }
+
+        [Option(HelpText = "Orbital sampling confidence to fill holes", Default = 0.01)]
+        public double OrbitalFillPoissonConfidence { get; set; }
+
         [Option(HelpText = "Mask resolution for clipping surface/orbital", Default = 2)]
         public double ShrinkwrapPointsPerMeter { get; set; }
-
-        [Option(HelpText = "Mask offset for clipping surface/orbital", Default = 0.05)]
-        public double MaskOffset { get; set; }
 
         [Option(HelpText = "Blend orbital within this distance from surface in meters, 0 disables blend, negative for default", Default = BuildGeometry.DEF_BLEND_RADIUS)]
         public double OrbitalBlendRadius { get; set; }
@@ -152,29 +145,62 @@ namespace OPS.Landform
         [Option(HelpText = "Orbital blend min blend, 0-1, larger preserves orbital more", Default = 0.1)]
         public double OrbitalBlendMin { get; set; }
 
+        [Option(HelpText = "Discard observation point cloud normals with fewer than this many valid 8-neighbors", Default = 8)]
+        public int NormalFilter { get; set; }
+
+        [Option(HelpText = "Disable clever combine point cloud merging", Default = false)]
+        public bool NoCleverCombine { get; set; }
+
+        [Option(HelpText = "Apply clever combine to individual observations within sitedrives", Default = false)]
+        public bool IntraSitedriveCleverCombine { get; set; }
+
         [Option(HelpText = "Clever combine cell size (meters)", Default = CleverCombine.DEF_CELL_SIZE)]
         public double CleverCombineCellSize { get; set; }
 
         [Option(HelpText = "Clever combine cell aspect (height relative to width)", Default = CleverCombine.DEF_CELL_ASPECT)]
         public double CleverCombineCellAspect { get; set; }
 
-        [Option(HelpText = "Poisson cell size (meters), mutually exclusive with PoissonTreeDepth, 0 to disable", Default = 0.0)]
+        [Option(HelpText = "Expand poinnt bounds to envelope bounds", Default = TilingDefaults.PARENT_CLIP_BOUNDS_EXPAND_HEIGHT)]
+        public double ExpandEnvelopeBounds { get; set; }
+
+        [Option(HelpText = "Poisson cell size (meters), mutually exclusive with PoissonTreeDepth, 0 to disable", Default = PoissonReconstruction.DEF_MIN_OCTREE_CELL_WIDTH_METERS)]
         public double PoissonCellSize { get; set; }
 
-        [Option(HelpText = "Poisson octtree depth, mutually exclusive with PoissonCellSize, 0 to disable", Default = 10)]
+        [Option(HelpText = "Poisson octtree depth, mutually exclusive with PoissonCellSize, 0 to disable", Default = PoissonReconstruction.DEF_OCTREE_DEPTH)]
         public int PoissonTreeDepth { get; set; }
 
-        [Option(HelpText = "Discard observation point cloud normals with fewer than this many valid 8-neighbors", Default = 8)]
-        public int NormalFilter { get; set; }
+        [Option(HelpText = "Pass combined cloud envelop to Poisson", Default = false)]
+        public bool PassEnvelopeToPoisson { get; set; }
 
-        [Option(HelpText = "Scale observation point cloud normals by confidence", Default = true)]
-        public bool UsePointCloudConfidence { get; set; }
+        [Option(HelpText = "Clip to envelope after Poisson reconstruction but before surface trimming", Default = false)]
+        public bool NoPoissonClipToEnvelope { get; set; }
+
+        [Option(HelpText = "Don't remove islands after Poisson reconstruction but before surface trimming", Default = false)]
+        public bool NoPoissonRemoveIslands { get; set; }
+
+        [Option(HelpText = "Scale observation point cloud normals by confidence and then apply this exponent in Poisson reconstruction, 0 disables, negative for auto", Default = -1)]
+        public double PoissonConfidenceExponent { get; set; }
 
         [Option(HelpText = "Min required samples per octree cell in Poisson reconstruction, higher for noiser data", Default = 15)]
         public int PoissonMinSamplesPerCell { get; set; }
 
-        [Option(HelpText = "Poisson reconstruction BSpline degree", Default = 2)]
+        [Option(HelpText = "Poisson reconstruction BSpline degree", Default = PoissonReconstruction.DEF_BSPLINE_DEGREE)]
         public int PoissonBSplineDegree { get; set; }
+
+        [Option(HelpText = "Surface density based trimmer octree level (higher means more aggressive, 0 disables)", Default = PoissonReconstruction.DEF_TRIMMER_LEVEL)]
+        public double PoissonTrimmerLevel { get; set; }
+
+        [Option(HelpText = "Surface density based trimmer octree lenient level (higher means more aggressive, 0 disables)", Default = PoissonReconstruction.DEF_TRIMMER_LEVEL_LENIENT)]
+        public double PoissonTrimmerLevelLenient { get; set; }
+
+        [Option(HelpText = "FSSR global scale, negative to auto-compute, 0 to use individual point scales", Default = 0)]
+        public double FSSRScale { get; set; }
+
+        [Option(HelpText = "Filter out triangles whose barycenter is further than this from any input point", Default = 0)]
+        public double FilterTriangles { get; set; }
+
+        [Option(HelpText = "Flip downward facing normals", Default = false)]
+        public bool FlipDownwardFacingNormals { get; set; }
 
         [Option(HelpText = "Generate full-mesh UVs", Default = false)]
         public bool GenerateUVs { get; set; }
@@ -184,34 +210,37 @@ namespace OPS.Landform
     {
         private const string OUT_DIR = "meshing/GeometryProducts";
 
-        public const double DEF_EXTENT = 64;
-        public const double DEF_SURFACE_EXTENT = 32;
+        public const double DEF_EXTENT = 1024;
+        public const double DEF_SURFACE_EXTENT = 64;
 
         public const double DEF_BLEND_RADIUS = 3;
         public const double DEF_SEW_RADIUS = 0.2;
 
         public const int BLEND_GUTTER_SAMPLES = 4;
 
-        private string dbgMeshPrefix;
+        private int dbgMeshCount;
 
         private BuildGeometryOptions options;
 
         private RoverObservation[] onlyForObs;
+
         private PoissonReconstruction.Options poissonOpts;
+
+        private WedgeObservations.MeshOptions wedgeMeshOpts;
 
         private ConcurrentDictionary<string, Mesh> observationPointClouds = new ConcurrentDictionary<string, Mesh>();
         private Mesh pointCloud;
-        private BoundingBox pointCloudBounds;
+        private BoundingBox pointCloudBounds, envelopeBounds;
         private Mesh mesh;
 
-        private Mesh shrinkwrapMesh;
+        private Mesh untrimmedMesh;
         private MeshOperator maskUVMeshOp;
 
         private Mesh orbitalMesh;
 
         private double blendRadius, sewRadius;
         private double blendExtent;
-        private int blendSamplesPerPixel;
+        private int orbitalBlendSamplesPerPixel, orbitalFillSamplesPerPixel;
         private Matrix meshToOrbital, orbitalToMesh;
 
         private float[][] sourceColors;
@@ -235,12 +264,15 @@ namespace OPS.Landform
                     RunPhase("build observation point clouds", BuildObservationPointClouds);
                     RunPhase("merge point clouds", MergePointClouds);
                     RunPhase("reconstruct mesh", ReconstructMesh);
+                    if (options.FilterTriangles > 0)
+                    {
+                        RunPhase("filter mesh", FilterMesh);
+                    }
                 }
 
-                if (!options.NoSurface && (!options.NoFillHoles || !options.NoOrbital))
+                if (!options.NoSurface)
                 {
                     RunPhase("clip surface mesh", ClipSurfaceMesh);
-                    RunPhase("create shrinkwrapped surface mesh", CreateShrinkwrappedSurfaceMesh);
                     RunPhase("create surface mask mesh", CreateSurfaceMaskMesh);
                     if (maskUVMeshOp != null) //CreateSurfaceMaskMesh() failed
                     {
@@ -270,7 +302,7 @@ namespace OPS.Landform
                     {
                         mesh = orbitalMesh;
                     }
-                    else if (options.OrbitalBlendRadius > 0 || options.OrbitalSewRadius > 0)
+                    else
                     {
                         RunPhase("blend orbital to surface", BlendOrbitalToSurface);
                     }
@@ -283,7 +315,7 @@ namespace OPS.Landform
 
                 if (onlyForObs.Length > 0)
                 {
-                    RunPhase("filter mesh", FilterMesh);
+                    RunPhase("reduce mesh to specified observations", ReduceMesh);
                 }
 
                 if (options.GenerateUVs && !mesh.HasUVs)
@@ -295,6 +327,8 @@ namespace OPS.Landform
                 {
                     RunPhase("save mesh", SaveSceneMesh);
                 }
+
+                SaveDebugMesh(mesh, "final");
 
                 var bounds = mesh.Bounds().Extent();
                 pipeline.LogInfo("scene bounds (meters): {0:f3}x{1:f3}x{2:f3}", bounds.X, bounds.Y, bounds.Z);
@@ -316,12 +350,6 @@ namespace OPS.Landform
                 options.ReconstructionMethod != MeshReconstructionMethod.Poisson)
             {
                 throw new Exception("unsupported mesh reconstruction method: " + options.ReconstructionMethod);
-            }
-
-            if ((!options.NoOrbital || !options.NoFillHoles) &&
-                options.ReconstructionMethod != MeshReconstructionMethod.Poisson)
-            {
-                throw new Exception("orbital geometry and hole filling require poisson surface trimmer");
             }
 
             if (options.NormalFilter < 0 || options.NormalFilter > 8)
@@ -371,42 +399,30 @@ namespace OPS.Landform
                 .Cast<RoverObservation>()
                 .ToArray();
 
+            double poissonConfidenceExponent = options.PoissonConfidenceExponent;
+            if (poissonConfidenceExponent < 0)
+            {
+                poissonConfidenceExponent = options.NoOrbital ? 0 : PoissonReconstruction.DEF_CONFIDENCE_EXPONENT;
+            }
+
             poissonOpts = new PoissonReconstruction.Options
             {
-                //extrapolates the edges of the mesh
-                Boundary = PoissonReconstruction.BoundaryTypes.Neumann,
-
-                // no features should be finer than this many meters as this is the finest the octree will dice
-                MinOctreeCellWidthMeters = (float)(options.PoissonCellSize),
-
-                // depth the octree should resolve to. mutually exclusive with MinOctreeCellWidthMeters
+                Boundary = PoissonReconstruction.DEF_BOUNDARY_TYPE,
+                MinOctreeCellWidthMeters = options.PoissonCellSize,
                 OctreeDepth = options.PoissonTreeDepth,
-
-                // a value on the upper end of the suggested range in the docs
-                // meaning we think our data in noisy, so wait for this many samples in a cell
                 MinOctreeSamplesPerCell = options.PoissonMinSamplesPerCell,
-                
-                // attempts to allow higher order surfaces than the defaults
                 BSplineDegree = options.PoissonBSplineDegree,
-                
-                // indicates the normal magnitudes are not uniformly unit scaled
-                // to indicate confidence in the position attached to it
-                UseNormalsForConfidence = options.UsePointCloudConfidence,
-
-                // remove low density points
-                TrimmerLevel = options.TrimmerLevel,
-
-                // remove disconnected islands of pts
-                TrimmerIslandPct = options.TrimmerIslandPct
+                ConfidenceExponent = poissonConfidenceExponent,
+                TrimmerLevel = options.PoissonTrimmerLevel,
+                PassEnvelopeToPoisson = options.PassEnvelopeToPoisson,
+                ClipToEnvelope = !options.NoPoissonClipToEnvelope,
+                MinIslandRatio = !options.NoPoissonRemoveIslands ? options.MinIslandRatio : 0
             };
-
-            var obsNames = onlyForObs.Select(o => o.Name).ToArray();
-            dbgMeshPrefix = SceneMesh.MakeName(meshFrame, MeshVariant.Default, siteDrives, obsNames);
 
             if (!string.IsNullOrEmpty(options.OutputMesh))
             {
                 options.OutputMesh =
-                    CheckOutputURL(options.OutputMesh, dbgMeshPrefix, OUT_DIR, MeshSerializers.Instance);
+                    CheckOutputURL(options.OutputMesh, project.Name, OUT_DIR, MeshSerializers.Instance);
             }
 
             if (!options.NoOrbital && !options.NoSurface)
@@ -427,14 +443,26 @@ namespace OPS.Landform
                     blendRadius = sewRadius;
                 }
 
-                //already verified 0 < options.SurfaceExtent < options.Extent
+                //already verified 0 < options.SurfaceExtent <= options.Extent
                 blendExtent = Math.Min(options.Extent, options.SurfaceExtent + 2 * Math.Max(blendRadius, 0));
             }
 
-            blendSamplesPerPixel = 1;
+            orbitalBlendSamplesPerPixel = 1;
             if (options.OrbitalBlendPointsPerMeter > 0)
             {
-                blendSamplesPerPixel = (int)Math.Ceiling(options.OrbitalBlendPointsPerMeter * orbitalDEMMetersPerPixel);
+                orbitalBlendSamplesPerPixel =
+                    (int)Math.Ceiling(options.OrbitalBlendPointsPerMeter * orbitalDEMMetersPerPixel);
+            }
+
+            orbitalFillSamplesPerPixel = 0;
+            if (options.OrbitalFillPointsPerMeter > 0)
+            {
+                orbitalFillSamplesPerPixel =
+                    (int)Math.Ceiling(options.OrbitalFillPointsPerMeter * orbitalDEMMetersPerPixel);
+            }
+            else if (options.OrbitalFillPointsPerMeter < 0)
+            {
+                orbitalFillSamplesPerPixel = 1;
             }
 
             if (!options.NoOrbital)
@@ -442,6 +470,24 @@ namespace OPS.Landform
                 var meshToRoot = frameCache.GetBestTransform(meshFrame).Transform.Mean;
                 orbitalToMesh = orbitalDEMToRoot * Matrix.Invert(meshToRoot);
                 meshToOrbital = meshToRoot * Matrix.Invert(orbitalDEMToRoot);
+            }
+
+            wedgeMeshOpts = new WedgeObservations.MeshOptions()
+            {
+                Frame = meshFrame,
+                NormalFilter = options.NormalFilter
+            };
+
+            if ((options.ReconstructionMethod == MeshReconstructionMethod.Poisson) &&
+                (poissonConfidenceExponent != 0))
+            {
+                wedgeMeshOpts.NormalScale = NormalScale.Confidence;
+            }
+
+            if ((options.ReconstructionMethod == MeshReconstructionMethod.FSSR) &&
+                (options.FSSRScale == 0))
+            {
+                wedgeMeshOpts.NormalScale = NormalScale.PointScale;
             }
 
             return true;
@@ -491,13 +537,6 @@ namespace OPS.Landform
                 pipeline.LogError("no wedge observations");
             }
 
-            var meshOpts = new WedgeObservations.MeshOptions()
-            {
-                Frame = meshFrame,
-                NormalFilter = options.NormalFilter,
-                ScaleNormalsByConfidence = options.UsePointCloudConfidence
-            };
-
             int no = wedges.Count;
             pipeline.LogInfo("building point clouds for {0} wedges", no);
             int np = 0, nc = 0, nf = 0;
@@ -511,7 +550,7 @@ namespace OPS.Landform
                 pipeline.LogVerbose("building {0} wedge point clouds in parallel, completed {1}/{2}, {3} failed",
                                     np, nc, no, nf);
 
-                var mo = meshOpts.Clone();
+                var mo = wedgeMeshOpts.Clone();
                 mo.Decimate = WedgeObservations.AutoDecimate(obs.Points, options.DecimateWedgeMeshes,
                                                              options.TargetWedgeMeshResolution);
                 if (mo.Decimate > 1 && mo.Decimate != options.DecimateWedgeMeshes && !options.NoProgress)
@@ -538,7 +577,7 @@ namespace OPS.Landform
                         var bounds = pc.Bounds();
                         bounds = BoundsFromXYExtent(Vector3.Zero, options.PreClipPointCloudExtent,
                                                     bounds.Min.Z, bounds.Max.Z);
-                        pc = Mesh.Clip(pc, bounds);
+                        pc.Clip(bounds);
                         string msg = string.Format("pre-clipped point clound for observation {0} to {1}x{1} box " +
                                                    "in frame {2}, removed {3}/{4} points", ptsName,
                                                    options.PreClipPointCloudExtent, options.PreClipPointCloudExtent,
@@ -593,9 +632,7 @@ namespace OPS.Landform
 
             int nv = observationPointClouds.Values.Sum(pc => pc.Vertices.Count);
 
-            pointCloud = new Mesh(hasNormals: true);
-
-            var clouds = groups.Select(group =>
+            var cloudList = groups.Select(group =>
             {
                 var obsClouds = group.Select(pair => pair.Value).ToArray();
                 if (obsClouds.Length == 1)
@@ -605,14 +642,67 @@ namespace OPS.Landform
                 pipeline.LogInfo("merging {0} observation point clouds in sitedrive {1} without clever combine, " +
                                  "total {2} points", obsClouds.Length, group.Key,
                                  Fmt.KMG(obsClouds.Sum(c => c.Vertices.Count)));
-                var pc = new Mesh(pointCloud.HasNormals);
+                var pc = new Mesh(hasNormals: true);
                 pc.MergeWith(obsClouds, normalize: false, removeDuplicateVerts: false);
                 return pc;
-            }).ToArray();
+            }).ToList();
+
+            int numNonOrbitalClouds = cloudList.Count;
+
+            if (!options.NoFillHoles && !options.NoOrbital && orbitalFillSamplesPerPixel > 0 && orbitalDEM != null)
+            {
+                pipeline.LogInfo("adding orbital point cloud for hole filling, subsample {0}",
+                                 orbitalFillSamplesPerPixel);
+                var opc = MakeOrbitalPointCloud();
+                double ons = 1;
+                switch (wedgeMeshOpts.NormalScale)
+                {
+                    case NormalScale.Confidence: ons = options.OrbitalFillPoissonConfidence; break;
+                    case NormalScale.PointScale: ons = 2 * orbitalDEMMetersPerPixel / orbitalFillSamplesPerPixel; break;
+                    case NormalScale.None: break;
+                }
+                if (ons != 1)
+                {
+                    if (ons <= 0)
+                    {
+                        throw new ArgumentException($"orbital normal scale {ons} <= 0");
+                    }
+                    foreach (Vertex v in opc.Vertices)
+                    {
+                        v.Normal *= ons;
+                    }
+                }
+                cloudList.Add(opc);
+                pipeline.LogInfo("orbital point cloud has {0} points", Fmt.KMG(opc.Vertices.Count));
+            }
+
+            var clouds = cloudList.ToArray();
+
+            int numDownward = 0;
+            foreach (Mesh cloud in clouds)
+            {
+                foreach (Vertex v in cloud.Vertices)
+                {
+                    Vector3 n = v.Normal;
+                    if (n.Z > 0)
+                    {
+                        if (options.FlipDownwardFacingNormals)
+                        {
+                            n.Z *= -1;
+                            v.Normal = n;
+                        }
+                        numDownward++;
+                    }
+                }
+            }
+            pipeline.LogInfo("{0} downward facing normals{1}", Fmt.KMG(numDownward),
+                             options.FlipDownwardFacingNormals ? " (flipped)" : "");
+        
+            pointCloud = new Mesh(hasNormals: true);
 
             if (options.WriteDebug && clouds.Length > 1)
             {
-                sourceColors = Colorspace.RandomHues(clouds.Length + 1); //extra color for orbital
+                sourceColors = Colorspace.RandomHues(numNonOrbitalClouds + 1); //extra color for orbital
                 for (int i = 0; i < clouds.Length; i++)
                 {
                     clouds[i].SetColor(sourceColors[i]);
@@ -625,10 +715,7 @@ namespace OPS.Landform
                 pipeline.LogInfo("merging {0} observation point clouds without clever combine, total {1} points",
                                  clouds.Length, Fmt.KMG(nv));
                 pointCloud.MergeWith(clouds, normalize: false, removeDuplicateVerts: false);
-                if (options.WriteDebug)
-                {
-                    SaveMesh(pointCloud, dbgMeshPrefix + "-cloud");
-                }
+                SaveDebugMesh(pointCloud, "cloud");
             }
             else
             {
@@ -670,44 +757,49 @@ namespace OPS.Landform
                     pointCloud.MergeWith(clouds, normalize: false, removeDuplicateVerts: false);
                 }
 
-                if (options.WriteDebug)
-                {
-                    SaveMesh(pointCloud, dbgMeshPrefix + "-cloud");
-                }
+                SaveDebugMesh(pointCloud, "cloud");
 
                 if (clouds.Length > 1)
                 {
-                    pipeline.LogInfo("clever combining {0} {1} point clouds, cell size {2}, aspect {3}, total {4} pts",
-                                     clouds.Length, options.IntraSitedriveCleverCombine ? "observation" : "sitedrive",
-                                     options.CleverCombineCellSize, options.CleverCombineCellAspect, Fmt.KMG(nv));
+                    pipeline.LogInfo("clever combining {0} point clouds, cell size {1}, aspect {2}, total {3} pts",
+                                     clouds.Length, options.CleverCombineCellSize, options.CleverCombineCellAspect,
+                                     Fmt.KMG(nv));
                     
                     var cc = new CleverCombine(options.CleverCombineCellSize, options.CleverCombineCellAspect);
                     pointCloud = cc.Combine(clouds, origins, pipeline);
                     
                     pipeline.LogInfo("clever combine returned {0} points", Fmt.KMG(pointCloud.Vertices.Count));
                     
-                    if (options.WriteDebug)
-                    {
-                        SaveMesh(pointCloud , dbgMeshPrefix + "-cloud-combined");
-                    }
+                    SaveDebugMesh(pointCloud , "cloud-combined");
                 }
                 else
                 {
-                    if (observationPointClouds.Count < 2)
-                    {
-                        pipeline.LogInfo("skipping clever combine: less than two observations");
-                    }
-                    else
-                    {
-                        pipeline.LogInfo("skipping clever combine: less than two sitedrives " +
-                                         "and --intrasitedriveclevercombine not specified");
-                    }
+                    pipeline.LogInfo("skipping clever combine: less than two point clouds");
                 }
             }
 
             observationPointClouds.Clear(); //significant memory usage
 
             pointCloudBounds = pointCloud.Bounds();
+
+            envelopeBounds = pointCloudBounds;
+
+            envelopeBounds.Max += options.ExpandEnvelopeBounds * Vector3.UnitZ;
+            envelopeBounds.Min -= options.ExpandEnvelopeBounds * Vector3.UnitZ;
+            poissonOpts.Envelope = envelopeBounds;
+
+            SaveDebugMesh(envelopeBounds.ToMesh(), "envelope");
+
+            if (options.WriteDebug && wedgeMeshOpts.NormalScale != NormalScale.None)
+            {
+                bool isConf = wedgeMeshOpts.NormalScale == NormalScale.Confidence;
+                var colored = new Mesh(pointCloud);
+                var low =  isConf ? new Vector3(1, 0, 0) : new Vector3(0, 1, 0);
+                var high = isConf ? new Vector3(0, 1, 0) : new Vector3(1, 0, 0);
+                colored.ColorByNormalMagnitude(low, high);
+                colored.NormalizeNormals();
+                SaveDebugMesh(colored, wedgeMeshOpts.NormalScale.ToString());
+            }
         }
 
         private void ReconstructMesh()
@@ -717,12 +809,49 @@ namespace OPS.Landform
             pipeline.LogInfo("reconstructing mesh from {0} points with {1}",
                              Fmt.KMG(pc.Vertices.Count), options.ReconstructionMethod);
 
+            void saveUncleanedMesh(Mesh m)
+            {
+                untrimmedMesh = m;
+                SaveDebugMesh(m, "untrimmed");
+            }
+
+            void saveUntrimmedMesh(Mesh m)
+            {
+                untrimmedMesh = m;
+                SaveDebugMesh(m, "untrimmed", writeNormalLengthsAsValue: true);
+
+                var colored = new Mesh(untrimmedMesh);
+                var red = new Vector3(1, 0, 0);
+                var green = new Vector3(0, 1, 0);
+                colored.ColorByNormalMagnitude(red, green);
+                colored.NormalizeNormals();
+                SaveDebugMesh(colored, "density");
+            }
+            
+            void saveRawReconstructedMesh(string file)
+            {
+                SaveDebugMesh(file, "Poisson-raw");
+            }
+            
             switch (options.ReconstructionMethod)
             {
-                case MeshReconstructionMethod.FSSR: mesh = FSSR.Reconstruct(pc); break;
-                case MeshReconstructionMethod.Poisson: mesh = PoissonReconstruction.Reconstruct(pc, poissonOpts); break;
+                case MeshReconstructionMethod.FSSR:
+                {
+                    mesh = FSSR.Reconstruct(pc, options.FSSRScale, options.FSSRScale == 0, saveUncleanedMesh,
+                                            logger: pipeline);
+                    break;
+                }
+                case MeshReconstructionMethod.Poisson:
+                {
+                    mesh = PoissonReconstruction.Reconstruct(pc, poissonOpts,
+                                                             rawReconstructedMeshFile: saveRawReconstructedMesh,
+                                                             untrimmedMeshWithValueScaledNormals: saveUntrimmedMesh,
+                                                             logger: pipeline);
+                    break;
+                }
                 default: throw new Exception("unsupported reconstruction method: " + options.ReconstructionMethod);
             }
+
             if (mesh == null || mesh.Faces.Count == 0)
             {
                 throw new Exception("failed to build mesh");
@@ -730,20 +859,36 @@ namespace OPS.Landform
 
             CleanMesh();
 
-            if (options.WriteDebug)
-            {
-                SaveMesh(mesh, dbgMeshPrefix + "-reconstructed");
+            SaveDebugMesh(mesh, "reconstructed");
+        }
 
-                var colored = new Mesh(mesh);
-                var red = new Vector3(1, 0, 0);
-                var green = new Vector3(0, 1, 0);
-                colored.ColorByNormalMagnitude(red, green);
-                SaveMesh(colored, dbgMeshPrefix + "-confidence");
+        private void FilterMesh()
+        {
+            pipeline.LogInfo("filtering triangles further than {0}m from any input point", options.FilterTriangles);
+            //var kdTree = new VertexKDTree(pointCloud);
+            var rTree = new RTree<int>();
+            for (int i = 0; i < pointCloud.Vertices.Count; i++)
+            {
+                rTree.Add(pointCloud.Vertices[i].Position.ToRectangle(), i);
             }
+            mesh.FilterFaces(f => {
+                Vector3 barycenter = mesh.FaceToTriangle(f).Barycenter();
+                //Vector3 nn = kdTree.NearestNeighbor(barycenter).Position;
+                //return nn >= 0 && Vector3.Distance(barycenter, nn) <= options.FilterTriangles;
+                return rTree.Nearest(barycenter.ToRTreePoint(), (float)options.FilterTriangles).Count > 0;
+            });
+            if (mesh.Vertices.Count == 0 || mesh.Faces.Count == 0)
+            {
+                throw new MeshException("empty output after filtering");
+            }
+            pipeline.LogInfo("filtered mesh has {0} faces", Fmt.KMG(mesh.Faces.Count));
+            SaveDebugMesh(mesh, "filtered");
         }
 
         private void CleanMesh()
         {
+            mesh.Clip(envelopeBounds);
+
             if (options.MinIslandRatio > 0)
             {
                 int nr = mesh.RemoveIslands(options.MinIslandRatio);
@@ -761,39 +906,14 @@ namespace OPS.Landform
             mesh.Clean(); //removes degenerate faces
 
             mesh.GenerateVertexNormals();
+
+            pipeline.LogInfo("cleaned mesh has {0} faces", Fmt.KMG(mesh.Faces.Count));
         }
 
         private void ClipSurfaceMesh()
         {
             ClipMesh(options.SurfaceExtent);
-            if (options.WriteDebug)
-            {
-                SaveMesh(mesh, dbgMeshPrefix + "-clippedSurface");
-            }
-        }
-
-        //currently "shrinkwrap" just really means
-        //(a) bin verts to grid cells in XY plane
-        //(b) organized mesh with a 2.5D assumption
-        //also, the shrinkwrap mesh is curently only used for creating the surface mask
-        //which is used for hole filling and orbital geometry below
-        //(BlendImages might also make and use a shrinkwrap mesh, but that now non-default legacy behavior)
-        private void CreateShrinkwrappedSurfaceMesh()
-        {
-            var bounds = mesh.Bounds();
-            Mesh grid = Shrinkwrap.BuildGrid(bounds,
-                                             (int)(bounds.Extent().X * options.ShrinkwrapPointsPerMeter),
-                                             (int)(bounds.Extent().Y * options.ShrinkwrapPointsPerMeter),
-                                             VertexProjection.ProjectionAxis.Z);
-            shrinkwrapMesh = Shrinkwrap.Wrap(grid, mesh, Shrinkwrap.ShrinkwrapMode.Project,
-                                             VertexProjection.ProjectionAxis.Z,
-                                             Shrinkwrap.ProjectionMissResponse.Clip);
-            shrinkwrapMesh.Clean();
-
-            if (options.WriteDebug)
-            {
-                SaveMesh(shrinkwrapMesh, dbgMeshPrefix + "-shrinkwrap");
-            }
+            SaveDebugMesh(mesh, "clipped-surface");
         }
 
         //populates maskUVMeshOp so that later stages can trim meshes to an XY plane boundary
@@ -812,6 +932,23 @@ namespace OPS.Landform
         {
             try
             {
+                //currently "shrinkwrap" just really means
+                //(a) bin verts to grid cells in XY plane
+                //(b) organized mesh with a 2.5D assumption
+                //also, the shrinkwrap mesh is curently only used for creating the surface mask
+                //which is used for hole filling and orbital geometry below
+                //(BlendImages might also make and use a shrinkwrap mesh, but that now non-default legacy behavior)
+                var bounds = mesh.Bounds();
+                Mesh grid = Shrinkwrap.BuildGrid(bounds,
+                                                 (int)(bounds.Extent().X * options.ShrinkwrapPointsPerMeter),
+                                                 (int)(bounds.Extent().Y * options.ShrinkwrapPointsPerMeter),
+                                                 VertexProjection.ProjectionAxis.Z);
+                Mesh shrinkwrapMesh = Shrinkwrap.Wrap(grid, mesh, Shrinkwrap.ShrinkwrapMode.Project,
+                                                      VertexProjection.ProjectionAxis.Z,
+                                                      Shrinkwrap.ProjectionMissResponse.Clip);
+                shrinkwrapMesh.Clean();
+                SaveDebugMesh(shrinkwrapMesh, "shrinkwrap");
+
                 //EdgeGraph edgeGraph = new EdgeGraph(mesh); //TODO causes too many failures
                 //https://github.jpl.nasa.gov/OnSight/Landform/issues/1145
                 EdgeGraph edgeGraph = new EdgeGraph(shrinkwrapMesh);
@@ -885,10 +1022,7 @@ namespace OPS.Landform
                     maskMesh.ReverseWinding();
                 }
                 
-                if (options.WriteDebug)
-                {
-                    SaveMesh(maskMesh, dbgMeshPrefix + "-surfaceMask");
-                }
+                SaveDebugMesh(maskMesh, "surface-mask");
 
                 maskMesh.XYToUV();
                 maskUVMeshOp =
@@ -901,16 +1035,24 @@ namespace OPS.Landform
             }
         }
 
-        //Replace mesh with a new Poisson reconstruction that
+        //Replace mesh with a new reconstruction that
         //(1) uses less picky trimming
         //(2) but that is clipped in the XY plane to the mask we already created
         //    from the outer boundary of the original reconstructed mesh.
         //This is done to fill holes and/or to prepare for orbital geometry to be added outside the mask.
         private void ReconstructSurfaceToMask()
         {
-            //TODO: Have Poisson return both clipped and non-clipped to avoid remeshing
-            poissonOpts.TrimmerLevel = Math.Max(0, poissonOpts.TrimmerLevel - 2);
-            mesh = PoissonReconstruction.Reconstruct(pointCloud, poissonOpts);
+            mesh = untrimmedMesh;
+
+            if (options.ReconstructionMethod == MeshReconstructionMethod.Poisson &&
+                options.PoissonTrimmerLevelLenient < options.PoissonTrimmerLevel)
+            {
+                pipeline.LogInfo("retrimming Poisson mesh with lenient trimmer level {0} instead of {1}",
+                                 options.PoissonTrimmerLevelLenient, options.PoissonTrimmerLevel);
+                poissonOpts.TrimmerLevel = options.PoissonTrimmerLevelLenient;
+                mesh = PoissonReconstruction.Trim(mesh, poissonOpts);
+                SaveDebugMesh(mesh, "trimmed-lenient");
+            }
 
             mesh.Faces = mesh.Faces.Where(face =>
             {
@@ -928,14 +1070,39 @@ namespace OPS.Landform
 
             CleanMesh();
 
-            if (options.WriteDebug)
+            SaveDebugMesh(mesh, "masked");
+        }
+
+        private Mesh MakeOrbitalPointCloud()
+        {
+            int surfaceRadiusPixels = (int)Math.Ceiling(0.5 * options.SurfaceExtent / orbitalDEMMetersPerPixel);
+            Vector3 meshOriginInOrbital = Vector3.Transform(Vector3.Zero, meshToOrbital);
+            var surfaceBounds = orbitalDEM.GetSubrectPixels(surfaceRadiusPixels, meshOriginInOrbital);
+            return MakeOrbitalMesh(orbitalFillSamplesPerPixel, surfaceBounds);
+        }
+
+        private Mesh MakeOrbitalMesh(double subsample, Image.Subrect outerBounds, Image.Subrect innerBounds = null,
+                                     MeshOperator maskOp = null)
+        {
+            Func<Vector3, bool> filter = pt => 
             {
-                SaveMesh(mesh, dbgMeshPrefix + "-maskedSurface");
+                pt = Vector3.Transform(pt, orbitalToMesh);
+                return maskOp == null || maskOp.UVToBarycentric(new Vector2(pt.X, pt.Y)) == null; //not in surf mesh
+            };
+            var ret = orbitalDEM.OrganizedMesh(outerBounds, innerBounds, subsample, filter, withNormals: true,
+                                               quadsOnly: true);
+            if (sourceColors != null && sourceColors.Length > 0)
+            {
+                ret.SetColor(sourceColors[sourceColors.Length - 1]);
             }
+            return ret.Transformed(orbitalToMesh);
         }
 
         private void BuildOrbitalMesh()
         {
+            int orbitalRadiusPixels = (int)Math.Ceiling(0.5 * options.Extent / orbitalDEMMetersPerPixel);
+            int blendRadiusPixels = (int)Math.Ceiling(0.5 * blendExtent / orbitalDEMMetersPerPixel);
+
             var maskOp = maskUVMeshOp;
             if (maskOp == null && mesh != null) //CreateSurfaceMaskMesh() failed
             {
@@ -944,29 +1111,10 @@ namespace OPS.Landform
                 maskOp = new MeshOperator(tmp, buildFaceTree: false, buildVertexTree: false, buildUVFaceTree: true);
             }
 
-            Mesh makeMesh(double subsample, Image.Subrect outerBounds, Image.Subrect innerBounds = null)
-            {
-                Func<Vector3, bool> filter = pt => 
-                {
-                    pt = Vector3.Transform(pt, orbitalToMesh);
-                    return maskOp == null || maskOp.UVToBarycentric(new Vector2(pt.X, pt.Y)) == null; //not in surf mesh
-                };
-                var ret = orbitalDEM.OrganizedMesh(outerBounds, innerBounds, subsample, filter, withNormals: true,
-                                                   quadsOnly: true);
-                if (sourceColors != null && sourceColors.Length > 0)
-                {
-                    ret.SetColor(sourceColors[sourceColors.Length - 1]);
-                }
-                return ret;
-            }
-
-            int orbitalRadiusPixels = (int)Math.Ceiling(0.5 * options.Extent / orbitalDEMMetersPerPixel);
-            int blendRadiusPixels = (int)Math.Ceiling(0.5 * blendExtent / orbitalDEMMetersPerPixel);
-
             Vector3 meshOriginInOrbital = Vector3.Transform(Vector3.Zero, meshToOrbital);
 
             Image.Subrect blendBounds = null;
-            if (blendSamplesPerPixel != orbitalSamplesPerPixel && blendRadiusPixels > 0)
+            if (orbitalBlendSamplesPerPixel != orbitalSamplesPerPixel && blendRadiusPixels > 0)
             {
                 blendBounds = orbitalDEM.GetSubrectPixels(blendRadiusPixels, meshOriginInOrbital);
             }
@@ -979,28 +1127,25 @@ namespace OPS.Landform
                                  2 * orbitalRadiusPixels * orbitalDEMMetersPerPixel,
                                  orbitalSamplesPerPixel / orbitalDEMMetersPerPixel);
                 
-                orbitalMesh = makeMesh(orbitalSamplesPerPixel, orbitalBounds, blendBounds);
+                orbitalMesh = MakeOrbitalMesh(orbitalSamplesPerPixel, orbitalBounds, blendBounds, maskOp);
 
                 pipeline.LogInfo("made orbital mesh with {0} triangles", Fmt.KMG(orbitalMesh.Faces.Count));
             }
 
             if (blendBounds != null)
             {
-                if (options.WriteDebug)
+                if (orbitalMesh != null)
                 {
-                    SaveMesh(orbitalMesh, dbgMeshPrefix + "-outerOrbital");
+                    SaveDebugMesh(orbitalMesh, "outer-orbital");
                 }
 
                 pipeline.LogInfo("making {0:f3}x{0:f3} orbital blend mesh at {1:f3} samples/meter",
                                  2 * blendRadiusPixels * orbitalDEMMetersPerPixel,
-                                 blendSamplesPerPixel / orbitalDEMMetersPerPixel);
+                                 orbitalBlendSamplesPerPixel / orbitalDEMMetersPerPixel);
 
-                var blendMesh = makeMesh(blendSamplesPerPixel, blendBounds);
+                var blendMesh = MakeOrbitalMesh(orbitalBlendSamplesPerPixel, blendBounds, null, maskOp);
 
-                if (options.WriteDebug)
-                {
-                    SaveMesh(blendMesh, dbgMeshPrefix + "-preblendOrbital");
-                }
+                SaveDebugMesh(blendMesh, "preblend-orbital");
 
                 pipeline.LogInfo("made orbital blend mesh with {0} triangles", Fmt.KMG(blendMesh.Faces.Count));
 
@@ -1015,16 +1160,14 @@ namespace OPS.Landform
                 }
             }
                 
-            if (options.WriteDebug)
-            {
-                SaveMesh(orbitalMesh, dbgMeshPrefix + "-orbital");
-            }
+            SaveDebugMesh(orbitalMesh, "orbital");
         }
 
         private void BlendOrbitalToSurface()
         {
-            if (blendRadius == 0 && sewRadius == 0)
+            if (orbitalMesh == null || (blendRadius == 0 && sewRadius == 0))
             {
+                pipeline.LogInfo("skipping blend orbital to surface: no orbital mesh or no blend or sew radius");
                 return;
             }
 
@@ -1032,7 +1175,7 @@ namespace OPS.Landform
 
             if (BLEND_GUTTER_SAMPLES > 0)
             {
-                double gutterMeters = BLEND_GUTTER_SAMPLES * (orbitalDEMMetersPerPixel / blendSamplesPerPixel);
+                double gutterMeters = BLEND_GUTTER_SAMPLES * (orbitalDEMMetersPerPixel / orbitalBlendSamplesPerPixel);
                 if (radius > gutterMeters)
                 {
                     radius -= gutterMeters;
@@ -1122,10 +1265,7 @@ namespace OPS.Landform
             blendedOrbitalMesh.Clean(); //removes degnerate faces
             blendedOrbitalMesh.GenerateVertexNormals(); //we moved stuff, recompute vertex normals from faces
 
-            if (options.WriteDebug)
-            {
-                SaveMesh(blendedOrbitalMesh, dbgMeshPrefix + "-blendedOrbital");
-            }
+            SaveDebugMesh(blendedOrbitalMesh, "blended-orbital");
 
             int nv = mesh.Vertices.Count;
             mesh.Vertices.AddRange(blendedOrbitalMesh.Vertices);
@@ -1133,10 +1273,7 @@ namespace OPS.Landform
 
             mesh.Clean();
 
-            if (options.WriteDebug)
-            {
-                SaveMesh(mesh, dbgMeshPrefix + "-combined");
-            }
+            SaveDebugMesh(mesh, "combined");
         }
 
         private void ClipMesh(double extent, bool clipToPointCloudBounds = true)
@@ -1146,7 +1283,7 @@ namespace OPS.Landform
             if (clipToPointCloudBounds)
             {
                 pipeline.LogInfo("clipping mesh to source point cloud bounds");
-                mesh = Mesh.Clip(mesh, pointCloudBounds);
+                mesh.Clip(pointCloudBounds);
                 minZ = pointCloudBounds.Min.Z;
                 maxZ = pointCloudBounds.Max.Z;
             }
@@ -1161,7 +1298,7 @@ namespace OPS.Landform
             {
                 pipeline.LogInfo("clipping mesh to {0:f3} meter box around {1} frame origin in XY plane",
                                  extent, meshFrame);
-                mesh = Mesh.Clip(mesh, BoundsFromXYExtent(Vector3.Zero, extent, minZ, maxZ));
+                mesh.Clip(BoundsFromXYExtent(Vector3.Zero, extent, minZ, maxZ));
             }
 
             if (mesh.Faces.Count == 0)
@@ -1182,7 +1319,7 @@ namespace OPS.Landform
             pipeline.LogInfo("decimating mesh with {0}, target {1} faces",
                              options.MeshDecimator, Fmt.KMG(options.TargetSceneMeshFaces));
 
-            mesh = mesh.Decimate(options.TargetSceneMeshFaces, options.MeshDecimator);
+            mesh = mesh.Decimated(options.TargetSceneMeshFaces, options.MeshDecimator); //preserves normals
 
             pipeline.LogInfo("decimated mesh to {0} faces", Fmt.KMG(mesh.Faces.Count));
 
@@ -1191,13 +1328,10 @@ namespace OPS.Landform
                 throw new Exception("mesh is empty");
             }
 
-            if (options.WriteDebug)
-            {
-                SaveMesh(mesh, dbgMeshPrefix + "-decimated");
-            }
+            SaveDebugMesh(mesh, "decimated");
         }
 
-        private void FilterMesh()
+        private void ReduceMesh()
         {
             pipeline.LogInfo("only keeping triangles visible in observations: {0}",
                              string.Join(", ", onlyForObs.Select(obs => obs.Name)));
@@ -1230,26 +1364,16 @@ namespace OPS.Landform
 
             pipeline.LogInfo("kept {0} faces visible in specified observations", Fmt.KMG(mesh.Faces.Count));
 
-            if (options.WriteDebug)
-            {
-                SaveMesh(mesh, dbgMeshPrefix + "-filtered");
-            }
+            SaveDebugMesh(mesh, "filtered");
         }
 
         private void AtlasMesh()
         {
             if (options.NoOrbital || blendExtent == options.Extent || orbitalTextureMetersPerPixel <= 0)
             {
-                pipeline.LogInfo("no peripheral orbital, {0} atlassing full scene mesh", options.SurfaceUVMode);
-                mesh = AtlasMesh(mesh, sceneTextureResolution);
-                if (mesh == null)
-                {
-                    throw new Exception("atlasing failed");
-                }
-                if (options.WriteDebug)
-                {
-                    SaveMesh(mesh, dbgMeshPrefix + "-atlassed");
-                }
+                pipeline.LogInfo("no peripheral orbital, {0} atlassing full scene mesh", options.AtlasMode);
+                AtlasMesh(mesh, sceneTextureResolution);
+                SaveDebugMesh(mesh, "atlassed");
                 return;
             }
 
@@ -1277,82 +1401,65 @@ namespace OPS.Landform
                 //uvatlas or heightmap atlas central portion consisting of surface + orbital blend mesh
                 //always heightmap atlas outer orbital periphery
                 //we clip and then re-merge those two parts here rather than atlassing them before they are merged
-                //in BlendOrbitalToSurface() to handle workflows involving DecimateMesh() and/or FilterMesh()
+                //in BlendOrbitalToSurface() to handle workflows involving DecimateMesh() and/or ReduceMesh()
 
                 ComputeTextureWarp(options.Extent, blendExtent, out srcSurfaceFrac, out dstSurfaceFrac);
 
                 int surfacePixels = (int)Math.Ceiling(dstSurfaceFrac * res);
 
                 pipeline.LogInfo("{0} atlassing {1}x{1}m central submesh, resolution {2}x{2}",
-                                 options.SurfaceUVMode, blendExtent, surfacePixels);
+                                 options.AtlasMode, blendExtent, surfacePixels);
 
                 centralBounds = BoundsFromXYExtent(Vector3.Zero, blendExtent, meshBounds.Min.Z, meshBounds.Max.Z);
 
-                var centralMesh = Mesh.Clip(mesh, centralBounds);
+                var centralMesh = mesh.Clipped(centralBounds);
 
-                if (options.WriteDebug)
-                {
-                    SaveMesh(centralMesh, dbgMeshPrefix + "-central");
-                }
+                SaveDebugMesh(centralMesh, "central");
 
-                switch (options.SurfaceUVMode)
+                switch (options.AtlasMode)
                 {
-                    case AtlasMode.UVAtlas: centralMesh = UVAtlasMesh(centralMesh, surfacePixels); break;
+                    case AtlasMode.UVAtlas: UVAtlasMesh(centralMesh, surfacePixels); break;
                     case AtlasMode.Heightmap: HeightmapAtlasMesh(centralMesh); break;
-                    default: throw new ArgumentException("unknown atlas mode: " + options.SurfaceUVMode);
+                    default: throw new ArgumentException("unsupported atlas mode: " + options.AtlasMode);
                 }
 
-                if (centralMesh == null)
-                {
-                    throw new Exception("atlasing failed");
-                }
-
-                if (options.WriteDebug)
-                {
-                    SaveMesh(centralMesh, dbgMeshPrefix + "-centralAtlassed");
-                }
+                SaveDebugMesh(centralMesh, "central-atlassed");
 
                 centralMesh.RescaleUVs(BoundingBoxExtensions.CreateXY(PointToUV(meshBounds, centralBounds.Min),
                                                                       PointToUV(meshBounds, centralBounds.Max)));
 
-                if (options.WriteDebug)
-                {
-                    SaveMesh(centralMesh, dbgMeshPrefix + "-centralAtlassedRescaled");
-                }
+                SaveDebugMesh(centralMesh, "central-atlassed-rescaled");
 
-                var peripheralMesh = Mesh.Cut(mesh, centralBounds);
+                var peripheralMesh = mesh.Cutted(centralBounds);
                 pipeline.LogInfo("heightmap atlassing {0}m orbital periphery ({1} tris)",
                                  0.5 * (options.Extent - blendExtent), Fmt.KMG(peripheralMesh.Faces.Count));
                 HeightmapAtlasMesh(peripheralMesh);
 
-                if (options.WriteDebug)
-                {
-                    SaveMesh(peripheralMesh, dbgMeshPrefix + "-peripheralAtlassed");
-                }
+                SaveDebugMesh(peripheralMesh, "peripheral-atlassed");
 
-                mesh = Mesh.Merge(msg => pipeline.LogWarn(msg), centralMesh, peripheralMesh);
+                mesh = MeshMerge.Merge(msg => pipeline.LogWarn(msg), centralMesh, peripheralMesh);
             }
 
-            void saveDbgMeshes(string name)
+            void saveDebugMeshes(string suffix)
             {
                 if (options.WriteDebug)
                 {
-                    SaveMesh(mesh, dbgMeshPrefix + "-" + name);
+                    SaveDebugMesh(mesh, suffix);
 #if DBG_UV
                     var tmp = new Mesh(mesh);
                     tmp.ColorByUV();
-                    SaveMesh(tmp, dbgMeshPrefix + "-" + name + "UV");
+                    SaveDebugMesh(tmp, suffix + "-UV");
                     tmp.ColorByUV(vChannel: -1);
-                    SaveMesh(tmp, dbgMeshPrefix + "-" + name + "U");
+                    SaveDebugMesh(tmp, suffix + "-U");
                     tmp.ColorByUV(uChannel: -1);
-                    SaveMesh(tmp, dbgMeshPrefix + "-" + name + "V");
+                    SaveDebugMesh(tmp, suffix + "-V");
 #endif
                 }
             }
 
             if (dstSurfaceFrac > srcSurfaceFrac && !options.NoTextureWarp)
             {
-                saveDbgMeshes("prewarpAtlassed");
+                saveDebugMeshes("prewarpAtlassed");
                 
                 pipeline.LogInfo("warping {0:F3}x{0:F3} central UVs to {1:F3}x{1:F3}, ease {2:F3}",
                                  srcSurfaceFrac, dstSurfaceFrac, options.EaseTextureWarp);
@@ -1369,16 +1476,12 @@ namespace OPS.Landform
                 mesh.WarpUVs(src, dst, options.EaseTextureWarp);
             }
 
-            saveDbgMeshes("atlassed");
+            saveDebugMeshes("atlassed");
         }
 
         private void SaveSceneMesh()
         {
             pipeline.LogInfo("saving scene mesh in frame {0} to project storage", meshFrame);
-            
-            var variant = MeshVariant.Default;
-            
-            var obsNames = onlyForObs.Select(obs => obs.Name).ToArray();
             
             double surfaceExtent = -1; //unlimited
             if (options.NoSurface)
@@ -1390,11 +1493,17 @@ namespace OPS.Landform
                 surfaceExtent = options.SurfaceExtent;
             }
             
-            var sceneMesh = SceneMesh.Find(pipeline, project.Name, meshFrame, variant, siteDrives, obsNames);
+            var sceneMesh = SceneMesh.Find(pipeline, project.Name, MeshVariant.Default);
             if (sceneMesh != null)
             {
                 sceneMesh.SetBounds(mesh.Bounds());
-                var meshProd = new PlyGZDataProduct(mesh);
+                Mesh tmp = mesh;
+                if (tmp.HasColors)
+                {
+                    tmp = new Mesh(mesh);
+                    tmp.HasColors = false;
+                }
+                var meshProd = new PlyGZDataProduct(tmp);
                 pipeline.SaveDataProduct(project, meshProd);
                 sceneMesh.MeshGuid = meshProd.Guid;
                 sceneMesh.SurfaceExtent = surfaceExtent;
@@ -1402,8 +1511,7 @@ namespace OPS.Landform
             }
             else
             {
-                SceneMesh.Create(pipeline, project, meshFrame, variant, siteDrives, obsNames, mesh: mesh,
-                                 surfaceExtent: surfaceExtent);
+                SceneMesh.Create(pipeline, project, mesh: mesh, surfaceExtent: surfaceExtent);
             }
         
             if (!string.IsNullOrEmpty(options.OutputMesh))
@@ -1413,6 +1521,26 @@ namespace OPS.Landform
                     mesh.Save(tmpFile);
                     pipeline.SaveFile(tmpFile, options.OutputMesh, constrainToStorage: false);
                 });
+            }
+        }
+
+        private void SaveDebugMesh(Mesh mesh, string suffix, string texture = null,
+                                   bool writeNormalLengthsAsValue = false)
+        {
+            if (options.WriteDebug)
+            {
+                SaveMesh(mesh, $"{meshFrame}-{dbgMeshCount++}-{suffix}", texture, writeNormalLengthsAsValue);
+            }
+        }
+
+        private void SaveDebugMesh(string srcFile, string suffix)
+        {
+            if (options.WriteDebug)
+            {
+                string name = $"{meshFrame}-{dbgMeshCount++}-{suffix}";
+                string dstFile = Path.Combine(localOutputPath, name + meshExt);
+                PathHelper.EnsureExists(Path.GetDirectoryName(dstFile)); //name could have a subpath in it
+                File.Copy(srcFile, dstFile, overwrite: true);
             }
         }
     }

@@ -1,11 +1,11 @@
-﻿using Embree;
-using Microsoft.Xna.Framework;
-using OPS.Imaging;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Embree;
+using Microsoft.Xna.Framework;
+using OPS.Imaging;
 
 namespace OPS.RayTrace
 {
@@ -53,7 +53,8 @@ namespace OPS.RayTrace
         /// <param name="transform">Transform of this mesh in the scene</param>
         /// <param name="sceneFlags"></param>
         /// <param name="traversalFlags"></param>
-        public Model(Device device, OPS.Geometry.Mesh mesh, Image texture, Matrix transform, SceneFlags sceneFlags, TraversalFlags traversalFlags)
+        public Model(Device device, OPS.Geometry.Mesh mesh, Image texture, Matrix transform, SceneFlags sceneFlags,
+                     TraversalFlags traversalFlags)
         {
             this.Enabled = true;
             this.geometry = new Embree.Geometry(device, sceneFlags, traversalFlags);
@@ -82,14 +83,12 @@ namespace OPS.RayTrace
 
 
         /// <summary>
-        /// Corrects an Embree.NET normal, which is unnormalized
-        /// and in object space, to a world space normal vector.
+        /// transforms an Embree.NET normal in object space to a world space normal vector.
+        /// NOTE Embree.NET normal may not be normalized and might be zero length
         /// </summary>
         public Vector3 NormalToWorldSpace(Vector3 modelSpaceNormal)
         {
-            var r = Vector3.TransformNormal(modelSpaceNormal, this.inverseTranspose);
-            r.Normalize();
-            return r;
+            return Vector3.TransformNormal(modelSpaceNormal, this.inverseTranspose);
         }
 
         ~Model()

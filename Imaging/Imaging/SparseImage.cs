@@ -2,6 +2,7 @@
 using OPS.Util;
 using System;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -18,6 +19,8 @@ namespace OPS.Imaging
 
         //alternate instead of chunks array for limiting entire memory footprint
         protected LRUCache<Vector2, Image> chunkCache;
+
+        protected ConcurrentDictionary<Pixel, Object> chunkLocks = new ConcurrentDictionary<Pixel, Object>();
 
         //persisted backing, if any
         protected string basePath;
@@ -389,6 +392,62 @@ namespace OPS.Imaging
             }
         }
 
+        /// <summary>
+        /// persist all chunks
+        /// </summary>
+        /// <param name="basePath">base path to save chunks (overrides value provided to constructor)</param>
+        /// <param name="extension">extension for saved chunks (overrides value provided to constructor)</param>
+        public void SaveAllChunks<T>(string basePath = null, string extension = null)
+        {
+            basePath = basePath ?? this.basePath;
+            extension = extension ?? this.extension;
+            if (string.IsNullOrEmpty(basePath) || string.IsNullOrEmpty(extension))
+            {
+                throw new ArgumentException("must specify base path and extension to save sparse image");
+            }
+            int vChunks = (int)Math.Ceiling(((float)Height) / chunkSize);
+            int hChunks = (int)Math.Ceiling(((float)Width) / chunkSize);
+            int n = 0;
+            for (int r = 0; r < vChunks; r++) 
+            {
+                for (int c = 0; c < hChunks; c++)
+                {
+                    SaveChunk<T>(GetChunk(r, c), ChunkPath(r, c, basePath, extension));
+                    Progress("saved chunk ({0},{1}), {2}/{3} complete", r, c, ++n, vChunks * hChunks);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Populate all chunks.
+        ///
+        /// If this sparse image is backed by a large in-memory image then the chunks are cropped out of it.
+        /// NOTE: if this is combined with LRU caching of the chunks without disk backing for the LRU cache then if
+        /// the cache is not large enough some chunks will be ejected from the cache immediately.
+        ///
+        /// If this sparse image is backed by a large persisted image and/or individual chunk images, they are
+        /// unpersisted.
+        /// </summary>
+        /// <param name="releaseBacking">whether to release the reference to the backing image, if any</param>
+        public void Populate(bool releaseBacking = true)
+        {
+            int vChunks = (int)Math.Ceiling(((float)Height) / chunkSize);
+            int hChunks = (int)Math.Ceiling(((float)Width) / chunkSize);
+            int n = 0;
+            for (int r = 0; r < vChunks; r++)
+            {
+                for (int c = 0; c < hChunks; c++)
+                {
+                    GetChunk(r, c);
+                    Progress("populated chunk ({0},{1}), {2}/{3} complete", r, c, ++n, vChunks * hChunks);
+                }
+            }
+            if (releaseBacking)
+            {
+                largeImage = null;
+            }
+        }
+
         protected virtual IImageConverter GetReadConverter()
         {
             return null;
@@ -453,62 +512,6 @@ namespace OPS.Imaging
         }
 
         /// <summary>
-        /// persist all chunks
-        /// </summary>
-        /// <param name="basePath">base path to save chunks (overrides value provided to constructor)</param>
-        /// <param name="extension">extension for saved chunks (overrides value provided to constructor)</param>
-        public void Save<T>(string basePath = null, string extension = null)
-        {
-            basePath = basePath ?? this.basePath;
-            extension = extension ?? this.extension;
-            if (string.IsNullOrEmpty(basePath) || string.IsNullOrEmpty(extension))
-            {
-                throw new ArgumentException("must specify base path and extension to save sparse image");
-            }
-            int vChunks = (int)Math.Ceiling(((float)Height) / chunkSize);
-            int hChunks = (int)Math.Ceiling(((float)Width) / chunkSize);
-            int n = 0;
-            for (int r = 0; r < vChunks; r++) 
-            {
-                for (int c = 0; c < hChunks; c++)
-                {
-                    SaveChunk<T>(GetChunk(r, c), ChunkPath(r, c, basePath, extension));
-                    Progress("saved chunk ({0},{1}), {2}/{3} complete", r, c, ++n, vChunks * hChunks);
-                }
-            }
-        }
-
-        /// <summary>
-        /// Populate all chunks.
-        ///
-        /// If this sparse image is backed by a large in-memory image then the chunks are cropped out of it.
-        /// NOTE: if this is combined with LRU caching of the chunks without disk backing for the LRU cache then if
-        /// the cache is not large enough some chunks will be ejected from the cache immediately.
-        ///
-        /// If this sparse image is backed by a large persisted image and/or individual chunk images, they are
-        /// unpersisted.
-        /// </summary>
-        /// <param name="releaseBacking">whether to release the reference to the backing image, if any</param>
-        public void Populate(bool releaseBacking = true)
-        {
-            int vChunks = (int)Math.Ceiling(((float)Height) / chunkSize);
-            int hChunks = (int)Math.Ceiling(((float)Width) / chunkSize);
-            int n = 0;
-            for (int r = 0; r < vChunks; r++)
-            {
-                for (int c = 0; c < hChunks; c++)
-                {
-                    GetChunk(r, c);
-                    Progress("populated chunk ({0},{1}), {2}/{3} complete", r, c, ++n, vChunks * hChunks);
-                }
-            }
-            if (releaseBacking)
-            {
-                largeImage = null;
-            }
-        }
-
-        /// <summary>
         /// Access chunk pixel corresponding to original image data at specified band, row, and column.
         /// </summary>
         /// <param name="band"></param>
@@ -536,71 +539,77 @@ namespace OPS.Imaging
         {
             Image chunk = null;
 
-            //fast path: see if it's already in memory
-            if (chunks != null)
-            {
-                chunk = chunks[chunkRow, chunkCol];
-            }
-            else
-            {
-                chunk = chunkCache[new Vector2(chunkRow, chunkCol)];
-            }
+            //only allow one thread at a time in here
+            //this avoids multiple threads simultaneously loading the same chunk
+            Object chunkLock = chunkLocks.GetOrAdd(new Pixel(chunkRow, chunkCol), _ => new Object());
+            lock (chunkLock) {
 
-            if (chunk == null)
-            {
-                //slow path: load or allocate the chunk
-
-                int w = Math.Min(Width - chunkCol * chunkSize, chunkSize);
-                int h = Math.Min(Height - chunkRow * chunkSize, chunkSize);
-                    
-                if (largeImage != null)
-                {
-                    //if we are backed by a large monolithic image then crop out the chunk
-                    chunk = largeImage.Crop(chunkRow * chunkSize, chunkCol * chunkSize, w, h);
-                }
-                else if (!string.IsNullOrEmpty(basePath) && !string.IsNullOrEmpty(extension))
-                {
-                    //otherwise if we have persistence backing then try to load the chunk
-                    string chunkFile = ChunkPath(chunkRow, chunkCol, basePath, extension);
-                    string largeImageFile = basePath + extension;
-                    if (IsPersisted(chunkFile))
-                    {
-                        chunk = LoadChunk(chunkFile);
-                    }
-                    else if (IsPersisted(largeImageFile))
-                    {
-                        chunk = PartialRead(largeImageFile, chunkRow, chunkCol);
-                    }
-
-                    if (chunk != null && (chunk.Bands != Bands || chunk.Width != w || chunk.Height != h))
-                    {
-                        throw new Exception("unexpected chunk size");
-                    }
-                }
-
-                //if there was no backing to load the chunk (e.g. chunk file missing) then create a new blank one
-                if (chunk == null)
-                {   
-                    chunk = new Image(Bands, w, h);
-                }
-
-                if (HasMask)
-                {
-                    chunk.CreateMask(initialMaskValue);
-                    if (hasSavedMask)
-                    {
-                        chunk.SaveMask();
-                    }
-                }
-
-                //remember chunk so that we take the fast path next time
+                //fast path: see if it's already in memory
                 if (chunks != null)
                 {
-                    chunks[chunkRow, chunkCol] = chunk;
+                    chunk = chunks[chunkRow, chunkCol];
                 }
                 else
                 {
-                    chunkCache[new Vector2(chunkRow, chunkCol)] = chunk;
+                    chunk = chunkCache[new Vector2(chunkRow, chunkCol)];
+                }
+                
+                if (chunk == null)
+                {
+                    //slow path: load or allocate the chunk
+                    
+                    int w = Math.Min(Width - chunkCol * chunkSize, chunkSize);
+                    int h = Math.Min(Height - chunkRow * chunkSize, chunkSize);
+                    
+                    if (largeImage != null)
+                    {
+                        //if we are backed by a large monolithic image then crop out the chunk
+                        chunk = largeImage.Crop(chunkRow * chunkSize, chunkCol * chunkSize, w, h);
+                    }
+                    else if (!string.IsNullOrEmpty(basePath) && !string.IsNullOrEmpty(extension))
+                    {
+                        //otherwise if we have persistence backing then try to load the chunk
+                        string chunkFile = ChunkPath(chunkRow, chunkCol, basePath, extension);
+                        string largeImageFile = basePath + extension;
+                        if (IsPersisted(chunkFile))
+                        {
+                            chunk = LoadChunk(chunkFile);
+                        }
+                        else if (IsPersisted(largeImageFile))
+                        {
+                            chunk = PartialRead(largeImageFile, chunkRow, chunkCol);
+                        }
+                        
+                        if (chunk != null && (chunk.Bands != Bands || chunk.Width != w || chunk.Height != h))
+                        {
+                            throw new Exception("unexpected chunk size");
+                        }
+                    }
+                    
+                    //if there was no backing to load the chunk (e.g. chunk file missing) then create a new blank one
+                    if (chunk == null)
+                    {   
+                        chunk = new Image(Bands, w, h);
+                    }
+                    
+                    if (HasMask)
+                    {
+                        chunk.CreateMask(initialMaskValue);
+                        if (hasSavedMask)
+                        {
+                            chunk.SaveMask();
+                        }
+                    }
+                    
+                    //remember chunk so that we take the fast path next time
+                    if (chunks != null)
+                    {
+                        chunks[chunkRow, chunkCol] = chunk;
+                    }
+                    else
+                    {
+                        chunkCache[new Vector2(chunkRow, chunkCol)] = chunk;
+                    }
                 }
             }
 
@@ -743,16 +752,13 @@ namespace OPS.Imaging
 
         public override void ApplyInPlace(int band, Func<float, float> f, bool applyToMaskedValues = false)
         {
-            for (int b = 0; b < Bands; b++)
+            for (int r = 0; r < Height; r++)
             {
-                for (int r = 0; r < Height; r++)
+                for (int c = 0; c < Width; c++)
                 {
-                    for (int c = 0; c < Width; c++)
+                    if (applyToMaskedValues || IsValid(r, c))
                     {
-                        if (applyToMaskedValues || IsValid(r, c))
-                        {
-                            this[b, r, c] = f(this[b, r, c]);
-                        }
+                        this[band, r, c] = f(this[band, r, c]);
                     }
                 }
             }
@@ -841,6 +847,41 @@ namespace OPS.Imaging
                 }
                 images[chunkRow, chunkCol][row % chunkSize, col % chunkSize] = value;
             }
+        }
+    }
+
+    /// <summary>
+    /// Sparse GIS image backed by an image file.
+    /// Applies the standard read/write converters that normalize the band values to [0, 1].
+    /// File format must support partial reads, currently only GDALSerializer does.
+    /// The chunks are loaded lazily from disk.  Call Populate() to load them all.
+    /// </summary>
+    public class SparseGISImage : SparseImage
+    {
+        public const int CHUNK_SIZE = 512;
+        public const int CHUNK_CACHE_SIZE = 400; //important: cache size > 0 limits memory usage
+
+        public SparseGISImage(string path, CameraModel cameraModel = null)
+            : base(path, chunkSize: CHUNK_SIZE, cacheSize: CHUNK_CACHE_SIZE)
+        {
+            this.CameraModel = cameraModel;
+        }
+
+        public SparseGISImage(int bands, int width, int height)
+            : base(bands, width, height, CHUNK_SIZE, CHUNK_CACHE_SIZE)
+        { }
+
+        public SparseGISImage(SparseGISImage that) : base(that)
+        { }
+
+        public override Image Instantiate(int bands, int width, int height)
+        {
+            return new SparseGISImage(bands, width, height);
+        }
+
+        public override object Clone()
+        {
+            return new SparseGISImage(this);
         }
     }
 }

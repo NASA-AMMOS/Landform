@@ -19,6 +19,11 @@ namespace OPS.Pipeline.TilingServer
         public string TileId;
         public BuildParentMessage() { }
         public BuildParentMessage(string projectName) : base(projectName) { }
+
+        public override string Info()
+        {
+            return string.Format("[{0}] BuildParent tile {1}", ProjectName, TileId);
+        }
     }
 
     public class BuildParent : PipelineOperation
@@ -79,36 +84,14 @@ namespace OPS.Pipeline.TilingServer
             {
                 LogLess("generating parent {0} mesh and geometric error from {1} tiles",
                         message.TileId, parent.DependsOn.Count);
-
-                int maxTextureSize = project.TextureMode == TextureMode.None ? 0 : project.TextureResolution;
-
-                TextureProjector textureProjector = null;
-                Image textureImage = null;
-                if (project.TextureProjectorGuid != Guid.Empty)
-                {
-                    textureProjector = pipeline.GetDataProduct<TextureProjector>(project, project.TextureProjectorGuid);
-                    var texGuid = textureProjector.TextureGuid;
-                    if (project.TextureMode == TextureMode.Clip && texGuid != Guid.Empty)
-                    {
-                        textureImage = pipeline.GetDataProduct<PngDataProduct>(project, texGuid).Image;
-                    }
-                }
-
-                if (!parentSceneNode.BuildGeometryFromChildren(parentSceneNode, project.ReconstructionMethod,
-                                                               project.FacesPerTile, project.SkirtMode,
-                                                               project.TextureMode, maxTextureSize,
-                                                               textureProjector, textureImage,
-                                                               info: msg => LogLess(msg),
-                                                               error: msg => { throw new Exception(msg); }))
-                {
-                    throw new Exception("failed to build parent from children");
-                }
-
+                parentSceneNode.BuildParentGeometry(pipeline, project, info: msg => LogLess(msg),
+                                                    warn: msg => LogWarn(msg), error: msg => LogError(msg));
                 parent.SaveMesh(parentSceneNode.GetComponent<MeshImagePair>(), pipeline, project);
             }
             else
             {
-                LogLess("generating parent {0} geometric error from {1} tiles", message.TileId, parent.DependsOn.Count);
+                LogLess("parent {0} already has mesh, generating geometric error from {1} tiles",
+                        message.TileId, parent.DependsOn.Count);
                 parentSceneNode.AddComponent<MeshImagePair>(parent.LoadMeshImagePair(pipeline));
                 parentSceneNode.UpdateGeometricError(dependencies.Select(d => idToNode[d.Id]).ToList(),
                                                      info: msg => LogLess(msg));
@@ -117,6 +100,8 @@ namespace OPS.Pipeline.TilingServer
             parent.GeometricError = parentSceneNode.GetComponent<NodeGeometricError>().Error; 
 
             parent.Save(pipeline);
+
+            //throw new Exception("TEST");
 
             pipeline.EnqueueToMaster(new TileCompletedMessage(projectName) { TileId = parent.Id });
         }

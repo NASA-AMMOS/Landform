@@ -46,7 +46,8 @@ namespace OPS.Pipeline.TilingServer
 
             string tsMeshExt = TilingProject.ToExt(project.TilesetMeshFormat);
             Tile3DBuilder.BuildAndSaveTileset(pipeline, root, project.TilesetDir, projectName,
-                                              node => node.Name + tsMeshExt, info: msg => LogInfo(msg));
+                                              node => node.Name + tsMeshExt, project.RootTransform,
+                                              info: msg => LogInfo(msg));
 
             pipeline.EnqueueToMaster(this.message);
         }

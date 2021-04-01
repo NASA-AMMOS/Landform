@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # view one or more tilesets or scenes in Unity3DTiles in web browser tab(s)
-# downloads Unity3DTilexWeb.zip and unpacks it in out/ if necessary
+# downloads Unity3DTilesWeb.zip and unpacks it in out/ if necessary
 # creates localhost.pem if necessary
 # opens tabs
 # launches localhost web server
@@ -58,14 +58,14 @@ baseurl=$hproxy:$port/$viewer/index.html
 scriptdir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
 if [ ! -f $out/$viewer/index.html ]; then
-    aws --profile=credss-default s3 cp s3://$lfbucket/$viewer.zip $out/$viewer.zip
+    if [ ! -f out/$viewer.zip ]; then aws --profile=credss-default s3 cp s3://$lfbucket/$viewer.zip $out/$viewer.zip; fi
     if [[ `uname -s` == MINGW* ]]; then
         powershell $scriptdir/unzip.ps1 ./$out/$viewer.zip ./$out
     else
         unzip ./$out/$viewer.zip -d ./$out
     fi
     # see $docurl...
-    sed -i '/<script.*UnityLoader.js.*script>/i <script>XMLHttpRequest.prototype.originalOpen = XMLHttpRequest.prototype.open; var newOpen = function(_, url) { var original = this.originalOpen.apply(this, arguments); if (url.indexOf("m20.jpl.nasa.gov") >= 0) this.withCredentials = true; return original; }; XMLHttpRequest.prototype.open = newOpen;</script>' $out/$viewer/index.html
+    sed -i '/<script.*nity.*oader.js.*script>/i <script>XMLHttpRequest.prototype.originalOpen = XMLHttpRequest.prototype.open; var newOpen = function(_, url) { var original = this.originalOpen.apply(this, arguments); if (url.indexOf("m20.jpl.nasa.gov") >= 0) this.withCredentials = true; return original; }; XMLHttpRequest.prototype.open = newOpen;</script>' $out/$viewer/index.html
 fi
 
 pem=localhost-${venue}.pem

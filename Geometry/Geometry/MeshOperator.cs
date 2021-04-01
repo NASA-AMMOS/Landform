@@ -8,6 +8,7 @@ using System.Diagnostics;
 using Microsoft.Xna.Framework;
 using RTree;
 using OPS.Util;
+using OPS.MathExtensions;
 using OPS.Imaging;
 
 namespace OPS.Geometry
@@ -114,7 +115,7 @@ namespace OPS.Geometry
         /// </summary>
         /// <param name="box"></param>
         /// <returns></returns>
-        public Mesh Clip(BoundingBox box, bool ragged = false)
+        public Mesh Clipped(BoundingBox box, bool ragged = false)
         {
             Mesh result = null;
             if (HasFaces)
@@ -147,7 +148,7 @@ namespace OPS.Geometry
                 result = new Mesh(HasNormals, HasUVs, HasColors);
                 result.Vertices.AddRange(vertexTree.Intersects(box.ToRectangle()).Select(x => vertices[x]).ToList());
             }
-            if (!box.FuzzyContains(result.Bounds(), 1E-5) && !ragged)
+            if (result.HasVertices && !box.FuzzyContains(result.Bounds(), 1E-5) && !ragged)
             {
                 throw new Exception("Clipped mesh exceeds bounding box");
             }
@@ -197,6 +198,37 @@ namespace OPS.Geometry
                 throw new Exception("clipped mesh bounds exceeds bounding box");
             }
             return ret;
+        }
+
+        /// <summary>
+        /// compute the area that a mesh from a corresponding call to Clip() would have
+        /// </summary>
+        public double ClippedMeshArea(BoundingBox box, bool ragged = false)
+        {
+            if (!HasFaces)
+            {
+                return 0;
+            }
+            if (faceTree == null)
+            {
+                throw new Exception("MeshOperator must have a face tree in order to clip meshes");
+            }
+            double area = 0;
+            foreach (Triangle t in faceTree.Intersects(box.ToRectangle()).Select(x => triangles[x]))
+            {
+                if (ragged)
+                {
+                    area += t.Area();
+                }
+                else
+                {
+                    foreach (var ct in t.Clip(box))
+                    {
+                        area += t.Area();
+                    }
+                }
+            }
+            return area;
         }
 
         /// <summary>
@@ -409,16 +441,18 @@ namespace OPS.Geometry
 
             var results = pixelToPoint.Select(entry => new PixelPoint(entry.Key, entry.Value)).ToList();
 
-            if(sorted)
+            if (sorted)
             {
-                results.Sort((p1, p2) => p1.Pixel.Y == p2.Pixel.Y ? p1.Pixel.X.CompareTo(p2.Pixel.X) : p1.Pixel.Y.CompareTo(p2.Pixel.Y));
+                results.Sort((p1, p2) => p1.Pixel.Y == p2.Pixel.Y ? p1.Pixel.X.CompareTo(p2.Pixel.X) :
+                             p1.Pixel.Y.CompareTo(p2.Pixel.Y));
             }
 
             return results;
         }
 
         /// <summary>
-        /// convenience function that returns a simple subset of the pixels in the resulting texture atlas which were valid for this mesh
+        /// convenience function that returns a simple subset of the pixels in the resulting texture atlas which were
+        /// valid for this mesh
         /// </summary>
         public List<PixelPoint> SubsampleUVSpace(double pct, int widthPixels, int heightPixels)
         {

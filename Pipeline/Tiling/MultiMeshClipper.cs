@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
+using OPS.Util;
 using OPS.Imaging;
 using OPS.Geometry;
 
@@ -22,7 +23,15 @@ namespace OPS.Pipeline
 
         private List<MeshImagePair> inputs = new List<MeshImagePair>();
         private TextureBaker textureBaker;
-        private TexturedMeshClipper texturedMeshClipper = new TexturedMeshClipper();
+        private TexturedMeshClipper texturedMeshClipper;
+
+        public MultiMeshClipper(int borderSize = TilingDefaults.TEXTURE_PATCH_BORDER_SIZE,
+                                bool powerOfTwoTextures = TilingDefaults.POWER_OF_TWO_TEXTURES,
+                                bool allowRotation = TilingDefaults.TEXTURE_PATCH_ALLOW_ROTATION,
+                                ILogger logger = null)
+        {
+            texturedMeshClipper = new TexturedMeshClipper(borderSize, powerOfTwoTextures, allowRotation, logger);
+        }
 
         /// <summary>
         /// Adds a new input dataset
@@ -79,8 +88,8 @@ namespace OPS.Pipeline
         /// <returns></returns>
         public Mesh Clip(BoundingBox box, bool ragged = false)
         {
-            var meshes = inputs.Where(mip => !mip.MeshOp.Empty(box)).Select(mip => mip.MeshOp.Clip(box, ragged));
-            var merged = Mesh.Merge(meshes.ToArray());
+            var meshes = inputs.Where(mip => !mip.MeshOp.Empty(box)).Select(mip => mip.MeshOp.Clipped(box, ragged));
+            var merged = MeshMerge.Merge(meshes.ToArray());
             merged.Clean();
             return merged;
         }
@@ -93,9 +102,9 @@ namespace OPS.Pipeline
         /// </summary>
         /// <param name="box"></param>
         /// <returns></returns>
-        public MeshImagePair ClipWithTexture(BoundingBox box, int maxTextureSize)
+        public MeshImagePair ClipWithTexture(BoundingBox box, int maxTextureSize = -1, double maxTexelsPerMeter = -1)
         {
-            return texturedMeshClipper.Clip(box, maxTextureSize);
+            return texturedMeshClipper.Clip(box, maxTextureSize, maxTexelsPerMeter);
         }
 
         /// <summary>
@@ -112,7 +121,7 @@ namespace OPS.Pipeline
         /// <param name="mesh"></param>
         /// <param name="textureSize"></param>
         /// <returns></returns>
-        public MeshImagePair BakeTexture(Mesh mesh, int textureSize, Action<string> info = null)
+        public MeshImagePair BakeTexture(Mesh mesh, int textureSize, double maxStretch = 1, Action<string> info = null)
         {
             if (textureBaker == null)
             {
@@ -124,10 +133,10 @@ namespace OPS.Pipeline
 
             if (!mesh.HasUVs)
             {
-                mesh = UVAtlas.Atlas(mesh, textureSize, textureSize);
-                if(mesh == null)
+                if (!UVAtlas.Atlas(mesh, textureSize, textureSize, maxStretch: maxStretch,
+                                   logger: new ThunkLogger() { Info = info }))
                 {
-                    info("failed to atlas mesh for texture bake");
+                    info("failed to atlas mesh with UVAtlas");
                     return null;
                 }
             }

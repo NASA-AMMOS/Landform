@@ -105,34 +105,40 @@ namespace OPS.Landform
         [Option(Default = null, HelpText = "Mission flag enables mission specific behavior, optional :venue override, e.g. None, MSL, M2020, M20SOPS, M20SOPS:dev, M20SOPS:sbeta")]
         public string Mission { get; set; }
 
-        [Option(HelpText = "Path/URL to directory containing existing tilesets, can be inferred from --manifestfile", Default = null)]
+        [Option(Default = null, HelpText = "Path/URL to directory containing existing tilesets, can be inferred from --manifestfile")]
         public string TilesetDir { get; set; }
 
-        [Option(HelpText = "Path/URL to existing RDRs with sol replaced with #####, required without --nourls or --tacticalpdsimage", Default = null)]
+        [Option(Default = null, HelpText = "Path/URL to existing RDRs with sol replaced with #####, required without --nourls or --tacticalpdsimage")]
         public string RDRDir { get; set; }
 
-        [Option(HelpText = "Sol of manifest to update", Default = -1)]
+        [Option(Default = -1, HelpText = "Sol of manifest to update, negative to infer")]
         public int Sol { get; set; }
 
-        [Option(HelpText = "SiteDrive of manifest to update (SSSDDDD)", Default = null)]
+        [Option(Default = null, HelpText = "Sol ranges used to build contextual mesh, or null if unspecified")]
+        public string Sols { get; set; }
+
+        [Option(Default = null, HelpText = "SiteDrive of manifest to update (SSSDDDD), null or empty to infer")]
         public string SiteDrive { get; set; }
 
-        [Option(HelpText = "Path/URL of manifest to update, can be inferred from --tilesetdir, --sol, --sitedrive", Default = null)]
+        [Option(Default = null, HelpText = "Sitedrives used to build contextual mesh, or null if unspecified")]
+        public string SiteDrives { get; set; }
+
+        [Option(Default = null, HelpText = "Path/URL of manifest to update, can be inferred from --tilesetdir, --sol, --sitedrive")]
         public string ManifestFile { get; set; }
 
-        [Option(HelpText = "Disable contextual tileset manifest update", Default = false)]
+        [Option(Default = false, HelpText = "Disable contextual tileset manifest update")]
         public bool NoContextual { get; set; }
 
-        [Option(HelpText = "Disable tactical tileset manifest update", Default = false)]
+        [Option(Default = false, HelpText = "Disable tactical tileset manifest update")]
         public bool NoTactical { get; set; }
 
-        [Option(HelpText = "Disable sky tileset manifest update", Default = false)]
+        [Option(Default = false, HelpText = "Disable sky tileset manifest update")]
         public bool NoSky { get; set; }
 
-        [Option(HelpText = "Don't add URLs to manifest", Default = false)]
+        [Option(Default = false, HelpText = "Don't add URLs to manifest")]
         public bool NoURLs { get; set; }
 
-        [Option(HelpText = "PDS image to use for tactical mesh, otherwise search for existing tilesets", Default = null)]
+        [Option(Default = null, HelpText = "PDS image to use for tactical mesh, otherwise search for existing tilesets")]
         public string TacticalPDSImage { get; set; }
 
         [Option(Default = null, HelpText = "AWS profile or omit to use default credentials (can be \"none\")")]
@@ -150,44 +156,41 @@ namespace OPS.Landform
         [Option(Default = "mission", HelpText = "Comma separated priority list of image RDR file extensions")]
         public string ImageRDRExts { get; set; }
 
-        [Option(HelpText = "Don't convert tileset file:// URIs to relative paths", Default = false)]
+        [Option(Default = false, HelpText = "Don't convert tileset file:// URIs to relative paths")]
         public bool NoRelativeFileURIs { get; set; }
 
-        [Option(HelpText = "Convert tileset s3:// URIs to relative paths instead of absolute https:// URIs", Default = false)]
-        public bool RelativeS3URIs { get; set; }
+        [Option(Default = false, HelpText = "Don't convert tileset s3:// URIs to relative paths instead of absolute https:// URIs")]
+        public bool NoRelativeS3URIs { get; set; }
 
         [Option(Default = "mission", HelpText = "S3Proxy (or \"mission\")")]
         public string S3Proxy { get; set; }
 
-        [Option(HelpText = "Cull images with no backprojected pixels from contextual mesh manifest", Default = false)]
+        [Option(Default = false, HelpText = "Cull images with no backprojected pixels from contextual mesh manifest")]
         public bool CullImagesWithoutBackprojectedPixels { get; set; }
 
-        [Option(HelpText = "Don't cull images that don't intersect scene mesh hull from contextual mesh manifest", Default = false)]
+        [Option(Default = false, HelpText = "Don't cull images that don't intersect scene mesh hull from contextual mesh manifest")]
         public bool NoFilterImagesToMeshHull { get; set; }
 
-        [Option(HelpText = "Don't cull unreferenced image and frame manifests", Default = false)]
+        [Option(Default = false, HelpText = "Don't cull unreferenced image and frame manifests")]
         public bool NoCullOrphanImagesAndFrames { get; set; }
 
-        [Option(HelpText = "Don't prefer RDRs outside the browse subdirectory", Default = false)]
+        [Option(Default = false, HelpText = "Don't prefer RDRs outside the browse subdirectory")]
         public bool NoPreferNonBrowseRDRs { get; set; }
 
-        [Option(HelpText = "Don't allow using RDRs in the browse subdirectory", Default = false)]
+        [Option(Default = false, HelpText = "Don't allow using RDRs in the browse subdirectory")]
         public bool NoAllowBrowseRDRs { get; set; }
 
-        [Option(HelpText = "Don't filter tactical meshes to the best ID in each equivalency group of version-like variants", Default = false)]
+        [Option(Default = false, HelpText = "Don't filter tactical meshes to the best ID in each equivalency group of version-like variants")]
         public bool NoFilterTacticalMeshIDs { get; set; }
 
-        [Option(HelpText = "Min year to search for YYYY/DOY style RDR paths when --rdrdir doesn't contain a ### wildcard", Default = 2020)]
+        [Option(Default = 2020, HelpText = "Min year to search for YYYY/DOY style RDR paths when --rdrdir doesn't contain a ### wildcard")]
         public int YearDOYSearchYearMin { get; set; }
 
-        [Option(HelpText = "Max year to search for YYYY/DOY style RDR paths when --rdrdir doesn't contain a ### wildcard", Default = 2021)]
+        [Option(Default = 2021, HelpText = "Max year to search for YYYY/DOY style RDR paths when --rdrdir doesn't contain a ### wildcard")]
         public int YearDOYSearchYearMax { get; set; }
 
-        [Option(HelpText = "Option disabled for this command", Default = null)]
+        [Option(Default = null, HelpText = "Option disabled for this command")]
         public override string OnlyForSiteDrives { get; set; }
-
-        [Option(HelpText = "Option disabled for this command", Default = null)]
-        public override string MeshFrame { get; set; }
     } 
 
     public class UpdateSceneManifest : GeometryCommand
@@ -403,11 +406,22 @@ namespace OPS.Landform
                 rdrSols.Add(options.Sol);
             }
 
-            if ((string.IsNullOrEmpty(options.ManifestFile) || !options.NoContextual ||
-                (!options.NoTactical && string.IsNullOrEmpty(options.TacticalPDSImage))) &&
-                string.IsNullOrEmpty(options.SiteDrive))
+            if (!string.IsNullOrEmpty(options.OnlyForSiteDrives))
             {
-                throw new Exception("--sitedrive required");
+                throw new Exception("--onlyforsitedrives not implemented for this command");
+            }
+
+            if (!ParseArgumentsAndLoadCaches("tiling/SceneManifest"))
+            {
+                return false; // help
+            }
+
+            //mission and project have now been initialized
+
+            if (string.IsNullOrEmpty(options.SiteDrive) && project != null &&
+                SiteDrive.IsSiteDriveString(project.MeshFrame))
+            {
+                options.SiteDrive = project.MeshFrame;
             }
 
             if (!string.IsNullOrEmpty(options.SiteDrive))
@@ -419,23 +433,13 @@ namespace OPS.Landform
                 options.SiteDrive = (new SiteDrive(options.SiteDrive)).ToString(); //canonicalize
                 pipeline.LogInfo("site drive: {0}", options.SiteDrive);
             }
-
-            if (!string.IsNullOrEmpty(options.OnlyForSiteDrives))
+            else
             {
-                throw new Exception("--onlyforsitedrives not implemented for this command");
+                if (string.IsNullOrEmpty(options.ManifestFile) || !options.NoContextual)
+                {
+                    throw new Exception("--sitedrive required");
+                }
             }
-
-            if (!string.IsNullOrEmpty(options.MeshFrame))
-            {
-                throw new Exception("--meshframe not implemented for this command");
-            }
-
-            if (!ParseArgumentsAndLoadCaches("tiling/SceneManifest"))
-            {
-                return false; // help
-            }
-
-            //mission and project have now been initialized
 
             if (string.IsNullOrEmpty(options.ManifestFile))
             {
@@ -504,11 +508,6 @@ namespace OPS.Landform
             return true;
         }
 
-        protected override string GetMeshFrame()
-        {
-            return options.SiteDrive;
-        }
-
         protected override MissionSpecific GetMission()
         {
             return !string.IsNullOrEmpty(options.Mission) ? MissionSpecific.GetInstance(options.Mission) :
@@ -522,6 +521,16 @@ namespace OPS.Landform
                 return null;
             }
             return base.GetProject();
+        }
+
+        protected override string GetAutoMeshFrame()
+        {
+            return options.NoContextual ? "passthrough" : base.GetAutoMeshFrame();
+        }
+
+        protected override bool PassthroughMeshFrameAllowed()
+        {
+            return options.NoContextual;
         }
 
         protected override void SetOutDir(string outDir)
@@ -543,7 +552,17 @@ namespace OPS.Landform
 
         protected string GetFile(string url, bool filenameUnique = true)
         {
-            return LandformShell.GetFile(pipeline, () => storageHelper, url, "manifest", filenameUnique,
+            //try to re-use cached downloads from ProcessContextual or ProcessTactical
+            string cacheDir = "manifest";
+            if (!options.NoContextual)
+            {
+                cacheDir = "contextual";
+            }
+            else if (!options.NoTactical)
+            {
+                cacheDir = "tactical";
+            }
+            return LandformShell.GetFile(pipeline, () => storageHelper, url, cacheDir, filenameUnique,
                                          options.MaxRetries);
         }
 
@@ -584,7 +603,7 @@ namespace OPS.Landform
                 sceneManifest = SceneManifestHelper.Create();
             }
             sceneManifest.S3Proxy = s3Proxy;
-            sceneManifest.RelativeS3 = options.RelativeS3URIs;
+            sceneManifest.RelativeS3 = !options.NoRelativeS3URIs;
             sceneManifest.RelativeFile = !options.NoRelativeFileURIs;
         }
 
@@ -696,7 +715,7 @@ namespace OPS.Landform
 
         private string ConvertURI(string uri)
         {
-            return SceneManifestHelper.ConvertURI(uri, options.RelativeS3URIs, !options.NoRelativeFileURIs,
+            return SceneManifestHelper.ConvertURI(uri, !options.NoRelativeS3URIs, !options.NoRelativeFileURIs,
                                                   sceneManifest.S3Proxy);
         }
 
@@ -730,25 +749,40 @@ namespace OPS.Landform
                 tilesetUrl = FindJSONUrl(tilesetId);
             }
 
-            SceneMesh sceneMesh = null;
-            foreach (var name in project.GetSceneMeshes())
-            {
-                var sm = SceneMesh.Load(pipeline, project.Name, name);
-                if (sm.Variant == MeshVariant.Default && sm.Frame == options.SiteDrive)
-                {
-                    sceneMesh = sm;
-                    break;
-                }
-            }
-
-            var images = observationCache.GetAllObservations()
+            var imgObs = observationCache.GetAllObservations()
                 .Where(obs => obs is RoverObservation)
                 .Cast<RoverObservation>()
                 .Where(obs => obs.ObservationType == RoverProductType.Image)
                 .ToList();
 
             var backprojectedPixels = new Dictionary<int, int>();
+            var images = FilterImages(imgObs, MeshVariant.Default, TilingCommand.TILING_DIR, backprojectedPixels);
+            sceneManifest.AddOrUpdateContextualTileset(tilesetId, tilesetUrl, options.Sol, options.SiteDrive,
+                                                       options.Sols, options.SiteDrives,
+                                                       frameCache, options.UsePriors, options.OnlyAligned,
+                                                       images, backprojectedPixels, pipeline);
 
+            if (!options.NoSky)
+            {
+                string skyTilesetId = tilesetId + "_sky";
+                string skyTilesetUrl = FindJSONUrl(skyTilesetId);
+                if (skyTilesetUrl != null)
+                {
+                    images = FilterImages(imgObs, MeshVariant.Sky, BuildSkySphere.SKY_TILING_DIR, backprojectedPixels);
+                    sceneManifest.AddOrUpdateContextualTileset(skyTilesetId, !options.NoURLs ? skyTilesetUrl : null,
+                                                               options.Sol, options.SiteDrive,
+                                                               options.Sols, options.SiteDrives,
+                                                               frameCache, options.UsePriors, options.OnlyAligned,
+                                                               images, backprojectedPixels, pipeline);
+                }
+            }
+        }
+
+        private List<RoverObservation> FilterImages(List<RoverObservation> images, MeshVariant meshVariant,
+                                                    string leafFolder, Dictionary<int, int> backprojectedPixels)
+        {
+            backprojectedPixels.Clear();
+            var sceneMesh = SceneMesh.Find(pipeline, project.Name, meshVariant);
             if (sceneMesh != null)
             {
                 bool gotBPP = false;
@@ -758,28 +792,22 @@ namespace OPS.Landform
                     {
                         var tileList = pipeline.GetDataProduct<TileList>(project, sceneMesh.TileListGuid);
                         
-                        if (tileList.MeshFrame != sceneMesh.Frame)
-                        {
-                            throw new Exception(string.Format("tile list in frame {0}, expected {1}",
-                                                              tileList.MeshFrame, sceneMesh.Frame));
-                        }
-                        
                         if (tileList.LeafNames == null || tileList.LeafNames.Count == 0)
                         {
-                            throw new Exception("leaf list empty");
+                            throw new Exception($"{meshVariant} leaf list empty");
                         }
                         
                         if (!tileList.HasIndexImages)
                         {
-                            throw new Exception("tile list missing backproject index images");
+                            throw new Exception($"{meshVariant} tile list missing backproject index images");
                         }
 
-                        pipeline.LogInfo("counting backprojected pixels from {0} leaves", tileList.LeafNames.Count);
+                        pipeline.LogInfo("counting {0} backprojected pixels from {1} leaves",
+                                         meshVariant, tileList.LeafNames.Count);
 
-                        string leafFolder = DecorateOutDir(TilingCommand.TILING_DIR);
                         CoreLimitedParallel.ForEach(tileList.LeafNames, leaf =>
                         {
-                            string indexName = leaf + TileList.INDEX_FILE_SUFFIX + TileList.INDEX_FILE_EXT;
+                            string indexName = leaf + TilingDefaults.INDEX_FILE_SUFFIX + TilingDefaults.INDEX_FILE_EXT;
                             string indexUrl = pipeline.GetStorageUrl(leafFolder, project.Name, indexName);
                             var leafIndex = pipeline.LoadImage(indexUrl);
                             for (int r = 0; r < leafIndex.Height; r++)
@@ -805,28 +833,30 @@ namespace OPS.Landform
                     }
                     catch (Exception ex)
                     {
-                        pipeline.LogWarn("error counting backprojected pixels: {0}", ex.Message);
+                        pipeline.LogWarn("error counting {0} backprojected pixels: {1}", meshVariant, ex.Message);
                     }
                 }
                 else
                 {
-                    pipeline.LogWarn("cannot count backprojected pixels, scene mesh {0} has no tile list",
-                                     sceneMesh.Name);
+                    pipeline.LogWarn("cannot count backprojected pixels, {0} scene mesh has no tile list", meshVariant);
                 }
+
                 if (gotBPP && options.CullImagesWithoutBackprojectedPixels)
                 {
                     int origCount = images.Count;
                     images = images.Where(obs => backprojectedPixels.ContainsKey(obs.Index)).ToList();
-                    pipeline.LogInfo("culled {0} of {1} images with no backprojected pixels",
-                                     origCount - images.Count, origCount);
+                    pipeline.LogInfo("culled {0} of {1} {2} images with no backprojected pixels",
+                                     origCount - images.Count, origCount, meshVariant);
                 }
-                else if (!options.NoFilterImagesToMeshHull)
+
+                if (!options.NoFilterImagesToMeshHull)
                 {
-                    pipeline.LogInfo("loading scene mesh from database to filter images");
+                    pipeline.LogInfo("loading {0} scene mesh from database to filter images", meshVariant);
                     var mesh = pipeline.GetDataProduct<PlyGZDataProduct>(project, sceneMesh.MeshGuid).Mesh;
                     var meshHull = ConvexHull.CreateWithFallback(mesh);
                     
-                    pipeline.LogInfo("testing {0} image frusta for intersection with scene mesh hull", images.Count);
+                    pipeline.LogInfo("testing {0} image frusta for intersection with {1} scene mesh hull",
+                                     images.Count, meshVariant);
                     var obsToHull = Backproject.BuildFrustumHulls(pipeline, frameCache, options.SiteDrive,
                                                                   options.UsePriors, options.OnlyAligned, images);
                     var tmp = new ConcurrentBag<string>();
@@ -839,8 +869,8 @@ namespace OPS.Landform
                     });
                     var keepers = new HashSet<string>();
                     keepers.UnionWith(tmp);
-                    pipeline.LogInfo("culled {0} of {1} images that did not intersect mesh hull",
-                                     images.Count - keepers.Count, images.Count);
+                    pipeline.LogInfo("culled {0} of {1} {2} images that did not intersect mesh hull",
+                                     images.Count - keepers.Count, images.Count, meshVariant);
                     images = images.Where(obs => keepers.Contains(obs.Name)).ToList();
                 }
             }
@@ -848,23 +878,9 @@ namespace OPS.Landform
             {
                 pipeline.LogWarn("no {0} scene mesh in frame {1} in project {2}, using all {3} images, " +
                                  "cannot count backprojected pixels",
-                                 MeshVariant.Default, options.SiteDrive, project.Name, images.Count);
+                                 meshVariant, options.SiteDrive, project.Name, images.Count);
             }
-
-            sceneManifest.AddOrUpdateContextualTileset(tilesetId, tilesetUrl, options.SiteDrive,
-                                                       frameCache, options.UsePriors, options.OnlyAligned,
-                                                       images, backprojectedPixels, pipeline);
-
-            if (!options.NoSky)
-            {
-                string skyTilesetId = tilesetId + "_sky";
-                string skyTilesetUrl = FindJSONUrl(skyTilesetId);
-                if (skyTilesetUrl != null)
-                {
-                    sceneManifest.AddOrUpdateSkyTileset(skyTilesetId, !options.NoURLs ? skyTilesetUrl : null,
-                                                        options.SiteDrive, pipeline);
-                }
-            }
+            return images;
         }
 
         private void UpdateTacticalMeshManifests()

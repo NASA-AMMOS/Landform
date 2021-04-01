@@ -42,6 +42,9 @@ namespace OPS.Landform
         [Option(HelpText = "Only use observations from specific site drives SSSSSDDDDD, comma separated, wildcard xxxxx", Default = null)]
         public virtual string OnlyForSiteDrives { get; set; }
 
+        [Option(HelpText = "Allow rover observations for which no suitable rover mask is available or could be generated", Default = false)]
+        public virtual bool AllowUnmaskedRoverObservations { get; set; }
+
         [Option(HelpText = "Allowed sources for adjusted transforms, comma separated, all if empty (Adjusted, Manual, Landform, LandformBEV, LandformBEVRoot, LandformBEVCalf, Agisoft)", Default = null)]
         public virtual string AdjustedTransformSources { get; set; }
 
@@ -65,6 +68,8 @@ namespace OPS.Landform
 
         protected FrameCache frameCache;
         protected ObservationCache observationCache;
+
+        protected string meshFrame;
 
         protected SiteDrive? rootSiteDrive;
 
@@ -92,11 +97,6 @@ namespace OPS.Landform
             priorSources = FrameTransform.ParseSources(wcopts.PriorTransformSources);
             adjustedSources = FrameTransform.ParseSources(wcopts.AdjustedTransformSources);
 
-            if (outDir != null)
-            {
-                outDir = DecorateOutDir(outDir);
-            }
-
             if (!base.ParseArguments(outDir))
             {
                 return false; //help
@@ -108,12 +108,9 @@ namespace OPS.Landform
                 LoadObservationCache();
             }
 
-            return true;
-        }
+            HandleSpecialMeshFrames();
 
-        protected virtual string DecorateOutDir(string outDir)
-        {
-            return FrameTransform.AppendSourcesPath(outDir, adjustedSources, priorSources, wcopts.UsePriors);
+            return true;
         }
 
         protected override bool ParseArguments(string outDir)
@@ -121,10 +118,134 @@ namespace OPS.Landform
             throw new NotImplementedException();
         }
 
+        protected virtual string GetMeshFrame()
+        {
+            return project != null ? project.MeshFrame : "auto";
+        }
+
+        protected virtual string GetAutoMeshFrame()
+        {
+            return "newest";
+        }
+
+        protected virtual bool PassthroughMeshFrameAllowed()
+        {
+            return false;
+        }
+
+        protected virtual bool NonPassthroughMeshFrameAllowed()
+        {
+            return true;
+        }
+
+        protected virtual void HandleSpecialMeshFrames()
+        {
+            meshFrame = GetMeshFrame();
+
+            if (string.IsNullOrEmpty(meshFrame))
+            {
+                return;
+            }
+
+            meshFrame = meshFrame.ToLower().Trim();
+
+            if (meshFrame == "auto")
+            {
+                meshFrame = GetAutoMeshFrame();
+            }
+                
+            string missionRoot = mission != null ? mission.RootFrameName() : null;
+
+            var specials =
+                new string[] { "passthrough", "newest", "oldest", "mission_root", "project_root", missionRoot };
+
+            bool isSiteDrive = SiteDrive.IsSiteDriveString(meshFrame);
+            bool isSpecial = !isSiteDrive && specials.Contains(meshFrame);
+
+            if (!isSiteDrive && !isSpecial)
+            {
+                throw new Exception("unsupported mesh frame: " + meshFrame);
+            }
+
+            var origMeshFrame = meshFrame;
+            if (meshFrame == "passthrough")
+            {
+                if (!PassthroughMeshFrameAllowed())
+                {
+                    throw new Exception("passthrough mesh frame not allowed");
+                }
+            }
+            else if (!NonPassthroughMeshFrameAllowed())
+            {
+                throw new Exception("only passthrough mesh frame allowed");
+            }
+
+            if (meshFrame == "mission_root" || meshFrame == missionRoot)
+            {
+                meshFrame = "root"; //recognized as a meta-name by FrameCache.GetObservationTransform()
+            }
+            else if (meshFrame == "project_root")
+            {
+                if (rootSiteDrive == null)
+                {
+                    //this can happen if there were no frames to load or the frame cache was not loaded
+                    throw new Exception("project root output requested but no root site drive");
+                }
+                if (rootSiteDrive == mission.GetLandingSiteDrive())
+                {
+                    meshFrame = "root";
+                }
+                else
+                {
+                    meshFrame = rootSiteDrive.ToString();
+                }
+            }
+            else if (meshFrame == "newest" || meshFrame == "oldest")
+            {
+                if (observationCache == null)
+                {
+                    throw new Exception("observation cache not loaded, cannot resolve special frame: " + meshFrame);
+                }
+                                              
+                var sds = observationCache
+                    .GetAllObservations()
+                    .Where(obs => obs is RoverObservation)
+                    .Select(obs => ((RoverObservation)obs).SiteDrive)
+                    .Distinct()
+                    .ToArray();
+
+                if (sds.Length == 0)
+                {
+                    throw new Exception("no sitedrives");
+                }
+
+                if (meshFrame == "newest")
+                {
+                    meshFrame = sds.OrderByDescending(sd => sd).First().ToString();
+                }
+                else
+                {
+                    meshFrame = sds.OrderBy(sd => sd).First().ToString();
+                }
+
+                isSiteDrive = true;
+            }
+
+            //some workflows do not load frame cache, for example updating scene manifest for tactical meshes
+            if (isSiteDrive && frameCache != null && !frameCache.ContainsFrame(meshFrame))
+            {
+                throw new Exception("sitedrive frame not found: " + meshFrame);
+            }
+
+            pipeline.LogInfo("scene mesh frame: {0}{1}", meshFrame,
+                             origMeshFrame != meshFrame ? " (" + origMeshFrame + ")" : "");
+        }
+
         protected virtual void LoadFrameCache()
         {
             frameCache = new FrameCache(pipeline, project.Name);
-            int num = frameCache.PreloadFilteredTransforms(priorSources, adjustedSources, wcopts.UsePriors);
+            int num = frameCache.PreloadFilteredTransforms(priorSources, adjustedSources, wcopts.UsePriors,
+                                                           wcopts.OnlyAligned);
             pipeline.LogInfo("loaded {0} frames in project {1}", num, project.Name);
             rootSiteDrive = frameCache.CheckPriors(mission.GetLandingSiteDrive());
             if (!rootSiteDrive.HasValue)
@@ -152,6 +273,38 @@ namespace OPS.Landform
             return false;
         }
 
+        protected List<RoverObservation> getRoverObservations(Func<RoverObservation, bool> filter = null)
+        {
+            return observationCache.GetAllObservations()
+                .Where(obs => (obs is RoverObservation))
+                .Cast<RoverObservation>()
+                .Where(obs => (filter == null || filter(obs)))
+                .ToList();
+        }
+
+        protected RoverObservation getBestMaskObservation(RoverObservation obs)
+        {
+            var maskObs = observationCache.GetAllObservationsForFrame(frameCache.GetFrame(obs.FrameName))
+                .Where(o => o is RoverObservation)
+                .Cast<RoverObservation>()
+                .Where(o => o.ObservationType == RoverProductType.RoverMask)
+                .Where(o => o.IsLinear == obs.IsLinear)
+                .Where(o => o.Width == obs.Width && o.Height == obs.Height)
+                .ToList();
+
+            if (maskObs.Count == 0)
+            {
+                return null;
+            }
+            
+            var comparator = new RoverObservationComparator(mission);
+            
+            return comparator
+                .KeepBestRoverObservations(maskObs, RoverObservationComparator.LinearVariants.Both,
+                                           RoverProductType.RoverMask)
+                .FirstOrDefault();
+        }
+
         protected virtual void LoadObservationCache()
         {
             var observations = StringHelper.ParseList(wcopts.OnlyForObservations);
@@ -163,11 +316,49 @@ namespace OPS.Landform
             int num = observationCache.
                 Preload(obs =>
                         (!wcopts.NoOrbital && obs.IsOrbital) ||
-                        (!wcopts.NoSurface && (obs is RoverObservation) && ObservationFilter((RoverObservation)obs) &&
+                        (!wcopts.NoSurface && (obs is RoverObservation) &&
+                         (frameCache == null || frameCache.ContainsFrame(obs.FrameName)) &&
+                         ObservationFilter((RoverObservation)obs) &&
                          (siteDrives.Length == 0 || siteDrives.Any(sd => sd == ((RoverObservation)obs).SiteDrive)) &&
                          (observations.Length == 0 || observations.Any(name => name == obs.Name)) &&
                          (frames.Length == 0 || frames.Any(name => name == obs.FrameName)) &&
                          (cams.Length == 0 || cams.Any(c => RoverCamera.IsCamera(c, ((RoverObservation)obs).Camera)))));
+
+            if (!wcopts.AllowUnmaskedRoverObservations && (mission == null || !mission.CanMakeSyntheticRoverMasks()))
+            {
+                var roverObs = getRoverObservations(obs => obs.ObservationType != RoverProductType.RoverMask);
+                int nr = 0;
+                foreach (var obs in roverObs)
+                {
+                    if (getBestMaskObservation(obs) == null)
+                    {
+                        observationCache.Remove(obs);
+                        pipeline.LogVerbose("removing observation {0}, no matching rover mask product", obs.Name);
+                        nr++;
+                    }
+                }
+                var maskObs = getRoverObservations(obs => obs.ObservationType == RoverProductType.RoverMask);
+                {
+                    foreach (var obs in maskObs)
+                    {
+                        var off = observationCache.GetAllObservationsForFrame(frameCache.GetFrame(obs.FrameName))
+                            .Where(o => o is RoverObservation)
+                            .Cast<RoverObservation>()
+                            .ToList();
+                        if (off.Count == 1 && off[0] == obs)
+                        {
+                            observationCache.Remove(obs);
+                            pipeline.LogVerbose("removing orphan mask observation {0}", obs.Name);
+                            nr++;
+                        }
+                    }
+                }
+                num = observationCache.NumObservations();
+                if (nr > 0)
+                {
+                    pipeline.LogInfo("removed {0} rover observations with no matching mask observation", nr);
+                }
+            }
 
             if (num == 0 && !AllowNoObservations())
             {

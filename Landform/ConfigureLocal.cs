@@ -50,10 +50,12 @@ namespace OPS.Landform
                 config.Venue = ConsoleHelper.Prompt("venue", options.Venue, config.Venue, options.Interactive);
                 config.StorageDir = ConsoleHelper.Prompt("storage directory", options.StorageDir, config.StorageDir,
                                                          options.Interactive);
+                string mco = options.MaxCores.HasValue ? options.MaxCores.Value.ToString() : null;
                 config.MaxCores = ConsoleHelper.Prompt("max cores, 0 = all available, N = up to N, -M = reserve M",
-                                                       options.MaxCores, config.MaxCores, options.Interactive);
+                                                       mco, config.MaxCores, options.Interactive);
+                string rso = options.RandomSeed.HasValue ? options.RandomSeed.Value.ToString() : null;
                 config.RandomSeed = ConsoleHelper.Prompt("negative to use a time dependent random seed",
-                                                         options.RandomSeed, config.RandomSeed, options.Interactive);
+                                                         rso, config.RandomSeed, options.Interactive);
                 
                 config.Validate();
                 

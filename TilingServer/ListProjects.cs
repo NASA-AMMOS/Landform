@@ -30,9 +30,17 @@ namespace OPS.TilingServer
 
         public int Run()
         {
-            var projects = TilingProject.FindAll(pipeline);
-            var projectNames = projects.Select(project => project.Name).ToList();
-            Console.WriteLine(JsonHelper.ToJson(projectNames, indent: true, autoTypes: false));
+            try
+            {
+                var projects = TilingProject.FindAll(pipeline);
+                var projectNames = projects.Select(project => project.Name).ToList();
+                Console.WriteLine(JsonHelper.ToJson(projectNames, indent: true, autoTypes: false));
+            }
+            catch (Exception ex)
+            {
+                pipeline.LogException(ex);
+                return 1;
+            }
             return 0;
         }
     }

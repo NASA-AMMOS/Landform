@@ -62,8 +62,6 @@
     <Compile Include="DAESerializer.cs" />
     <Compile Include="DracoSerializer.cs" />
     <Compile Include="FSSR.cs" />
-    <Compile Include="FSSRException.cs" />
-    <Compile Include="FSSRPlyWriter.cs" />
     <Compile Include="HausdorffDistanceStats.cs" />
     <Compile Include="MeshExtensions.cs" />
     <Compile Include="MeshLab.cs" />
@@ -98,6 +96,9 @@
     <Content Include="ExternalApps\PoissonRecon.V12.0.exe">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <Content Include="ExternalApps\PoissonRecon.V13.72.exe">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
     <Content Include="ExternalApps\PoissonReconV10.02.exe">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
@@ -105,6 +106,9 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <Content Include="ExternalApps\SurfaceTrimmer.V12.0.exe">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="ExternalApps\SurfaceTrimmer.V13.72.exe">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>

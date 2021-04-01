@@ -4,6 +4,8 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Microsoft.Xna.Framework;
+using OPS.MathExtensions;
 
 namespace OPS.Geometry
 {
@@ -21,14 +23,15 @@ namespace OPS.Geometry
         protected abstract void WriteVertexColorHeader(StreamWriter sw);
         protected abstract void WriteVertexColor(Vertex v, Stream s);
 
-        public virtual void WriteHeader(Mesh m, StreamWriter sw, string textureName = null, List<string> comments = null)
+        public virtual void WriteHeader(Mesh m, StreamWriter sw, string textureName = null,
+                                        List<string> comments = null)
         {
             sw.WriteLine("ply");
             sw.WriteLine("format binary_little_endian 1.0");
 
             if (textureName != null)
             {
-                sw.WriteLine("comment " + PLYSerializer.TextureFileCommentName +" " + Path.GetFileName(textureName));
+                sw.WriteLine("comment " + PLYSerializer.TextureFileCommentName + " " + Path.GetFileName(textureName));
             }
             if (comments != null)
             {
@@ -124,38 +127,54 @@ namespace OPS.Geometry
     /// property [float/double] x
     /// property [float/double] y
     /// property [float/double] z
-    /// property float nx
-    /// property float ny
-    /// property float nz
+    /// property [float/double] nx
+    /// property [float/double ny
+    /// property [float/double] nz
+    /// [property [float/double] value]
+    /// property [float/double] texture_u
+    /// property [float/double] texture_v
+    /// property [float/uchar] red
+    /// property [float/uchar] green
+    /// property [float/uchar] blue
+    /// [property [float/uchar] alpha]
     /// element face 1
     /// property list uchar int vertex_indices
     /// end_header
     /// </summary>
     public abstract class PLYBaseWriter : PLYWriter
     {
-        protected bool writeXYZValuesAsFloat;
-        public PLYBaseWriter(bool writeXYZValuesAsFloat = false)
+        protected readonly bool writePositionAsFloat;
+        protected readonly bool writeNormalAsFloat;
+        protected readonly bool writeNormalLengthsAsValue;
+        protected readonly bool writeValueAsFloat;
+        protected readonly bool writeUVAsFloat;
+        protected readonly bool writeColorAsFloat;
+        protected readonly bool writeAlpha;
+
+        public PLYBaseWriter(bool writePositionAsFloat = true, bool writeNormalAsFloat = true,
+                             bool writeNormalLengthsAsValue = false, bool writeValueAsFloat = true,
+                             bool writeUVAsFloat = true, bool writeColorAsFloat = false, bool writeAlpha = true)
         {
-            this.writeXYZValuesAsFloat = writeXYZValuesAsFloat;
+            this.writePositionAsFloat = writePositionAsFloat;
+            this.writeNormalAsFloat = writeNormalAsFloat;
+            this.writeNormalLengthsAsValue = writeNormalLengthsAsValue;
+            this.writeValueAsFloat = writeValueAsFloat;
+            this.writeUVAsFloat = writeUVAsFloat;
+            this.writeColorAsFloat = writeColorAsFloat;
+            this.writeAlpha = writeAlpha;
         }
 
-        protected string NumberFormat
-        {
-            get
-            {
-                return writeXYZValuesAsFloat ? "float" : "double";
-            }
-        }
         protected override void WriteVertexPositionHeader(StreamWriter sw)
         {
-            sw.WriteLine("property " + NumberFormat + " x");
-            sw.WriteLine("property " + NumberFormat + " y");
-            sw.WriteLine("property " + NumberFormat + " z");
+            var dt = writePositionAsFloat ? "float" : "double";
+            sw.WriteLine($"property {dt} x");
+            sw.WriteLine($"property {dt} y");
+            sw.WriteLine($"property {dt} z");
         }
 
         protected override void WriteVertexPostion(Vertex v, Stream s)
         {
-            if (writeXYZValuesAsFloat)
+            if (writePositionAsFloat)
             {
                 WriteFloatValue((float)v.Position.X, s);
                 WriteFloatValue((float)v.Position.Y, s);
@@ -169,18 +188,111 @@ namespace OPS.Geometry
             }
         }
 
+        protected override void WriteVertexUVHeader(StreamWriter sw)
+        {
+            string dt = writeUVAsFloat ? "float" : "double";
+            sw.WriteLine($"property {dt} texture_u");
+            sw.WriteLine($"property {dt} texture_v");
+        }
+
+        protected override void WriteVertexUV(Vertex v, Stream s)
+        {
+            if (writeUVAsFloat)
+            {
+                WriteFloatValue((float)v.UV.U, s);
+                WriteFloatValue((float)v.UV.V, s);
+            }
+            else
+            {
+                WriteDoubleValue(v.UV.U, s);
+                WriteDoubleValue(v.UV.V, s);
+            }
+        }
+
+        protected override void WriteVertexColorHeader(StreamWriter sw)
+        {
+            string dt = writeColorAsFloat ? "float" : "uchar";
+            sw.WriteLine($"property {dt} red");
+            sw.WriteLine($"property {dt} green");
+            sw.WriteLine($"property {dt} blue");
+            if (writeAlpha)
+            {
+                sw.WriteLine($"property {dt} alpha");
+            }
+        }
+
+        protected override void WriteVertexColor(Vertex v, Stream s)
+        {
+            if (writeColorAsFloat)
+            {
+                WriteFloatValue((float)(v.Color.R), s);
+                WriteFloatValue((float)(v.Color.G), s);
+                WriteFloatValue((float)(v.Color.B), s);
+                if (writeAlpha)
+                {
+                    WriteFloatValue((float)(v.Color.A), s);
+                }
+            }
+            else
+            {
+                s.WriteByte((byte)(v.Color.R * 255));
+                s.WriteByte((byte)(v.Color.G * 255));
+                s.WriteByte((byte)(v.Color.B * 255));
+                if (writeAlpha)
+                {
+                    s.WriteByte((byte)(v.Color.A * 255));
+                }
+            }
+        }
+
         protected override void WriteVertexNormalHeader(StreamWriter sw)
         {
-            sw.WriteLine("property float nx");
-            sw.WriteLine("property float ny");
-            sw.WriteLine("property float nz");
+            var dt = writeNormalAsFloat ? "float" : "double";
+            sw.WriteLine($"property {dt} nx");
+            sw.WriteLine($"property {dt} ny");
+            sw.WriteLine($"property {dt} nz");
+            if (writeNormalLengthsAsValue)
+            {
+                dt = writeValueAsFloat ? "float" : "double";
+                sw.WriteLine($"property {dt} value");
+            }
         }
 
         protected override void WriteVertexNormal(Vertex v, Stream s)
         {
-            WriteFloatValue((float)v.Normal.X, s);
-            WriteFloatValue((float)v.Normal.Y, s);
-            WriteFloatValue((float)v.Normal.Z, s);
+            Vector3 n = v.Normal;
+            double val = -1;
+            if (writeNormalLengthsAsValue)
+            {
+                val = n.Length();
+                if (val > MathE.EPSILON && Math.Abs(val - 1) > MathE.EPSILON)
+                {
+                    n.Normalize();
+                }
+            }
+            if (writeNormalAsFloat)
+            {
+                WriteFloatValue((float)n.X, s);
+                WriteFloatValue((float)n.Y, s);
+                WriteFloatValue((float)n.Z, s);
+            }
+            else
+            {
+                WriteDoubleValue(n.X, s);
+                WriteDoubleValue(n.Y, s);
+                WriteDoubleValue(n.Z, s);
+            }
+            if (writeNormalLengthsAsValue)
+            {
+                if (writeValueAsFloat)
+                {
+                    WriteFloatValue((float)val, s);
+                }
+                else
+                {
+                    WriteDoubleValue(val, s);
+                }
+            }
         }
     }
 
@@ -189,77 +301,69 @@ namespace OPS.Geometry
     /// The truth table / sample header below shows what properties are required by which tools
     /// 
     /// MeshLab Notes
-    ///     Requires the face elements contain "float texcoord" property in order for the uv map to appear on meshlabs uv map.  These are "wedge textCoords" in meshlab parlance 
-    ///     Requires the vertex properties "texture_u" and "texture_v" exist and are of type "float" in order to recognise what it calls "vert textCoords"
+    ///
+    ///     Requires the face elements contain "float texcoord" property in order for the uv map to appear on meshlabs
+    ///     uv map.  These are "wedge textCoords" in meshlab parlance
+    ///
+    ///     Requires the vertex properties "texture_u" and "texture_v" exist and are of type "float" in order to
+    ///     recognise what it calls "vert textCoords"
+    ///
     ///     As a result we duplicate these values
     ///     Requires color values be stored as uchar
     ///     
     /// Blender Compatibility mode
-    ///     Requires uv coordinates be stored as per vertex named "s" and "t".  We include these in addition to "texture_u" and "texture_v" even though they are exact duplicates
+    //
+    ///     Requires uv coordinates be stored as per vertex named "s" and "t".  We include these in addition to
+    ///     "texture_u" and "texture_v" even though they are exact duplicates
     ///         
     /// Sample Header / Truth table of supported properties
     /// Blank means full support
     /// A type value means only supported with that type
     /// NA means ignored
     /// 
-    ///                                                 MeshLab         Blender         CloudCompare
+    ///                                                 MeshLab         Blender         CloudCompare   PoissionRecon
     /// ply
     /// format binary_little_endian 1.0
     /// [comments TextureFile filename] 
     /// element vertex 3
-    /// property [float/double] x
-    /// property [float/double] y
-    /// property [float/double] z
+    /// property float x
+    /// property float y
+    /// property float z
     /// property float nx
     /// property float ny
     /// property float nz
+    /// [property float value]                           NA             NA              NA             density
     /// property float texture_u                         float          NA              NA
     /// property float texture_v                         float          NA              NA
-    /// property double s                                NA             float/double    NA
-    /// property double t                                NA             float/double    NA
+    /// property float/double s                          NA             float/double    NA
+    /// property float/double t                          NA             float/double    NA
     /// property uchar red                               uchar          uchar/float     uchar/float
     /// property uchar green                             uchar          uchar/float     uchar/float
     /// property uchar blue                              uchar          uchar/float     uchar/float
-    /// property uchar alpha                             uchar          uchar/float     uchar/float
+    /// [property uchar alpha]                           uchar          uchar/float     uchar/float
     /// element face 1
     /// property list uchar int vertex_indices
-    /// property list uchar float texcoord               float          NA              float/double
+    /// property list uchar float/double texcoord        float          NA              float/double
     /// end_header
     /// </summary>
     public class PLYMaximumCompatibilityWriter : PLYBaseWriter
     {
-        public PLYMaximumCompatibilityWriter(bool writeXYZValuesAsFloat) : base(writeXYZValuesAsFloat) { }
-
-        protected override void WriteVertexUV(Vertex v, Stream s)
-        {
-            WriteFloatValue((float)v.UV.U, s);
-            WriteFloatValue((float)v.UV.V, s);
-            WriteDoubleValue(v.UV.U, s);
-            WriteDoubleValue(v.UV.V, s);
-        }
+        public PLYMaximumCompatibilityWriter(bool writeNormalLengthsAsValue = false, bool writeAlpha = true)
+            : base(writeNormalLengthsAsValue: writeNormalLengthsAsValue, writeAlpha: writeAlpha)
+        { }
 
         protected override void WriteVertexUVHeader(StreamWriter sw)
         {
-            sw.WriteLine("property float texture_u");
-            sw.WriteLine("property float texture_v");
-            sw.WriteLine("property double s");
-            sw.WriteLine("property double t");
+            base.WriteVertexUVHeader(sw);
+            string dt = writeUVAsFloat ? "float" : "double";
+            sw.WriteLine($"property {dt} s");
+            sw.WriteLine($"property {dt} t");
         }
 
-        protected override void WriteVertexColorHeader(StreamWriter sw)
+        protected override void WriteVertexUV(Vertex v, Stream s)
         {
-            sw.WriteLine("property uchar red");
-            sw.WriteLine("property uchar green");
-            sw.WriteLine("property uchar blue");
-            sw.WriteLine("property uchar alpha");
-        }
-
-        protected override void WriteVertexColor(Vertex v, Stream s)
-        {
-            s.WriteByte((byte)(v.Color.R * 255));
-            s.WriteByte((byte)(v.Color.G * 255));
-            s.WriteByte((byte)(v.Color.B * 255));
-            s.WriteByte((byte)(v.Color.A * 255));
+            base.WriteVertexUV(v, s);
+            base.WriteVertexUV(v, s);
         }
 
         protected override void WriteFaceHeader(Mesh m, StreamWriter sw)
@@ -267,7 +371,8 @@ namespace OPS.Geometry
             base.WriteFaceHeader(m, sw);
             if (m.HasUVs)
             {
-                sw.WriteLine("property list uchar float texcoord");
+                string dt = writeUVAsFloat ? "float" : "double";
+                sw.WriteLine($"property list uchar {dt} texcoord");
             }
         }
 
@@ -277,22 +382,29 @@ namespace OPS.Geometry
             if (m.HasUVs)
             {
                 s.WriteByte(6);
-                WriteFloatValue((float)m.Vertices[f.P0].UV.U, s);
-                WriteFloatValue((float)m.Vertices[f.P0].UV.V, s);
-                WriteFloatValue((float)m.Vertices[f.P1].UV.U, s);
-                WriteFloatValue((float)m.Vertices[f.P1].UV.V, s);
-                WriteFloatValue((float)m.Vertices[f.P2].UV.U, s);
-                WriteFloatValue((float)m.Vertices[f.P2].UV.V, s);
+                if (writeUVAsFloat)
+                {
+                    WriteFloatValue((float)m.Vertices[f.P0].UV.U, s);
+                    WriteFloatValue((float)m.Vertices[f.P0].UV.V, s);
+                    WriteFloatValue((float)m.Vertices[f.P1].UV.U, s);
+                    WriteFloatValue((float)m.Vertices[f.P1].UV.V, s);
+                    WriteFloatValue((float)m.Vertices[f.P2].UV.U, s);
+                    WriteFloatValue((float)m.Vertices[f.P2].UV.V, s);
+                }
+                else
+                {
+                    WriteDoubleValue(m.Vertices[f.P0].UV.U, s);
+                    WriteDoubleValue(m.Vertices[f.P0].UV.V, s);
+                    WriteDoubleValue(m.Vertices[f.P1].UV.U, s);
+                    WriteDoubleValue(m.Vertices[f.P1].UV.V, s);
+                    WriteDoubleValue(m.Vertices[f.P2].UV.U, s);
+                    WriteDoubleValue(m.Vertices[f.P2].UV.V, s);
+                }
             }
         }
     }
 
     /// <summary>
-    /// Same as maximum compatibility writer except
-    /// - Position values always stored as doubles
-    /// - Color values stored as floats
-    /// - Texture coordintes stored as doubles.  Only uses s and t        
-    /// Sample Header 
     /// ply
     /// format binary_little_endian 1.0
     /// [comments TextureFile filename]
@@ -300,108 +412,55 @@ namespace OPS.Geometry
     /// property double x
     /// property double y
     /// property double z
-    /// property float nx
-    /// property float ny
-    /// property float nz
-    /// property double s 
-    /// property double t 
+    /// property double nx
+    /// property double ny
+    /// property double nz
+    /// [property double value]
+    /// property double texture_u
+    /// property double texture_v
     /// property float red
     /// property float green
     /// property float blue
-    /// property float alpha
+    /// [property float alpha]
     /// element face 1
     /// property list uchar int vertex_indices
     /// end_header
     /// </summary>
     public class PLYHighPrecisionWriter : PLYBaseWriter
     {
-        public PLYHighPrecisionWriter() : base(false) { }
-
-        protected override void WriteVertexUVHeader(StreamWriter sw)
-        {
-            sw.WriteLine("property double s");
-            sw.WriteLine("property double t");
-        }
-
-        protected override void WriteVertexUV(Vertex v, Stream s)
-        {
-            WriteDoubleValue(v.UV.U, s);
-            WriteDoubleValue(v.UV.V, s);
-        }
-
-        protected override void WriteVertexColorHeader(StreamWriter sw)
-        {
-            sw.WriteLine("property float red");
-            sw.WriteLine("property float green");
-            sw.WriteLine("property float blue");
-            sw.WriteLine("property float alpha");
-        }
-
-        protected override void WriteVertexColor(Vertex v, Stream s)
-        {
-            WriteFloatValue((float)v.Color.R, s);
-            WriteFloatValue((float)v.Color.G, s);
-            WriteFloatValue((float)v.Color.B, s);
-            WriteFloatValue((float)v.Color.A, s);
-        }
+        public PLYHighPrecisionWriter(bool writeNormalLengthsAsValue = false, bool writeAlpha = true)
+            : base(writeNormalLengthsAsValue: writeNormalLengthsAsValue, writeAlpha: writeAlpha,
+                   writePositionAsFloat: false, writeNormalAsFloat: false, writeValueAsFloat: false,
+                   writeUVAsFloat: false, writeColorAsFloat: true)
+        { }
     }
 
     /// <summary>
-    /// Save a PLY in a way that minimizes file size 
-    /// - Position values can be stored as float or doubles
-    /// - Color values stored as floats
-    /// - Texture coordintes stored as floats   
-    /// Sample Header 
     /// ply
     /// format binary_little_endian 1.0
     /// [comments TextureFile filename]
     /// element vertex 3
-    /// property float/double x
-    /// property float/double y
-    /// property float/double z
+    /// property float x
+    /// property float y
+    /// property float z
     /// property float nx
     /// property float ny
     /// property float nz
+    /// [property float value]
     /// property float texture_u
     /// property float texture_v
-    /// property float red
-    /// property float green
-    /// property float blue
-    /// property float alpha
+    /// property uchar red
+    /// property uchar green
+    /// property uchar blue
+    /// [property uchar alpha]
     /// element face 1
     /// property list uchar int vertex_indices
     /// end_header
     /// </summary>
     public class PLYCompactFileWriter : PLYBaseWriter
     {
-        public PLYCompactFileWriter(bool writeXYZValuesAsFloat = false) : base(writeXYZValuesAsFloat) { }
-
-        protected override void WriteVertexUVHeader(StreamWriter sw)
-        {
-            sw.WriteLine("property float texture_u");
-            sw.WriteLine("property float texture_v");
-        }
-
-        protected override void WriteVertexUV(Vertex v, Stream s)
-        {
-            WriteFloatValue((float)v.UV.U, s);
-            WriteFloatValue((float)v.UV.V, s);
-        }
-
-        protected override void WriteVertexColorHeader(StreamWriter sw)
-        {
-            sw.WriteLine("property float red");
-            sw.WriteLine("property float green");
-            sw.WriteLine("property float blue");
-            sw.WriteLine("property float alpha");
-        }
-
-        protected override void WriteVertexColor(Vertex v, Stream s)
-        {
-            WriteFloatValue((float)v.Color.R, s);
-            WriteFloatValue((float)v.Color.G, s);
-            WriteFloatValue((float)v.Color.B, s);
-            WriteFloatValue((float)v.Color.A, s);
-        }
+        public PLYCompactFileWriter(bool writeNormalLengthsAsValue = false, bool writeAlpha = true)
+            : base(writeNormalLengthsAsValue: writeNormalLengthsAsValue, writeAlpha: writeAlpha)
+        { }
     }
 }

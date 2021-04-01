@@ -166,7 +166,7 @@ namespace QMDTMesher
             }
             logger.Info("Calculating roughness");
             var rmesh = roughness.CalculateRoughness(opt.RoughnessRadius, new ProgressReporter<int>(1, i=> logger.Info("Progress: " + i + "%")));
-            PLYSerializer.Write(rmesh, opt.OutputMesh, plyWriter: new PointCloudRoughness.RoughnessPlyWriter(true));
+            PLYSerializer.Write(rmesh, opt.OutputMesh, plyWriter: new PointCloudRoughness.RoughnessPLYWriter());
         }
         
         static Mesh LoadScan(string filename, double normalRadius, double cameraDist)

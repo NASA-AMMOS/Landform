@@ -143,21 +143,21 @@ namespace OPS.Geometry
                             minFilter, maxFilter);
         }
 
-       public DEM Decimated(int blocksize)
+        public DEM Decimated(int blocksize, Action<string> progress = null)
         {
-            var decimated = dem.Decimated(blocksize);
+            var decimated = dem.Decimated(blocksize, progress: progress);
             decimated.CameraModel = CameraModel.Decimated(blocksize);
             return new DEM(decimated);
         }
 
-        public DEM DecimateTo(int maxSize)
+        public DEM DecimateTo(int maxSize, Action<string> progress = null)
         {
             double sz = Math.Max(Width, Height);
             if (sz < maxSize)
             {
                 return this;
             }
-            return Decimated((int)Math.Ceiling(sz / maxSize));
+            return Decimated((int)Math.Ceiling(sz / maxSize), progress);
         }
 
         public bool IsZAligned()

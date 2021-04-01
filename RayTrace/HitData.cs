@@ -26,14 +26,14 @@ namespace OPS.RayTrace
 
         /// <summary>
         /// Normal of face intersected as defined by vertex position and winding order
-        /// Normal is in world coordinates
+        /// Normal is normalized and in world coordinates
         /// </summary>
         public readonly Vector3 FaceNormal;
 
         /// <summary>
         /// Normal at intersection point as interpolated between vertex normals
         /// Null if the mesh hit does not specify vertex normals
-        /// Normal is in world coordinates
+        /// Normal is in world coordinates, and is normalized only if the vertex normals were
         /// </summary>
         public readonly Vector3? PointNormal;
 
@@ -52,12 +52,13 @@ namespace OPS.RayTrace
         /// </summary>
         public readonly Image Texture;
 
-        public HitData(Vector3 position, Vector3 geometryNormal, Vector3? meshNormal, Vector2? uv, Mesh mesh, Image texture, double distance)
+        public HitData(Vector3 position, Vector3 faceNormal, Vector3? pointNormal,
+                       Vector2? uv, Mesh mesh, Image texture, double distance)
         {
             this.Distance = distance;
             this.Position = position;
-            this.FaceNormal = geometryNormal;
-            this.PointNormal = meshNormal;
+            this.FaceNormal = faceNormal;
+            this.PointNormal = pointNormal;
             this.UV = uv;
             this.mesh = mesh;
             this.Texture = texture;

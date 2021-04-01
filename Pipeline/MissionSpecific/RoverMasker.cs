@@ -135,17 +135,29 @@ namespace OPS.Pipeline
         {
             if (!string.IsNullOrEmpty(maskUrl))
             {
-                return Load(pipeline, maskUrl);
+                var mask = Load(pipeline, maskUrl);
+                if (mask.Width == metadata.Width && mask.Height == metadata.Height)
+                {
+                    return mask;
+                }
+                else
+                {
+                    pipeline.LogWarn("rover mask {0} is {1}x{2} but observation image is {3}x{4}, " +
+                                     "attempting to build synthetic mask", maskUrl, mask.Width, mask.Height,
+                                     metadata.Width, metadata.Height);
+                }
             }
-            else
-            {
-                return Build(metadata);
-            }
+            return Build(metadata);
         }
 
-        virtual public int GetBorderPixels(PDSParser parser)
+        public virtual int GetBorderPixels(PDSParser parser)
         {
             return ImageMasker.DEF_MASK_BORDER;
+        }
+
+        public virtual bool CanMakeSyntheticRoverMasks()
+        {
+            return true;
         }
     }
 
@@ -162,7 +174,9 @@ namespace OPS.Pipeline
             var cam = mission.GetCamera(parser);
             if (mission.IsHazcam(cam))
             {
-                return 150; //enough to fix some errors in our homemade rover masks (rear: RTG, front: arm parts) ISSUE 1082 for example
+                //enough to fix some errors in our homemade rover masks (rear: RTG, front: arm parts)
+                //ISSUE 1082 for example
+                return 150;
             }
             else
             {
@@ -183,9 +197,29 @@ namespace OPS.Pipeline
         //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/554
         public override RoverModel GetRoverModel() { return null; }
 
+        public override int GetBorderPixels(PDSParser parser)
+        {
+            //M20 camera SIS says zcam
+            //"can acquire images of up to 1648 x 1200 pixels (generally only 1600 x 1200 are used)"
+            //and during early mission at least we are seeing black borders on the left and right sides of zcam
+            //images, but those images are also 1648 wide
+            int def = base.GetBorderPixels(parser);
+            var cam = mission.GetCamera(parser);
+            if (mission.IsMastcam(cam) && parser.metadata.Width > 1600)
+            {
+                return def + (parser.metadata.Width - 1600) / 2;
+            }
+            return def;
+        }
+
         public override PDSRoverArticulationParser GetParser(PDSMetadata metadata)
         {
             return new M2020RoverArticulationParser(metadata);
+        }
+
+        public override bool CanMakeSyntheticRoverMasks()
+        {
+            return false;
         }
     }
 }

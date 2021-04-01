@@ -72,25 +72,66 @@ if not "%LANDFORM_CONTEXTUAL_TILESET_INDEX_FORMAT%"=="" (
    set tilesetindexformat=--tilesetindexformat=%LANDFORM_CONTEXTUAL_TILESET_INDEX_FORMAT%
 )
 
-rem --- end service specific boilerplate, begin service specific ---
+set maxfacespertile=
+if not "%LANDFORM_CONTEXTUAL_MAX_FACES_PER_TILE%"=="" (
+   set maxfacespertile=--maxfacespertile=%LANDFORM_CONTEXTUAL_MAX_FACES_PER_TILE%
+)
 
-set maxfetch=50G
-if not "%LANDFORM_CONTEXTUAL_MAX_FETCH%"=="" set maxfetch=%LANDFORM_CONTEXTUAL_MAX_FETCH%
+set maxtileresolution=
+if not "%LANDFORM_CONTEXTUAL_MAX_TILE_RESOLUTION%"=="" (
+   set maxtileresolution=--maxtileresolution=%LANDFORM_CONTEXTUAL_TILE_RESOLUTION%
+)
 
-set maxorbital=20G
-if not "%LANDFORM_CONTEXTUAL_MAX_ORBITAL%"=="" set maxorbital=%LANDFORM_CONTEXTUAL_MAX_ORBITAL%
+set mintileextent=
+if not "%LANDFORM_CONTEXTUAL_MIN_TILE_EXTENT%"=="" (
+   set mintileextent=--mintileextent=%LANDFORM_CONTEXTUAL_MIN_TILE_EXTENT%
+)
 
-set nocombinedmanifest=
-if not "%LANDFORM_CONTEXTUAL_NO_COMBINED_MANIFEST%"=="" set nocombinedmanifest=--nocombinedmanifest
+set maxleafarea=
+if not "%LANDFORM_CONTEXTUAL_MAX_LEAF_AREA%"=="" (
+   set maxleafarea=--maxleafarea=%LANDFORM_CONTEXTUAL_MAX_LEAF_AREA%
+)
 
-set noorbital=
-if not "%LANDFORM_CONTEXTUAL_NO_ORBITAL%"=="" set noorbital=--noorbital
+set maxorbitalleafarea=
+if not "%LANDFORM_CONTEXTUAL_MAX_ORBITAL_LEAF_AREA%"=="" (
+   set maxorbitalleafarea=--maxorbitalleafarea=%LANDFORM_CONTEXTUAL_MAX_ORBITAL_LEAF_AREA%
+)
 
-set nosky=
-if not "%LANDFORM_CONTEXTUAL_NO_SKY%"=="" set nosky=--nosky
+set notexturesplitrespectmaxtexelspermeter=
+if not "%LANDFORM_CONTEXTUAL_NO_TEXTURE_SPLIT_RESPECT_MAX_TEXELS_PER_METER%"=="" (
+   set notexturesplitrespectmaxtexelspermeter=--notexturesplitrespectmaxtexelspermeter
+)
 
-set skymode=
-if not "%LANDFORM_CONTEXTUAL_SKY_MODE%"=="" set skymode=--skymode=%LANDFORM_CONTEXTUAL_SKY_MODE%
+set maxtexelspermeter=
+if not "%LANDFORM_CONTEXTUAL_MAX_TEXELS_PER_METER%"=="" (
+   set maxtexelspermeter=--maxtexelspermeter=%LANDFORM_CONTEXTUAL_MAX_TEXELS_PER_METER%
+)
+
+set maxorbitaltexelspermeter=
+if not "%LANDFORM_CONTEXTUAL_MAX_ORBITAL_TEXELS_PER_METER%"=="" (
+   set maxorbitaltexelspermeter=--maxorbitaltexelspermeter=%LANDFORM_CONTEXTUAL_MAX_ORBITAL_TEXELS_PER_METER%
+)
+
+set maxtexturestretch=
+if not "%LANDFORM_CONTEXTUAL_MAX_TEXTURE_STRETCH%"=="" (
+   set maxtexturestretch=--maxtexturestretch=%LANDFORM_CONTEXTUAL_MAX_TEXTURE_STRETCH%
+)
+
+set poweroftwotextures=
+if not "%LANDFORM_CONTEXTUAL_POWER_OF_TWO_TEXTURES%"=="" set poweroftwotextures=--poweroftwotextures
+
+set colorize=
+if not "%LANDFORM_CONTEXTUAL_COLORIZE%"=="" set colorize=--colorize
+
+set maxglancingangledegrees=
+if not "%LANDFORM_CONTEXTUAL_MAX_GLANCING_ANGLE_DEGREES%"=="" (
+    set maxglancingangledegrees=--maxglancingangledegrees=%LANDFORM_CONTEXTUAL_MAX_GLANCING_ANGLE_DEGREES%
+)
+
+set skirtmode=
+if not "%LANDFORM_CONTEXTUAL_SKIRT_MODE%"=="" (
+   set skirtmode=--skirtmode=%LANDFORM_CONTEXTUAL_SKIRT_MODE%
+)
 
 set noindices=
 if not "%LANDFORM_CONTEXTUAL_NO_INDICES%"=="" set noindices=--nopublishindeximages
@@ -98,11 +139,74 @@ if not "%LANDFORM_CONTEXTUAL_NO_INDICES%"=="" set noindices=--nopublishindeximag
 set embedindices=
 if not "%LANDFORM_CONTEXTUAL_EMBED_INDICES%"=="" set embedindices=--embedindeximages
 
+rem --- end service specific boilerplate, begin service specific ---
+
+set maxfetch=50G
+if not "%LANDFORM_CONTEXTUAL_MAX_FETCH%"=="" set maxfetch=%LANDFORM_CONTEXTUAL_MAX_FETCH%
+
+set nocombinedmanifest=
+if not "%LANDFORM_CONTEXTUAL_NO_COMBINED_MANIFEST%"=="" set nocombinedmanifest=--nocombinedmanifest
+
+set maxorbital=--maxorbital=20G
+if not "%LANDFORM_CONTEXTUAL_MAX_ORBITAL%"=="" set maxorbital=--maxorbital=%LANDFORM_CONTEXTUAL_MAX_ORBITAL%
+
+set orbitalopts=%maxorbital%
+if not "%LANDFORM_CONTEXTUAL_NO_ORBITAL%"=="" set orbitalopts=%orbitalopts% --noorbital
+
+if not "%LANDFORM_CONTEXTUAL_ORBITAL_DEM_URL%"=="" (
+   set orbitalopts=%orbitalopts% --orbitaldemurl=%LANDFORM_CONTEXTUAL_ORBITAL_DEM_URL%
+)
+
+if not "%LANDFORM_CONTEXTUAL_ORBITAL_IMAGE_URL%"=="" (
+   set orbitalopts=%orbitalopts% --orbitalimageurl=%LANDFORM_CONTEXTUAL_ORBITAL_IMAGE_URL%
+)
+
+set skyopts=
+if not "%LANDFORM_CONTEXTUAL_NO_SKY%"=="" set skyopts=%skyopts% --nosky
+
+if not "%LANDFORM_CONTEXTUAL_SKY_MODE%"=="" set skyopts=%skyopts% --skymode=%LANDFORM_CONTEXTUAL_SKY_MODE%
+
+if not "%LANDFORM_CONTEXTUAL_SKY_RADIUS%"=="" (
+    set skyopts=%skyopts% --skysphereradius=%LANDFORM_CONTEXTUAL_SKY_RADIUS%
+)
+
+if not "%LANDFORM_CONTEXTUAL_SKY_MIN_BACKPROJECT_RADIUS%"=="" (
+    set skyopts=%skyopts% --skyminbackprojectradius=%LANDFORM_CONTEXTUAL_SKY_MIN_BACKPROJECT_RADIUS%
+)
+
 set extent=
 if not "%LANDFORM_CONTEXTUAL_EXTENT%"=="" set extent=--extent=%LANDFORM_CONTEXTUAL_EXTENT%
 
 set surfaceextent=
 if not "%LANDFORM_CONTEXTUAL_SURFACE_EXTENT%"=="" set surfaceextent=--surfaceextent=%LANDFORM_CONTEXTUAL_SURFACE_EXTENT%
+
+set minmaxopts=
+
+if not "%LANDFORM_MIN_PRIMARY_SITE_DRIVE_WEDGES%"=="" (
+   set minmaxopts=%minmaxopts% --minprimarysitedrivewedges=%LANDFORM_MIN_PRIMARY_SITE_DRIVE_WEDGES%
+)
+
+if not "%LANDFORM_MAX_CONTEXTUAL_MESH_WEDGES%"=="" (
+   set minmaxopts=%minmaxopts% --maxcontextualmeshwedges=%LANDFORM_MAX_CONTEXTUAL_MESH_WEDGES%
+)
+
+if not "%LANDFORM_MAX_SITEDRIVES%"=="" (
+   set minmaxopts=%minmaxopts% --maxsitedrives=%LANDFORM_MAX_SITEDRIVES%
+)
+
+if not "%LANDFORM_MAX_SITEDRIVE_DISTANCE%"=="" (
+   set minmaxopts=%minmaxopts% --maxsitedrivedistance=%LANDFORM_MAX_SITEDRIVE_DISTANCE%
+)
+
+if not "%LANDFORM_MAX_SOL_RANGE%"=="" (
+   set minmaxopts=%minmaxopts% --maxsolrange=%LANDFORM_MAX_SOL_RANGE%
+)
+
+set allowunmasked=
+if not "%LANDFORM_CONTEXTUAL_ALLOW_UNMASKED%"=="" set allowunmasked==--allowunmaskedroverobservations
+
+set solblacklist=
+if not "%LANDFORM_CONTEXTUAL_SOL_BLACKLIST%"=="" set solblacklist=--solblacklist=%LANDFORM_CONTEXTUAL_SOL_BLACKLIST%
 
 set msgopts=
 if not "%LANDFORM_CONTEXTUAL_MAX_HANDLER_SEC%"=="" (
@@ -126,9 +230,13 @@ set svcopts=%stdopts% --stacktraces --service --mission=%mission% --queuename=%q
 set svcopts=%svcopts% --awsprofile=%awsprofile% --awsregion=%awsregion% %credentialrefresh%
 set svcopts=%svcopts% %msgopts%
 
-set contextualopts=--maxfetch=%maxfetch% --maxorbital=%maxorbital% %nocombinedmanifest% %noorbital% %nosky% %skymode%
-set contextualopts=%contextualopts% %tilesetimageformat% %tilesetindexformat%
-set contextualopts=%contextualopts% %noindices% %embedindices% %extent% %surfaceextent%
+set tilingopts=%tilesetimageformat% %tilesetindexformat% %noindices% %embedindices%
+set tilingopts=%tilingopts% %maxfacespertile% %maxtileresolution% %mintileextent% %maxleafarea% %maxorbitalleafarea%
+set tilingopts=%tilingopts% %notexturesplitrespectmaxtexelspermeter% %maxtexelspermeter% %maxorbitaltexelspermeter%
+set tilingopts=%tilingopts% %maxtexturestretch% %poweroftwotextures% %colorize% %maxglancingangledegrees% %skirtmode%
+
+set contextualopts=--maxfetch=%maxfetch% %nocombinedmanifest% %orbitalopts% %skyopts% %minmaxopts%
+set contextualopts=%contextualopts% %tilingopts% %allowunmasked% %solblacklist% %extent% %surfaceextent%
 
 set appsdir=%bindir%\ExternalApps
 if exist %appsdir%\opengl32-for-ivcat.dll (

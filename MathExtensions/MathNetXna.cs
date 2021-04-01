@@ -25,7 +25,10 @@ namespace OPS.MathExtensions
 
         public static Matrix ToXna(this Matrix<double> mat)
         {
-            if (mat.RowCount > 4 || mat.ColumnCount != mat.RowCount) throw new InvalidOperationException("Attempt to convert >4x4 matrix to XNA");
+            if (mat.RowCount > 4 || mat.ColumnCount != mat.RowCount)
+            {
+                throw new InvalidOperationException("Attempt to convert >4x4 matrix to XNA");
+            }
             Matrix res = Matrix.Identity;
             for (int i = 0; i < mat.RowCount; i++)
             {

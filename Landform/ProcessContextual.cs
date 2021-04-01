@@ -149,7 +149,7 @@ namespace OPS.Landform
         [Option(Default = null, HelpText = "Sol(s) and range(s) with primary one first, e.g. 8,6-10, mutually exclusive with --service")]
         public string Sols { get; set; }
 
-        [Option(Default = null, HelpText = "Sitedrives with primary one first, mutually exclusive with --service")]
+        [Option(Default = null, HelpText = "Sitedrives with primary one first, mutually exclusive with --service, if omitted or \"auto\" then autodetect sitedrive with most wedges in primary sol and all other qualifying sitedrives in sol range")]
         public string SiteDrives { get; set; }
 
         [Option(Default = false, HelpText = "Don't fetch")]
@@ -167,14 +167,26 @@ namespace OPS.Landform
         [Option(Default = false, HelpText = "Don't ingest")]
         public bool NoIngest { get; set; }
 
+        [Option(Default = false, HelpText = "Don't align")]
+        public bool NoAlign { get; set; }
+
+        [Option(Default = false, HelpText = "Don't build geometry")]
+        public bool NoGeometry { get; set; }
+
         [Option(Default = false, HelpText = "Don't generate tileset")]
         public bool NoTileset { get; set; }
 
         [Option(Default = false, HelpText = "Don't generate sky sphere tileset")]
         public bool NoSky { get; set; }
 
-        [Option(HelpText = "Sky mode (Box, Sphere, TopoSphere)", Default = SkyMode.Box)]
+        [Option(HelpText = "Sky mode (Box, Sphere, TopoSphere, Auto)", Default = BuildSkySphere.DEF_SKY_MODE)]
         public SkyMode SkyMode { get; set; }
+
+        [Option(HelpText = "Sky sphere radius (meters), or auto", Default = "auto")]
+        public string SkySphereRadius { get; set; }
+
+        [Option(HelpText = "Minimum sky backproject radius (meters), or auto", Default = "auto")]
+        public string SkyMinBackprojectRadius { get; set; }
 
         [Option(Default = false, HelpText = "Don't write/update combined scene manifest on s3")]
         public bool NoCombinedManifest { get; set; }
@@ -224,11 +236,14 @@ namespace OPS.Landform
         [Option(Default = "*XYZ*.IMG", HelpText = "Master service wedge filename pattern, case insensitive, null, empty,or \"none\" to reject wedge files")]
         public string WedgePattern { get; set; }
 
-        [Option(Default = true, HelpText = "If using list files (--listpattern is specified) then search for sibling list files to detect available sitedrives")]
-        public bool SearchForAdditionalLists { get; set; }
+        [Option(Default = "*RAS*.IMG", HelpText = "Master service texture filename pattern, case insensitive, null, empty,or \"none\" to reject texture files")]
+        public string TexturePattern { get; set; }
 
-        [Option(Default = true, HelpText = "If using wedge files (--wedgepattern is specified) then search for other wedges in the same RDR directory to detect available sitedrives")]
-        public bool SearchForAdditionalWedges { get; set; }
+        [Option(Default = false, HelpText = "If using list files (--listpattern is specified) then don't search for sibling list files to detect available sitedrives")]
+        public bool NoSearchForAdditionalLists { get; set; }
+
+        [Option(Default = false, HelpText = "If using wedge files (--wedgepattern is specified) then don't search for other wedges in the same RDR directory to detect available sitedrives")]
+        public bool NoSearchForAdditionalWedges { get; set; }
 
         [Option(Default = null, HelpText = "Worker message queue name, required with --master")]
         public string WorkerQueueName { get; set; }
@@ -239,24 +254,27 @@ namespace OPS.Landform
         [Option(Default = false, HelpText = "Worker message queue is Landform owned")]
         public bool LandformOwnedWorkerQueue { get; set; }
 
-        [Option(Default = 4, HelpText = "Minimum number of wedges for primary site drive in a contextual mesh, non-positive for no limit")]
+        [Option(Default = ProcessContextual.DEF_MIN_PRIMARY_SITEDRIVE_WEDGES, HelpText = "Minimum number of wedges for primary site drive in a contextual mesh, non-positive for no limit")]
         public int MinPrimarySiteDriveWedges { get; set; }
 
-        [Option(Default = 1, HelpText = "Minimum number of wedges for a site drive to be included in a contextual mesh, non-positive for no limit")]
-        public int MinSiteDriveWedges { get; set; }
-
-        [Option(Default = 500, HelpText = "Maximum number of wedges for which to build a contextual mesh (does not apply to primary sitedrive; culls additional sitedrives in order of increasing distance, then size), non-positive for no limit")]
+        [Option(Default = ProcessContextual.DEF_MAX_WEDGES, HelpText = "Maximum number of wedges for which to build a contextual mesh (does not apply to primary sitedrive; culls additional sitedrives in order of increasing distance, then size), non-positive for no limit")]
         public int MaxContextualMeshWedges { get; set; }
 
-        [Option(Default = 10, HelpText = "Max number of site drives to include in contextual mesh, non-positive for no limit")]
+        [Option(Default = ProcessContextual.DEF_MAX_SITEDRIVES, HelpText = "Max number of site drives to include in contextual mesh, non-positive for no limit")]
         public int MaxSiteDrives{ get; set; }
 
         //https://github.jpl.nasa.gov/OnSight/Landform/issues/1105
-        [Option(Default = BuildGeometry.DEF_SURFACE_EXTENT, HelpText = "Max distance in meters from origin of a site drive to origin of primary site drive to include in contextual mesh, non-positive for no limit")]
+        [Option(Default = ProcessContextual.DEF_MAX_SITEDRIVE_DISTANCE, HelpText = "Max distance in meters from origin of a site drive to origin of primary site drive to include in contextual mesh, non-positive for no limit")]
         public double MaxSiteDriveDistance { get; set; }
 
         [Option(Default = ProcessContextual.DEF_MAX_SOL_RANGE, HelpText = "Max difference between sol and primary sol to include in contextual mesh, negative to use default")]
         public int MaxSolRange { get; set; }
+
+        [Option(HelpText = "Allow rover observations for which no suitable rover mask is available or could be generated", Default = false)]
+        public virtual bool AllowUnmaskedRoverObservations { get; set; }
+
+        [Option(Default = null, HelpText = "Sol blacklist, 1-5,8,6-10")]
+        public string SolBlacklist { get; set; }
     }
 
     public class ProcessContextual : LandformService
@@ -271,16 +289,25 @@ namespace OPS.Landform
 
         public const int MASTER_LOOP_PERIOD_SEC = 10;
 
-        public const int DEF_DEBOUNCE_SEC = 10 * 60; //10 minutes, currently up to ~5min gaps in XYZ IMG within one pass
+        //currently up to ~5min gaps in XYZ IMG within one pass
+        //but PlacesDB orbital solutions may not stabilize for up to 25 min after generation
+        //of navcam orthomosaics
+        public const int DEF_DEBOUNCE_SEC = 30 * 60; //30 minutes
 
+        public const int DEF_MIN_PRIMARY_SITEDRIVE_WEDGES = 4;
+        public const int DEF_MAX_WEDGES = 1000;
+        public const int DEF_MAX_SITEDRIVES = 64;
+        public const double DEF_MAX_SITEDRIVE_DISTANCE = 2 * BuildGeometry.DEF_SURFACE_EXTENT;
         public const int DEF_MAX_SOL_RANGE = 200;
 
         protected ProcessContextualOptions options;
 
-        private Regex listRegex, wedgeRegex;
+        private Regex listRegex, wedgeRegex, textureRegex;
 
         private int debounceMS;
         private int solRange, maxWedges, maxSDs;
+
+        private int[] solBlacklist;
 
         private MessageQueue workerQueue;
 
@@ -326,23 +353,24 @@ namespace OPS.Landform
             public HashSet<int> Sols = new HashSet<int>();
             public SiteDrive PrimarySiteDrive;
             public HashSet<SiteDrive> SiteDrives = new HashSet<SiteDrive>();
+            public int NumWedges = -1; //used only for information and sorting, negative if unknown
+            public long Timestamp; //UTC milliseconds since epoch
         }
-
-        private string Dump(ContextualMeshParameters parameters, bool verbose = false, ContextualMeshMessage cmm = null)
+        
+        private string DumpParameters(ContextualMeshParameters p, bool verbose = false)
         {
-            var ret = string.Format("contextual mesh {0}_{1}",
-                                    SolToString(parameters.PrimarySol), parameters.PrimarySiteDrive);
+            var ret = string.Format("contextual mesh {0}_{1}", SolToString(p.PrimarySol), p.PrimarySiteDrive);
             if (verbose)
             {
                 ret += string.Format(" for {0}; sols {1}; sitedrives {2}",
-                                     parameters.RDRDir, MakeSolRanges(parameters.Sols),
-                                     string.Join(",", parameters.SiteDrives));
-                if (cmm != null)
+                                     p.RDRDir, MakeSolRanges(p.Sols), string.Join(",", p.SiteDrives));
+                if (p.NumWedges >= 0)
                 {
-                    ret += string.Format("; {0} wedges; timestamp {1} UTC",
-                                         cmm.numWedges >= 0 ? cmm.numWedges.ToString() : "??",
-                                         cmm.timestamp > 0 ? UTCTime.MSSinceEpochToDate(cmm.timestamp).ToString()
-                                         : "??");
+                    ret += string.Format("; {0} wedges", p.NumWedges);
+                }
+                if (p.Timestamp > 0)
+                {
+                    ret += string.Format("; timestamp {0} UTC", UTCTime.MSSinceEpochToDate(p.Timestamp));
                 }
             }
             return ret;
@@ -365,8 +393,7 @@ namespace OPS.Landform
 
         protected override void RunBatch()
         {
-            RunPhase("build contextual tileset ",
-                     () => BuildContextualTileset(MakeParameters(options.RDRDir, options.Sols, options.SiteDrives)));
+            RunPhase("build contextual tileset ", BuildContextualTileset);
         }
 
         protected override string DescribeMessage(QueueMessage msg, bool verbose = false)
@@ -381,7 +408,7 @@ namespace OPS.Landform
                     {
                         return "(invalid contextual mesh message)";
                     }
-                    return Dump(parameters, verbose, cmm);
+                    return DumpParameters(parameters, verbose);
                 }
                 catch (Exception ex) //this entire method is never supposed to throw
                 {
@@ -425,7 +452,8 @@ namespace OPS.Landform
                     string file = StringHelper.GetLastUrlPathSegment(url);
                     bool isList = listRegex != null && listRegex.IsMatch(file);
                     bool isWedge = wedgeRegex != null && wedgeRegex.IsMatch(file);
-                    if (!isList && !isWedge)
+                    bool isTexture = textureRegex != null && textureRegex.IsMatch(file);
+                    if (!isList && !isWedge && !isTexture)
                     {
                         reason = "unhandled file type: " + url;
                         return false;
@@ -440,6 +468,17 @@ namespace OPS.Landform
                         var idStr = StringHelper.GetLastUrlPathSegment(url, stripExtension: true);
                         var id = RoverProductId.Parse(idStr, mission, throwOnFail: false);
                         reason = FilterWedge(id);
+                        if (reason != null)
+                        {
+                            reason += ": " + url;
+                            return false;
+                        }
+                    }
+                    if (isTexture)
+                    {
+                        var idStr = StringHelper.GetLastUrlPathSegment(url, stripExtension: true);
+                        var id = RoverProductId.Parse(idStr, mission, throwOnFail: false);
+                        reason = FilterTexture(id);
                         if (reason != null)
                         {
                             reason += ": " + url;
@@ -547,10 +586,9 @@ namespace OPS.Landform
 
             if (!(serviceMode || serviceUtilMode))
             {
-                if (string.IsNullOrEmpty(options.RDRDir) ||
-                    string.IsNullOrEmpty(options.Sols) || string.IsNullOrEmpty(options.SiteDrives))
+                if (string.IsNullOrEmpty(options.RDRDir) || string.IsNullOrEmpty(options.Sols))
                 {
-                    throw new Exception("--rdrdir, --sols, and --sitedrives required without --service or --master");
+                    throw new Exception("--rdrdir and --sols required without --service or --master");
                 }
             }
             else if (!string.IsNullOrEmpty(options.Sols) || !string.IsNullOrEmpty(options.SiteDrives))
@@ -558,19 +596,26 @@ namespace OPS.Landform
                 throw new Exception("cannot combine --sols or --sitedrives with --service or --master");
             }
 
+            if (!string.IsNullOrEmpty(options.WedgePattern) &&
+                !string.Equals(options.WedgePattern, "none", StringComparison.OrdinalIgnoreCase))
+            {
+                wedgeRegex =
+                    StringHelper.WildcardToRegularExpression(options.WedgePattern, RegexOptions.IgnoreCase);
+            }
+            
+            if (!string.IsNullOrEmpty(options.TexturePattern) &&
+                !string.Equals(options.TexturePattern, "none", StringComparison.OrdinalIgnoreCase))
+            {
+                textureRegex =
+                    StringHelper.WildcardToRegularExpression(options.TexturePattern, RegexOptions.IgnoreCase);
+            }
+            
             if (options.Master)
             {
                 if (!string.IsNullOrEmpty(options.ListPattern) &&
                     !string.Equals(options.ListPattern, "none", StringComparison.OrdinalIgnoreCase))
                 {
                     listRegex = StringHelper.WildcardToRegularExpression(options.ListPattern, RegexOptions.IgnoreCase);
-                }
-
-                if (!string.IsNullOrEmpty(options.WedgePattern) &&
-                    !string.Equals(options.WedgePattern, "none", StringComparison.OrdinalIgnoreCase))
-                {
-                    wedgeRegex =
-                        StringHelper.WildcardToRegularExpression(options.WedgePattern, RegexOptions.IgnoreCase);
                 }
 
                 if (!serviceUtilMode || options.DeleteQueues)
@@ -591,9 +636,13 @@ namespace OPS.Landform
             maxSDs = options.MaxSiteDrives > 0 ? options.MaxSiteDrives : int.MaxValue;
             pipeline.LogInfo("contextual mesh extent {0}, surface extent {1}", options.Extent, options.SurfaceExtent);
             pipeline.LogInfo("max sol range {0}, max wedges {1}, max sitedrives {2}", solRange, maxWedges, maxSDs);
-            pipeline.LogInfo("min wedges {0}, {1} for primary sitedrive",
-                             options.MinSiteDriveWedges, options.MinPrimarySiteDriveWedges);
+            pipeline.LogInfo("min wedges for primary sitedrive {0}", options.MinPrimarySiteDriveWedges);
 
+            solBlacklist = IngestAlignmentInputs.ExpandSolSpecifier(options.SolBlacklist);
+            if (solBlacklist.Length > 0)
+            {
+                pipeline.LogInfo("{0} blacklisted sols: {1}", solBlacklist.Length, MakeSolRanges(solBlacklist));
+            }
 
             return true;
         }
@@ -676,6 +725,13 @@ namespace OPS.Landform
             return String.Join(",", ranges.Select(range => range[0] + (range[0] != range[1] ? ("-" + range[1]) : "")));
         }
 
+        private string MakeSolRanges(int[] sols, int primarySol = -1)
+        {
+            var tmp = new HashSet<int>();
+            tmp.UnionWith(sols);
+            return MakeSolRanges(tmp, primarySol);
+        }
+
         private ContextualMeshParameters MakeParameters(ContextualMeshMessage msg)
         {
             if (msg.primarySol < 0 || string.IsNullOrEmpty(msg.primarySiteDrive))
@@ -692,7 +748,7 @@ namespace OPS.Landform
             
             if (!string.IsNullOrEmpty(msg.sols))
             {
-                ret.Sols.UnionWith(FetchData.ExpandSolSpecifier(msg.sols));
+                ret.Sols.UnionWith(IngestAlignmentInputs.ExpandSolSpecifier(msg.sols));
             }
             
             ret.PrimarySiteDrive = new SiteDrive(msg.primarySiteDrive);
@@ -703,27 +759,108 @@ namespace OPS.Landform
                 ret.SiteDrives.UnionWith(SiteDrive.ParseList(msg.siteDrives));
             }
 
+            ret.NumWedges = msg.numWedges;
+            ret.Timestamp = msg.timestamp;
+
             return ret;
         }
 
         private ContextualMeshParameters MakeParameters(string rdrDir, string sols, string siteDrives)
         {
-            var ret = new ContextualMeshParameters();
-            ret.RDRDir = rdrDir;
             int sep = sols.IndexOfAny(new char[] { ',', '-' });
             sep = sep < 0 ? sols.Length : sep;
-            ret.PrimarySol = int.Parse(sols.Substring(0, sep));
-            ret.Sols.UnionWith(FetchData.ExpandSolSpecifier(sols));
-            var sds = SiteDrive.ParseList(siteDrives);
-            ret.PrimarySiteDrive = sds[0];
-            ret.SiteDrives.UnionWith(sds);
-            return ret;
+            int primarySol = int.Parse(sols.Substring(0, sep));
+            var allSols = new HashSet<int>(IngestAlignmentInputs.ExpandSolSpecifier(sols));
+            RemoveBlacklistedSols(allSols, primarySol);
+            if (allSols.Count == 0)
+            {
+                pipeline.LogInfo("no sols");
+                return null;
+            }
+            pipeline.LogInfo("primary sol {0}, all sols {1}", primarySol, MakeSolRanges(allSols));
+
+            if (string.IsNullOrEmpty(siteDrives) || siteDrives.ToLower() == "auto")
+            {
+                var allSDs = FindAllSiteDrives(rdrDir, allSols);
+                if (allSDs.Count == 0)
+                {
+                    pipeline.LogInfo("no non-empty sitedrives for sols");
+                    return null;
+                }
+                var primarySDCandidates = allSDs.Keys.Where(sd => allSDs[sd].Sols.Contains(primarySol)).ToList();
+                int minWedges = options.MinPrimarySiteDriveWedges;
+                if (minWedges > 0)
+                {
+                    primarySDCandidates = primarySDCandidates
+                        .Where(sd => allSDs[sd].NumWedges >= minWedges)
+                        .ToList();
+                }
+                if (primarySDCandidates.Count == 0)
+                {
+                    pipeline.LogInfo("no sitedrives{0} in sol {1}",
+                                     minWedges > 0 ? (" with at least " + minWedges + " wedges") : "", primarySol);
+
+                    return null;
+                }
+
+                var primarySD = primarySDCandidates.OrderByDescending(sd => allSDs[sd].NumWedges).First();
+
+                var msg = MakeContextualMeshMessage(primarySD, allSDs, InitPlacesDB());
+
+                if (msg == null)
+                {
+                    pipeline.LogInfo("available sitedrives {0} for sols {1}, primary sol {2}, primary sitedrive {3} " +
+                                     "did not meet contextual mesh criteria",
+                                     string.Join(",", allSDs.Keys.Select(sd => sd.ToString())),
+                                     sols, primarySol, primarySD);
+                    return null;
+                }
+
+                return MakeParameters(msg);
+            }
+            else
+            {
+                var sds = SiteDrive.ParseList(siteDrives);
+                if (sds.Length == 0)
+                {
+                    pipeline.LogInfo("no sitedrives");
+                    return null;
+                }
+                var ret = new ContextualMeshParameters();
+                ret.RDRDir = rdrDir;
+                ret.PrimarySol = primarySol;
+                ret.Sols.UnionWith(allSols);
+                ret.PrimarySiteDrive = sds[0];
+                ret.SiteDrives.UnionWith(sds);
+                return ret;
+            }
         }
 
-        private void BuildContextualTileset(ContextualMeshParameters p)
+        private void RemoveBlacklistedSols(HashSet<int> sols, int primarySol)
         {
-            pipeline.LogInfo(Dump(p, verbose: true));
-            BuildContextualTileset(p.RDRDir, p.PrimarySol, p.Sols, p.PrimarySiteDrive, p.SiteDrives);
+            HashSet<int> blacklisted = null;
+            if (solBlacklist.Length > 0)
+            {
+                blacklisted = new HashSet<int>();
+                blacklisted.UnionWith(sols);
+                blacklisted.IntersectWith(solBlacklist);
+                blacklisted.Remove(primarySol);
+                if (blacklisted.Count > 0)
+                {
+                    pipeline.LogInfo("removing {0} blacklisted sols: {1}",
+                                     blacklisted.Count, MakeSolRanges(blacklisted));
+                    sols.ExceptWith(blacklisted);
+                }
+            }
+        }
+
+        private void BuildContextualTileset()
+        {
+            var parameters = MakeParameters(options.RDRDir, options.Sols, options.SiteDrives);
+            if (parameters != null)
+            {
+                BuildContextualTileset(parameters);
+            }
         }
 
         /// <summary>
@@ -735,38 +872,45 @@ namespace OPS.Landform
         /// * "./foo/bar"
         /// * null -> use options.RDRDir
         /// </summary>
-        private void BuildContextualTileset(string rdrDir, int primarySol, HashSet<int> sols,
-                                            SiteDrive primarySiteDrive, HashSet<SiteDrive> siteDrives)
+        private void BuildContextualTileset(ContextualMeshParameters p)
         {
-            if (!sols.Contains(primarySol))
-            {
-                throw new ArgumentException("sols must contain primarySol");
-            }
+            pipeline.LogInfo(DumpParameters(p, verbose: true));
 
-            if (!siteDrives.Contains(primarySiteDrive))
-            {
-                throw new ArgumentException("siteDrives must contain primarySiteDrive");
-            }
-
-            rdrDir = rdrDir ?? options.RDRDir;
+            string rdrDir = p.RDRDir ?? options.RDRDir;
             if (String.IsNullOrEmpty(rdrDir))
             {
                 throw new ArgumentException("rdrDir empty");
             }
             rdrDir = StringHelper.NormalizeUrl(rdrDir, preserveTrailingSlash: false);
 
+            int primarySol = p.PrimarySol;
+            HashSet<int> sols = p.Sols;
+            if (!sols.Contains(primarySol))
+            {
+                throw new ArgumentException("sols must contain primarySol");
+            }
+            RemoveBlacklistedSols(sols, primarySol);
+
+            SiteDrive primarySiteDrive = p.PrimarySiteDrive;
+            HashSet<SiteDrive> siteDrives = p.SiteDrives;
+            if (!siteDrives.Contains(primarySiteDrive))
+            {
+                throw new ArgumentException("siteDrives must contain primarySiteDrive");
+            }
+
             string missionStr = mission != null ? mission.GetMission().ToString() : "None";
             string fullMissionStr = mission != null ? mission.GetMissionWithVenue() : "None";
             string sdStr = primarySiteDrive.ToString();
             string solStr = SolToString(primarySol, forceNumeric: true);
             string sdsStr = string.Join(",", siteDrives.ToArray());
+            string solRanges = MakeSolRanges(sols, primarySol);
             string project = string.Format("{0}_{1}", SolToString(primarySol), sdStr);
             string venue = string.Format("contextual_{0}_{1}", missionStr, project);
             string venueDir = storageDir + "/" + venue;
             string solDir = StringHelper.ReplaceIntWildcards(rdrDir, primarySol);
             string ingestDir = solDir;
             string fetchDir = !string.IsNullOrEmpty(options.FetchDir) ? options.FetchDir : storageDir + "/" + FETCH_DIR;
-            string tilesetDir = GetTilesetDir(venue, sdStr, project);
+            string tilesetDir = venueDir + "/" + TilingCommand.TILESET_DIR + "/" + project;
             string destDir = GetDestDir(solDir);
 
             var orbitalCfg = OrbitalConfig.Instance;
@@ -792,6 +936,10 @@ namespace OPS.Landform
             string camerasOpt =
                 !string.IsNullOrEmpty(options.OnlyForCameras) ? $"--onlyforcameras={options.OnlyForCameras}" : null;
 
+            string allowUnmasked = options.AllowUnmaskedRoverObservations ? "--allowunmaskedroverobservations" : null;
+
+            string colorize = options.Colorize ? "--colorize" : null;
+
             pipeline.LogInfo("building contextual tileset {0} from {1} sitedrives in {2} sols",
                              project, siteDrives.Count, sols.Count);
             try
@@ -803,7 +951,7 @@ namespace OPS.Landform
                 if (!options.NoFetch && rdrDir.StartsWith("s3://") && !(pipeline is CloudPipeline))
                 {
                     ingestDir = fetchDir + "/rdrs";
-                    Fetch(options.MaxFetch, MakeSolRanges(sols, primarySol), ingestDir, rdrDir,
+                    Fetch(options.MaxFetch, solRanges, ingestDir, rdrDir,
                           "--onlyforsitedrives", sdsStr, "--nomeshes", "--summary");
                 }
 
@@ -842,44 +990,53 @@ namespace OPS.Landform
                     {
                         throw new NotImplementedException("ingestion from multi-sol s3 wildcard not implemented");
                     }
-                    RunCommand("ingest", project, "--mission", fullMissionStr, "--onlyforsitedrives", sdsStr,
+                    RunCommand("ingest", project, "--mission", fullMissionStr, "--meshframe", sdStr, 
+                               "--onlyforsitedrives", sdsStr, "--onlyforsols", solRanges,
                                "--inputpath", ingestDir + "/" + (options.RecursiveSearch ? "**" : "*"), noSurface,
-                               noOrbital, "--orbitalframe", sdStr, orbitalDEMFileOpt, orbitalImageFileOpt, camerasOpt);
+                               noOrbital, orbitalDEMFileOpt, orbitalImageFileOpt, camerasOpt);
                 }
 
+                if (!options.NoAlign)
+                {
+                    RunCommand("bev-align", options.AbortOnAlignmentError, project, allowUnmasked);
+                    RunCommand("heightmap-align", options.AbortOnAlignmentError, project, allowUnmasked);
+                }
+
+                if (!options.NoGeometry)
+                {
+                    RunCommand("build-geometry", project, "--extent", options.Extent.ToString(),
+                               "--surfaceextent", options.SurfaceExtent.ToString(), allowUnmasked);
+                }
+                
                 if (!options.NoTileset)
                 {
-                    RunCommand("bev-align", options.AbortOnAlignmentError, project, "--fixsitedrives", sdStr);
-
-                    RunCommand("heightmap-align", options.AbortOnAlignmentError, project, "--basesitedrive", sdStr);
+                    BuildTilingInput(project, allowUnmasked);
                     
-                    RunCommand("build-geometry", project, "--meshframe", sdStr, "--extent", options.Extent.ToString(),
-                               "--surfaceextent", options.SurfaceExtent.ToString());
-
-                    RunCommand("build-tiling-input", project, "--meshframe", sdStr);
+                    RunCommand("blend-images", project, allowUnmasked, colorize);
                     
-                    RunCommand("blend-images", project, "--meshframe", sdStr);
+                    BuildTileset(project, allowUnmasked);
                     
-                    BuildTileset(project, "--meshframe", sdStr);
-                    
-                    RunCommand("update-scene-manifest", project, "--notactical", "--nourls", "--nosky",
-                               "--sol", solStr, "--sitedrive", sdStr, "--manifestfile", tilesetDir + "/" + SCENE_JSON);
+                    RunCommand("update-scene-manifest", project, "--notactical", "--nourls", "--nosky", allowUnmasked,
+                               "--sol", solStr, "--sitedrive", sdStr, "--sols", solRanges, "--sitedrives", sdsStr,
+                               "--manifestfile", tilesetDir + "/" + SCENE_JSON);
 
                     SaveTileset(tilesetDir, project, destDir);
 
                     if (!options.NoSky)
                     {
-                        RunCommand("build-sky-sphere", project, "--meshframe", sdStr,
-                                   "--skymode", options.SkyMode.ToString());
-                        string skyTilesetDir = GetTilesetDir(venue, sdStr, project, BuildSkySphere.SKY_TILESET_DIR);
+                        RunCommand("build-sky-sphere", project, "--skymode", options.SkyMode.ToString(), allowUnmasked,
+                                   "--sphereradius", options.SkySphereRadius,
+                                   "--minbackprojectradius", options.SkyMinBackprojectRadius);
+                        string skyTilesetDir = venueDir + "/" + BuildSkySphere.SKY_TILESET_DIR + "/" + project;
                         SaveTileset(skyTilesetDir, project, destDir, "_sky");
                     }
                 }
 
                 if (!options.NoCombinedManifest)
                 {
-                    RunCommand("update-scene-manifest", project, "--tilesetdir", destDir,
+                    RunCommand("update-scene-manifest", project, allowUnmasked, "--tilesetdir", destDir,
                                "--rdrdir", rdrDir, "--sol", solStr, "--sitedrive", sdStr,
+                               "--sols", solRanges, "--sitedrives", sdsStr,
                                "--awsprofile", awsProfile, "--awsregion", awsRegion);
                 }
 
@@ -902,6 +1059,12 @@ namespace OPS.Landform
             {
                 return "thumbnail product";
             }
+            //MSL OPGS single frame product IDs don't actually have sol number in them
+            //though they do have SCLK, but we don't currently derive a sol from that
+            if (id.HasSol() && solBlacklist.Contains(id.GetSol()))
+            {
+                return "blacklisted sol";
+            }
             //disabling this check - some missions might actually put e.g. RAS products in the list files.
             //Consider that MSL unified meshes have RAS IDs in them, I think.
             //if (!RoverProduct.IsGeometry(id.ProductType))
@@ -910,6 +1073,10 @@ namespace OPS.Landform
             //}
             if (mission != null)
             {
+                if (!mission.CheckProductId(id, out string reason))
+                {
+                    return reason;
+                }
                 if (!mission.UseForMeshing(id))
                 {
                     return "product type not used for meshing";
@@ -920,6 +1087,42 @@ namespace OPS.Landform
                     return string.Format("stereo eye {0} != {1}", id.Camera, preferredEye);
                 }
                 var preferredGeometry = mission.PreferLinearGeometryProducts() ?
+                    RoverProductGeometry.Linearized : RoverProductGeometry.Raw;
+                if (id.Geometry != preferredGeometry)
+                {
+                    return string.Format("linearity {0} != {1}", id.Geometry, preferredGeometry);
+                }
+            }
+            return null;
+        }
+
+        private string FilterTexture(RoverProductId id)
+        {
+            if (!(id is OPGSProductId))
+            {
+                return "unrecognized product ID";
+            }
+            if ((id as OPGSProductId).Size == RoverProductSize.Thumbnail)
+            {
+                return "thumbnail product";
+            }
+            //MSL OPGS single frame product IDs don't actually have sol number in them
+            //though they do have SCLK, but we don't currently derive a sol from that
+            if (id.HasSol() && solBlacklist.Contains(id.GetSol()))
+            {
+                return "blacklisted sol";
+            }
+            if (mission != null)
+            {
+                if (!mission.CheckProductId(id, out string reason))
+                {
+                    return reason;
+                }
+                if (!mission.UseForTexturing(id))
+                {
+                    return "product type not used for texturing";
+                }
+                var preferredGeometry = mission.PreferLinearRasterProducts() ?
                     RoverProductGeometry.Linearized : RoverProductGeometry.Raw;
                 if (id.Geometry != preferredGeometry)
                 {
@@ -957,6 +1160,150 @@ namespace OPS.Landform
             sdList.LoadListFile(GetFile(url), baseUrl);
         }
 
+        private SiteDriveList MakeList(String rdrDir, SiteDrive sd)
+        {
+            return new SiteDriveList(rdrDir, sd, mission, pipeline,
+                                     (url, id) => FilterWedge(id), (url, id) => FilterTexture(id));
+        }
+
+        private Dictionary<SiteDrive, SiteDriveList> FindAllSiteDrives(string rdrDir, HashSet<int> sols)
+        {
+            var ret = new Dictionary<SiteDrive, SiteDriveList>();
+
+            if (wedgeRegex == null)
+            {
+                pipeline.LogWarn("wedge pattern empty");
+                return ret;
+            }
+
+            rdrDir = StringHelper.NormalizeUrl(rdrDir, preserveTrailingSlash: false) + "/"; //prob redundant, but ok
+
+            string solRanges = MakeSolRanges(sols);
+
+            pipeline.LogInfo("finding all sitedrives in RDR dir {0} for sols {1}", rdrDir, solRanges);
+
+            var solDirs = new List<string>();
+            if (SiteDriveList.GetSolSpan(rdrDir, out int start, out int len))
+            {
+                string dir = rdrDir.Substring(0, start); //includes trailing slash
+                foreach (var url in storageHelper.SearchObjects(dir, recursive: false, folders: true, files: false))
+                {
+                    string solStr = StringHelper.GetLastUrlPathSegment(url.TrimEnd('/'));
+                    if (int.TryParse(solStr, out int sol) && sols.Contains(sol))
+                    {
+                        solDirs.Add(url);
+                    }
+                }
+                pipeline.LogInfo("recursively searching {0} sol directories for wedges in sols {1}", solDirs.Count,
+                                 solRanges);
+            }
+            else
+            {
+                pipeline.LogWarn("could not find sol span, recursively searching RDR dir {0} for wedges in sols {1}",
+                                 rdrDir, solRanges);
+                solDirs.Add(rdrDir);
+            }
+
+            string regex = "^.*/";
+            string wp = StringHelper.WildcardToRegularExpressionString(options.WedgePattern, fullMatch: false);
+            if (textureRegex != null)
+            {
+                string tp = StringHelper.WildcardToRegularExpressionString(options.TexturePattern, fullMatch: false);
+                regex += $"({wp}|{tp})";
+            }
+            else
+            {
+                regex += wp;
+            }
+            regex += "$";
+            foreach (string dir in solDirs)
+            {
+                pipeline.LogInfo("recursively searching {0} for {1}", dir, regex);
+                int nu = 0, na = 0, nw = 0, nt = 0, ns = 0;
+                foreach (var wdg in storageHelper.SearchObjects(dir, regex, recursive: true, patternIsRegex: true))
+                {
+                    nu++;
+                    string url = StringHelper.NormalizeUrl(wdg);
+                    if (AcceptBucketPath(url))
+                    {
+                        na++;
+                        var idStr = StringHelper.GetLastUrlPathSegment(url, stripExtension: true);
+                        var id = RoverProductId.Parse(idStr, mission, throwOnFail: false);
+                        bool acceptedWedge = wedgeRegex.IsMatch(url) && FilterWedge(id) == null;
+                        bool acceptedTexture = !acceptedWedge && textureRegex != null && textureRegex.IsMatch(url) &&
+                            FilterTexture(id) == null;
+                        if (acceptedWedge || acceptedTexture)
+                        {
+                            var sd = (id as OPGSProductId).SiteDrive;
+                            if (!ret.ContainsKey(sd))
+                            {
+                                ret[sd] = MakeList(rdrDir, sd);
+                                ns++;
+                            }
+                            if (ret[sd].Add(url) == null)
+                            {
+                                if (acceptedWedge)
+                                {
+                                    nw++;
+                                }
+                                if (acceptedTexture)
+                                {
+                                    nt++;
+                                }
+                            }
+                        }
+                    }
+                }
+                pipeline.LogInfo("found {0} wedges, {1} textures from {2} URLs ({3} filtered), {4} new sitedrives",
+                                 nw, nt, nu, (nu - na), ns);
+            }
+
+            //keep only latest version of each product, remove non-preferred stereo eye, non-preferred lin/nonlin, etc
+            pipeline.LogInfo("filtering {0} sitedrive wedge lists for sols {1}", ret.Count, solRanges);
+
+            var filtered = new Dictionary<SiteDrive, SiteDriveList>();
+            foreach (var sd in ret.Keys)
+            {
+                if (ret[sd].NumWedges > 0)
+                {
+                    var filteredSD = ret[sd]
+                        .FilterProductIDs(ids => RoverObservationComparator.FilterProductIdGroups(ids, mission));
+                    if (filteredSD.NumWedges > 0)
+                    {
+                        filtered[sd] = filteredSD;
+                    }
+                    else
+                    {
+                        pipeline.LogInfo("culled empty sitedrive after filtering {0}: " +
+                                         "sols {1}, {2} wedges, {3} textures -> sols {4}, {5} wedges, {6} textures",
+                                         sd, MakeSolRanges(ret[sd].Sols), ret[sd].NumWedges, ret[sd].NumTextures,
+                                         MakeSolRanges(filteredSD.Sols), filteredSD.NumWedges, filteredSD.NumTextures);
+                    }
+                }
+                else
+                {
+                    pipeline.LogInfo("culled sitedrive with no wedges {0}: sols {1}, {2} wedges, {3} textures",
+                                     sd, MakeSolRanges(ret[sd].Sols), ret[sd].NumWedges, ret[sd].NumTextures);
+                }
+            }
+            int culled = ret.Count - filtered.Count;
+            ret = filtered;
+            if (culled > 0)
+            {
+                pipeline.LogInfo("culled {0} sitedrive wedge lists that were empty after filtering, {1} remain",
+                                 culled, ret.Count);
+            }
+
+            pipeline.LogInfo("found {0} sitedrives for sols {1}", ret.Count, solRanges);
+            foreach (var sd in ret.Keys)
+            {
+                pipeline.LogInfo("{0}: sols {1}, {2} wedges, {3} textures",
+                                 sd, MakeSolRanges(ret[sd].Sols), ret[sd].NumWedges, ret[sd].NumTextures);
+            }
+
+            return ret;
+        }
+
         private Dictionary<SiteDrive, Stamped<SiteDriveList>>
             LoadSiteDriveLists(string rdrDir, Dictionary<SiteDrive, Dictionary<string, long>> urls)
         {
@@ -969,27 +1316,42 @@ namespace OPS.Landform
             var listDirs = new HashSet<string>();
             var listURLs = new HashSet<string>();
             var wedgeURLs = new HashSet<string>();
+            var textureURLs = new HashSet<string>();
 
-            SiteDriveList makeList(SiteDrive sd)
-            {
-                return new SiteDriveList(rdrDir, sd, mission, pipeline, (url, id) => FilterWedge(id));
-            }
-
-            //keep only latest version of each product
-            //remove non-preferred stereo eye
-            //remove non-preferred lin/nonlin
-            //etc
-            bool filterLists()
+            //keep only latest version of each product, remove non-preferred stereo eye, non-preferred lin/nonlin, etc
+            void filterLists(bool passthroughEmpty)
             {
                 pipeline.LogInfo("filtering {0} sitedrive wedge lists", ret.Count);
                 var filtered = new Dictionary<SiteDrive, Stamped<SiteDriveList>>();
                 foreach (var sd in ret.Keys)
                 {
-                    var sdList = ret[sd].Value
-                        .FilterProductIDs(ids => RoverObservationComparator.FilterProductIdGroups(ids, mission));
-                    if (sdList.NumWedges > 0)
+                    if (ret[sd].Value.NumWedges > 0)
                     {
-                        filtered[sd] = new Stamped<SiteDriveList>(sdList, ret[sd].Timestamp);
+                        var filteredSD = ret[sd].Value
+                            .FilterProductIDs(ids => RoverObservationComparator.FilterProductIdGroups(ids, mission));
+                        if (filteredSD.NumWedges > 0)
+                        {
+                            filtered[sd] = new Stamped<SiteDriveList>(filteredSD, ret[sd].Timestamp);
+                        }
+                        else
+                        {
+                            var sdl = ret[sd].Value;
+                            pipeline.LogInfo("culled empty sitedrive after filtering {0}: " +
+                                             "sols {1}, {2} wedges, {3} textures -> sols {4}, {5} wedges, {6} textures",
+                                             sd, MakeSolRanges(sdl.Sols), sdl.NumWedges, sdl.NumTextures,
+                                             MakeSolRanges(filteredSD.Sols), filteredSD.NumWedges,
+                                             filteredSD.NumTextures);
+                        }
+                    }
+                    else if (passthroughEmpty)
+                    {
+                        filtered[sd] = ret[sd];
+                    }
+                    else
+                    {
+                        var sdl = ret[sd].Value;
+                        pipeline.LogInfo("culled sitedrive with no wedges {0}: sols {1}, {2} wedges, {3} textures",
+                                         sd, MakeSolRanges(sdl.Sols), sdl.NumWedges, sdl.NumTextures);
                     }
                 }
                 int culled = ret.Count - filtered.Count;
@@ -999,12 +1361,11 @@ namespace OPS.Landform
                     pipeline.LogInfo("culled {0} sitedrive wedge lists that were empty after filtering, {1} remain",
                                      culled, ret.Count);
                 }
-                return ret.Count > 0;
             }
 
             foreach (var sd in urls.Keys)
             {
-                var sdList = makeList(sd);
+                var sdList = MakeList(rdrDir, sd);
                 long latestTimestamp = -1;
                 foreach (var entry in urls[sd])
                 {
@@ -1026,32 +1387,40 @@ namespace OPS.Landform
                         sdList.Add(url);
                         wedgeURLs.Add(url);
                     }
+                    else if (textureRegex != null && textureRegex.IsMatch(file))
+                    {
+                        sdList.Add(url);
+                        textureURLs.Add(url);
+                    }
                     else //URL should have been rejected by AcceptMessage(), but whatever
                     {
                         pipeline.LogWarn("unhandled file type: {0}", url);
                     }
                     latestTimestamp = Math.Max(latestTimestamp, entry.Value);
                 }
-                if (sdList.NumWedges > 0)
+                if (sdList.NumSols > 0) //not NumWedges to handle case of only texture  updates
                 {
                     ret[sd] = new Stamped<SiteDriveList>(sdList, latestTimestamp);
                 }
             }
 
             pipeline.LogInfo("registered {0} changed lists in {1} dirs", listURLs.Count, listDirs.Count);
-            pipeline.LogInfo("registered {0} changed wedges", wedgeURLs.Count);
+            pipeline.LogInfo("registered {0} changed wedges, {1} changed textures", wedgeURLs.Count, textureURLs.Count);
 
-            if (!filterLists())
-            {
-                return ret;
-            }
+            //at this point lists that were created only due to texture changes will exist but have no wedges
+            //but wedges may be added to them if we search for and find additional lists or wedges below
+            //this is important because it catches situations where XYZs are acquired for a sitedrive in sols up to N
+            //but then in later sols M > N only additional textures are acquired for that sitedrive
+            filterLists(passthroughEmpty: true);
 
             if (pipeline.Verbose)
             {
                 foreach (var sd in ret.Keys.OrderBy(sd => sd))
                 {
-                    pipeline.LogVerbose("changed sitedrive {0}: {1} wedges after filtering, before additions:\n  {2}",
-                                        sd, ret[sd].Value.NumWedges,
+                    pipeline.LogVerbose("changed sitedrive {0}: {1} sols, {2} wedges {3} textures before additions" +
+                                        "{4}{5}",
+                                        sd, ret[sd].Value.NumSols, ret[sd].Value.NumWedges, ret[sd].Value.NumTextures,
+                                        ret[sd].Value.NumIDs > 0 ? ":\n  " : "",
                                         string.Join("\n  ", ret[sd].Value.IDToURL.Values.OrderBy(url => url)));
                 }
             }
@@ -1065,7 +1434,7 @@ namespace OPS.Landform
 
             bool reFilter = false;
 
-            if (options.SearchForAdditionalLists && listRegex != null) //handle options.ListPattern=none
+            if (!options.NoSearchForAdditionalLists && listRegex != null) //handle options.ListPattern=none
             {
                 int additionalLists = 0, additionalListSitedrives = 0;
 
@@ -1081,21 +1450,20 @@ namespace OPS.Landform
                             var sd = GetSiteDrive(url);
                             if (sd.HasValue)
                             {
+                                pipeline.LogVerbose("found additional list {0} in sitedrive {1}", url, sd);
                                 additionalLists++;
-                                var sdList = ret.ContainsKey(sd.Value) ? ret[sd.Value].Value : makeList(sd.Value);
+                                var sdList = ret.ContainsKey(sd.Value) ?
+                                    ret[sd.Value].Value : MakeList(rdrDir, sd.Value);
                                 LoadList(sdList, url);
                                 sdList = sdList.FilterToSolRange(minSol, maxSol);
-                                if (sdList.NumWedges > 0)
+                                if (ret.ContainsKey(sd.Value))
                                 {
-                                    if (ret.ContainsKey(sd.Value))
-                                    {
-                                        ret[sd.Value] = new Stamped<SiteDriveList>(sdList, ret[sd.Value].Timestamp);
-                                    }
-                                    else
-                                    {
-                                        ret[sd.Value] = new Stamped<SiteDriveList>(sdList);
-                                        additionalListSitedrives++;
-                                    }
+                                    ret[sd.Value] = new Stamped<SiteDriveList>(sdList, ret[sd.Value].Timestamp);
+                                }
+                                else if (sdList.NumWedges > 0)
+                                {
+                                    ret[sd.Value] = new Stamped<SiteDriveList>(sdList);
+                                    additionalListSitedrives++;
                                 }
                             }
                             else
@@ -1112,7 +1480,7 @@ namespace OPS.Landform
                                  additionalLists, additionalListSitedrives);
             }
 
-            if (options.SearchForAdditionalWedges && wedgeRegex != null) //handle options.WedgePattern=none
+            if (!options.NoSearchForAdditionalWedges && wedgeRegex != null) //handle options.WedgePattern=none
             {
                 int additionalWedges = 0, additionalWedgeSitedrives = 0;
 
@@ -1139,6 +1507,7 @@ namespace OPS.Landform
 
                 foreach (string dir in solDirs)
                 {
+                    pipeline.LogInfo("recursively searching {0} for {1} wedges", dir, options.WedgePattern);
                     foreach (var wdg in storageHelper.SearchObjects(dir, "*/" + options.WedgePattern, recursive: true))
                     {
                         string url = StringHelper.NormalizeUrl(wdg);
@@ -1150,18 +1519,18 @@ namespace OPS.Landform
                             if (FilterWedge(id) == null)
                             {
                                 var sd = (id as OPGSProductId).SiteDrive;
-                                var sdl = ret.ContainsKey(sd) ? ret[sd].Value : makeList(sd);
+                                var sdl = ret.ContainsKey(sd) ? ret[sd].Value : MakeList(rdrDir, sd);
                                 int nw = sdl.NumWedges;
                                 if (sdl.Add(url) == null && sdl.NumWedges > nw) //not rejected and not duplicate
                                 {
                                     //this new URL might still get filtered out below
                                     //e.g. if it's an older version of something that's already in the list
-                                    pipeline.LogVerbose("found additional wedge product {0} in sitedrive {1}", url, sd);
-                                    Interlocked.Increment(ref additionalWedges);
+                                    pipeline.LogVerbose("found additional wedge {0} in sitedrive {1}", url, sd);
+                                    additionalWedges++;
                                     if (!ret.ContainsKey(sd))
                                     {
                                         ret[sd] = new Stamped<SiteDriveList>(sdl);
-                                        Interlocked.Increment(ref additionalWedgeSitedrives);
+                                        additionalWedgeSitedrives++;
                                     }
                                 }
                             }
@@ -1177,7 +1546,7 @@ namespace OPS.Landform
 
             if (reFilter)
             {
-                filterLists();
+                filterLists(passthroughEmpty: false);
             }
 
             pipeline.LogInfo("{0} filtered sitedrive lists for RDR dir {1}", ret.Count, rdrDir);
@@ -1188,8 +1557,11 @@ namespace OPS.Landform
             {
                 foreach (var sd in ret.Keys.OrderBy(sd => sd))
                 {
-                    pipeline.LogVerbose("{0}changed sitedrive {1}: {2} wedges after filtering and additions:\n  {3}",
-                                        changedSDs.Contains(sd) ? "" : "un", sd, ret[sd].Value.NumWedges,
+                    pipeline.LogVerbose("{0}changed sitedrive {1}: {2} sols, {3} wedges, {4} textures after additions" +
+                                        "{5}{6}",
+                                        changedSDs.Contains(sd) ? "" : "un", sd, ret[sd].Value.NumSols,
+                                        ret[sd].Value.NumWedges, ret[sd].Value.NumTextures,
+                                        ret[sd].Value.NumIDs > 0 ? ":\n  " : "",
                                         string.Join("\n  ", ret[sd].Value.IDToURL.Values.OrderBy(url => url)));
                 }
             }
@@ -1207,12 +1579,14 @@ namespace OPS.Landform
         /// other than the primary then that sitedrive will not be included.
         /// Otherwise considers additional sitedrives from sdLists, which should all have same RDRDir as primarySDList.
         /// </summary>
-        private ContextualMeshMessage SiteDriveChanged(SiteDriveList primarySDList, List<SiteDriveList> sdLists,
-                                                       PlacesDB placesDB)
+        private ContextualMeshMessage MakeContextualMeshMessage(SiteDrive primarySD,
+                                                                Dictionary<SiteDrive, SiteDriveList> sds,
+                                                                PlacesDB placesDB = null)
         {
+            SiteDriveList primarySDList = sds[primarySD];
+
             string rdrDir = primarySDList.RDRDir;
             int primarySol = primarySDList.MaxSol;
-            SiteDrive primarySD = primarySDList.SiteDrive;
 
             string name = string.Format("{0}_{1}", SolToString(primarySol), primarySD.ToString());
 
@@ -1223,68 +1597,71 @@ namespace OPS.Landform
             primarySDList = primarySDList.FilterToSolRange(minSol, maxSol);
 
             //primary site drive must have at least this many wedges
-            int minWedges = Math.Max(options.MinSiteDriveWedges, options.MinPrimarySiteDriveWedges);
-            if (primarySDList.NumWedges < minWedges)
+            if (options.MinPrimarySiteDriveWedges > 0 && primarySDList.NumWedges < options.MinPrimarySiteDriveWedges)
             {
                 pipeline.LogInfo("not producing contextual mesh {0} in {1}, {2} < {3} wedges",
-                                 name, rdrDir, primarySDList.NumWedges, minWedges);
+                                 name, rdrDir, primarySDList.NumWedges, options.MinPrimarySiteDriveWedges);
                 return null;
             }
-
-            //remaining sitedrives must have at least this many wedges
-            minWedges = options.MinSiteDriveWedges;
-
-            //let's only apply maxWedges to sitedrives other than the primary one
-            //if (primarySDList.NumWedges > maxWedges)
-            //{
-            //    pipeline.LogInfo("not producing contextual mesh {0} in {1}, {2} > {3} wedges",
-            //                     name, rdrDir, primarySDList.NumWedges, maxWedges);
-            //    return null;
-            //}
 
             var keepers = new Dictionary<SiteDrive, SiteDriveList>();
             keepers[primarySD] = primarySDList;
 
             var distance = new Dictionary<SiteDrive, double>();
 
-            if (placesDB != null || maxDistance <= 0)
+            foreach (var list in sds.Values)
             {
-                foreach (var list in sdLists)
+                if (list.RDRDir != rdrDir)
                 {
-                    if (list.RDRDir != rdrDir)
+                    pipeline.LogWarn("not including sitedrive {0} in contextual mesh for {1}, RDR dir {2} != {3}",
+                                     list.SiteDrive, primarySD, list.RDRDir, rdrDir);
+                    continue;
+                }
+                if (!keepers.ContainsKey(list.SiteDrive))
+                {
+                    var filtered = list.FilterToSolRange(minSol, maxSol);
+                    if (filtered.NumSols > 0)
                     {
-                        pipeline.LogWarn("not including sitedrive {0} in contextual mesh for {1}, RDR dir {2} != {3}",
-                                         list.SiteDrive, primarySD, list.RDRDir, rdrDir);
-                        continue;
-                    }
-                    if (!keepers.ContainsKey(list.SiteDrive))
-                    {
-                        var filtered = list.FilterToSolRange(minSol, maxSol);
-                        if (filtered.NumWedges >= minWedges)
+                        if (maxDistance <= 0)
                         {
-                            if (maxDistance <= 0)
+                            keepers[list.SiteDrive] = filtered;
+                        }
+                        else if (placesDB != null)
+                        {
+                            try
                             {
-                                keepers[list.SiteDrive] = filtered;
+                                double dist = placesDB.GetOffset(primarySD, list.SiteDrive).Length();
+                                if (dist <= maxDistance)
+                                {
+                                    keepers[list.SiteDrive] = filtered;
+                                    distance[list.SiteDrive] = dist;
+                                }
+                                else
+                                {
+                                    pipeline.LogInfo("not including sitedrive {0} in contextual mesh for {1}, " +
+                                                     "PlacesDB distance {2:F3} > {3:F3}",
+                                                     list.SiteDrive, primarySD, dist, maxDistance);
+                                }
                             }
-                            else
+                            catch (Exception ex)
                             {
-                                try
-                                {
-                                    double dist = placesDB.GetOffset(primarySD, list.SiteDrive).Length();
-                                    if (dist <= maxDistance)
-                                    {
-                                        keepers[list.SiteDrive] = filtered;
-                                        distance[list.SiteDrive] = dist;
-                                    }
-                                }
-                                catch (Exception ex)
-                                {
-                                    pipeline.LogException(ex, string.Format("error getting distance from sitedrive " +
-                                                                            "{0} to {1} from PlacesDB",
-                                                                            primarySD, list.SiteDrive));
-                                }
+                                pipeline.LogException
+                                    (ex, $"not including sitedrive {list.SiteDrive} in contextual mesh " +
+                                     "for {primarySD}: error checking distance <= {maxDistance} with PlacesDB");
                             }
                         }
+                        else
+                        {
+                            pipeline.LogWarn("not including sitedrive {0} in contextual mesh for {1}, " +
+                                             "PlacesDB not available to check distance <= {2}",
+                                             list.SiteDrive, primarySD, maxDistance);
+                        }
+                    }
+                    else
+                    {
+                        pipeline.LogInfo("not including sitedrive {0} in contextual mesh for {1}, " +
+                                         "included sols {2} not in range {3}-{4}",
+                                         list.SiteDrive, primarySD, MakeSolRanges(list.Sols), minSol, maxSol);
                     }
                 }
             }
@@ -1293,9 +1670,24 @@ namespace OPS.Landform
             int totalWedges = keepers.Values.Sum(list => list.NumWedges);
             if (maxSDs < int.MaxValue || maxWedges < int.MaxValue)
             {
+                var oversize = keepers.Values
+                    .Where(l => l.SiteDrive != primarySD) //never cull the primary sitedrive
+                    .Where(l => l.NumWedges > maxWedges)
+                    .Select(l => l.SiteDrive)
+                    .ToList();
+                foreach (var dead in oversize) {
+                    pipeline.LogInfo("not including oversize sitedrive {0} ({1} > {2} wedges) in contextual mesh " +
+                                     "for {3} to enforce total wedges {4} <= {5}",
+                                     dead, keepers[dead].NumWedges, maxWedges, primarySD, totalWedges, maxWedges);
+                    totalSDs--;
+                    totalWedges -= keepers[dead].NumWedges;
+                    keepers.Remove(dead);
+                }
+
                 //default to deleting smaller sitedrives first
                 var prioritized = keepers.Values
                     .Where(l => l.SiteDrive != primarySD) //never cull the primary sitedrive
+                    .Where(l => l.NumWedges > 0)
                     .OrderBy(l => l.NumWedges)
                     .Select(l => l.SiteDrive)
                     .ToList();
@@ -1306,10 +1698,27 @@ namespace OPS.Landform
                     prioritized = prioritized.OrderByDescending(sd => distance[sd]).ToList();
                 }
 
+                //delete older sitedrives first
+                prioritized = prioritized.OrderBy(sd => keepers[sd].MaxSol).ToList();
+
                 var queue = new Queue<SiteDrive>(prioritized);
                 while (queue.Count > 0 && (totalSDs > maxSDs || totalWedges > maxWedges))
                 {
                     var dead = queue.Dequeue();
+                    string distMsg = placesDB != null? $", distance {distance[dead]:F3}" : "";
+                    string limitMsg = "";
+                    if (totalSDs > maxSDs)
+                    {
+                        limitMsg = $"total sitedrives {totalSDs} <= {maxSDs}";
+                    }
+                    if (totalWedges > maxWedges)
+                    {
+                        limitMsg += (limitMsg != "" ? ", " : "") + $"total wedges {totalWedges} <= {maxWedges}";
+                    }
+                    pipeline.LogInfo("not including sitedrive {0} (sols {1}, {2} wedges{3}) in contextual mesh " +
+                                     "for {4} to enforce {5}",
+                                     dead, MakeSolRanges(keepers[dead].Sols), keepers[dead].NumWedges, distMsg,
+                                     primarySD, limitMsg);
                     totalSDs--;
                     totalWedges -= keepers[dead].NumWedges;
                     keepers.Remove(dead);
@@ -1420,6 +1829,31 @@ namespace OPS.Landform
             return UTCTime.MSSinceEpochToDate(timestamp).ToLocalTime();
         }
 
+        private bool UsePlacesDB()
+        {
+            var placesCfg = PlacesConfig.Instance;
+            return !string.IsNullOrEmpty(placesCfg.Url) && !string.IsNullOrEmpty(placesCfg.View);
+        }
+
+        private PlacesDB InitPlacesDB()
+        {
+            if (UsePlacesDB())
+            {
+                try
+                {
+                    var placesDB = new PlacesDB(pipeline);
+                    pipeline.LogInfo("using PlacesDB " + PlacesConfig.Instance.Url);
+                    return placesDB;
+                }
+                catch (Exception ex)
+                {
+                    pipeline.LogError("error initializing PlacesDB: {0}", ex.Message);
+                }
+            }
+            pipeline.LogInfo("not using PlacesDB");
+            return null;
+        }
+
         private void MasterLoop()
         {
             double lastStartSec = -1;
@@ -1483,34 +1917,19 @@ namespace OPS.Landform
                         //for one thing our PlacesDB interface caches results, and the cache could become stale
                         //also, particularly in certain dev scenarios, PlacesDB availability may be iffy
                         //better to try on each pass rather than once ever
-                        var placesCfg = PlacesConfig.Instance;
-                        bool usePlaces = !string.IsNullOrEmpty(placesCfg.Url) && !string.IsNullOrEmpty(placesCfg.View);
-                        lock (usePlaces ? credentialRefreshLock : new Object())
+                        lock (UsePlacesDB() ? credentialRefreshLock : new Object())
                         {
-                            PlacesDB placesDB = null;
-                            if (usePlaces)
-                            {
-                                try
-                                {
-                                    placesDB = new PlacesDB(pipeline);
-                                    pipeline.LogInfo("using PlacesDB " + placesCfg.Url);
-                                }
-                                catch (Exception ex)
-                                {
-                                    pipeline.LogError("error initializing PlacesDB: {0}", ex.Message);
-                                }
-                            }
-                            if (placesDB == null)
-                            {
-                                pipeline.LogInfo("not using PlacesDB");
-                            }
-
-                            var allSDs = sdLists.Values.Select(sl => sl.Value).ToList();
+                            var placesDB = InitPlacesDB();
                             foreach (var changedSD in urlsToProcess[rdrDir].Keys.Where(sd => sdLists.ContainsKey(sd)))
                             {
                                 try
                                 {
-                                    var msg = SiteDriveChanged(sdLists[changedSD].Value, allSDs, placesDB);
+                                    var allSDs = new Dictionary<SiteDrive, SiteDriveList>();
+                                    foreach (var entry in sdLists)
+                                    {
+                                        allSDs[entry.Key] = entry.Value.Value;
+                                    }
+                                    var msg = MakeContextualMeshMessage(changedSD, allSDs, placesDB);
                                     if (msg != null)
                                     {
                                         msgs.Add(new Stamped<ContextualMeshMessage>(msg, sdLists[changedSD].Timestamp));

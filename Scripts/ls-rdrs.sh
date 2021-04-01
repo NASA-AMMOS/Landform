@@ -25,7 +25,7 @@ else
     products="RAS|MXY|XYZ|UVW"
 fi
 
-if [ $# -gt 2 ]; then
+if [[ $# -gt 2 ]]; then
     exts=$3
 else
     exts="IMG|VIC|IV|OBJ|MTL|PNG|TAR"

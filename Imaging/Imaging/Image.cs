@@ -3,8 +3,10 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.IO;
+using System.Threading;
 using Microsoft.Xna.Framework;
 using OPS.MathExtensions;
+using OPS.Util;
 
 namespace OPS.Imaging
 {
@@ -198,7 +200,7 @@ namespace OPS.Imaging
         }
 
         /// <summary>
-        /// Saves image to disk using gdal and convert from normalzied values to value range
+        /// Saves image to disk and convert from normalzied values to value range
         /// </summary>
         /// <param name="filename"></param>
         public Image Save<T>(string filename)
@@ -362,10 +364,10 @@ namespace OPS.Imaging
         /// respects image mask, if any
         /// resulting image will have mask set for any source block that had no valid pixels
         /// does not mutate source image
-        /// This method does not retain metadata or camera model.
-        /// If the image has a CalibratedCameraModel then you could use CalibratedCameraModel.Decimated().
+        /// This method does not retain metadata.
+        /// It only retains camera model for ConformalCameraModel which implements Decimated().
         /// </summary>
-        public Image Decimated(int blocksize, bool average = true)
+        public Image Decimated(int blocksize, bool average = true, Action<string> progress = null)
         {
             if (blocksize == 1)
             {
@@ -376,25 +378,35 @@ namespace OPS.Imaging
             int targetHeight = Height / blocksize; //integer math
 
             Image result = Instantiate(Bands, targetWidth, targetHeight);
-            result.CreateMask();
+            if (HasMask)
+            {
+                result.CreateMask();
+            }
+
+            long total = (long)Bands * targetHeight * targetWidth;
+            long current = 0;
+            long lastSpew = 0, spewChunk = (long)(total / (100 * 10.0));
+            int np = 0;
 
             for (int band = 0; band < Bands; band++)
             {
-                for (int dstRow = 0; dstRow < targetHeight; dstRow++)
+                //for (int dstRow = 0; dstRow < targetHeight; dstRow++)
+                CoreLimitedParallel.For(0, targetHeight, dstRow =>
                 {
+                    Interlocked.Increment(ref np);
                     for (int dstCol = 0; dstCol < targetWidth; dstCol++)
                     {
                         int n = 0;
                         float sum = 0;
                         for (int srcRow = dstRow * blocksize; srcRow < (dstRow + 1) * blocksize; srcRow++)
                         {
-                            if (srcRow >= 0 && srcRow < this.Height)
+                            if (srcRow >= 0 && srcRow < Height)
                             {
                                 for (int srcCol = dstCol * blocksize; srcCol < (dstCol + 1) * blocksize; srcCol++)
                                 {
-                                    if (srcCol >= 0 && srcCol < this.Width)
+                                    if (srcCol >= 0 && srcCol < Width)
                                     {
-                                        if (IsValid(srcRow, srcCol))
+                                        if (!HasMask || IsValid(srcRow, srcCol))
                                         {
                                             sum += this[band, srcRow, srcCol];
                                             n++;
@@ -415,13 +427,31 @@ namespace OPS.Imaging
                         {
                             result[band, dstRow, dstCol] = sum / n;
                         }
-                        else
+                        else if (HasMask)
                         {
                             result.SetMaskValue(dstRow, dstCol, true);
                         }
+                        long cur = Interlocked.Increment(ref current);
+                        if (progress != null)
+                        {
+                            if (cur - Interlocked.Read(ref lastSpew) > spewChunk)
+                            {
+                                Interlocked.Exchange(ref lastSpew, cur);
+                                double pct = 100 * (double)cur / total;
+                                progress($"decimating {Width}x{Height} to {targetWidth}x{targetHeight}, " +
+                                         $"processing {np} output rows in parallel, ({pct:F1}%)");
+                            }
+                        }
                     }
-                }
+                    Interlocked.Decrement(ref np);
+                });
             }
+
+            if (CameraModel is ConformalCameraModel)
+            {
+                result.CameraModel = ((ConformalCameraModel)CameraModel).Decimated(blocksize);
+            }
+
             return result;
         }
 
@@ -576,8 +606,8 @@ namespace OPS.Imaging
             }
             else
             {
-                ret.MinX = 0;
-                ret.MaxX = Height - 1;
+                ret.MinY = 0;
+                ret.MaxY = Height - 1;
             }
 
             if (ret.MinX >= Width || ret.MinY >= Height || ret.MaxX < 0 || ret.MaxY < 0)

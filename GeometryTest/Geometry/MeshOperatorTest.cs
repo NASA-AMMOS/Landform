@@ -30,14 +30,14 @@ namespace GeometryTest
             Mesh m = new Mesh(tris);
             MeshOperator mo = new MeshOperator(m);
             BoundingBox bb = new BoundingBox(new Vector3(-2, -3, -4), new Vector3(-1, -1, -2));
-            Mesh clipped = mo.Clip(bb);
+            Mesh clipped = mo.Clipped(bb);
             BoundingBox clippedBB = clipped.Bounds();
             Assert.IsTrue(Vector3.AlmostEqual(clippedBB.Min, bb.Min));
             Assert.IsTrue(Vector3.AlmostEqual(clippedBB.Max, bb.Max));
 
-            Mesh other = Mesh.Clip(m, bb);
-            Assert.AreEqual(other.Vertices.Count, clipped.Vertices.Count);
-            Assert.AreEqual(other.Faces.Count, clipped.Faces.Count);
+            m.Clip(bb);
+            Assert.AreEqual(m.Vertices.Count, clipped.Vertices.Count);
+            Assert.AreEqual(m.Faces.Count, clipped.Faces.Count);
             Assert.IsTrue(mo.CountFaces(bb) > 0);
             Assert.IsTrue(mo.CountVertices(bb) > 0);
             Assert.IsFalse(mo.Empty(bb));
@@ -54,13 +54,13 @@ namespace GeometryTest
             }
             MeshOperator mo = new MeshOperator(m);
             BoundingBox bb = new BoundingBox(new Vector3(-4, -4, -4), new Vector3(3, 2, -2));
-            Mesh clipped = mo.Clip(bb);
+            Mesh clipped = mo.Clipped(bb);
             BoundingBox clippedBB = clipped.Bounds();
             Assert.IsTrue(bb.FuzzyContains(clippedBB));
             Assert.IsTrue(clipped.Vertices.Count > 0);
 
-            Mesh other = Mesh.Clip(m, bb);
-            Assert.AreEqual(other.Vertices.Count, clipped.Vertices.Count);
+            m.Clip(bb);
+            Assert.AreEqual(m.Vertices.Count, clipped.Vertices.Count);
             Assert.AreEqual(clipped.Vertices.Count, mo.CountVertices(bb));
             Assert.AreEqual(0, mo.CountFaces(bb));
             mo.CountVertices(bb);

@@ -9,7 +9,7 @@ using OPS.Imaging;
 using OPS.Geometry;
 using OPS.RayTrace;
 using OPS.Pipeline.AlignmentServer;
-
+using OPS.Pipeline.Texturing;
 
 namespace OPS.Pipeline
 {
@@ -17,8 +17,6 @@ namespace OPS.Pipeline
     //using how far the pixels are apart (in meters) when projected onto a specific mesh
     public class ProjectedPixelDistances
     {
-        const double FRUSTUMHULLTESTEPSILON = 0.00001;
-
         //meshBounds: bounds of the area of interest you are measuring
         //meshcaster: the area of interest you are measuring (usually a tile mesh)
         //occlusionScene: the entire scene's mesh
@@ -77,7 +75,7 @@ namespace OPS.Pipeline
         }
 
         /// <summary>
-        /// Estimates minimum lineal meters on mesh per pixel in obs, median across allSamples.
+        /// Estimates maximum lineal meters on mesh per pixel in obs, median across allSamples.
         /// meshBounds: the bounds of the individual mesh for which the pixel distances are being calculated
         /// meshCaster: the indvidual mesh for which the pixel distances are being calculated
         /// occlusionScene: the broader whole-scene that may occlude the current mesh
@@ -107,13 +105,13 @@ namespace OPS.Pipeline
                 spreads[sampleIndex] = -1;
                 
                 //protect against bad ray calculations from camera model
-                if (obsHull.Contains(pt.Point, FRUSTUMHULLTESTEPSILON))
+                if (obsHull.Contains(pt.Point, TexturingDefaults.FRUSTUM_HULL_TEST_EPSILON))
                 {
                     //Issue #523: want median or average in case glancing angle?
                     //want a term that looks for consistancy in spacing? implies dead on?
-                    double dist = GetMinPixelSpreadInMeters(meshBounds, meshCaster, occlusionScene, cam, obsToOutput,
-                                                            pt.Pixel, pt.Point, obs.Width, obs.Height,
-                                                            raycastTolerance);
+                    double dist = GetPixelSpreadInMeters(meshBounds, meshCaster, occlusionScene, cam, obsToOutput,
+                                                         pt.Pixel, pt.Point, obs.Width, obs.Height,
+                                                         raycastTolerance);
                     if (dist >= 0 && dist < double.MaxValue)
                     {
                         spreads[sampleIndex] = dist;
@@ -132,8 +130,7 @@ namespace OPS.Pipeline
         }
 
         //raycast the 4 neighbors of a pixel
-        //then measure the distance between the source pixel's intersected position and the neighbors
-        //then return the shortest
+        //then find the max distance between the source pixel's intersected position and any neighbor
         //this should give an estimate of the source textures local resolution
         //using our best approximation of the mesh to compare against other images
         //
@@ -143,10 +140,10 @@ namespace OPS.Pipeline
         //if meshCaster = occlusionScene then meshBounds is used to differentiate hits on the mesh vs hits on other
         //occluding geometry
         //raycastTolerance: a distance based on the scale of your geometries used to exclude self intersections
-        public static double GetMinPixelSpreadInMeters(BoundingBox meshBounds, SceneCaster meshCaster,
-                                                       SceneCaster occlusionScene, CameraModel camera, Matrix camToMesh,
-                                                       Vector2 srcPixel, Vector3 srcPos, int srcWidth, int srcHeight,
-                                                       double raycastTolerance)
+        public static double GetPixelSpreadInMeters(BoundingBox meshBounds, SceneCaster meshCaster,
+                                                    SceneCaster occlusionScene, CameraModel camera, Matrix camToMesh,
+                                                    Vector2 srcPixel, Vector3 srcPos, int srcWidth, int srcHeight,
+                                                    double raycastTolerance)
         {
             var offsetPixels = Image.GetOffsetPixels(srcPixel, offset: 1.0)
                 .Where(px => px.X >= 0 && px.X < srcWidth && px.Y >= 0 && px.Y < srcHeight)
@@ -154,29 +151,13 @@ namespace OPS.Pipeline
 
             if (offsetPixels.Count == 0)
             {
-                return double.MaxValue;
+                return -1;
             }
 
-            List<Vector3> meshPositions = GetMeshPositionsForCameraPixels(meshBounds, meshCaster, occlusionScene,
-                                                                          camera, camToMesh, offsetPixels,
-                                                                          raycastTolerance);
-
-            if (meshPositions.Count == 0)
-            {
-                return double.MaxValue;
-            }
-
-            double shortestDistance = double.MaxValue;
-            foreach (var curPos in meshPositions)
-            {
-                double sqDist = (curPos - srcPos).LengthSquared();
-                if (sqDist < shortestDistance)
-                {
-                    shortestDistance = sqDist;
-                }
-            }
-
-            return Math.Sqrt(shortestDistance);
+            var meshPos = GetMeshPositionsForCameraPixels(meshBounds, meshCaster, occlusionScene, camera, camToMesh,
+                                                          offsetPixels, raycastTolerance);
+            
+            return meshPos.Count > 0 ? Math.Sqrt(meshPos.Select(p => (p - srcPos).LengthSquared()).Max()) : -1;
         }
 
         //Issue #531: raycast bundle of 4 with embree
@@ -199,8 +180,8 @@ namespace OPS.Pipeline
 
             foreach (var curPixel in srcPixels)
             {
-                var meshPos = Backproject.RaycastMesh(camera, camToMesh, curPixel, meshBounds, meshCaster,
-                                                      occlusionScene, raycastTolerance);
+                var meshPos = Backproject.RaycastMesh(camera, camToMesh, curPixel, occlusionScene, meshCaster,
+                                                      meshBounds, raycastTolerance);
                 if (meshPos.HasValue)
                 {
                     result.Add(meshPos.Value);
@@ -211,10 +192,11 @@ namespace OPS.Pipeline
         }
 
         public static Vector2? GetCameraPixelForMeshPosition(SceneCaster sc, CameraModel camera, Matrix camToMesh,
-                                                     Matrix meshToCam, ConvexHull camHullInMesh,
-                                                     Vector3 meshPos, int widthPixels, int heightPixels)
+                                                             Matrix meshToCam, ConvexHull camHullInMesh,
+                                                             Vector3 meshPos, int widthPixels, int heightPixels,
+                                                             double raycastTolerance)
         {
-            if (!camHullInMesh.Contains(meshPos, FRUSTUMHULLTESTEPSILON))
+            if (!camHullInMesh.Contains(meshPos, TexturingDefaults.FRUSTUM_HULL_TEST_EPSILON))
             {
                 return null;
             }
@@ -233,7 +215,7 @@ namespace OPS.Pipeline
                 }
                 
                 // raycast the scene to test if the desired position is occluded by terrain
-                if (Backproject.IsOccluded(camera, obsPixel, meshPos, sc, rangeMeshToImage, camToMesh))
+                if (Backproject.IsOccluded(camera, camToMesh, obsPixel, sc, rangeMeshToImage, raycastTolerance))
                 {
                     return null;
                 }

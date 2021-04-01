@@ -68,6 +68,9 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AlignmentTest", "AlignmentTest\AlignmentTest.csproj", "{6B99D0F6-F813-42E8-A217-856E7E8DD3F7}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RayTrace", "RayTrace\RayTrace.csproj", "{0E8C60BB-4A68-480F-895A-2B326AEC002C}"
+	ProjectSection(ProjectDependencies) = postProject
+		{8C7C8A71-0A4B-4D75-9CB2-32803BD8F86F} = {8C7C8A71-0A4B-4D75-9CB2-32803BD8F86F}
+	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RayTraceTest", "RayTraceTest\RayTraceTest.csproj", "{DF083C64-D94B-467B-9023-E7F8C21D9F12}"
 EndProject

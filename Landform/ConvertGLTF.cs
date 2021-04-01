@@ -183,6 +183,7 @@ namespace OPS.Landform
                 case "b3dm": mesh = B3DMSerializer.Load(gltfFile, imageHandler, indexHandler); break;
                 default: throw new Exception("unsupported glTF type: " + gltfType);
             }
+            CleanMesh(mesh);
             logger.InfoFormat("converting {0} to {1}", gltfFile, destFile);
             mesh.Save(destFile, destTexture);
         }
@@ -195,6 +196,7 @@ namespace OPS.Landform
                               indexFile != null ? (", index " + indexFile) : "",
                               gltfFile);
             var mesh = Mesh.Load(meshFile);
+            CleanMesh(mesh);
             string gltfType = Path.GetExtension(gltfFile).ToLower().TrimStart('.');
             switch (gltfType)
             {
@@ -203,6 +205,17 @@ namespace OPS.Landform
                 case "b3dm": B3DMSerializer.Save(mesh, gltfFile, textureFile, indexFile); break;
                 default: throw new Exception("unsupported glTF type: " + gltfType);
             }
+        }
+
+        private void CleanMesh(Mesh mesh)
+        {
+            logger.InfoFormat("loaded mesh with {0} vertices, {1} faces, {2} normals, {3} colors, {4} texcoords",
+                              mesh.Vertices.Count, mesh.Faces.Count, mesh.HasNormals ? "with" : "without",
+                              mesh.HasColors ? "with" : "without", mesh.HasUVs ? "with" : "without");
+            mesh.Clean(verbose: msg => logger.Info(msg), warn: msg => logger.Warn(msg));
+            logger.InfoFormat("cleaned mesh has {0} vertices, {1} faces, {2} normals, {3} colors, {4} texcoords",
+                              mesh.Vertices.Count, mesh.Faces.Count, mesh.HasNormals ? "with" : "without",
+                              mesh.HasColors ? "with" : "without", mesh.HasUVs ? "with" : "without");
         }
     }
 }

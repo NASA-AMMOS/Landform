@@ -79,6 +79,9 @@ namespace OPS.Landform
         [Option(HelpText = "input path, ending /** for recursive, or .txt or .json array of paths", Default = null)]
         public string InputPath { get; set; }
 
+        [Option(HelpText = "Scene mesh coordinate frame: auto, passthrough, newest, oldest, mission_root, project_root, numeric sitedrive SSSDDDD", Default = "auto")]
+        public string MeshFrame { get; set; }
+
         [Option(HelpText = "Only use specific observations, comma separated (e.g. MLF_452276219RASLS0311330MCAM02600M1)", Default = null)]
         public string OnlyForObservations { get; set; }
 
@@ -90,6 +93,9 @@ namespace OPS.Landform
 
         [Option(HelpText = "Only use observations from specific site drives SSSDDDD, comma separated, wildcard xxxxx", Default = null)]
         public string OnlyForSiteDrives { get; set; }
+
+        [Option(HelpText = "Only use observations from specific sols, e.g. '27-32', '607,609', '27-32,607,609-611'", Default = null)]
+        public string OnlyForSols { get; set; }
 
         [Option(HelpText = "Whether to make LocationsDB priors (requires locations.xml and basemap DEM)", Default = false)]
         public bool AddLocationsDBPriors { get; set; }
@@ -109,14 +115,14 @@ namespace OPS.Landform
         [Option(HelpText = "URL to legacy manifest, used to build priors from onsight manifest", Default = null)]
         public string LegacyManifestURL { get; set; }
 
-        [Option(HelpText = "Recreate project if it already exists", Default = false)]
-        public bool RedoProject { get; set; }
+        [Option(HelpText = "Don't ecreate project if it already exists", Default = false)]
+        public bool NoRedoProject { get; set; }
 
-        [Option(HelpText = "Recreate observations that already exist", Default = false)]
-        public bool RedoObservations { get; set; }
+        [Option(HelpText = "Don't ecreate observations that already exist", Default = false)]
+        public bool NoRedoObservations { get; set; }
 
-        [Option(HelpText = "Recreate transform priors that already exist", Default = false)]
-        public bool RedoPriors { get; set; }
+        [Option(HelpText = "Don't recreate transform priors that already exist", Default = false)]
+        public bool NoRedoPriors { get; set; }
 
         [Option(Default = "None", HelpText = "Mission flag enables mission specific behavior, optional :venue override, e.g. None, MSL, M2020, M20SOPS, M20SOPS:dev, M20SOPS:sbeta")]
         public string Mission { get; set; }
@@ -126,9 +132,6 @@ namespace OPS.Landform
 
         [Option(Default = null, HelpText = "Override default orbital image file path")]
         public string OrbitalImage { get; set; }
-
-        [Option(Default = "root", HelpText = "Frame in which to ingest orbital assets, either a sitedrive SSSDDDD, \"root\", or \"project_root\"")]
-        public string OrbitalFrame { get; set; }
     }
 
     public class Ingest : LandformCommand
@@ -151,9 +154,9 @@ namespace OPS.Landform
 
             if (options.Redo)
             {
-                options.RedoProject = true;
-                options.RedoObservations = true;
-                options.RedoPriors = true;
+                options.NoRedoProject = false;
+                options.NoRedoObservations = false;
+                options.NoRedoPriors = false;
             }
         }
 
@@ -189,10 +192,12 @@ namespace OPS.Landform
                 inputUrl = StringHelper.NormalizeUrl(options.InputPath, options.Cloud ? "s3://" : "file://");
             }
 
-            string productUrl = pipeline.GetStorageUrl(InitializeAlignmentProject.DATA_PRODUCT_DIR, options.ProjectName);
+            string productUrl =
+                pipeline.GetStorageUrl(InitializeAlignmentProject.DATA_PRODUCT_DIR, options.ProjectName);
 
             var init = new InitializeAlignmentProject(pipeline);
-            return init.Initialize(options.ProjectName, productUrl, inputUrl, options.Mission, options.RedoProject);
+            return init.Initialize(options.ProjectName, options.Mission, options.MeshFrame, productUrl, inputUrl,
+                                   !options.NoRedoProject);
         }
 
         protected override MissionSpecific GetMission()
@@ -222,10 +227,10 @@ namespace OPS.Landform
             string orbitalImage =
                 !string.IsNullOrEmpty(options.OrbitalImage) ? options.OrbitalImage : oc.GetImageFile();
             ingester = new IngestAlignmentInputs(pipeline, project, mission,
-                                                 options.RedoObservations, options.RedoPriors,
+                                                 !options.NoRedoObservations, !options.NoRedoPriors,
                                                  options.OnlyForObservations, options.OnlyForFrames,
-                                                 options.OnlyForCameras, options.OnlyForSiteDrives,
-                                                 orbitalDEM, orbitalImage, options.OrbitalFrame,
+                                                 options.OnlyForCameras, options.OnlyForSiteDrives, options.OnlyForSols,
+                                                 orbitalDEM, orbitalImage,
                                                  options.NoSurface, options.NoOrbital, options.NoProgress);
             baseUrls = ingester.BaseUrls.Select(b => b.Url).ToList();
         }

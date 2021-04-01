@@ -21,6 +21,12 @@ namespace OPS.Pipeline
             return CONFIG_FILENAME;
         }
 
+        [ConfigEnvironmentVariable("LANDFORM_USE_MASTCAM_FOR_ALIGNMENT")]
+        public bool UseMastcamForAlignment { get; set; } = true;
+
+        [ConfigEnvironmentVariable("LANDFORM_USE_MASTCAM_FOR_MESHING")]
+        public bool UseMastcamForMeshing { get; set; } = true;
+
         [ConfigEnvironmentVariable("LANDFORM_PREFER_LINEAR_GEOMETRY_PRODUCTS")]
         public bool PreferLinearGeometryProducts { get; set; } = false;
 
@@ -43,6 +49,18 @@ namespace OPS.Pipeline
         //{venue} will be replaced with mission venue
         [ConfigEnvironmentVariable("LANDFORM_S3_DATA_PROXY")]
         public string S3Proxy { get; set; } = "https://data.{venue}.m20.jpl.nasa.gov";
+
+        //comma separated list of processing types to allow
+        //sorted in order of preference (best last)
+        //https://wiki.jpl.nasa.gov/pages/viewpage.action?spaceKey=MSMFS&title=Special+Character+Flags
+        [ConfigEnvironmentVariable("LANDFORM_ALLOWED_PROCESSING_TYPES")]
+        public string AllowedProcessingTypes { get; set; } = "_,C"; 
+
+        //comma separated list of producers to allow
+        //must match RoverProductProducer enum values
+        //sorted in order of preference (best last)
+        [ConfigEnvironmentVariable("LANDFORM_ALLOWED_PRODUCERS")]
+        public string AllowedProducers { get; set; } = "OPGS";  //"OPGS,ASU"
     }
     
     public class MissionM2020 : MissionSpecific
@@ -247,6 +265,16 @@ namespace OPS.Pipeline
             throw new NotImplementedException("max focus distance not implemented for 2020 instruments yet");
         }
 
+        public override bool UseMastcamForAlignment()
+        {
+            return MissionM2020Config.Instance.UseMastcamForAlignment;
+        }
+
+        public override bool UseMastcamForMeshing()
+        {
+            return MissionM2020Config.Instance.UseMastcamForMeshing;
+        }
+
         public override bool PreferLinearGeometryProducts()
         {
             return MissionM2020Config.Instance.PreferLinearGeometryProducts;
@@ -264,57 +292,53 @@ namespace OPS.Pipeline
             return idStr;
         }
 
-        public override RoverObservationComparator GetRoverObservationComparator()
+        public override RoverObservationComparator.CompareResult
+            CompareRoverObservations(RoverObservation a, RoverObservation b, params string[] exceptCrit)
         {
             // 0 if a and b are equivalently good
             // negative if a is "better" than b
             // positive if a is "worse than" b
-            int ext(RoverObservation a, RoverObservation b)
+            //https://docs.google.com/document/d/15iZgxqsecD6svOUuiEQm2J10a2ziKYeQQXU_f-VXGZc#heading=h.76imaw5jdp48
+            if (IsHazcam(a.Camera) || IsNavcam(a.Camera))
             {
-                //https://docs.google.com/document/d/15iZgxqsecD6svOUuiEQm2J10a2ziKYeQQXU_f-VXGZc#heading=h.76imaw5jdp48
-                if (IsHazcam(a.Camera) || IsNavcam(a.Camera))
+                //EECAM downsampling A,L,M,N, prefer higher
+                char edsA = a.Name[EECAM_DOWNSAMPLE_FIELD];
+                char edsB = b.Name[EECAM_DOWNSAMPLE_FIELD];
+                if (edsA != edsB && !exceptCrit.Contains("eecam_downsample"))
                 {
-                    //EECAM downsampling A,L,M,N, prefer higher
-                    char edsA = a.Name[EECAM_DOWNSAMPLE_FIELD];
-                    char edsB = b.Name[EECAM_DOWNSAMPLE_FIELD];
-                    if (edsA != edsB)
-                    {
-                        return edsB - edsA;
-                    }
-
-                    //EECAM reconstruction counter 0-9A-Z, prefer higher
-                    char rcA = a.Name[EECAM_RECONSTRUCTION_FIELD];
-                    char rcB = b.Name[EECAM_RECONSTRUCTION_FIELD];
-                    if (rcA != rcB)
-                    {
-                        return rcB - rcA;
-                    }
+                    return new RoverObservationComparator.CompareResult(edsB - edsA, "eecam_downsample");
                 }
-
-                //downsample 0-3, prefer lower
-                char dsA = a.Name[DOWNSAMPLE_FIELD];
-                char dsB = b.Name[DOWNSAMPLE_FIELD];
-                if (dsA != dsB)
+                
+                //EECAM reconstruction counter 0-9A-Z, prefer higher
+                char rcA = a.Name[EECAM_RECONSTRUCTION_FIELD];
+                char rcB = b.Name[EECAM_RECONSTRUCTION_FIELD];
+                if (rcA != rcB && !exceptCrit.Contains("eecam_recon"))
                 {
-                    return dsA - dsB;
+                    return new RoverObservationComparator.CompareResult(rcB - rcA, "eecam_recon");
                 }
-
-                //compresion, prefer higher
-                int compA = CompressionPreference(a.Name.Substring(COMPRESSION_FIELD, COMPRESSION_FIELD_LENGTH));
-                int compB = CompressionPreference(b.Name.Substring(COMPRESSION_FIELD, COMPRESSION_FIELD_LENGTH));
-                if (compA != compB)
-                {
-                    return compB - compA;
-                }
-
-                return 0;
             }
-
-            return new RoverObservationComparator(PreferMSSSToOPGS(), PreferLinearGeometryProducts(),
-                                                  PreferLinearRasterProducts(), PreferColorToGrayscale(),
-                                                  PreferEyeForGeometry(), this, ext);
+            
+            //downsample 0-3, prefer lower
+            //except keep all mask resolutions
+            //because it can happen that the XYZ and RAS products have different downsamples
+            char dsA = a.Name[DOWNSAMPLE_FIELD];
+            char dsB = b.Name[DOWNSAMPLE_FIELD];
+            if (dsA != dsB && a.ObservationType != RoverProductType.RoverMask && !exceptCrit.Contains("downsample"))
+            {
+                return new RoverObservationComparator.CompareResult(dsA - dsB, "downsample");
+            }
+            
+            //compresion, prefer higher
+            int compA = CompressionPreference(a.Name.Substring(COMPRESSION_FIELD, COMPRESSION_FIELD_LENGTH));
+            int compB = CompressionPreference(b.Name.Substring(COMPRESSION_FIELD, COMPRESSION_FIELD_LENGTH));
+            if (compA != compB && dsA == dsB && !exceptCrit.Contains("compression"))
+            {
+                return new RoverObservationComparator.CompareResult(compB - compA, "compression");
+            }
+            
+            return new RoverObservationComparator.CompareResult(0, "none");
         }
-
+        
         public override IEnumerable<RoverProductId>
             FilterProductIdGroups(IEnumerable<RoverProductId> products,
                                   Action<string, List<RoverProductId>, List<RoverProductId>> spew = null)
@@ -323,8 +347,8 @@ namespace OPS.Pipeline
 
             //if we have multiple resolutions (downsample levels) within a single observation
             //then keep only the highest res (lowest downsample)
-            //this is important so that we don't end up with mixed resolutions within one observation
-            //e.g. a mask with a different resolution than the corresponding image
+            //except keep all mask resolutions
+            //because it can happen that the XYZ and RAS products have different downsamples
             var groups = products.GroupBy(id => id.GetPartialId(this, includeProductType: false,
                                                                 includeVariants: false, includeVersion: false));
             var highestRes = new List<RoverProductId>();
@@ -332,12 +356,18 @@ namespace OPS.Pipeline
             {
                 var orig = group.ToList();
 
-                //downsample 0-3, prefer lower
-                char minDS = orig.Select(id => id.FullId[DOWNSAMPLE_FIELD]).DefaultIfEmpty('0').Min();
-                var filtered = orig.Where(id => id.FullId[DOWNSAMPLE_FIELD] == minDS).ToList();
-                spew("downsample", orig, filtered);
-
-                highestRes.AddRange(filtered);
+                if (orig.Count > 0 && orig[0].ProductType == RoverProductType.RoverMask)
+                {
+                    highestRes.AddRange(orig);
+                }
+                else
+                {
+                    //downsample 0-3, prefer lower
+                    char minDS = orig.Select(id => id.FullId[DOWNSAMPLE_FIELD]).DefaultIfEmpty('0').Min();
+                    var filtered = orig.Where(id => id.FullId[DOWNSAMPLE_FIELD] == minDS).ToList();
+                    spew("downsample", orig, filtered);
+                    highestRes.AddRange(filtered);
+                }
             }
 
             Func<RoverProductId, bool> isEECAM = id => IsHazcam(id.Camera) || IsNavcam(id.Camera);
@@ -363,6 +393,8 @@ namespace OPS.Pipeline
                 orig = filtered;
 
                 //EECAM reconstruction counter 0-9A-Z, prefer higher
+                //note recon counter is _ for an EECAM tile
+                //but those should have already been eliminated by CheckProductID()
                 char maxERC = orig
                     .Where(id => isEECAM(id))
                     .Select(id => id.FullId[EECAM_RECONSTRUCTION_FIELD])
@@ -471,23 +503,25 @@ namespace OPS.Pipeline
             if (id is M2020OPGSProductId)
             {
                 M2020OPGSProductId opgsId = (M2020OPGSProductId)id;
-                string spec = opgsId.Spec.ToUpper();
-                if (spec != "_")
-                {
-                    //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/895
-                    reason = "special processing " + spec;
-                    return false;
-                }
+
+                bool isEECAM = IsHazcam(id.Camera) || IsNavcam(id.Camera);
 
                 var camspec = opgsId.Camspec.ToUpper();
-                if (IsHazcam(id.Camera) || IsNavcam(id.Camera) || IsMastcam(id.Camera))
+                if (isEECAM || IsMastcam(id.Camera))
                 {
                     var stereoPartner = camspec.Substring(0, 1);
                     if (stereoPartner != "_")
                     {
                         //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/883
                         reason = "stereo partner " + stereoPartner;
+                        return false;
                     }
+                }
+
+                if (isEECAM && id.FullId[EECAM_RECONSTRUCTION_FIELD] == '_')
+                {
+                    reason = "EECAM tile";
+                    return false;
                 }
 
                 //downsample and compression handled in RoverObservationComparator
@@ -499,9 +533,9 @@ namespace OPS.Pipeline
                 }
             }
 
-            if (id.Producer == RoverProductProducer.MSSS)
+            if (id.Producer != RoverProductProducer.OPGS)
             {
-                //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/754
+                //https://github.jpl.nasa.gov/OnSight/Landform/issues/1172
                 return false;
             }
 
@@ -532,11 +566,35 @@ namespace OPS.Pipeline
 
         public virtual string GetOrbitalS3Folder()
         {
-            return "s3://m20-ids-g-landform/M2020/orbital/";
+            if (venue == "dev")
+            {
+                return "s3://m20-ids-g-landform/M2020/orbital/";
+            }
+            return $"s3://m20-{venue}-ods/ods/surface/strategic/ids/orbital/";
         }
 
         public override string GetOrbitalConfigDefaults()
         {
+            //PlacesDB orbital index 0
+            // - "global" frame, not associated with any specific geotiff
+            // - easting/northing reported relative to lon/lat 0/0 which is what GDAL expects
+            // - upper_left_{easting,northing}_m are not included in https://PLACES_URL/rmc/ORBITAL(0)/metadata
+            
+            //PlacesDB orbital index 1
+            // - associated with the 25cm basemap CLR (color) and ORR (greyscale) orthophoto geotiffs
+            // - easting/northing reported relative to ULC
+            // - upper_left_{easting,northing}_m are included in https://PLACES_URL/rmc/ORBITAL(1)/metadata
+
+            //PlacesDB orbital index 2
+            // - associated with the 1m DEM geotiff
+            // - easting/northing reported relative to ULC
+            // - upper_left_{easting,northing}_m are included in https://PLACES_URL/rmc/ORBITAL(2)/metadata
+
+            //since we use GDAL the recommendation (from Bob Deen) is that we actually use index 0
+            //the other two are used by other subsystems which don't use GDAL to read the geotiffs
+            //the only small tradeoff is that in this setup we can't cross-check the orbital metadata
+            //(PlacesDB.CheckOrbital{DEM,Image}Metadata() called from IngestAlignmentInputs.IngestOrbitalAsset())
+
             //greyscale image: M20_PrimeMission_HiRISE_ORR_25cm.tif
             //color image: M20_PrimeMission_HiRISE_CLR_25cm.tif
             string s3Folder = GetOrbitalS3Folder();
@@ -551,15 +609,44 @@ namespace OPS.Pipeline
                 "}";
         }
 
-        public override string GetPlacesConfigDefaults()
+        protected string GetPlacesConfigDefaults(string url, string views = "best_interp")
         {
-            string sfx = venue == "dev" ? "-dev" : "";
+            //From RGD: this is basically the same as MSL, except some of the names have changed.
+            //There are three views you  might care about (there are a few others you won't):
+            //
+            //telemetry
+            //best_tactical (NB: during early mission this view was borked)
+            //best_interp (NB: best and should fall back to others)
+            //
+            //Telemetry contains whatever the rover sent, period.
+            //It has all frames we know anything about, but NO localization whatsoever.
+            //
+            //Best_tactical contains ONLY the localization points.  So if you do a normal, shallow query, you'll see
+            //only those places where the rover was actually localized (generally end-of-drive, although also sometimes
+            //mid-drive).  If you do a deep query (deep=true) then it'll go to the parent for answers, which means
+            //telemetry.  HOWEVER... those are unlocalized telemetry values, so you'd get a discontinuous path.  Not
+            //recommended.  The purpose of best_tactical is to highlight and store the actual localization points.
+            //
+            //Best_interp contains the interpolated drive path.  That is, all the points from telemetry, interpolated
+            //between localization points so we have a continuous drive path.  This is the one you almost certainly want
+            //to use.
+            //
+            //However, neither best_tactical nor best_interp will show a value if localization has not yet been done.
+            //If you add deep=true then it will go back to telemetry if there's no answer yet... but you may get a
+            //discontinuous drive path that way.
             return "{\n" +
-                $"\"Url\": \"https://places{sfx}.{venue}.m20.jpl.nasa.gov\",\n" +
-                "\"View\": \"best_tactical\",\n" +
+                $"\"Url\": \"{url}\",\n" +
+                $"\"View\": \"{views}\",\n" +
+                "\"AlwaysCheckRMC\": false,\n" +
                 "\"AuthCookieName\": \"ssosession\",\n" +
                 $"\"AuthCookieFile\": \"~/.cssotoken/{venue}/ssosession\"\n" +
                 "}";
+        }
+
+        public override string GetPlacesConfigDefaults()
+        {
+            string sfx = venue == "dev" ? "-dev" : "";
+            return GetPlacesConfigDefaults($"https://places{sfx}.{venue}.m20.jpl.nasa.gov");
         }
 
         public override string SolToString(int sol)
@@ -597,6 +684,16 @@ namespace OPS.Pipeline
         protected string RoverMotionCounterFromTimeString(PDSParser parser)
         {
             return ((M2020OPGSProductId)ParseProductId(parser.ProductIdString)).GetConcatenatedTimeString();
+        }
+
+        public override List<string> GetAllowedProcessingTypes()
+        {
+            return GetAllowedProcessingTypes(MissionM2020Config.Instance.AllowedProcessingTypes);
+        }
+
+        public override List<RoverProductProducer> GetAllowedProducers()
+        {
+            return GetAllowedProducers(MissionM2020Config.Instance.AllowedProducers);
         }
     }
 
@@ -637,13 +734,8 @@ namespace OPS.Pipeline
 
         public override string GetPlacesConfigDefaults()
         {
-            return
-                "{ " +
-                "\"Url\": \"https://places-external-roastt.m20-training.jpl.nasa.gov/m2020-places\", " +
-                "\"View\": \"best_tactical\", " +
-                "\"AuthCookieName\": \"ssosession\", " +
-                $"\"AuthCookieFile\": \"~/.cssotoken/{venue}/ssosession\"" +
-                "}";
+            return GetPlacesConfigDefaults("https://places-external-roastt.m20-training.jpl.nasa.gov/m2020-places",
+                                           "telemetry");
         }
 
         public override RoverProductGeometry GetTacticalMeshGeometry()
@@ -697,12 +789,7 @@ namespace OPS.Pipeline
 
         public override string GetPlacesConfigDefaults()
         {
-            return "{\n" +
-                "\"Url\": \"https://places-sstage.m20.jpl.nasa.gov\",\n" +
-                "\"View\": \"best_tactical\",\n" +
-                "\"AuthCookieName\": \"ssosession\",\n" +
-                $"\"AuthCookieFile\": \"~/.cssotoken/{venue}/ssosession\"\n" +
-                "}";
+            return GetPlacesConfigDefaults("https://places-sstage.m20.jpl.nasa.gov", "telemetry");
         }
 
         public override RoverProductGeometry GetTacticalMeshGeometry()
@@ -723,7 +810,7 @@ namespace OPS.Pipeline
             public const int LENGTH = 10;
 
             protected ScarecrowEECAMUnifiedMesh(string fullId, int site, int drive)
-                : base(fullId, RoverProductProducer.OPGS, RoverProductType.Points, camera: "NL", geometry: "L",
+                : base(fullId, "J", RoverProductType.Points, camera: "NL", geometry: "L",
                        color: "", version: "0", size: "", site: site, drive: drive, spec: "_") 
             { }
 
@@ -759,6 +846,11 @@ namespace OPS.Pipeline
             public override bool IsSingleSiteDrive()
             {
                 return true;
+            }
+
+            protected override RoverProductProducer ParseProducer(string producer, string camera)
+            {
+                return ParseM2020Producer(producer, camera);
             }
 
             protected override RoverProductColor ParseColor(string color, string camera)
@@ -880,12 +972,7 @@ namespace OPS.Pipeline
             //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/725#issuecomment-267319
             //per Kevin Grimes on 3/18/20 ROASTT20 data will soon move to
             //https://places-roastt.dev.m20.jpl.nasa.gov
-            return "{\n" +
-                $"\"Url\": \"https://places-rocs.{venue}.m20.jpl.nasa.gov\",\n" +
-                "\"View\": \"best_tactical\",\n" +
-                "\"AuthCookieName\": \"ssosession\",\n" +
-                $"\"AuthCookieFile\": \"~/.cssotoken/{venue}/ssosession\"\n" +
-                "}";
+            return GetPlacesConfigDefaults($"https://places-rocs.{venue}.m20.jpl.nasa.gov", "telemetry");
         }
 
         public override RoverProductGeometry GetTacticalMeshGeometry()
@@ -929,6 +1016,8 @@ namespace OPS.Pipeline
         }
     }
 
+    //this is mostly here for backwards compatibility
+    //please make the regular MissionM2020 impl do the right thing when venue=sops
     public class MissionM20SOPS : MissionM2020
     {
         public MissionM20SOPS(string venue = null) : base(venue ?? "sops") { }
@@ -936,11 +1025,6 @@ namespace OPS.Pipeline
         public override Mission GetMission()
         {
             return Mission.M20SOPS;
-        }
-
-        public override string GetOrbitalS3Folder()
-        {
-            return $"s3://m20-{venue}-ods/ods/surface/strategic/ids/orbital/";
         }
     }
 }

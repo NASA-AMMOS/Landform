@@ -10,52 +10,56 @@ using OPS.MathExtensions;
 using OPS.Geometry;
 using OPS.Pipeline.AlignmentServer;
 using OPS.Pipeline;
+using OPS.Pipeline.Texturing;
 
 namespace OPS.Landform
 {
-    public enum AtlasMode { UVAtlas, Heightmap };
-
     public class GeometryCommandOptions : WedgeCommandOptions
     {
-        [Option(HelpText = "Scene mesh coordinate frame: auto, passthrough, newest, oldest, mission_root, project_root, numeric sitedrive SSSDDDD", Default = "auto")]
-        public virtual string MeshFrame { get; set; }
-
-        [Option(HelpText = "Scene mesh texture resolution, should be power of two", Default = 8192)]
+        [Option(HelpText = "Scene mesh texture resolution, should be power of two", Default = TexturingDefaults.SCENE_TEXTURE_RESOLUTION)]
         public virtual int TextureResolution { get; set; }
 
-        [Option(HelpText = "Max texture charts, 0 for unlimited", Default = 0)]
-        public int MaxTextureCharts { get; set; }
+        [Option(HelpText = "Max texture charts, 0 for unlimited", Default = UVAtlas.DEF_MAX_CHARTS)]
+        public virtual int MaxTextureCharts { get; set; }
 
-        [Option(HelpText = "Max texture stretch, 0 for none, 1 for unlimited", Default = 0.1)]
-        public double MaxTextureStretch { get; set; }
+        [Option(HelpText = "Max texture stretch, 0 for none, 1 for unlimited", Default = UVAtlas.DEF_MAX_STRETCH)]
+        public virtual double MaxTextureStretch { get; set; }
 
-        [Option(HelpText = "Min fraction of texture space to use for surface data", Default = 0.5)]
+        [Option(HelpText = "Min fraction of texture space to use for surface data", Default =TexturingDefaults.MIN_SURFACE_TEXTURE_FRACTION)]
         public double MinSurfaceTextureFraction { get; set; }
 
         [Option(HelpText = "Disable texture space warp", Default = false)]
         public bool NoTextureWarp { get; set; }
 
-        [Option(HelpText = "Ease texture space warp in range [0, 1], otherwise no easing", Default = 0.5)]
+        [Option(HelpText = "Ease texture space warp in range [0, 1], otherwise no easing", Default = TexturingDefaults.EASE_TEXTURE_WARP)]
         public double EaseTextureWarp { get; set; }
 
-        [Option(HelpText = "Ease surface pixels per meter factor", Default = 0.2)]
+        [Option(HelpText = "Ease surface pixels per meter factor", Default = TexturingDefaults.EASE_SURFACE_PPM_FACTOR)]
         public double EaseSurfacePPMFactor { get; set; }
 
         [Option(HelpText = "Orbital sampling rate, non-positive to use DEM resolution", Default = -1)]
         public double OrbitalPointsPerMeter { get; set; }
 
-        [Option(HelpText = "UV generation mode for surface meshes (UVAtlas, Heightmap)", Default = AtlasMode.UVAtlas)]
-        public AtlasMode SurfaceUVMode { get; set; }
+        [Option(HelpText = "UV generation mode for meshes if texture projection is not available (None, UVAtlas, Heightmap, Naive)", Default = TexturingDefaults.ATLAS_MODE)]
+        public AtlasMode AtlasMode { get; set; }
+
+        [Option(HelpText = "Max runtime for UVAtlas", Default = 10 * 60)]
+        public virtual int MaxUVAtlasSec { get; set; }
     }
 
     public class GeometryCommand : WedgeCommand
     {
+        public const int ATLAS_LOG_THRESHOLD = 50000;
+        public const int UVATLAS_WARN_THRESHOLD = 100000;
+
         protected GeometryCommandOptions gcopts;
 
-        protected string meshFrame;
         protected int sceneTextureResolution;
+        protected double maxTextureStretch;
 
         protected double orbitalSamplesPerPixel;
+
+        protected int numUVatlas, numHeightmapAtlas, numNaiveAtlas, numManifoldAtlas;
 
         public GeometryCommand(GeometryCommandOptions gcopts) : base(gcopts)
         {
@@ -64,15 +68,10 @@ namespace OPS.Landform
 
         protected override bool ParseArgumentsAndLoadCaches(string outDir)
         {
-            //pass null as outDir because we'll be setting it ourselves below
-            if (!base.ParseArgumentsAndLoadCaches(null))
+            if (!base.ParseArgumentsAndLoadCaches(outDir))
             {
                 return false; //help
             }
-
-            HandleSpecialMeshFrames();
-
-            SetOutDir(DecorateOutDir(outDir));
 
             sceneTextureResolution = gcopts.TextureResolution;
             if (!NumberHelper.IsPowerOfTwo(sceneTextureResolution))
@@ -86,170 +85,33 @@ namespace OPS.Landform
                 orbitalSamplesPerPixel = gcopts.OrbitalPointsPerMeter * orbitalDEMMetersPerPixel;
             }
             
+            maxTextureStretch = gcopts.MaxTextureStretch;
+            if (maxTextureStretch < 0 || maxTextureStretch > 1)
+            {
+                throw new Exception("MaxTextureStretch must be between 0 and 1");
+            }
+
+            string atlasMsg = "";
+            if (gcopts.AtlasMode == AtlasMode.UVAtlas)
+            {
+                atlasMsg = $" (max time {Fmt.HMS(gcopts.MaxUVAtlasSec * 1000)}, will fallback to heightmap)";
+            }
+            else if (gcopts.AtlasMode == AtlasMode.Manifold)
+            {
+                atlasMsg = $" (will fallback to UVAtlas, max time {Fmt.HMS(gcopts.MaxUVAtlasSec * 1000)}";
+                atlasMsg += ", then heightmap)";
+            }
+            pipeline.LogInfo("atlas mode {0}{1}", gcopts.AtlasMode, atlasMsg);
+
             return true;
         }
 
-        protected override string DecorateOutDir(string outDir)
+        protected virtual void UVAtlasMesh(Mesh mesh, int resolution, string name = null) 
         {
-            return base.DecorateOutDir(string.Format("{0}/{1}Frame", outDir, meshFrame));
-        }
-
-        protected virtual string GetMeshFrame()
-        {
-            return gcopts.MeshFrame;
-        }
-
-        protected virtual string GetAutoMeshFrame()
-        {
-            return "newest";
-        }
-
-        protected virtual bool PassthroughMeshFrameAllowed()
-        {
-            return false;
-        }
-
-        protected virtual bool NonPassthroughMeshFrameAllowed()
-        {
-            return true;
-        }
-
-        protected virtual void HandleSpecialMeshFrames()
-        {
-            meshFrame = GetMeshFrame();
-
-            if (string.IsNullOrEmpty(meshFrame))
-            {
-                return;
-            }
-
-            meshFrame = meshFrame.ToLower().Trim();
-
-            if (meshFrame == "auto")
-            {
-                meshFrame = GetAutoMeshFrame();
-            }
-                
-            string missionRoot = mission != null ? mission.RootFrameName() : null;
-
-            var specials =
-                new string[] { "passthrough", "newest", "oldest", "mission_root", "project_root", missionRoot };
-
-            bool isSiteDrive = SiteDrive.IsSiteDriveString(meshFrame);
-            bool isSpecial = !isSiteDrive && specials.Contains(meshFrame);
-
-            if (!isSiteDrive && !isSpecial)
-            {
-                throw new Exception("unsupported mesh frame: " + meshFrame);
-            }
-
-            var origMeshFrame = meshFrame;
-            if (meshFrame == "passthrough")
-            {
-                if (!PassthroughMeshFrameAllowed())
-                {
-                    throw new Exception("--meshframe=passthrough not allowed");
-                }
-            }
-            else if (!NonPassthroughMeshFrameAllowed())
-            {
-                throw new Exception("only --meshframe=passthrough allowed");
-            }
-
-            if (meshFrame == "mission_root" || meshFrame == missionRoot)
-            {
-                meshFrame = "root"; //recognized as a meta-name by FrameCache.GetObservationTransform()
-            }
-            else if (meshFrame == "project_root")
-            {
-                if (rootSiteDrive == null)
-                {
-                    //this can happen if there were no frames to load or the frame cache was not loaded
-                    throw new Exception("project root output requested but no root site drive");
-                }
-                if (rootSiteDrive == mission.GetLandingSiteDrive())
-                {
-                    meshFrame = "root";
-                }
-                else
-                {
-                    meshFrame = rootSiteDrive.ToString();
-                }
-            }
-            else if (meshFrame == "newest" || meshFrame == "oldest")
-            {
-                if (observationCache == null)
-                {
-                    throw new Exception("observation cache not loaded, cannot resolve special frame: " + meshFrame);
-                }
-                                              
-                var sds = observationCache
-                    .GetAllObservations()
-                    .Where(obs => obs is RoverObservation)
-                    .Select(obs => ((RoverObservation)obs).SiteDrive)
-                    .Distinct()
-                    .ToArray();
-
-                if (sds.Length == 0)
-                {
-                    throw new Exception("no sitedrives");
-                }
-
-                if (meshFrame == "newest")
-                {
-                    meshFrame = sds.OrderByDescending(sd => sd).First().ToString();
-                }
-                else
-                {
-                    meshFrame = sds.OrderBy(sd => sd).First().ToString();
-                }
-
-                isSiteDrive = true;
-            }
-
-            //some workflows do not load frame cache, for example updating scene manifest for tactical meshes
-            if (isSiteDrive && frameCache != null && !frameCache.ContainsFrame(meshFrame))
-            {
-                throw new Exception("sitedrive frame not found: " + meshFrame);
-            }
-
-            pipeline.LogInfo("scene mesh frame: {0}{1}", meshFrame,
-                             origMeshFrame != meshFrame ? " (" + origMeshFrame + ")" : "");
-        }
-
-        protected string CheckOutputURL<T>(string url, string defaultFilename, string outDir,
-                                           SerializerMap<T> serializerMap = null)
-        {
-            url = StringHelper.NormalizeUrl(url);
-            var ext = StringHelper.GetUrlExtension(url);
-            if (serializerMap != null && serializerMap.CheckFormat(ext) == null)
-            {
-                throw new Exception("unsupported output format " + ext);
-            }
-            if (url.StartsWith("."))
-            {
-                url = defaultFilename + url;
-            }
-            if (pipeline is CloudPipeline)
-            {
-                if (!url.Contains("://"))
-                {
-                    url = pipeline.GetStorageUrl(outDir, project.Name, url);
-                }
-                else if (!url.StartsWith(pipeline.StorageUrlWithVenue))
-                {
-                    throw new Exception(string.Format("output URL {0} outside cloud storage area", url));
-                }
-            }
-            return url;
-        }
-
-        protected virtual Mesh UVAtlasMesh(Mesh mesh, int resolution, string name = null) 
-        {
-            name = !string.IsNullOrEmpty(name) ? (name + " ") : "";
-            string msg = string.Format("atlasing {0}mesh ({1} triangles) with UVAtlas, texture resolution {2}",
-                                       name, Fmt.KMG(mesh.Faces.Count), resolution);
-            if (mesh.Faces.Count > 20000)
+            string msg =
+                string.Format("atlassing {0}mesh ({1} triangles) with UVAtlas, texture resolution {2}",
+                              !string.IsNullOrEmpty(name) ? (name + " ") : "", Fmt.KMG(mesh.Faces.Count), resolution);
+            if (mesh.Faces.Count > ATLAS_LOG_THRESHOLD)
             {
                 pipeline.LogInfo(msg);
             }
@@ -258,34 +120,32 @@ namespace OPS.Landform
                 pipeline.LogVerbose(msg);
             }
 
-            if (mesh.Faces.Count > 100000)
+            if (mesh.Faces.Count > UVATLAS_WARN_THRESHOLD)
             {
                 //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/902
                 pipeline.LogWarn("UVAtlas may not work well on large meshes");
             }
 
-            try
+            if (!UVAtlas.Atlas(mesh, resolution, resolution, gcopts.MaxTextureCharts,
+                               maxTextureStretch, logger: pipeline, fallbackToNaive: false,
+                               maxSec: gcopts.MaxUVAtlasSec))
             {
-                mesh = UVAtlas.Atlas(mesh, resolution, resolution,
-                                     gcopts.MaxTextureCharts, (float)gcopts.MaxTextureStretch);
-                if (mesh == null)
-                {
-                    throw new Exception("unknown");
-                }
-                return mesh;
+                pipeline.LogWarn("failed to atlas {0}mesh with UVAtlas, falling back to heightmap atlas",
+                                 !string.IsNullOrEmpty(name) ? (name + " ") : "", Fmt.KMG(mesh.Faces.Count));
+                HeightmapAtlasMesh(mesh, name);
             }
-            catch (Exception ex)
+            else
             {
-                pipeline.LogError("error atlasing {0} mesh with UVAtlas: {1}", name, ex.Message);
-                return null;
+                numUVatlas++;
             }
         }
 
-        protected virtual Mesh HeightmapAtlasMesh(Mesh mesh, string name = null)
+        protected virtual void HeightmapAtlasMesh(Mesh mesh, string name = null)
         {
-            name = !string.IsNullOrEmpty(name) ? (name + " ") : "";
-            string msg = string.Format("heightmap atlasing {0}mesh ({1} triangles)", name, Fmt.KMG(mesh.Faces.Count));
-            if (mesh.Faces.Count > 20000)
+            string msg = string.Format("heightmap atlassing {0}mesh ({1} triangles)",
+                                       !string.IsNullOrEmpty(name) ? (name + " ") : "", Fmt.KMG(mesh.Faces.Count));
+
+            if (mesh.Faces.Count > ATLAS_LOG_THRESHOLD)
             {
                 pipeline.LogInfo(msg);
             }
@@ -295,26 +155,85 @@ namespace OPS.Landform
             }
 
             //swap U and V because mission surface frames are typically X north, Y east
-            //this doesn't really matter here except that backproject texture images created to match these flipped UVs
+            //this doesn't really matter here except that texture images created to match these flipped UVs
             //will have north up and east right in image viewers, matching the orientation of other debug images
             mesh.HeightmapAtlas(BoxAxis.Z, swapUV: true);
-
-            return mesh;
+            numHeightmapAtlas++;
         }
 
-        protected virtual Mesh AtlasMesh(Mesh mesh, int resolution, string name = null)
+        protected virtual void NaiveAtlasMesh(Mesh mesh, string name = null)
         {
-            switch (gcopts.SurfaceUVMode)
+            string msg = string.Format("naive atlassing {0}mesh ({1} triangles)",
+                                       !string.IsNullOrEmpty(name) ? (name + " ") : "", Fmt.KMG(mesh.Faces.Count));
+            if (mesh.Faces.Count > ATLAS_LOG_THRESHOLD)
             {
-                case AtlasMode.UVAtlas: return UVAtlasMesh(mesh, resolution, name);
-                case AtlasMode.Heightmap: return HeightmapAtlasMesh(mesh, name);
-                default: throw new ArgumentException("unknown atlas mode: " + gcopts.SurfaceUVMode);
+                pipeline.LogInfo(msg);
+            }
+            else
+            {
+                pipeline.LogVerbose(msg);
+            }
+            mesh.NaiveAtlas();
+            numNaiveAtlas++;
+        }
+
+        protected virtual void ManifoldAtlasMesh(Mesh mesh, string name = null)
+        {
+            string msg = string.Format("manifold atlassing {0}mesh ({1} triangles)",
+                                       !string.IsNullOrEmpty(name) ? (name + " ") : "", Fmt.KMG(mesh.Faces.Count));
+            if (mesh.Faces.Count > ATLAS_LOG_THRESHOLD)
+            {
+                pipeline.LogInfo(msg);
+            }
+            else
+            {
+                pipeline.LogVerbose(msg);
+            }
+            if (!mesh.ManifoldAtlas())
+            {
+                //this is expected for a non-convex mesh, verbose not info
+                pipeline.LogVerbose("failed to manifold atlas {0}mesh, falling back to UVAtlas",
+                                    !string.IsNullOrEmpty(name) ? (name + " ") : "");
+                UVAtlasMesh(mesh, UVAtlas.DEF_RESOLUTION, name);
+            }
+            else
+            {
+                numManifoldAtlas++;
             }
         }
 
-        protected virtual bool TextureProjectionEnabled()
+        protected virtual void AtlasMesh(Mesh mesh, int resolution, string name = null)
         {
-            return false;
+            switch (gcopts.AtlasMode)
+            {
+                case AtlasMode.None: throw new Exception($"cannot atlas mesh, atlassing disabled");
+                case AtlasMode.UVAtlas: UVAtlasMesh(mesh, resolution, name); break;
+                case AtlasMode.Heightmap: HeightmapAtlasMesh(mesh, name); break;
+                case AtlasMode.Project: //fallthrough here, see TextureCommand.AtlasMesh()
+                case AtlasMode.Naive: NaiveAtlasMesh(mesh, name); break;
+                case AtlasMode.Manifold: ManifoldAtlasMesh(mesh, name); break;
+                default: throw new ArgumentException("unsupported atlas mode: " + gcopts.AtlasMode);
+            }
+        }
+
+        protected virtual void DumpAtlasStats()
+        {
+            if (numUVatlas > 0)
+            {
+                pipeline.LogInfo("UVAtlassed {0} meshes", numUVatlas);
+            }
+            if (numHeightmapAtlas > 0)
+            {
+                pipeline.LogInfo("heightmap atlassed {0} meshes", numHeightmapAtlas);
+            }
+            if (numNaiveAtlas > 0)
+            {
+                pipeline.LogInfo("naive atlassed {0} meshes", numNaiveAtlas);
+            }
+            if (numManifoldAtlas > 0)
+            {
+                pipeline.LogInfo("manifold atlassed {0} meshes", numManifoldAtlas);
+            }
         }
 
         protected Vector2 PointToUV(BoundingBox meshBounds, Vector3 pt)

@@ -76,7 +76,7 @@
 # * run again with --nocleanup --suffix foo --onlysky --redo --skyargs "--onlyforcameras=Mastcam --noblend"
 #   to rebuild the sky sphere tileset using only mastcam and without blending.
 # * run again with --nocleanup --suffix foo --noingest --noalign --nogeometry --notileset --notexture --blendargs
-#   --colorize to re-blend the monolithich mesh with colorize.
+#   --colorize to re-blend the monolithic mesh with colorize.
 # * run again with --nocleanup --suffix foo --noingest --noalign --nogeometry --notilinginput --nosky --nomanifest
 #   --blendargs --colorize to re-blend the tileset with colorize.
 #
@@ -379,19 +379,19 @@ if [ "$generate" ]; then
 
     if [ ! "$no_ingest" ]; then
         # using --inputpath=$indir/** with equal sign, not --inputpath $dir/**, to avoid shell glob expansion
-        ${dry}$landform ingest $proj $stdopts --inputpath=$indir/** --mission $mission \
+        ${dry}$landform ingest $proj $stdopts --inputpath=$indir/** --mission $mission --meshframe $sd \
               --onlyforsitedrives $sds $cameras $orbitalopts $ingestargs | tee -a $log
     fi
 
     if [ ! "$only_ingest" ]; then
 
         if [ ! "$no_align" ]; then
-            ${dry}$landform bev-align $proj $stdopts --fixsitedrives $sd $bevargs | tee -a $log
-            ${dry}$landform heightmap-align $proj $stdopts --basesitedrive $sd $heightmapargs | tee -a $log
+            ${dry}$landform bev-align $proj $stdopts $bevargs | tee -a $log
+            ${dry}$landform heightmap-align $proj $stdopts $heightmapargs | tee -a $log
         fi
 
         if [ ! "$no_geometry" ]; then
-            ${dry}$landform build-geometry $proj $geomopts $stdopts --meshframe $sd $geometryargs | tee -a $log
+            ${dry}$landform build-geometry $proj $geomopts $stdopts  $geometryargs | tee -a $log
         fi
 
         if [ ! "$no_tileset" ]; then
@@ -399,14 +399,14 @@ if [ "$generate" ]; then
             if [ ! "$only_sky" ]; then
 
                 if [ ! "$no_tiling_input" ]; then
-                    ${dry}$landform build-tiling-input $proj $stdopts --meshframe $sd $tilingargs | tee -a $log
+                    ${dry}$landform build-tiling-input $proj $stdopts $tilingargs | tee -a $log
                 fi
                 
                 if [ ! "$no_blend" ]; then
-                    ${dry}$landform blend-images $proj $stdopts --meshframe $sd $blendargs | tee -a $log
+                    ${dry}$landform blend-images $proj $stdopts $blendargs | tee -a $log
                 fi
                 
-                ${dry}$landform build-tileset $proj $stdopts $export --meshframe $sd $tilesetargs | tee -a $log
+                ${dry}$landform build-tileset $proj $stdopts $export $tilesetargs | tee -a $log
 
                 ${dry}rm -rf $outproj
                 if [ -d $tilesetdir ]; then
@@ -417,7 +417,7 @@ if [ "$generate" ]; then
             fi
 
             if [ ! "$no_sky" ]; then
-                ${dry}$landform build-sky-sphere $proj $stdopts --meshframe $sd $skyargs | tee -a $log
+                ${dry}$landform build-sky-sphere $proj $stdopts $skyargs | tee -a $log
                 ${dry}rm -rf ${outproj}_sky
                 if [ -d $skytilesetdir ]; then
                     ${dry}cp -R $skytilesetdir ${outproj}_sky
@@ -429,11 +429,11 @@ if [ "$generate" ]; then
             fi
         else
             if [ ! "$no_texture" ]; then
-                ${dry}$landform build-texture $proj $meshopts $stdopts --meshframe $sd $textureargs | tee -a $log
+                ${dry}$landform build-texture $proj $meshopts $stdopts $textureargs | tee -a $log
             fi
             if [ ! "$no_blend" ]; then
                 blendargs="$blendargs --nouseexistingleaves"
-                ${dry}$landform blend-images $proj $meshopts $stdopts --meshframe $sd $blendargs | tee -a $log
+                ${dry}$landform blend-images $proj $meshopts $stdopts $blendargs | tee -a $log
             fi
         fi
 

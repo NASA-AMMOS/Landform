@@ -132,6 +132,8 @@ namespace OPS.Geometry.GLTF
                 imageBufs.Add(File.ReadAllBytes(indexFilename));
             }
 
+            int indexBytes = m.Vertices.Count > 65535 ? 4 : 2;
+
             int numBytes = 3 * 4 * m.Vertices.Count; //positions
             if (m.HasNormals)
             {
@@ -143,7 +145,7 @@ namespace OPS.Geometry.GLTF
             }
             if (m.HasFaces)
             {
-                numBytes += Pad(3 * 2 * m.Faces.Count);
+                numBytes += Pad(3 * indexBytes * m.Faces.Count);
             }
             foreach (var buf in imageBufs)
             {
@@ -262,20 +264,38 @@ namespace OPS.Geometry.GLTF
                 var bufferView = new GLTFBufferView()
                 {
                     buffer = 0,
-                    byteLength = m.Faces.Count * 3 * 2,
+                    byteLength = m.Faces.Count * 3 * indexBytes,
                     byteOffset = bytes.Count
                 };                
                 bufferViews.Add(bufferView);
 
-                ushort minIndex = ushort.MaxValue, maxIndex = ushort.MinValue;
+                //unsigned 32 bit int indices are supported by GLTF2.0, recent versions of Unity, and all major browsers
+                //however, only use them when required
+                //https://github.com/KhronosGroup/glTF/tree/master/specification/2.0#primitiveindices
+                //https://developer.mozilla.org/en-US/docs/Web/API/OES_element_index_uint
+
+                int minIndex = int.MaxValue, maxIndex = int.MinValue;
                 for (int i = 0; i < m.Faces.Count; i++)
                 {
                     var face = m.Faces[i];
-                    minIndex = (ushort)MathE.Min(minIndex, face.P0, face.P1, face.P2);
-                    maxIndex = (ushort)MathE.Max(maxIndex, face.P0, face.P1, face.P2);
-                    bytes.AddRange(UShortBytes(face.P0));
-                    bytes.AddRange(UShortBytes(face.P1));
-                    bytes.AddRange(UShortBytes(face.P2));
+                    byte[] b0 = null, b1 = null, b2 = null;
+                    if (indexBytes == 2)
+                    {
+                        b0 = UShortBytes(face.P0);
+                        b1 = UShortBytes(face.P1);
+                        b2 = UShortBytes(face.P2);
+                    }
+                    else
+                    {
+                        b0 = UIntBytes(face.P0);
+                        b1 = UIntBytes(face.P1);
+                        b2 = UIntBytes(face.P2);
+                    }
+                    bytes.AddRange(b0);
+                    bytes.AddRange(b1);
+                    bytes.AddRange(b2);
+                    minIndex = MathE.Min(minIndex, face.P0, face.P1, face.P2);
+                    maxIndex = MathE.Max(maxIndex, face.P0, face.P1, face.P2);
                 }
                 PadBytes(bytes);
 
@@ -283,7 +303,7 @@ namespace OPS.Geometry.GLTF
                 {
                     bufferView = bufferViews.Count - 1,
                     byteOffset = 0,
-                    componentType = GLTFAccessor.USHORT_COMPONENT,
+                    componentType = indexBytes == 2 ? GLTFAccessor.USHORT_COMPONENT : GLTFAccessor.UINT_COMPONENT,
                     count = m.Faces.Count * 3,
                     type = GLTFAccessor.SCALAR_TYPE,
                     name = "indices",
@@ -456,19 +476,33 @@ namespace OPS.Geometry.GLTF
                 if (accessorIndex < accessors.Count)
                 {
                     var accessor = accessors[accessorIndex];
-                    if (accessor.componentType != GLTFAccessor.USHORT_COMPONENT ||
-                        accessor.type != GLTFAccessor.SCALAR_TYPE ||
-                        accessor.count % 3 != 0)
+                    int indexBytes = accessor.componentType == GLTFAccessor.USHORT_COMPONENT ? 2 :
+                        accessor.componentType == GLTFAccessor.UINT_COMPONENT ? 4 : -1;
+
+                    if (indexBytes < 0 || accessor.type != GLTFAccessor.SCALAR_TYPE || accessor.count % 3 != 0)
                     {
                         throw new MeshSerializerException("invalid glTF indices accessor");
                     }
                     int numFaces = accessor.count / 3;
                     faces.Capacity = numFaces;
-                    var bufferView = GetBufferView(accessor.bufferView, accessor.byteOffset, numFaces * 3 * 2);
+                    var bufferView = GetBufferView(accessor.bufferView, accessor.byteOffset, numFaces * 3 * indexBytes);
                     int pos = bufferView.byteOffset + accessor.byteOffset;
                     for (int i = 0; i < numFaces; i++)
                     {
-                        faces.Add(new Face(DecodeUShort(ref pos), DecodeUShort(ref pos), DecodeUShort(ref pos)));
+                        int p0 = -1, p1 = -1, p2 = -1;
+                        if (indexBytes == 2)
+                        {
+                            p0 = DecodeUShort(ref pos);
+                            p1 = DecodeUShort(ref pos);
+                            p2 = DecodeUShort(ref pos);
+                        }
+                        else
+                        {
+                            p0 = (int)DecodeUInt(ref pos);
+                            p1 = (int)DecodeUInt(ref pos);
+                            p2 = (int)DecodeUInt(ref pos);
+                        }
+                        faces.Add(new Face(p0, p1, p2));
                     }
                 }
                 else
@@ -562,10 +596,84 @@ namespace OPS.Geometry.GLTF
             return slice;
         }
 
+        private static ThreadLocal<byte[]> tmp2 = new ThreadLocal<byte[]>(() => (new byte[2]));
+        private static ThreadLocal<byte[]> tmp4 = new ThreadLocal<byte[]>(() => (new byte[4]));
+
+        public float DecodeFloat(ref int pos)
+        {
+            float ret = DecodeFloat(Data, pos);
+            pos += 4;
+            return ret;
+        }
+
+        public static float DecodeFloat(byte[] bytes, int index)
+        {
+            if (!BitConverter.IsLittleEndian)
+            {
+                Array.Copy(bytes, index, tmp4.Value, 0, 4);
+                Array.Reverse(tmp4.Value);
+                bytes = tmp4.Value;
+                index = 0;
+            }
+            return BitConverter.ToSingle(bytes, index);
+        }
+
+        public static float DecodeFloat(byte[] bytes)
+        {
+            return DecodeFloat(bytes, 0);
+        }
+
+        public uint DecodeUInt(ref int pos)
+        {
+            uint ret = DecodeUInt(Data, pos);
+            pos += 4;
+            return ret;
+        }
+
+        public static uint DecodeUInt(byte[] bytes, int index)
+        {
+            if (!BitConverter.IsLittleEndian)
+            {
+                Array.Copy(bytes, index, tmp4.Value, 0, 4);
+                Array.Reverse(tmp4.Value);
+                bytes = tmp4.Value;
+                index = 0;
+            }
+            return BitConverter.ToUInt32(bytes, index);
+        }
+
+        public static uint DecodeUInt(byte[] bytes)
+        {
+            return DecodeUInt(bytes, 0);
+        }
+
+        public ushort DecodeUShort(ref int pos)
+        {
+            ushort ret = DecodeUShort(Data, pos);
+            pos += 2;
+            return ret;
+        }
+
+        public static ushort DecodeUShort(byte[] bytes, int index)
+        {
+            if (!BitConverter.IsLittleEndian)
+            {
+                Array.Copy(bytes, index, tmp2.Value, 0, 2);
+                Array.Reverse(tmp2.Value);
+                bytes = tmp2.Value;
+                index = 0;
+            }
+            return BitConverter.ToUInt16(bytes, index);
+        }
+
+        public static ushort DecodeUShort(byte[] bytes)
+        {
+            return DecodeUShort(bytes, 0);
+        }
+        
         public static byte[] FloatBytes(double value)
         {
-            float f = (float) value;
-            byte[] bytes = BitConverter.GetBytes(f);
+            byte[] bytes = BitConverter.GetBytes((float)value);
             if (!BitConverter.IsLittleEndian)
             {
                 Array.Reverse(bytes);
@@ -573,47 +681,9 @@ namespace OPS.Geometry.GLTF
             return bytes;
         }
 
-        private ThreadLocal<byte[]> tmp3 = new ThreadLocal<byte[]>(() => (new byte[3]));
-        public float DecodeFloat(ref int pos)
-        {
-            byte[] bytes = Data;
-            int index = pos;
-            if (!BitConverter.IsLittleEndian)
-            {
-                Array.Copy(bytes, pos, tmp3.Value, 0, 4);
-                Array.Reverse(tmp3.Value);
-                bytes = tmp3.Value;
-                index = 0;
-            }
-            pos += 4;
-            return BitConverter.ToSingle(bytes, index);
-        }
-
-        private ThreadLocal<byte[]> tmp2 = new ThreadLocal<byte[]>(() => (new byte[2]));
-        public ushort DecodeUShort(ref int pos)
-        {
-            byte[] bytes = Data;
-            int index = pos;
-            if (!BitConverter.IsLittleEndian)
-            {
-                Array.Copy(bytes, pos, tmp2.Value, 0, 2);
-                Array.Reverse(tmp2.Value);
-                bytes = tmp2.Value;
-                index = 0;
-            }
-            pos += 2;
-            return BitConverter.ToUInt16(bytes, index);
-        }
-
         public static byte[] UIntBytes(int value)
         {
-            return UIntBytes((UInt32)value);
-        }
-
-        public static byte[] UIntBytes(UInt32 value)
-        {
-            UInt32 i = (UInt32) value;
-            byte[] bytes = BitConverter.GetBytes(i);
+            byte[] bytes = BitConverter.GetBytes((uint)value);
             if (!BitConverter.IsLittleEndian)
             {
                 Array.Reverse(bytes);
@@ -623,8 +693,7 @@ namespace OPS.Geometry.GLTF
 
         public static byte[] UShortBytes(int value)
         {
-            ushort s = (ushort) value;
-            byte[] bytes = BitConverter.GetBytes(s);
+            byte[] bytes = BitConverter.GetBytes((ushort)value);
             if (!BitConverter.IsLittleEndian)
             {
                 Array.Reverse(bytes);
@@ -729,6 +798,7 @@ namespace OPS.Geometry.GLTF
     {
         public const int FLOAT_COMPONENT = 5126;
         public const int USHORT_COMPONENT = 5123;
+        public const int UINT_COMPONENT = 5125;
         public const string VEC3_TYPE = "VEC3";
         public const string VEC2_TYPE = "VEC2";
         public const string SCALAR_TYPE = "SCALAR";

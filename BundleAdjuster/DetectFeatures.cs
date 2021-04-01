@@ -149,7 +149,7 @@ namespace OPS.Landform
                 };
             FeatureDetector detector = new FeatureDetector(pipeline, masker, detectorOpts);
 
-            var comparator = mission.GetRoverObservationComparator();
+            var comparator = new RoverObservationComparator(mission);
 
             double startSec = UTCTime.Now();
             int nc = 0, ne = 0, nf = 0, np = 0, wr = 0, tf = 0, trf = 0;

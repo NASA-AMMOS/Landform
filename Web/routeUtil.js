@@ -21,7 +21,7 @@ function isStr(n) { return typeof n === 'string' || n instanceof String; }
 //options: array of allowed values if type is 'enum'
 //
 //recognized options:
-//commandLine: whether to return results as an command line array of "--name value" pairs
+//commandLine: whether to return results as an command line array of "--name=value"
 //ignoreQuery: don't consider req.query
 //ignoreBody: don't consider req.body
 //
@@ -30,6 +30,7 @@ function parseArgs(req, descriptors, opts) {
 
   const { commandLine, ignoreQuery, ignoreBody } = opts || {};
   const ret = {};
+  const flags = [];
 
   Object.entries(descriptors).forEach(([name, dsc]) => {
 
@@ -52,16 +53,23 @@ function parseArgs(req, descriptors, opts) {
         case 'bool': val = parseBool(val); break;
         case 'string': default: val = isStr(val) ? val : ('' + val); break;
       }
-      ret[name] = val;
+      if (dsc.type === 'string' && commandLine) {
+        const def = ('default' in dsc) ? dsc.default : false;
+        if (val && !def) flags.push(`--${name}`);
+        if (!val && def) flags.push(`--no${name}`);
+      } else {
+        ret[name] = val;
+      }
     }
   });
 
   if (commandLine) {
-    const cl = [];
     //if v is a string with whitespace this is still OK
     //because it all gets treated as a single command line argument
     //(and attempts at explicitly escaping whitespace or quoting here generally backfire)
+    const cl = [];
     Object.entries(ret).forEach(([n, v]) => cl.push(`--${n}=${v}`));
+    flags.forEach(f => cl.push(f));
     return cl;
   }
 

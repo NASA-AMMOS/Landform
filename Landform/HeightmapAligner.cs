@@ -49,10 +49,10 @@ namespace OPS.Landform
         [Option(HelpText = "Manually specify a base site drive to align others to. By default BaseSiteDrivePriority will be used to pick the base site drive", Default = null)]
         public string BaseSiteDrive { get; set; }
 
-        [Option(HelpText = "Base site drive chosen by highest priority (NewestFirst, OldestFirst, BiggestFirst, SmallestFirst) unless set manually with BaseSiteDrive. Remaining sorted by RemainingSiteDrivePriority", Default = SiteDrivePriority.BiggestFirst)]
+        [Option(HelpText = "Base site drive chosen by highest priority (Newest, Oldest, Biggest, Smallest, ProjectThenBiggest) unless set manually with BaseSiteDrive. Remaining sorted by RemainingSiteDrivePriority", Default = SiteDrivePriority.ProjectThenBiggest)]
         public SiteDrivePriority BaseSiteDrivePriority { get; set; }
 
-        [Option(HelpText = "Align remaining site drives to base site drive in order of priority (NewestFirst, OldestFirst, BiggestFirst, SmallestFirst)", Default = SiteDrivePriority.BiggestFirst)]
+        [Option(HelpText = "Align remaining site drives to base site drive in order of priority (Newest, Oldest, Biggest, Smallest)", Default = SiteDrivePriority.Biggest)]
         public SiteDrivePriority RemainingSiteDrivePriority { get; set; }
 
         [Option(Required = false, Default = true, HelpText = "Only allow vertical adjustment and out of plane rotation between sitedrives (does not apply to orbital or ICP).")]
@@ -236,22 +236,11 @@ namespace OPS.Landform
 
         private void SortSiteDrives()
         {
-            IEnumerable<SiteDrive> sort(IEnumerable<SiteDrive> sds, SiteDrivePriority priority)
-            {
-                switch (priority)
-                {
-                    case SiteDrivePriority.NewestFirst: return sds.OrderByDescending(sd => sd.ToString());
-                    case SiteDrivePriority.OldestFirst: return sds.OrderBy(sd => sd.ToString());
-                    case SiteDrivePriority.BiggestFirst: return sds.OrderByDescending(sd => dems[sd].Area);
-                    case SiteDrivePriority.SmallestFirst: return sds.OrderBy(sd => dems[sd].Area);
-                    default: throw new Exception("unknown site drive priority: " + priority);
-                }
-            }
 
             if (string.IsNullOrEmpty(options.BaseSiteDrive))
             {
-                baseSiteDrive = sort(siteDrives, options.BaseSiteDrivePriority).First();
-                pipeline.LogInfo("base site drive ({0}): {1}", options.BaseSiteDrivePriority, baseSiteDrive);
+                baseSiteDrive = SortSiteDrives(siteDrives, options.BaseSiteDrivePriority).First();
+                pipeline.LogInfo("using base site drive ({0}): {1}", options.BaseSiteDrivePriority, baseSiteDrive);
             }
             else
             {
@@ -267,7 +256,7 @@ namespace OPS.Landform
             sdList.Add(baseSiteDrive);
 
             remainingSiteDrives = siteDrives.Where(sd => !sdList.Contains(sd)).ToArray();
-            sdList.AddRange(sort(remainingSiteDrives, options.RemainingSiteDrivePriority));
+            sdList.AddRange(SortSiteDrives(remainingSiteDrives, options.RemainingSiteDrivePriority));
 
             siteDrives = sdList.ToArray();
         }
@@ -461,10 +450,10 @@ namespace OPS.Landform
                                  dem.Width, dem.Height, dem.WidthMeters, dem.HeightMeters, sd,
                                  MAX_MESH_RADIUS_METERS);
                 var mesh = dem.OrganizedMesh(MAX_MESH_RADIUS_METERS);
-                SaveMesh(Mesh.Transformed(mesh, BestTransform(sd)), sd.ToString() + "_Heightmap");
+                SaveMesh(mesh.Transformed(BestTransform(sd)), sd.ToString() + "_Heightmap");
                 if (sdAdjustment.ContainsKey(sd))
                 {
-                    SaveMesh(Mesh.Transformed(mesh, BestAdjustedTransform(sd)), sd.ToString() + "_Heightmap_Adj");
+                    SaveMesh(mesh.Transformed(BestAdjustedTransform(sd)), sd.ToString() + "_Heightmap_Adj");
                 }
             }
             if (orbitalDEM != null)
@@ -475,7 +464,7 @@ namespace OPS.Landform
                 var baseSiteDriveToOrbital = BestTransform(baseSiteDrive) * Matrix.Invert(orbitalDEMToRoot);
                 var centerPointInOrbital = Vector3.Transform(Vector3.Zero, baseSiteDriveToOrbital);
                 var mesh = orbitalDEM.OrganizedMesh(MAX_MESH_RADIUS_METERS, centerPointInOrbital);
-                SaveMesh(Mesh.Transformed(mesh, orbitalDEMToRoot), "orbital_Heightmap");
+                SaveMesh(mesh.Transformed(orbitalDEMToRoot), "orbital_Heightmap");
             }
         }
 

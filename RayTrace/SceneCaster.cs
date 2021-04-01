@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using System.Collections.Concurrent;
 using Microsoft.Xna.Framework;
 using Embree;
+using OPS.MathExtensions;
 using OPS.Util;
 using OPS.Imaging;
 using OPS.Geometry;
@@ -17,7 +18,8 @@ namespace OPS.RayTrace
     /// </summary>
     public class SceneCaster
     {
-        const SceneFlags SCENE_FLAGS = SceneFlags.Static | SceneFlags.Coherent | SceneFlags.Incoherent | SceneFlags.Robust;
+        const SceneFlags SCENE_FLAGS =
+            SceneFlags.Static | SceneFlags.Coherent | SceneFlags.Incoherent | SceneFlags.Robust;
         const TraversalFlags TRAVERSAL_FLAGS = TraversalFlags.Single;
 
         private readonly Device device;
@@ -95,25 +97,25 @@ namespace OPS.RayTrace
         /// <param name="near"></param>
         /// <param name="far"></param>
         /// <returns></returns>
-        public HitData Raycast(Ray ray, float near = 0, float far = float.PositiveInfinity)
+        public HitData Raycast(Ray ray, double near = 0, double far = double.PositiveInfinity)
         {
             if (!sceneBuilt)
             {
                 throw new Exception("Must call Build on scene before raycasting");
             }
-            var packet = scene.Intersects(new EmbreeRay(ray), near, far);
+            var packet = scene.Intersects(new EmbreeRay(ray), (float)near, (float)far);
             Intersection<Model> hit = packet.ToIntersection<Model>(scene);
             return HitToHitData(ray, hit);
         }
 
         /// NOTE: this will return both frontface and backface hits
-        public Vector3? RaycastPosition(Ray ray, float near = 0, float far = float.PositiveInfinity)
+        public Vector3? RaycastPosition(Ray ray, double near = 0, double far = double.PositiveInfinity)
         {
             if (!sceneBuilt)
             {
                 throw new Exception("Must call Build on scene before raycasting");
             }
-            var packet = scene.Intersects(new EmbreeRay(ray), near, far);
+            var packet = scene.Intersects(new EmbreeRay(ray), (float)near, (float)far);
             Intersection<Model> hit = packet.ToIntersection<Model>(scene);
 
             if (hit.HasHit)
@@ -127,13 +129,13 @@ namespace OPS.RayTrace
         }
 
         /// NOTE: this will return both frontface and backface hits
-        public double? RaycastDistance(Ray ray, float near = 0, float far = float.PositiveInfinity)
+        public double? RaycastDistance(Ray ray, double near = 0, double far = double.PositiveInfinity)
         {
             if (!sceneBuilt)
             {
                 throw new Exception("Must call Build on scene before raycasting");
             }
-            var packet = scene.Intersects(new EmbreeRay(ray), near, far);
+            var packet = scene.Intersects(new EmbreeRay(ray), (float)near, (float)far);
             Intersection<Model> hit = packet.ToIntersection<Model>(scene);
 
             if (hit.HasHit)
@@ -147,7 +149,7 @@ namespace OPS.RayTrace
         }
 
         /// NOTE: this will return both frontface and backface hits
-        public HitData[] Raycast4(Ray[] rays, float near = 0, float far = float.PositiveInfinity)
+        public HitData[] Raycast4(Ray[] rays, double near = 0, double far = double.PositiveInfinity)
         {
             if (!sceneBuilt)
             {
@@ -160,7 +162,7 @@ namespace OPS.RayTrace
             }
 
             var embreeRays = rays.Select(r => new EmbreeRay(r)).ToArray();
-            var packet4 = scene.Intersects4(embreeRays, near, far);
+            var packet4 = scene.Intersects4(embreeRays, (float)near, (float)far);
             Intersection<Model>[] hits = packet4.ToIntersection<Model>(scene);
 
             HitData[] results = new HitData[4];
@@ -185,33 +187,40 @@ namespace OPS.RayTrace
                 var position = ray.Position + ray.Direction * hit.Distance;
 
                 // Negate the normal direction coming out of embree.  Its poorly documented in the images on this page
-                // https://embree.github.io/api.html but it looks like they use a different winding order than we assume for our normals
-                var modelSpaceNormal = -new Vector3(hit.NX, hit.NY, hit.NZ);
-                var worldSpaceNormal = hit.Instance.NormalToWorldSpace(modelSpaceNormal);
+                // https://www.embree.org/api.html#rtchit
+                // but it looks like they use a different winding order than we assume for our normals
+                // what is documented is that it's not normalized
+                var faceNormal = -new Vector3(hit.NX, hit.NY, hit.NZ);
+                if (faceNormal.LengthSquared() > 0)
+                {
+                    faceNormal = hit.Instance.NormalToWorldSpace(Vector3.Normalize(faceNormal));
+                }
 
                 var mesh = hit.Instance.Mesh;
+                var f = mesh.Faces[(int)hit.Primitive];
+
+                Vector2? uv = null;
+                Vector3? interpNorm = null;
+
                 // If this mesh has uvs compute the uv coordinates as per documentation
                 // https://embree.github.io/api.html
                 float u = hit.U;
                 float v = hit.V;
-                var f = mesh.Faces[(int)hit.Primitive];
-                var tri = new Geometry.Triangle(mesh.Vertices[f.P0], mesh.Vertices[f.P1], mesh.Vertices[f.P2]);
-                var bp = new Geometry.BarycentricPoint(1.0 - u - v, u, v, tri);
-                Vector2? uv = null;
                 if (mesh.HasUVs)
                 {
+                    var tri = new Geometry.Triangle(mesh.Vertices[f.P0], mesh.Vertices[f.P1], mesh.Vertices[f.P2]);
+                    var bp = new Geometry.BarycentricPoint(1.0 - u - v, u, v, tri);
                     uv = bp.UV;
                 }
-                Vector3? meshNorm = null;
                 if (mesh.HasNormals)
                 {
                     var n0 = mesh.Vertices[f.P0].Normal;
                     var n1 = mesh.Vertices[f.P1].Normal;
                     var n2 = mesh.Vertices[f.P2].Normal;
-                    meshNorm = (1.0 - u - v) * n0 + u * n1 + v * n2;
-                    meshNorm = hit.Instance.NormalToWorldSpace(meshNorm.Value);
+                    interpNorm = (1.0 - u - v) * n0 + u * n1 + v * n2;
+                    interpNorm = hit.Instance.NormalToWorldSpace(interpNorm.Value);
                 }
-                return new HitData(position, worldSpaceNormal, meshNorm, uv, mesh, hit.Instance.Texture, hit.Distance);
+                return new HitData(position, faceNormal, interpNorm, uv, mesh, hit.Instance.Texture, hit.Distance);
             }
             return null;
         }
@@ -222,9 +231,9 @@ namespace OPS.RayTrace
         /// <param name="ray"></param>
         /// <param name="distance"></param>
         /// <returns></returns>
-        public bool Occludes(Ray ray, float distance = float.PositiveInfinity)
+        public bool Occludes(Ray ray, double distance = double.PositiveInfinity)
         {
-            return scene.Occludes(new EmbreeRay(ray), 0, distance);
+            return scene.Occludes(new EmbreeRay(ray), 0, (float)distance);
         }
 
         ~SceneCaster()

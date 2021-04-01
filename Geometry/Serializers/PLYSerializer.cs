@@ -7,7 +7,8 @@ using System.Threading.Tasks;
 
 namespace OPS.Geometry
 {
-    public class PLYSerializerException : MeshSerializerException{
+    public class PLYSerializerException : MeshSerializerException
+    {
         public PLYSerializerException() { }
         public PLYSerializerException(string message) : base(message) { }
         public PLYSerializerException(string message, Exception inner) : base(message, inner) { }
@@ -31,32 +32,39 @@ namespace OPS.Geometry
         /// <param name="defaultAlpha">if the ply file only has RGB then use this value as the default alpha</param>
         /// <returns>A mesh containing the ply file contents</returns>
         public static Mesh Read(string filename, out string textureFilename, double defaultAlpha = 1,
-                                bool onlyGetImageFilename = false)
+                                bool onlyGetImageFilename = false, bool readValuesAsNormalLengths = false)
         {
-            return (new PLYReader(filename)).Read(out textureFilename, defaultAlpha, onlyGetImageFilename);
+            var reader = new PLYReader(filename, readValuesAsNormalLengths);
+            return reader.Read(out textureFilename, defaultAlpha, onlyGetImageFilename);
+        }
+
+        public static Mesh Read(string filename, double defaultAlpha = 1, bool readValuesAsNormalLengths = false)
+        {
+            return Read(filename, out string textureFilename, defaultAlpha, false, readValuesAsNormalLengths);
         }
 
         /// <summary>
         /// Write a ply file using the Maximum Compatibility PLYWriter
         /// </summary>
-        /// <param name="m">
-        /// The mesh to export.  Assumes vertex color values range 0-1.  Will scale these to 0-255 if byte based color proprties are chosen        
-        /// </param>
+        /// <param name="m">The mesh to export.  Assumes vertex color values range 0-1.  Will scale these to 0-255 if
+        /// byte based color proprties are chosen</param>
         /// <param name="filename">Output filename</param>
         /// <param name="comments"></param>
         public static void Write(Mesh m, string filename, string textureFilename = null, List<string> comments = null)
         {
-            Write(m, filename, new PLYMaximumCompatibilityWriter(false), textureFilename, comments);
+            Write(m, filename, new PLYMaximumCompatibilityWriter(), textureFilename, comments);
         }
 
         /// <summary>
         /// Write a ply file
         /// </summary>
-        /// <param name="m">The mesh to export.  Assumes vertex color values range 0-1.  Will scale these to 0-255 if byte based color proprties are chosen</param>
+        /// <param name="m">The mesh to export.  Assumes vertex color values range 0-1.  Will scale these to 0-255 if
+        /// byte based color proprties are chosen</param>
         /// <param name="filename"></param>
         /// <param name="plyWriter">The type of PLYWriter to use</param>
         /// <param name="comments"></param>
-        public static void Write(Mesh m, string filename, PLYWriter plyWriter, string textureFilename = null, List<string> comments = null)
+        public static void Write(Mesh m, string filename, PLYWriter plyWriter, string textureFilename = null,
+                                 List<string> comments = null)
         {      
             using (StreamWriter sw = new StreamWriter(filename, false))
             {

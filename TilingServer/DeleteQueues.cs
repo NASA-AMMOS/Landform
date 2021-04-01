@@ -29,14 +29,22 @@ namespace OPS.TilingServer
 
         public int Run()
         {
-            if (!options.Force)
+            try
             {
-                Console.WriteLine("delete queues in venue " + pipeline.Venue + " (yes/no)?");
-                var response = Console.ReadLine();
-                if (response.ToLower() != "yes") return 1;
+                if (!options.Force)
+                {
+                    Console.WriteLine("delete queues in venue " + pipeline.Venue + " (yes/no)?");
+                    var response = Console.ReadLine();
+                    if (response.ToLower() != "yes") return 1;
+                }
+                pipeline.LogInfo("deleting queues in venue {0}", pipeline.Venue);
+                (pipeline as CloudPipeline).DeleteQueues();
             }
-            pipeline.LogInfo("deleting queues in venue {0}", pipeline.Venue);
-            (pipeline as CloudPipeline).DeleteQueues();
+            catch (Exception ex)
+            {
+                pipeline.LogException(ex);
+                return 1;
+            }
             return 0;
         }
     }

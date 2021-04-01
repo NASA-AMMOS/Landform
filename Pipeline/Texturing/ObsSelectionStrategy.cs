@@ -23,12 +23,12 @@ namespace OPS.Pipeline.Texturing
 
         public abstract ObsSelectionStrategyName Name { get; }
 
-        public double Quality = 1; //in range [0,1]
+        public double Quality = TexturingDefaults.OBS_SEL_QUALITY; //in range [0,1]
 
         //Testing indicates that nearly all backprojects are satisfied within the first ~32 tried contexts.
         //Run with --verbosebackproject to get a report of the max number of contexts tried.
         //Limiting the total number is valuable because ObsSelectionSpatial combines them in a very hot inner loop.
-        public int MaxContexts = 32; //unlimited if non-positive
+        public int MaxContexts = TexturingDefaults.OBS_SEL_MAX_CONTEXTS; //unlimited if non-positive
 
         //If the difference in two scores is less than either (a) EquivalentScoresAbs or
         //(b) EquivalentScoresRel times their average, then consider them "equivalent".
@@ -37,23 +37,25 @@ namespace OPS.Pipeline.Texturing
         //They are both kept, but we may sort them differently.
         //For example, if PreferColor=EquivalentScores and they have different numbers of bands then the one with more
         //bands is preferred, even if it has a lower score.
-        public double EquivalentScoresAbs = 0.001; //units: meters per texel
-        public double EquivalentScoresRel = 0.2;
+        public double EquivalentScoresAbs = TexturingDefaults.OBS_SEL_EQUIVALENT_SCORES_ABS; //units: meters per texel
+        public double EquivalentScoresRel = TexturingDefaults.OBS_SEL_EQUIVALENT_SCORES_REL;
 
         //either never prefer color, always prefer it, or prefer it within a score equivalency class
-        public PreferColorMode PreferColor = PreferColorMode.EquivalentScores;
+        public PreferColorMode PreferColor = TexturingDefaults.OBS_SEL_PREFER_COLOR;
 
         //within a score equivalency class, prefer surface over orbital observations
-        public bool PreferSurface = true;
+        public bool PreferSurface = TexturingDefaults.OBS_SEL_PREFER_SURFACE;
 
         //within a score equivalency class, prefer nonlinear over linear observations
-        public bool PreferNonlinear = true;
+        public bool PreferNonlinear = TexturingDefaults.OBS_SEL_PREFER_NONLINEAR;
 
-        public double RaycastTolerance = 0.0001; //smallest distance in meters for a raycast to be significant
+        //smallest distance in meters for a raycast to be significant
+        public double RaycastTolerance = TexturingDefaults.RAYCAST_TOLERANCE;
 
         public string DebugOutputPath; //null disables debug output
 
         public double OrbitalMetersPerPixel; //0 disables orbital
+        public bool OrbitalIsColor;
 
         public double SurfaceExtent; //size in meters of central square of mesh with surface geometry, 0 if only orbital
 
