@@ -29,29 +29,24 @@ namespace PipelineTest
         }
 
         [TestMethod()]
-        public void TextureShouldSplitTest()
+        public void TextureSplitTest()
         {
             int destTextureResolution = 256; //65536 texels / m^2 (half that for approx)
             int srcImageResolution = 1000; //1M pixels / m^2
-            Assert.IsTrue(StandardTexSplit(destTextureResolution, srcImageResolution,false));
-            Assert.IsTrue(StandardTexSplit(destTextureResolution, srcImageResolution,true));
+            string msg = $"src res {srcImageResolution}, dst res {destTextureResolution}";
+            Assert.IsTrue(StandardTexSplit(destTextureResolution, srcImageResolution, approx: false), msg);
+            Assert.IsTrue(StandardTexSplit(destTextureResolution, srcImageResolution, approx: true), msg + " approx");
 
-            srcImageResolution = 360; //129600 pixels / m^2
-            Assert.IsTrue(StandardTexSplit(destTextureResolution, srcImageResolution, false));
-            Assert.IsTrue(StandardTexSplit(destTextureResolution, srcImageResolution, true));
-        }
-
-        [TestMethod()]
-        public void TextureShouldntSplitTest()
-        {
-            int destTextureResolution = 256; //65536 texels / m^2 (half that for approx)
-            int srcImageResolution = 350; //122500 pixels / m^2
-            Assert.IsFalse(StandardTexSplit(destTextureResolution, srcImageResolution, false));
-            Assert.IsTrue(StandardTexSplit(destTextureResolution, srcImageResolution, true));
+            destTextureResolution = 256; //65536 texels / m^2 (half that for approx)
+            srcImageResolution = 350; //122500 pixels / m^2
+            msg = $"src res {srcImageResolution}, dst res {destTextureResolution}";
+            Assert.IsFalse(StandardTexSplit(destTextureResolution, srcImageResolution, false), msg);
+            Assert.IsTrue(StandardTexSplit(destTextureResolution, srcImageResolution, true), msg + " approx");
 
             srcImageResolution = 250; //62500 pixels / m^2
-            Assert.IsFalse(StandardTexSplit(destTextureResolution, srcImageResolution, false));
-            Assert.IsFalse(StandardTexSplit(destTextureResolution, srcImageResolution, true));
+            msg = $"src res {srcImageResolution}, dst res {destTextureResolution}";
+            Assert.IsFalse(StandardTexSplit(destTextureResolution, srcImageResolution, false), msg);
+            Assert.IsFalse(StandardTexSplit(destTextureResolution, srcImageResolution, true), msg + " approx");
         }
 
         private static bool StandardTexSplit(int destTextureResolution, int srcImageResolution, bool approx)
