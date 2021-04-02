@@ -1,0 +1,78 @@
+TACTICAL
+
+# In terminal 1:
+
+./Scripts/m20-credss.sh
+./Scripts/tactical-service.sh ROASTT20 --queuename=m20-ids-g-sqs-landform-tactical-$USERNAME --landformownedqueues --service 
+
+# In terminal 2:
+
+landform=./Landform/bin/Release/Landform.exe
+mission=ROASTT20
+lfbucket=m20-ids-g-landform
+s3path=TestData/roastt-dev-0205/ods/roastt/sol/00403/ids/rdr/tileset
+queuename=m20-ids-g-sqs-landform-tactical-$USERNAME
+jsonpath=TestData/TestData/json
+
+./Scripts/tactical-service.sh $mission --queuename=$queuename --sendmessage $jsonpath/m2020-tactical-navcam-downsample2-event.json --allowunmaskedroverobservations
+
+# In terminal 1:
+
+# wait for the tactical mesh to complete processing, should take less than 5 min
+
+# hit ctrl-c to kill worker
+
+./Scripts/viewer.sh s3://m20-ids-g-landform/TestData/roastt-dev-0205/ods/roastt/sol/00403/ids/rdr/tileset/NLF_0403R0403123835_000RASLN0200010NCAM00501_0M0290J01/NLF_0403R0403123835_000RASLN0200010NCAM00501_0M0290J01_tileset.json
+
+# log in on first tab
+# hit reload on second tab
+
+./Scripts/tactical-service.sh ROASTT20 --queuename=m20-ids-g-sqs-landform-tactical-$USERNAME --landformownedqueues --deletequeues
+
+rm -rf storage/tactical log/tactical cfg/tactical cfg/tactical-subcommands tmp/tactical #careful
+
+
+CONTEXTUAL
+
+# In terminal 1:
+
+mission=ROASTT20
+./Scripts/m20-credss.sh
+./Scripts/contextual-service.sh $mission --masterdebouncesec=10 --queuename=m20-ids-g-sqs-landform-contextual-$USERNAME --workerqueuename=m20-ids-g-sqs-landform-contextual-worker-$USERNAME --landformownedqueues --master --listpattern='xyz_*.lis' --wedgepattern='*XYZ*.IMG'
+
+# In terminal 2:
+
+mission=M2020
+queuename=m20-ids-g-sqs-landform-contextual-$USERNAME
+workerqueuename=m20-ids-g-sqs-landform-contextual-worker-$USERNAME
+jsonpath=TestData/TestData/json
+testevent=m2020-contextual-master-roastt20-xyz-event.json
+
+./Scripts/contextual-service.sh $mission --queuename=$queuename --sendmessage=$jsonpath/$testevent --master
+
+# watch the master log in terminal 1 until it's done processing
+# it will idle for 10 seconds before it starts processing the message
+
+./Scripts/contextual-service.sh $mission --queuename=$workerqueuename --peekmessages=10
+
+# should print a message like
+#  INFO: message 1: contextual mesh 0403_0200010 for s3://m20-ids-g-landform/ROASTT20/ods/roastt/sol/#####/ids/rdr/; sols 403; sitedrives 0200010; 9 wedges; timestamp 4/2/2021 2:36:15 PM UTC
+
+# In terminal 1:
+
+# hit ctrl-c to kill master, then run worker
+
+./Scripts/contextual-service.sh $mission --queuename=m20-ids-g-sqs-landform-contextual-worker-$USERNAME --landformownedqueues --service 
+
+# wait for contextual mesh to complete, should take less than 20 min
+
+# hit ctrl-c to kill worker
+
+./Scripts/viewer.sh s3://m20-ids-g-landform/ROASTT20/ods/roastt/sol/00403/ids/rdr/tileset/0403_0200010_scene.json
+
+# log in on first tab
+# hit reload on second tab
+
+./Scripts/contextual-service.sh $mission --queuename=m20-ids-g-sqs-landform-contextual-$USERNAME --workerqueuename=m20-ids-g-sqs-landform-contextual-worker-$USERNAME --landformownedqueues  --master --deletequeues
+
+rm -rf storage/contextual log/contextual cfg/contextual cfg/contextual-subcommands tmp/contextual #careful
