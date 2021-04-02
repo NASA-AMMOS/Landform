@@ -967,12 +967,19 @@ namespace OPS.Pipeline
             return null;
         }
 
+        public override bool AllowPlacesDB()
+        {
+            return false;
+        }
+
         public override string GetPlacesConfigDefaults()
         {
             //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/725#issuecomment-267319
             //per Kevin Grimes on 3/18/20 ROASTT20 data will soon move to
             //https://places-roastt.dev.m20.jpl.nasa.gov
-            return GetPlacesConfigDefaults($"https://places-rocs.{venue}.m20.jpl.nasa.gov", "telemetry");
+            //return GetPlacesConfigDefaults($"https://places-rocs.{venue}.m20.jpl.nasa.gov", "telemetry");
+            //places-rocs seems to be no longer
+            return null;
         }
 
         public override RoverProductGeometry GetTacticalMeshGeometry()
