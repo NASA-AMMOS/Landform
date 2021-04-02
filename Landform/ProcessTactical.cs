@@ -141,7 +141,7 @@ namespace OPS.Landform
         [Option(HelpText = "Don't enforce max faces per tile even if it means increasing tree height above limit (LODs will be re-used or synthesized if enabled)", Default = false)]
         public bool EnforceMaxFacesPerTile { get; set; }
 
-        [Option(HelpText = "Skirt up direction (X, Y, Z, None, Normal)", Default = SkirtMode.None)]
+        [Option(HelpText = "Skirt up direction (X, Y, Z, None, Normal)", Default = TilingDefaults.SKIRT_MODE)]
         public override SkirtMode SkirtMode { get; set; }
     }
 
