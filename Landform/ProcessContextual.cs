@@ -965,13 +965,23 @@ namespace OPS.Landform
                             {
                                 pipeline.LogInfo("fetching orbital asset {0} -> {1}", url, file);
                                 string dir = Path.GetDirectoryName(file);
-                                Fetch(options.MaxOrbital, url, dir, "--raw", "--nosubdirs");
-                                string srcFile = StringHelper.GetLastUrlPathSegment(url);
-                                string destFile = Path.GetFileName(file);
-                                string fetchedFile = Path.Combine(dir, srcFile);
-                                if (srcFile != destFile && File.Exists(fetchedFile))
+                                try
                                 {
-                                    PathHelper.MoveFileAtomic(fetchedFile, file); //overwrites existing
+                                    Fetch(options.MaxOrbital, url, dir, "--raw", "--nosubdirs");
+                                    string srcFile = StringHelper.GetLastUrlPathSegment(url);
+                                    string destFile = Path.GetFileName(file);
+                                    string fetchedFile = Path.Combine(dir, srcFile);
+                                    if (srcFile != destFile && File.Exists(fetchedFile))
+                                    {
+                                        PathHelper.MoveFileAtomic(fetchedFile, file); //overwrites existing
+                                    }
+                                }
+                                catch (Exception ex)
+                                {
+                                    pipeline.LogException(ex, "error fetching orbital asset " + url);
+                                    //swallow exception and continue without it
+                                    //IngestAlignmentInputs will also spew an error message but continue
+                                    //the contextual mesh should stillbuild but without the orbital asset
                                 }
                             }
                             else
