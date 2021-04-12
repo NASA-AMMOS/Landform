@@ -5,11 +5,13 @@
 *.diagsession
 project.lock.json
 packages/
-out*/
+out/
+out
 tmp/
 log/
 cfg/
 storage/
+storage
 release/
 TestResults/
 *.user
