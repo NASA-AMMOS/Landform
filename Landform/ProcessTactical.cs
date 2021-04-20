@@ -138,7 +138,7 @@ namespace OPS.Landform
         [Option(HelpText = "Don't limit tile tree height to input LODs", Default = false)]
         public bool NoLimitTreeHeightToLODs { get; set; }
 
-        [Option(HelpText = "Don't enforce max faces per tile even if it means increasing tree height above limit (LODs will be re-used or synthesized if enabled)", Default = false)]
+        [Option(HelpText = "Enforce max faces per tile even if it means increasing tree height above limit (LODs will be re-used or synthesized if enabled)", Default = false)]
         public bool EnforceMaxFacesPerTile { get; set; }
 
         [Option(HelpText = "Skirt up direction (X, Y, Z, None, Normal)", Default = TilingDefaults.SKIRT_MODE)]
