@@ -816,6 +816,21 @@ namespace OPS.Landform
             {
                 pipeline.Verbose = pipeline.Debug = true;
             }
+
+            double minTileExtent = options.MinTileExtent;
+            var meshBounds = BoundingBoxExtensions.Union(meshOpForLOD.Select(o => o.Bounds).ToArray());
+            if (!meshBounds.IsEmpty() && options.MinTileExtentRel > 0)
+            {
+                Vector2 meshSize = meshBounds.GetFaceSizePerpendicularToAxis(meshBounds.MinAxis());
+                minTileExtent = Math.Min(minTileExtent, options.MinTileExtentRel * Math.Min(meshSize.X, meshSize.Y));
+                if (minTileExtent < options.MinTileExtent)
+                {
+                    pipeline.LogInfo("replacing min tile extent {0:f3} with {1:f3} for {2} mesh, min rel extent {3:f3}",
+                                     options.MinTileExtent, minTileExtent, meshBounds.FmtExtent(),
+                                     options.MinTileExtentRel);
+                }
+            }
+
             if (meshLOD.Count > 1)
             {
                 if (!options.NoLimitTreeHeightToLODs)
@@ -824,7 +839,7 @@ namespace OPS.Landform
                 }
                 tileTree = DefineTiles
                     .BuildTileTreeFromLODs(meshOpForLOD, options.TilingScheme, options.MaxFacesPerTile,
-                                           options.MinTileExtent, options.MaxLeafArea,
+                                           minTileExtent, options.MaxLeafArea,
                                            textureSplitOptions, !options.NoApproxTileSplit, maxTreeHeight,
                                            options.EnforceMaxFacesPerTile,
                                            msg => pipeline.LogInfo(msg), msg => pipeline.LogVerbose(msg));
@@ -833,13 +848,15 @@ namespace OPS.Landform
             {
                 tileTree = DefineTiles
                     .BuildTileTreeFromInputs(new List<MeshImagePair>() { new MeshImagePair(mesh) },
-                                             options.TilingScheme, options.MaxFacesPerTile, options.MinTileExtent,
+                                             options.TilingScheme, options.MaxFacesPerTile, minTileExtent,
                                              options.MaxLeafArea, options.MaxOrbitalLeafArea, surfaceExtent,
                                              textureSplitOptions, !options.NoApproxTileSplit, maxTreeHeight,
                                              options.EnforceMaxFacesPerTile,
                                              msg => pipeline.LogInfo(msg), msg => pipeline.LogVerbose(msg));
             }
+
             tileTree.DumpStats(msg => pipeline.LogInfo(msg));
+
             pipeline.Verbose = wasVerbose;
             pipeline.Debug = wasDebug;
         }

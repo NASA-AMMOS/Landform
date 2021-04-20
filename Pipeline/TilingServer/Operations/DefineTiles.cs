@@ -386,10 +386,6 @@ namespace OPS.Pipeline.TilingServer
         /// creates a tile tree that has (up to) a fixed depth matching the number of existing LODs
         /// </summary>
         /// <param name="lodMeshOps">at least two LODs sorted by decreasing quality (best first)</param>
-        /// <param name="maxFacesPerTile">If positive then the tree topology is determined by FaceSplitCriteria,
-        /// limited to a maximum height equal to the given number of LODs.  Otherwise the tree topology is determined
-        /// entirely from the given number of LODs and the tiling scheme.</param>
-        /// <returns></returns>
         public static SceneNode BuildTileTreeFromLODs(List<MeshOperator> lodMeshOps, TilingScheme tilingScheme,
                                                       int maxFacesPerTile = -1,
                                                       double minTileExtent = 0, double maxLeafArea = 0,

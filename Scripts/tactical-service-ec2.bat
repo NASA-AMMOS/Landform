@@ -101,6 +101,11 @@ if not "%LANDFORM_TACTICAL_MIN_TILE_EXTENT%"=="" (
    set mintileextent=--mintileextent=%LANDFORM_TACTICAL_MIN_TILE_EXTENT%
 )
 
+set mintileextentrel=
+if not "%LANDFORM_TACTICAL_MIN_TILE_EXTENT_REL%"=="" (
+   set mintileextentrel=--mintileextentrel=%LANDFORM_TACTICAL_MIN_TILE_EXTENT_REL%
+)
+
 set maxleafarea=
 if not "%LANDFORM_TACTICAL_MAX_LEAF_AREA%"=="" (
    set maxleafarea=--maxleafarea=%LANDFORM_TACTICAL_MAX_LEAF_AREA%
@@ -191,7 +196,7 @@ set svcopts=%svcopts% --awsprofile=%awsprofile% --awsregion=%awsregion% %credent
 set svcopts=%svcopts% %msgopts%
 
 set tilingopts=%tilesetimageformat% %tilesetindexformat%
-set tilingopts=%tilingopts% %maxfacespertile% %maxtileresolution% %mintileextent% %maxleafarea%
+set tilingopts=%tilingopts% %maxfacespertile% %maxtileresolution% %mintileextent% %mintilextentrel% %maxleafarea%
 set tilingopts=%tilingopts% %notexturesplitrespectmaxtexelspermeter% %maxtexelspermeter% %maxtexturestretch%
 set tilingopts=%tilingopts% %poweroftwotextures% %skirtmode% %noindices% %embedindices%
 
