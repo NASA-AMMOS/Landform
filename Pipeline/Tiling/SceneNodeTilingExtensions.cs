@@ -781,13 +781,20 @@ namespace OPS.Pipeline
                             
                             var minTriArea = triStats.Min(s => s.MinTriArea);
                             var maxTriArea = triStats.Max(s => s.MaxTriArea);
-                            
-                            msg += string.Format(", {0}-{1} tris ({2} total), mesh area {3:f3}-{4:f3} ({5} total)"
-                                                 + "; tri area {6:f3}-{7:f3}",
+                            string triAreaUnit = "m^2";
+                            if (minTriArea < 0.001)
+                            {
+                                minTriArea *= 1e6;
+                                maxTriArea *= 1e6;
+                                triAreaUnit = "mm^2";
+                            }
+
+                            msg += string.Format(", {0}-{1} tris ({2} total), mesh area {3:f3}-{4:f3}m^2 ({5} total)"
+                                                 + "; tri area {6:f3}-{7:f3}{8}",
                                                  Fmt.KMG(minTris), Fmt.KMG(maxTris),
                                                  Fmt.KMG(triStats.Sum(s => s.NumTris)),
                                                  minMeshArea, maxMeshArea, Fmt.KMG(triStats.Sum(s => s.MeshArea)),
-                                                 minTriArea, maxTriArea);
+                                                 minTriArea, maxTriArea, triAreaUnit);
                             writeLine(msg);
 
                             dumpTextureStats(triStats, "  ");
