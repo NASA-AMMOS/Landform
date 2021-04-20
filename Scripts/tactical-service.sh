@@ -34,8 +34,17 @@ shift
 
 service=tactical
 
-bindir=./Landform/bin/Release
-landform=$bindir/Landform.exe
+# https://stackoverflow.com/a/246128
+scriptdir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+for d in . .. ../Landform/bin/Release ../Landform/bin/Debug; do
+    landform=$scriptdir/$d/Landform.exe
+    if [ -f $landform ]; then break; fi
+done
+if [ ! -f "$landform" ]; then
+    echo "could not find Landform.exe"
+    exit 1
+fi
+
 storagedir=`pwd`/storage/$service
 logdir=`pwd`/log/$service
 tmpdir=`pwd`/tmp/$service
