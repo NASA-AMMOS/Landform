@@ -8,6 +8,7 @@ packages/
 out/
 out
 tmp/
+tmp
 log/
 cfg/
 storage/
