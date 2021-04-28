@@ -777,35 +777,67 @@ namespace OPS.Landform
                 pipeline.LogInfo("no sols");
                 return null;
             }
-            pipeline.LogInfo("primary sol {0}, all sols {1}", primarySol, MakeSolRanges(allSols));
+            string solRanges = MakeSolRanges(allSols);
+            pipeline.LogInfo("primary sol {0}, all sols {1}", primarySol, solRanges);
 
-            if (string.IsNullOrEmpty(siteDrives) || siteDrives.ToLower() == "auto")
+            if (string.IsNullOrEmpty(siteDrives) || siteDrives.ToLower().Contains("auto"))
             {
                 var allSDs = FindAllSiteDrives(rdrDir, allSols);
-                if (allSDs.Count == 0)
+
+                SiteDrive? primarySD = null;
+                var givenSDs = StringHelper.ParseList(siteDrives);
+                if (givenSDs.Length > 0 && givenSDs[0].ToLower() != "auto")
                 {
-                    pipeline.LogInfo("no non-empty sitedrives for sols");
+                    primarySD = new SiteDrive(givenSDs[0]);
+                    if (!allSDs.ContainsKey(primarySD.Value))
+                    {
+                        pipeline.LogError("manually specified primary sitedrive {0} not found in sols {1}",
+                                          primarySD.Value, solRanges);
+                        return null;
+                    }
+                }
+                else if (allSDs.Count > 0)
+                {
+                    var primarySDCandidates = allSDs.Keys.Where(sd => allSDs[sd].Sols.Contains(primarySol)).ToList();
+                    int minWedges = options.MinPrimarySiteDriveWedges;
+                    if (minWedges > 0)
+                    {
+                        primarySDCandidates = primarySDCandidates
+                            .Where(sd => allSDs[sd].NumWedges >= minWedges)
+                            .ToList();
+                    }
+                    if (primarySDCandidates.Count == 0)
+                    {
+                        pipeline.LogError("no sitedrives{0} in sol {1}",
+                                         minWedges > 0 ? (" with at least " + minWedges + " wedges") : "", primarySol);
+                        return null;
+                    }
+                    
+                    primarySD = primarySDCandidates.OrderByDescending(sd => allSDs[sd].NumWedges).First();
+                }
+
+                if (givenSDs.Length > 0)
+                {
+                    var sds = new HashSet<SiteDrive>();
+                    sds.UnionWith(allSDs.Keys);
+                    sds.UnionWith(givenSDs.Where(sd => sd.ToLower() != "auto").Select(sd => new SiteDrive(sd)));
+                    foreach (var sd in sds)
+                    {
+                        if (!allSDs.ContainsKey(sd))
+                        {
+                            pipeline.LogError("manually specified sitedrive {0} not found in sols {1}", sd, solRanges);
+                            return null;
+                        }
+                    }
+                }
+                    
+                if (allSDs.Count == 0 || !primarySD.HasValue)
+                {
+                    pipeline.LogError("no non-empty sitedrives for sols {0}", solRanges);
                     return null;
                 }
-                var primarySDCandidates = allSDs.Keys.Where(sd => allSDs[sd].Sols.Contains(primarySol)).ToList();
-                int minWedges = options.MinPrimarySiteDriveWedges;
-                if (minWedges > 0)
-                {
-                    primarySDCandidates = primarySDCandidates
-                        .Where(sd => allSDs[sd].NumWedges >= minWedges)
-                        .ToList();
-                }
-                if (primarySDCandidates.Count == 0)
-                {
-                    pipeline.LogInfo("no sitedrives{0} in sol {1}",
-                                     minWedges > 0 ? (" with at least " + minWedges + " wedges") : "", primarySol);
 
-                    return null;
-                }
-
-                var primarySD = primarySDCandidates.OrderByDescending(sd => allSDs[sd].NumWedges).First();
-
-                var msg = MakeContextualMeshMessage(primarySD, allSDs, InitPlacesDB());
+                var msg = MakeContextualMeshMessage(primarySD.Value, allSDs, InitPlacesDB());
 
                 if (msg == null)
                 {
