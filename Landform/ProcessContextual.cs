@@ -940,8 +940,9 @@ namespace OPS.Landform
             string venue = string.Format("contextual_{0}_{1}", missionStr, project);
             string venueDir = storageDir + "/" + venue;
             string solDir = StringHelper.ReplaceIntWildcards(rdrDir, primarySol);
-            string ingestDir = solDir;
             string fetchDir = !string.IsNullOrEmpty(options.FetchDir) ? options.FetchDir : storageDir + "/" + FETCH_DIR;
+            string ingestDir =
+                (rdrDir.StartsWith("s3://") && !(pipeline is CloudPipeline)) ? (fetchDir + "/rdrs") : solDir;
             string tilesetDir = venueDir + "/" + TilingCommand.TILESET_DIR + "/" + project;
             string destDir = GetDestDir(solDir);
 
@@ -980,9 +981,9 @@ namespace OPS.Landform
 
                 Configure(venue);
 
-                if (!options.NoFetch && rdrDir.StartsWith("s3://") && !(pipeline is CloudPipeline))
+                if (!options.NoFetch && !options.NoSurface && rdrDir.StartsWith("s3://") &&
+                    !(pipeline is CloudPipeline))
                 {
-                    ingestDir = fetchDir + "/rdrs";
                     Fetch(options.MaxFetch, solRanges, ingestDir, rdrDir,
                           "--onlyforsitedrives", sdsStr, "--nomeshes", "--summary");
                 }

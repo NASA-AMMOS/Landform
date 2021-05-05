@@ -435,7 +435,7 @@ namespace OPS.Landform
 
         protected override string GetAutoMeshFrame()
         {
-            return AllowCreateProject() ? "passthrough" : "newest";
+            return AllowCreateProject() ? "passthrough" : project != null ? project.MeshFrame : "newest";
         }
 
         protected override bool PassthroughMeshFrameAllowed()
