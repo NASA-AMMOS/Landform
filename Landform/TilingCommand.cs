@@ -30,6 +30,9 @@ namespace OPS.Landform
         [Option(HelpText = "Minium tile bounds extent", Default = TilingDefaults.MIN_TILE_EXTENT)]
         public double MinTileExtent { get; set; }
 
+        [Option(HelpText = "Minium tile bounds extent relative to mesh size", Default = TilingDefaults.MIN_TILE_EXTENT_REL)]
+        public double MinTileExtentRel { get; set; }
+
         [Option(HelpText = "Maximum leaf tile mesh area", Default = TilingDefaults.MAX_LEAF_AREA)]
         public double MaxLeafArea { get; set; }
 

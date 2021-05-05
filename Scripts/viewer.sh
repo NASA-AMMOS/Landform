@@ -94,7 +94,7 @@ for url in "$@"; do
         echo "unsupported URL, only s3:// and local files $out/* supported"
         exit 1
     fi
-    $openurl $url
+    $openurl "$url&${LANDFORM_VIEWER_QUERY_OPTIONS}"
 done
 
 if [ "$using_s3" ]; then
