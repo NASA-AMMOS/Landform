@@ -1690,7 +1690,7 @@ namespace OPS.Landform
                             {
                                 pipeline.LogException
                                     (ex, $"not including sitedrive {list.SiteDrive} in contextual mesh " +
-                                     "for {primarySD}: error checking distance <= {maxDistance} with PlacesDB");
+                                     $"for {primarySD}: error checking distance <= {maxDistance} with PlacesDB");
                             }
                         }
                         else
