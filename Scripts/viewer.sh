@@ -32,7 +32,7 @@ openurl="python -m webbrowser"
 docurl=https://github.jpl.nasa.gov/OnSight/Landform/wiki/M2020-Data-Notes#data-proxy
 
 if [ $# -lt 1 ]; then
-    echo "viewer.sh [dev|sstage|sbeta|sops] s3://BUCKET/PATH/*{tileset|scene}.json|$out/PATH/*{tileset|scene}.json ..."
+    echo "viewer.sh [dev|gdsit|sstage|sbeta|sops] s3://BUCKET/PATH/*{tileset|scene}.json|$out/PATH/*{tileset|scene}.json ..."
     exit 1
 fi
 
@@ -42,7 +42,7 @@ if [[ `python --version` != *3.?.? ]]; then
 fi
 
 venue=dev
-if [[ $# > 1 && $1 =~ ^(dev|sstage|sbeta|sops)$ ]]; then
+if [[ $# > 1 && $1 =~ ^(dev|gdsit|sstage|sbeta|sops)$ ]]; then
     venue=$1
     shift
 fi
