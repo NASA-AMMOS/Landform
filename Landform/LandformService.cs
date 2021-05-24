@@ -515,8 +515,8 @@ namespace OPS.Landform
                     {
                         return null;
                     }
-                    pipeline.LogException(ex, string.Format("error opening/creating {0} queue, retrying in {1}",
-                                                            what, Fmt.HMS(SERVICE_LOOP_RETRY_SEC * 1000)));
+                    pipeline.LogException(ex, string.Format("error opening/creating {0} queue {1}, retrying in {2}",
+                                                            what, name, Fmt.HMS(SERVICE_LOOP_RETRY_SEC * 1000)));
                     SleepSec(SERVICE_LOOP_RETRY_SEC);
                 }
             }
