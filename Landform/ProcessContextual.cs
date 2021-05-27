@@ -1102,6 +1102,10 @@ namespace OPS.Landform
             {
                 return "thumbnail product";
             }
+            if ((id as OPGSProductId).SiteDrive.Drive % 2 == 1)
+            {
+                return "odd drive number (in-motion)";
+            }
             //MSL OPGS single frame product IDs don't actually have sol number in them
             //though they do have SCLK, but we don't currently derive a sol from that
             if (id.HasSol() && solBlacklist.Contains(id.GetSol()))
@@ -1148,6 +1152,10 @@ namespace OPS.Landform
             if ((id as OPGSProductId).Size == RoverProductSize.Thumbnail)
             {
                 return "thumbnail product";
+            }
+            if ((id as OPGSProductId).SiteDrive.Drive % 2 == 1)
+            {
+                return "odd drive number (in-motion)";
             }
             //MSL OPGS single frame product IDs don't actually have sol number in them
             //though they do have SCLK, but we don't currently derive a sol from that
