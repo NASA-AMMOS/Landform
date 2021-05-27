@@ -1086,7 +1086,7 @@ namespace OPS.Landform
                                noOrbital, orbitalDEMFileOpt, orbitalImageFileOpt, camerasOpt);
                 }
 
-                if (!options.NoAlign)
+                if (!options.NoAlign && !orbitalOnly)
                 {
                     RunCommand("bev-align", options.AbortOnAlignmentError, project, allowUnmasked);
                     RunCommand("heightmap-align", options.AbortOnAlignmentError, project, allowUnmasked);
@@ -1101,8 +1101,11 @@ namespace OPS.Landform
                 if (!options.NoTileset)
                 {
                     BuildTilingInput(project, allowUnmasked);
-                    
-                    RunCommand("blend-images", project, allowUnmasked, colorize);
+
+                    if (!orbitalOnly)
+                    {
+                        RunCommand("blend-images", project, allowUnmasked, colorize);
+                    }
                     
                     BuildTileset(project, allowUnmasked);
                     
@@ -1112,7 +1115,7 @@ namespace OPS.Landform
 
                     SaveTileset(tilesetDir, project, destDir);
 
-                    if (!options.NoSky)
+                    if (!options.NoSky && !orbitalOnly)
                     {
                         RunCommand("build-sky-sphere", project, "--skymode", options.SkyMode.ToString(), allowUnmasked,
                                    "--sphereradius", options.SkySphereRadius,
