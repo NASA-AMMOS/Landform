@@ -38,7 +38,7 @@ if not "%LANDFORM_CREDENTIAL_REFRESH_SEC%"=="" set credentialrefresh=--credentia
 
 rem --- end service boilerplate, begin service specific boilerplate ---
 
-set queue=m20-ids-g-sqs-landform-tactical
+set queue=
 if not "%LANDFORM_TACTICAL_QUEUE%"=="" set queue=%LANDFORM_TACTICAL_QUEUE%
 
 set failqueue=auto
