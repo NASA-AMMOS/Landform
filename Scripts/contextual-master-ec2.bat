@@ -83,6 +83,9 @@ set masteropts=
 if not "%LANDFORM_CONTEXTUAL_WORKER_QUEUE%"=="" set workerqueue=%LANDFORM_CONTEXTUAL_WORKER_QUEUE%
 set masteropts=%masteropts% --workerqueuename=%workerqueue%
 
+if not "%LANDFORM_CONTEXTUAL_ORBITAL_WORKER_QUEUE%"=="" (
+    set masteropts=%masteropts% --orbitalworkerqueuename=%LANDFORM_CONTEXTUAL_ORBITAL_WORKER_QUEUE%
+)
 
 if not "%LANDFORM_CONTEXTUAL_LIST_PATTERN%"=="" (
    set masteropts=%masteropts% --listpattern=%LANDFORM_CONTEXTUAL_LIST_PATTERN%
