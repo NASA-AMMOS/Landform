@@ -1113,7 +1113,7 @@ namespace OPS.Landform
                                "--sol", solStr, "--sitedrive", sdStr, "--sols", solRanges, "--sitedrives", sdsStr,
                                "--manifestfile", tilesetDir + "/" + SCENE_JSON);
 
-                    SaveTileset(tilesetDir, project, destDir);
+                    SaveTileset(tilesetDir, project, destDir, orbitalOnly ? "_orbital" : "");
 
                     if (!options.NoSky && !orbitalOnly)
                     {
