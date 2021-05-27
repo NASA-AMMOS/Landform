@@ -303,6 +303,14 @@ namespace OPS.Landform
         public const double DEF_MAX_SITEDRIVE_DISTANCE = 2 * BuildGeometry.DEF_SURFACE_EXTENT;
         public const int DEF_MAX_SOL_RANGE = 200;
 
+        //an example EOP message is
+        //EOP at 2021-05-19 05-09-43
+        //however, because we don't know details of the time format (e.g. timezone, 12/24h)
+        //let's just conservatively look for "EOP"
+        //and call the timestamp the time we received it
+        //which is more in line with how we timestamp changed RDR URLs anyway
+        public readonly Regex EOP_REGEX = new Regex(@"^\s*(EOP|eop)");
+
         protected ProcessContextualOptions options;
 
         private Regex listRegex, wedgeRegex, textureRegex;
@@ -590,6 +598,16 @@ namespace OPS.Landform
                 pipeline.LogWarn("unknown message type {0}, dropping message", msg.GetType().Name);
                 return true;
             }
+        }
+
+        protected override bool AlternateMessageHandler(string msg)
+        {
+            if (EOP_REGEX.IsMatch(msg))
+            {
+                eopTimestamp = (long)UTCTime.NowMS();
+                return true;
+            }
+            return false;
         }
 
         protected override bool ParseArguments()

@@ -167,18 +167,21 @@ namespace OPS.Cloud
             client.ChangeMessageVisibility(new ChangeMessageVisibilityRequest(url, messageHandle, timeoutSec));
         }
 
-        public QueueMessage DequeueOne(int waitSec = 0, int overrideVisibilityTimeout = -1)
+        public QueueMessage DequeueOne(int waitSec = 0, int overrideVisibilityTimeout = -1,
+                                       Func<string, bool> altHandler = null)
         {
-            return DequeueOne<QueueMessage>(waitSec, overrideVisibilityTimeout);
+            return DequeueOne<QueueMessage>(waitSec, overrideVisibilityTimeout, altHandler);
         }
 
-        public T DequeueOne<T>(int waitSec = 0, int overrideVisibilityTimeout = -1) where T : class
+        public T DequeueOne<T>(int waitSec = 0, int overrideVisibilityTimeout = -1,
+                               Func<string, bool> altHandler = null) where T : class
         {
-            var msgs = Dequeue<T>(1, waitSec, overrideVisibilityTimeout);
+            var msgs = Dequeue<T>(1, waitSec, overrideVisibilityTimeout, altHandler);
             return msgs.Length > 0 ? msgs[0] : null;
         }
 
-        public T[] Dequeue<T>(int maxMessages = 1, int waitSec = 0, int overrideVisibilityTimeout = -1) where T : class
+        public T[] Dequeue<T>(int maxMessages = 1, int waitSec = 0, int overrideVisibilityTimeout = -1,
+                              Func<string, bool> altHandler = null) where T : class
         {
             var req = new ReceiveMessageRequest
             {
@@ -212,6 +215,10 @@ namespace OPS.Cloud
             {
                 try
                 {
+                    if (altHandler != null && altHandler(msg.Body))
+                    {
+                        return null;
+                    }
                     T m = JsonHelper.FromJson<T>(msg.Body, autoTypes: autoTypes);
                     if (m is QueueMessage)
                     {
