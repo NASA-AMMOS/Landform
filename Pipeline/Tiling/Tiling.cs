@@ -33,7 +33,7 @@ namespace OPS.Pipeline
         public const TextureMode TEXTURE_MODE = TextureMode.Bake;
 
         public const int MAX_TILE_RESOLUTION = 512;
-        public const int MIN_TILE_RESOLUTION = 16;
+        public const int MIN_TILE_RESOLUTION = 64;
 
         public const double MAX_TEXELS_PER_METER = 512;
         public const double MAX_ORBITAL_TEXELS_PER_METER = 4;
