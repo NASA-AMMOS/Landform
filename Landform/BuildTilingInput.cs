@@ -124,8 +124,8 @@ namespace OPS.Landform
         [Option(HelpText = "Don't use approximated areas for the tilesplit test", Default = false)]
         public bool NoApproxTileSplit { get; set; }
 
-        [Option(HelpText = "Align tile bounds to camera axis for improved texture utilization when using texture projection", Default = false)]
-        public bool AlignToCamera { get; set; }
+        [Option(HelpText = "Don't align tile bounds to camera axis for improved texture utilization when using texture projection", Default = false)]
+        public bool NoAlignToCamera { get; set; }
 
         [Option(HelpText = "Enable synthesizing intermediate LODs when fewer precomputed LODs than tile tree levels", Default = false)]
         public bool SynthesizeExtraLODs { get; set; }
@@ -648,7 +648,7 @@ namespace OPS.Landform
 
                 options.AtlasMode = AtlasMode.Project;
 
-                if (options.AlignToCamera && (texImg.CameraModel is CAHV))
+                if (!options.NoAlignToCamera && (texImg.CameraModel is CAHV))
                 {
                     Vector3 a = Vector3.Normalize((texImg.CameraModel as CAHV).A);
                     a = Vector3.TransformNormal(a, camToMesh);
