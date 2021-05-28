@@ -38,7 +38,7 @@ namespace OPS.Landform
         [Option(HelpText = "Use level of detail meshes provided in input mesh", Default = false)]
         public bool LoadLODs { get; set; }
 
-        [Option(HelpText = "Create or fix LOD meshes, comma separated list of min-max ranges, finest to coarsest", Default = TextureCommand.DEF_FIXUP_LODS)]
+        [Option(HelpText = "Create or fix LOD meshes, comma separated list of min-max ranges, finest to coarsest, or \"null\" to disable", Default = TextureCommand.DEF_FIXUP_LODS)]
         public string FixupLODs { get; set; }
 
         [Option(HelpText = "Occlusion mesh in same frame as input mesh, defaults to input mesh", Default = null)]
@@ -533,7 +533,8 @@ namespace OPS.Landform
 
             bool canGenUVs = CanAtlasSceneMesh();
 
-            if (tcopts.LoadLODs && !string.IsNullOrEmpty(tcopts.FixupLODs) && (!requireUVs || canGenUVs))
+            if (tcopts.LoadLODs && !string.IsNullOrEmpty(tcopts.FixupLODs) && (tcopts.FixupLODs.ToLower() != "null") &&
+                (!requireUVs || canGenUVs))
             {
                 int[][] ranges = null;
                 try
