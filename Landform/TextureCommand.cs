@@ -526,8 +526,9 @@ namespace OPS.Landform
 
             for (int lod = 0; lod < meshLOD.Count; lod++)
             {
-                pipeline.LogInfo("LOD {0}: {1} vertices, {2} faces",
-                                 lod, Fmt.KMG(meshLOD[lod].Vertices.Count), Fmt.KMG(meshLOD[lod].Faces.Count));
+                pipeline.LogInfo("LOD {0}: {1} vertices, {2} faces, bounds {3}",
+                                 lod, Fmt.KMG(meshLOD[lod].Vertices.Count), Fmt.KMG(meshLOD[lod].Faces.Count),
+                                 meshLOD[lod].Bounds().FmtExtent());
             }
 
             bool canGenUVs = CanAtlasSceneMesh();
