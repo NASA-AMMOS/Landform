@@ -1261,7 +1261,8 @@ namespace OPS.Landform
                     pipeline.LogVerbose("clipping texture for tile " + tile.Name);
                     var texClipper = new TexturedMeshClipper(powerOfTwoTextures: options.PowerOfTwoTextures,
                                                              logger: pipeline, logPrefix: tile.Name);
-                    var tmp = texClipper.RemapMeshClipImage(mip.Mesh, sceneTexture, sceneIndex, resolution);
+                    var tmp = texClipper.RemapMeshClipImage(mip.Mesh, sceneTexture, sceneIndex,
+                                                            tile.IsLeaf ? maxTileResolution : resolution);
                     mip.Mesh = tmp.Mesh; //may have been re-atlassed
                     mip.Image = tmp.Image;
                     mip.Index = tmp.Index;
