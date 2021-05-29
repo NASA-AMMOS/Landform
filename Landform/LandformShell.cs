@@ -112,7 +112,7 @@ namespace OPS.Landform
         [Option(HelpText = "Max tile texture atlas stretch (0 = no stretch, 1 = unlimited)", Default = TilingDefaults.MAX_TEXTURE_STRETCH)]
         public double MaxTextureStretch { get; set; }
 
-        [Option(HelpText = "Require power of two tile textures", Default = TilingDefaults.POWER_OF_TWO_TEXTURES)]
+        [Option(HelpText = "Require power of two tile textures (note: when clipping textures if input image is not power of two, tile textures may not be either)", Default = TilingDefaults.POWER_OF_TWO_TEXTURES)]
         public bool PowerOfTwoTextures { get; set; }
 
         [Option(HelpText = "Colorize mono images to median chrominance", Default = false)]

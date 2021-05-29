@@ -710,6 +710,24 @@ namespace OPS.Landform
                 pipeline.LogInfo("resized scene texture to {0}x{1}, max size {2}",
                                  sceneTexture.Width, sceneTexture.Height, sceneTextureResolution);
             }
+            if (options.PowerOfTwoTextures && (textureMode == TextureMode.Clip) &&
+                (!NumberHelper.IsPowerOfTwo(sceneTexture.Width) || !NumberHelper.IsPowerOfTwo(sceneTexture.Height)))
+            {
+                //the problem with this is that ResizePowerOfTwo() does not maintain aspect ratio
+                //if (!TextureProjectionEnabled())
+                //{
+                //    int origWidth = sceneTexture.Width, origHeight = sceneTexture.Height;
+                //    sceneTexture = sceneTexture.ResizePowerOfTwo();
+                //    pipeline.LogInfo("resized scene texture from {0}x{1} to {2}x{3} for power of two textures",
+                //                     origWidth, origHeight, sceneTexture.Width, sceneTexture.Height);
+                //}
+                //else
+                //{
+                    pipeline.LogWarn("scene texture resolution {0}x{1} is not power of two, " +
+                                     "clipped tile textures may not be power of two",
+                                     sceneTexture.Width, sceneTexture.Height);
+                //}
+            }
         }
 
         private bool CanUseTextureSplit()

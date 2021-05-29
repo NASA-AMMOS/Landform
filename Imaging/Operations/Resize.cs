@@ -3,6 +3,8 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using Microsoft.Xna.Framework;
+using OPS.MathExtensions;
+using OPS.Util;
 
 namespace OPS.Imaging
 {
@@ -76,6 +78,7 @@ namespace OPS.Imaging
         /// <summary>
         /// Resize so that both width and height are less than or equal to maxSize.
         /// Does nothing if maxSize is non-positive.
+        /// Maintains aspect ratio.
         /// </summary>
         public static Image ResizeMax(this Image img, int maxSize)
         {
@@ -95,6 +98,17 @@ namespace OPS.Imaging
                 newHeight = (int)(img.Height * ((double)(newWidth) / img.Width));
             }
             return Resize(img, newWidth, newHeight);
+        }
+
+        /// <summary>
+        /// Resize so that both width and height powers of two.
+        /// Does not necessarily maintain aspect ratio.
+        /// </summary>
+        public static Image ResizePowerOfTwo(this Image img)
+        {
+            int newWidth = NumberHelper.IsPowerOfTwo(img.Width) ? img.Width : MathE.FloorPowerOf2(img.Width);
+            int newHeight = NumberHelper.IsPowerOfTwo(img.Height) ? img.Height : MathE.FloorPowerOf2(img.Height);
+            return (newWidth != img.Width || newHeight != img.Height) ? img.Resize(newWidth, newHeight) : img;
         }
 
         public static Image ResizeMaxNearest(this Image img, int maxSize)
