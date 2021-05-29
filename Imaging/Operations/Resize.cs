@@ -83,8 +83,18 @@ namespace OPS.Imaging
             {
                 return img;
             }
-            double f = img.Width < img.Height ? maxSize / ((double)img.Height) : maxSize / ((double)img.Width);
-            return Resize(img, (int)(f * img.Width), (int)(f * img.Height));
+            int newWidth = maxSize, newHeight = maxSize;
+            if (img.Height > img.Width)
+            {
+                newHeight = maxSize;
+                newWidth = (int)(img.Width * ((double)(newHeight) / img.Height));
+            }
+            else if (img.Width > img.Height)
+            {
+                newWidth = maxSize;
+                newHeight = (int)(img.Height * ((double)(newWidth) / img.Width));
+            }
+            return Resize(img, newWidth, newHeight);
         }
 
         public static Image ResizeMaxNearest(this Image img, int maxSize)
