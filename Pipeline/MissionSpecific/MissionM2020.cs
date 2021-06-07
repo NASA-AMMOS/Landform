@@ -46,6 +46,12 @@ namespace OPS.Pipeline
         [ConfigEnvironmentVariable("LANDFORM_CSSO_PASSWORD_PARAMETER_IN_SSM_ENCRYPTED")]
         public bool CSSOPasswordParameterInSSMEncrypted { get; set; } = true;
 
+        [ConfigEnvironmentVariable("LANDFORM_CSSO_CREDENTIAL_REFRESH_SEC")]
+        public int CSSOCredentialRefreshSec { get; set; } = 4 * 60 * 60; //4h
+
+        [ConfigEnvironmentVariable("LANDFORM_CSSO_CREDENTIAL_DURATION_SEC")]
+        public int CSSOCredentialDurationSec { get; set; } = 8 * 60 * 60; //8h
+
         //{venue} will be replaced with mission venue
         [ConfigEnvironmentVariable("LANDFORM_S3_DATA_PROXY")]
         public string S3Proxy { get; set; } = "https://data.{venue}.m20.jpl.nasa.gov";
@@ -95,7 +101,8 @@ namespace OPS.Pipeline
                 }
             }
 
-            int duration = 8 * 60 * 60; //8h
+            var cfg = MissionM2020Config.Instance;
+            int duration = cfg.CSSOCredentialDurationSec;
             string section = "credss-app";
 
             awsProfile = awsProfile ?? GetDefaultAWSProfile();
@@ -104,8 +111,6 @@ namespace OPS.Pipeline
             string user = null, pass = null;
             try
             {
-                var cfg = MissionM2020Config.Instance;
-
                 using (var ps = new ParameterStore(awsProfile, awsRegion))
                 {
                     logger.LogInfo("opened parameter store to fetch CSSO credentials, profile={0}, region={1}",
@@ -217,7 +222,7 @@ namespace OPS.Pipeline
 
         public override int GetDefaultCredentialRefreshSec()
         {
-            return 4 * 60 * 60; //4h
+            return MissionM2020Config.Instance.CSSOCredentialRefreshSec;
         }
 
         //some images have invalid PLANET_DAY_NUMBER
