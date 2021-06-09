@@ -44,12 +44,9 @@ using OPS.Pipeline;
 ///
 /// A maximum download size in bytes can optionally be specified, and can optionally include existing data in the output
 /// directory.  If the requested new downloads (after filtering) would exceed the limit, not including existing data,
-/// the downloads are trimmed oldest to newest.  If existing data is included in the accounting and the resulting
-/// downloads plus existing data would exceed the limit, then LRU existing downloads are removed.  Trimming is performed
-/// separately for each search location in order.  LRU deletion is performed separately for each search location and for
-/// each sol, newest to oldest.
-///
-/// Trimming and filtering are not applied when specific files are requested with --raw.
+/// the downloads are trimmed oldest to newest.  Trimming is performed separately for each search location in order. If
+/// the resulting downloads plus existing data would exceed the limit then LRU existing downloads are removed, if
+/// enabled.  LRU deletion is performed separately for each search location and for each sol, newest to oldest.
 ///
 /// Fetch RDRs for windjana contextual mesh:
 ///
@@ -465,6 +462,7 @@ namespace OPS.Landform
             return false;
         }
 
+        //in most cases the size will already have been cached by IndexS3Files()
         private long RemoteBytes(string url)
         {
             if (url.ToLower().StartsWith("s3://"))
@@ -487,6 +485,7 @@ namespace OPS.Landform
             return -1; //TODO not implemented for https
         }
 
+        //in most cases the timestamp will already have been cached by IndexS3Files()
         private long RemoteMSSinceEpoch(string url)
         {
             if (url.ToLower().StartsWith("s3://"))
@@ -536,6 +535,9 @@ namespace OPS.Landform
                 mission.GetProductIDString(url) : StringHelper.GetLastUrlPathSegment(url, stripExtension: true);
         }
 
+        //recursive search
+        //applies early per-file filtering with AcceptURL()
+        //caches file sizes and timestamps
         private List<string> IndexS3Files(string s3Folder)
         {
             try
@@ -558,6 +560,8 @@ namespace OPS.Landform
             }
         }
 
+        //apply rules to filter an individual file
+        //FilterDownloads() also does more comprehensive filtering that can depend on groups of files
         private bool AcceptURL(string url)
         {
             string reason = "unknown reason";
@@ -761,6 +765,12 @@ namespace OPS.Landform
             return false;
         }
 
+        //does a first pass of individual file filtering with AcceptURL()
+        //(which may be redundant if IndexS3Files() already did that, but ok)
+        //then applies group based filtering rules including
+        //* mesh product filtering
+        //* RoverObservationComparator.FilterProductIdGroups()
+        //* unified mesh filtering
         private List<string> FilterDownloads(List<string> urls)
         {
             var filtered = urls.OrderBy(url => url).Where(AcceptURL).ToList(); //sort makes spew more readable
@@ -890,6 +900,9 @@ namespace OPS.Landform
             return filtered;
         }
 
+        //if the set of downloads exceeds maxNewBytes, then keep the newest subset that fits
+        //this intentionally does not account disk usage of existing downloads
+        //which is handled separately in DownloadFiles() and DeleteLRUDownloads()
         private List<string> TrimDownloads(List<string> urls, long maxNewBytes, out long newBytes)
         {
             newBytes = 0;
@@ -929,6 +942,9 @@ namespace OPS.Landform
             return trimmed;
         }
 
+        //actually download a file
+        //returns the downloaded file size, or -1 if the download failed
+        //applies retries, makes directories, handles options.DryRun, etc
         private long DownloadFile(string url)
         {
             var localPath = LocalPath(url);    
@@ -986,6 +1002,11 @@ namespace OPS.Landform
             return -1;
         }
 
+        //check if a file should really be downloaded
+        //* checks that the individual file is not larger than maxBytes
+        //* checks that the change in disk usage after downloading the file would not exceed maxBytes
+        //* checks if the remote file differs in size or timestamp from an already existing local file
+        //if the file is to be downloaded then the expected change in disk usage is added to batchBytes
         private bool ShouldDownload(string url, ref long batchBytes)
         {
             long remoteBytes = RemoteBytes(url); //negative if unimplemented/unknown
@@ -1033,6 +1054,9 @@ namespace OPS.Landform
             return true;
         }
 
+        //download a batch of files
+        //dedupes and filters with ShouldDownload()
+        //enforces disk usage constraints with DeleteLRUDownloads() and TrimDownloads()
         private void DownloadFiles(List<string> urls)
         {
             var maxBatch = options.ConcurrentDownloads;
@@ -1087,7 +1111,7 @@ namespace OPS.Landform
 
             if (maxBytes > 0)
             {
-                long freeBytes = maxBytes - diskBytes;
+                long freeBytes = Math.Max(0, maxBytes - diskBytes);
                 if (freeBytes < batchBytes)
                 {
                     var trimmed = TrimDownloads(batch.ToList(), freeBytes, out batchBytes);
@@ -1168,6 +1192,8 @@ namespace OPS.Landform
             lruDownloads = new Queue<FileInfo>(existing.Values.OrderBy(file => file.LastAccessTime));
         }
 
+        //attempt to delete least recently used downloads until minFreeBytes disk space is available
+        //does not delete files in keep set
         private void DeleteLRUDownloads(long minFreeBytes = 0, HashSet<string> keep = null)
         {
             if (maxBytes <= 0)
@@ -1177,9 +1203,11 @@ namespace OPS.Landform
             long target = Math.Max(0, maxBytes - minFreeBytes);
             bool summarized = false;
             var lru = lruDownloads;
+            HashSet<string> deleted = null;
             if (keep != null)
             {
                 lru = new Queue<FileInfo>(lru.Where(file => !keep.Contains(file.FullName)));
+                deleted = new HashSet<string>();
             }
             while (lru.Count > 0 && diskBytes > target)
             {
@@ -1202,6 +1230,10 @@ namespace OPS.Landform
                     diskBytes -= bytes;
                     deletedBytes += bytes;
                     deletedFiles++;
+                    if (deleted != null)
+                    {
+                        deleted.Add(file.FullName);
+                    }
                     if (!file.Directory.EnumerateFileSystemInfos().Any())
                     {
                         file.Directory.Delete();
@@ -1215,6 +1247,10 @@ namespace OPS.Landform
             }
             if (deletedFiles > 0)
             {
+                if (lru != lruDownloads)
+                {
+                    lruDownloads = new Queue<FileInfo>(lruDownloads.Where(file => !deleted.Contains(file.FullName)));
+                }
                 logger.InfoFormat("deleted {0} LRU files (cumulative), {1} bytes, {2}/{3} bytes free",
                                   Fmt.DiskBytes(deletedFiles), Fmt.DiskBytes(deletedBytes),
                                   Fmt.DiskBytes(maxBytes - diskBytes), //may be negative
@@ -1244,7 +1280,8 @@ namespace OPS.Landform
                 }
                 else if (maxBytes > 0)
                 {
-                    logger.InfoFormat("download limit {0} bytes", Fmt.DiskBytes(maxBytes));
+                    logger.InfoFormat("download limit {0} bytes, not accounting existing downloads",
+                                      Fmt.DiskBytes(maxBytes));
                 }
                 
                 if (options.Raw)
@@ -1365,7 +1402,8 @@ namespace OPS.Landform
                     DownloadFiles(umURLs);
                 }
                 var umFiles = ums.Where(um => um.IndexOf("://") <= 0)
-                    .Concat(umURLs.Select(url => LocalPath(url)).Where(path => File.Exists(path)))
+                    .Concat(umURLs.Select(url => LocalPath(url)))
+                    .Where(path => File.Exists(path))
                     .ToList();
                 if (umFiles.Count > 0)
                 {
@@ -1375,7 +1413,7 @@ namespace OPS.Landform
                 }
             }
             
-            foreach (var location in locations)
+            foreach (var location in locations) //process search locations one at a time, in order
             {
                 var urlsBySol = new ConcurrentDictionary<int, List<string>>();
                 CoreLimitedParallel.ForEach(sols, sol =>

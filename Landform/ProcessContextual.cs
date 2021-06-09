@@ -1059,8 +1059,6 @@ namespace OPS.Landform
                           "--onlyforsitedrives", sdsStr, "--nomeshes", "--summary");
                 }
 
-                //max fetch accounting and LRU deletion is not applied to orbital downloads
-                //because they use --raw and also are in a separate local folder than RDRs
                 if (!options.NoFetch && !options.NoOrbital)
                 {
                     Action<string, string> fetchOrbitalAsset = (url, file) =>
