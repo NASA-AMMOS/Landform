@@ -1049,10 +1049,18 @@ namespace OPS.Landform
 
                 if (!options.NoFetch && !orbitalOnly && rdrDir.StartsWith("s3://") && !(pipeline is CloudPipeline))
                 {
-                    Fetch(options.MaxFetch, solRanges, ingestDir, rdrDir,
+                    string searchLocations = rdrDir + "/";
+                    string[] rdrSubdirs = mission.GetContextualMeshRDRSubdirs();
+                    if (rdrSubdirs != null && rdrSubdirs.Length > 0)
+                    {
+                        searchLocations = string.Join(",", rdrSubdirs.Select(d => $"{rdrDir}/{d}/"));
+                    }
+                    Fetch(options.MaxFetch, solRanges, ingestDir, searchLocations,
                           "--onlyforsitedrives", sdsStr, "--nomeshes", "--summary");
                 }
 
+                //max fetch accounting and LRU deletion is not applied to orbital downloads
+                //because they use --raw and also are in a separate local folder than RDRs
                 if (!options.NoFetch && !options.NoOrbital)
                 {
                     Action<string, string> fetchOrbitalAsset = (url, file) =>

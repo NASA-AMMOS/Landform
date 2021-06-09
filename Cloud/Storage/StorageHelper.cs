@@ -139,7 +139,8 @@ namespace OPS.Cloud
         /// <returns>returns list of S3 URLs</returns>
         public IEnumerable<string> SearchObjects(string s3url, string pattern = "*", bool recursive = true,
                                                  bool ignoreCase = false, bool folders = false, bool files = true,
-                                                 bool patternIsRegex = false)
+                                                 bool patternIsRegex = false, Func<string, bool> filter = null,
+                                                 Action<string, long, DateTime> metadata = null)
         {
             S3Url location = new S3Url(s3url);
             var opts = ignoreCase ? RegexOptions.IgnoreCase : RegexOptions.None;
@@ -166,7 +167,11 @@ namespace OPS.Cloud
                         {
                             if (regex.IsMatch(pfx))
                             {
-                                yield return new S3Url(location.BucketName, pfx).Url;
+                                string url = new S3Url(location.BucketName, pfx).Url;
+                                if (filter == null || filter(url))
+                                {
+                                    yield return url;
+                                }
                             }
                         }
                     }
@@ -176,7 +181,15 @@ namespace OPS.Cloud
                         {
                             if (regex.IsMatch(entry.Key))
                             {
-                                yield return new S3Url(location.BucketName, entry.Key).Url;
+                                string url = new S3Url(location.BucketName, entry.Key).Url;
+                                if (filter == null || filter(url))
+                                {
+                                    if (metadata != null)
+                                    {
+                                        metadata(url, entry.Size, entry.LastModified);
+                                    }
+                                    yield return url;
+                                }
                             }
                         }
                     }
@@ -195,6 +208,19 @@ namespace OPS.Cloud
             using (var client = GetClient(s3url))
             {
                 return GetFileSize(client, new S3Url(s3url));
+            }
+        }
+
+        private DateTime GetLastModified(AmazonS3Client client, S3Url location)
+        {
+            return GetObjectMetadata(client, location).LastModified;
+        }
+
+        public DateTime LastModified(string s3url)
+        {
+            using (var client = GetClient(s3url))
+            {
+                return GetLastModified(client, new S3Url(s3url));
             }
         }
 

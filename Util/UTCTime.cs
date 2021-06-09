@@ -29,6 +29,11 @@ namespace OPS.Util
             return DateTimeOffset.FromUnixTimeMilliseconds(ms).DateTime;
         }
 
+        public static long DateToMSSinceEpoch(DateTime date)
+        {
+            return (long)(date.ToUniversalTime().Subtract(EPOCH).TotalMilliseconds);
+        }
+
         public static double Now()
         {
             return SinceEpoch().TotalSeconds;

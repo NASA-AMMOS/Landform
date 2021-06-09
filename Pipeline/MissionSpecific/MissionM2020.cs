@@ -79,6 +79,11 @@ namespace OPS.Pipeline
         public const int VERSION_FIELD = 52;
         public const int VERSION_FIELD_LENGTH = 2;
 
+        //https://wiki.jpl.nasa.gov/display/MSMFS/File+and+S3+Object+Path+Conventions
+        //https://wiki.jpl.nasa.gov/display/MSMFS/Instruments+That+IDS+Processes
+        private readonly string[] MASTCAM_RDR_SUBDIRS = new string[] { "zcam" };
+        private readonly string[] ARMCAM_RDR_SUBDIRS = new string[] { "shrlc" };
+
         public MissionM2020(string venue = null) : base(venue) { }
 
         public override Mission GetMission()
@@ -476,6 +481,16 @@ namespace OPS.Pipeline
             return camera == RoverProductCamera.SHERLOCACI ||
                 camera == RoverProductCamera.SHERLOCWATSON ||
                 camera == RoverProductCamera.SHERLOCWATSONLeft || camera == RoverProductCamera.SHERLOCWATSONRight;
+        }
+
+        public override string[] GetMastcamRDRSubdirs()
+        {
+            return MASTCAM_RDR_SUBDIRS;
+        }
+
+        public override string[] GetArmcamRDRSubdirs()
+        {
+            return ARMCAM_RDR_SUBDIRS;
         }
 
         public override RoverProductId ParseProductId(string id)

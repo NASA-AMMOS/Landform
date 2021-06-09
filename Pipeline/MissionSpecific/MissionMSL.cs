@@ -41,6 +41,8 @@ namespace OPS.Pipeline
         public const int MIN_MASTCAM_FOCUS_CUTOFF = 3;
         public const int MAX_MASTCAM_WIDTH = 1344; //TODO this is unused
 
+        private readonly string[] ARMCAM_RDR_SUBDIRS = new string[] { "mhli" };
+
         public MissionMSL(string venue = null) : base(venue) { }
 
         public override Mission GetMission()
@@ -133,6 +135,11 @@ namespace OPS.Pipeline
         public override bool IsArmcam(RoverProductCamera cam)
         {
             return cam == RoverProductCamera.MAHLI;
+        }
+
+        public override string[] GetArmcamRDRSubdirs()
+        {
+            return ARMCAM_RDR_SUBDIRS;
         }
 
         public override bool AllowPDSLabelFiles()

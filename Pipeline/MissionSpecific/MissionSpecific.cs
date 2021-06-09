@@ -125,6 +125,12 @@ namespace OPS.Pipeline
 
     public abstract class MissionSpecific : ConfigDefaultsProvider
     {
+        private readonly string[] DEFAULT_HAZCAM_RDR_SUBDIRS = new string[] { "fcam", "rcam" };
+        private readonly string[] DEFAULT_NAVCAM_RDR_SUBDIRS = new string[] { "ncam" };
+        private readonly string[] DEFAULT_MASTCAM_RDR_SUBDIRS = new string[] { "mcam" };
+        private readonly string[] DEFAULT_ARMCAM_RDR_SUBDIRS = null;
+        private readonly string[] DEFAULT_UNIFIED_MESH_RDR_SUBDIRS = new string[] { "mesh" };
+
         protected readonly string venue;
 
         protected MissionSpecific(string venue = null)
@@ -535,6 +541,31 @@ namespace OPS.Pipeline
             return MissionConfig.Instance.UseArmcamForTexturing;
         }
 
+        public virtual string[] GetHazcamRDRSubdirs()
+        {
+            return DEFAULT_HAZCAM_RDR_SUBDIRS;
+        }
+
+        public virtual string[] GetNavcamRDRSubdirs()
+        {
+            return DEFAULT_NAVCAM_RDR_SUBDIRS;
+        }
+
+        public virtual string[] GetMastcamRDRSubdirs()
+        {
+            return DEFAULT_MASTCAM_RDR_SUBDIRS;
+        }
+
+        public virtual string[] GetArmcamRDRSubdirs()
+        {
+            return DEFAULT_ARMCAM_RDR_SUBDIRS;
+        }
+
+        public virtual string[] GetUnifiedMeshRDRSubdirs()
+        {
+            return DEFAULT_UNIFIED_MESH_RDR_SUBDIRS;
+        }
+
         public virtual bool UseUnifiedMeshes()
         {
             return MissionConfig.Instance.UseUnifiedMeshes;
@@ -925,6 +956,42 @@ namespace OPS.Pipeline
         public string GetTacticalMeshFrame(string idStr)
         {
             return GetTacticalMeshFrame(ParseProductId(idStr));
+        }
+
+        /// <summary>
+        /// Get the subdirs of the RDR directory to search for contextual mesh RDRs.
+        /// Order matters: fetch will process the subdirs in order.
+        /// Unified meshes should be fetched before RDRs they pertain to.
+        /// Other instruments should be in priority order as fetch may trim downloads to fit max download limits.
+        /// </summary>
+        public virtual string[] GetContextualMeshRDRSubdirs()
+        {
+            var dirs = new List<string>();
+            if (UseUnifiedMeshes() && GetUnifiedMeshRDRSubdirs() != null)
+            {
+                dirs.AddRange(GetUnifiedMeshRDRSubdirs());
+            }
+            if ((UseNavcamForAlignment() || UseNavcamForMeshing() || UseNavcamForTexturing()) &&
+                GetNavcamRDRSubdirs() != null)
+            {
+                dirs.AddRange(GetNavcamRDRSubdirs());
+            }
+            if ((UseHazcamForAlignment() || UseHazcamForMeshing() || UseHazcamForTexturing()) &&
+                GetHazcamRDRSubdirs() != null)
+            {
+                dirs.AddRange(GetHazcamRDRSubdirs());
+            }
+            if ((UseMastcamForAlignment() || UseMastcamForMeshing() || UseMastcamForTexturing()) &&
+                GetMastcamRDRSubdirs() != null)
+            {
+                dirs.AddRange(GetMastcamRDRSubdirs());
+            }
+            if ((UseArmcamForAlignment() || UseArmcamForMeshing() || UseArmcamForTexturing()) &&
+                GetArmcamRDRSubdirs() != null)
+            {
+                dirs.AddRange(GetArmcamRDRSubdirs());
+            }
+            return dirs.ToArray();
         }
 
         /// <summary>
