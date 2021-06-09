@@ -19,6 +19,9 @@ namespace OPS.Pipeline
             return CONFIG_FILENAME;
         }
         
+        [ConfigEnvironmentVariable("LANDFORM_USE_UNIFIED_MESHES")]
+        public bool UseUnifiedMeshes { get; set; } = true;
+
         [ConfigEnvironmentVariable("LANDFORM_ALLOW_PDS_LABEL_FILES")]
         public bool AllowPDSLabelFiles { get; set; } = true;
         
@@ -140,6 +143,11 @@ namespace OPS.Pipeline
         public override string[] GetArmcamRDRSubdirs()
         {
             return ARMCAM_RDR_SUBDIRS;
+        }
+
+        public override bool UseUnifiedMeshes()
+        {
+            return MissionMSLConfig.Instance.UseUnifiedMeshes;
         }
 
         public override bool AllowPDSLabelFiles()

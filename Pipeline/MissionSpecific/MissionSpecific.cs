@@ -106,7 +106,7 @@ namespace OPS.Pipeline
         public bool UseArmcamForTexturing { get; set; } = false;
 
         [ConfigEnvironmentVariable("LANDFORM_USE_UNIFIED_MESHES")]
-        public bool UseUnifiedMeshes { get; set; } = true;
+        public bool UseUnifiedMeshes { get; set; } = false;
 
         [ConfigEnvironmentVariable("LANDFORM_UNIFIED_MESH_PRODUCT_TYPE")]
         public string UnifiedMeshProductType { get; set; } = "RAS";
