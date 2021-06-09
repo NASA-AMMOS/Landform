@@ -98,6 +98,9 @@ using OPS.Pipeline.AlignmentServer;
 /// adjacent sitedrives, the maximum distance for adjacent sitedrives, and the maximum number of wedges to include in a
 /// contextual mesh.  If PlacesDB is not available then contextual meshes will only be built for single sitedrives.
 ///
+/// ProcessContextual only works with OPGS product IDs.  To work with e.g. MSSS product IDs for MSL, use
+/// process-contextual.sh or manually run the pipeline.
+///
 /// * Run as service:
 ///
 /// Landform.exe process-contextual --service --mission=M2020 \
@@ -260,9 +263,6 @@ namespace OPS.Landform
         [Option(Default = ProcessContextual.DEF_MIN_PRIMARY_SITEDRIVE_WEDGES, HelpText = "Minimum number of wedges for primary site drive in a contextual mesh, non-positive for no limit")]
         public int MinPrimarySiteDriveWedges { get; set; }
 
-        [Option(Default = ProcessContextual.DEF_MAX_WEDGES, HelpText = "Maximum number of wedges for which to build a contextual mesh (does not apply to primary sitedrive; culls additional sitedrives in order of increasing distance, then size), non-positive for no limit")]
-        public int MaxContextualMeshWedges { get; set; }
-
         [Option(Default = ProcessContextual.DEF_MAX_SITEDRIVES, HelpText = "Max number of site drives to include in contextual mesh, non-positive for no limit")]
         public int MaxSiteDrives{ get; set; }
 
@@ -298,7 +298,6 @@ namespace OPS.Landform
         public const int DEF_DEBOUNCE_SEC = 30 * 60; //30 minutes
 
         public const int DEF_MIN_PRIMARY_SITEDRIVE_WEDGES = 4;
-        public const int DEF_MAX_WEDGES = 1000;
         public const int DEF_MAX_SITEDRIVES = 64;
         public const double DEF_MAX_SITEDRIVE_DISTANCE = 2 * BuildGeometry.DEF_SURFACE_EXTENT;
         public const int DEF_MAX_SOL_RANGE = 200;
@@ -316,7 +315,7 @@ namespace OPS.Landform
         private Regex listRegex, wedgeRegex, textureRegex;
 
         private int debounceMS;
-        private int solRange, maxWedges, maxSDs;
+        private int solRange, maxSDs;
 
         private int[] solBlacklist;
 
@@ -555,7 +554,7 @@ namespace OPS.Landform
                     //this will happen e.g. for s3://BUCKET/ids-pipeline/xyz_SSSDDDD.lis
                     //this is maybe a bit wasteful but the download should be cached
                     //and the cost of parsing the list file multiple times shouldn't be a big deal
-                    var sdList = new SiteDriveList(mission, pipeline, (_, id) => FilterWedge(id));
+                    var sdList = new SiteDriveList(mission, pipeline, FilterWedge, FilterTexture);
                     LoadList(sdList, url);
                     rdrDir = sdList.RDRDir; //might still be null if all wedges were filtered
                 }
@@ -673,11 +672,19 @@ namespace OPS.Landform
             pipeline.LogInfo("debounce time {0}s", debounceMS / 1000);
 
             solRange = options.MaxSolRange >= 0 ? options.MaxSolRange : DEF_MAX_SOL_RANGE;
-            maxWedges = options.MaxContextualMeshWedges > 0 ? options.MaxContextualMeshWedges : int.MaxValue;
             maxSDs = options.MaxSiteDrives > 0 ? options.MaxSiteDrives : int.MaxValue;
             pipeline.LogInfo("contextual mesh extent {0}, surface extent {1}", options.Extent, options.SurfaceExtent);
-            pipeline.LogInfo("max sol range {0}, max wedges {1}, max sitedrives {2}", solRange, maxWedges, maxSDs);
+            pipeline.LogInfo("max sol range {0}, max sitedrives {1}", solRange, maxSDs);
             pipeline.LogInfo("min wedges for primary sitedrive {0}", options.MinPrimarySiteDriveWedges);
+
+            pipeline.LogInfo("max wedges {0}, max textures {1}",
+                             mission.GetMaxContextualMeshWedges(), mission.GetMaxContextualMeshTextures());
+            pipeline.LogInfo("max navcam wedges {0} per sitedrive, max navcam textures {1} per sitedrive",
+                             mission.GetMaxContextualMeshNavcamWedgesPerSiteDrive(),
+                             mission.GetMaxContextualMeshNavcamTexturesPerSiteDrive());
+            pipeline.LogInfo("max mastcam wedges {0} per sitedrive, max mastcam textures {1} per sitedrive",
+                             mission.GetMaxContextualMeshMastcamWedgesPerSiteDrive(),
+                             mission.GetMaxContextualMeshMastcamTexturesPerSiteDrive());
 
             solBlacklist = IngestAlignmentInputs.ExpandSolSpecifier(options.SolBlacklist);
             if (solBlacklist.Length > 0)
@@ -1166,95 +1173,39 @@ namespace OPS.Landform
             }
         }
 
-        private string FilterWedge(RoverProductId id)
+        private string FilterProduct(RoverProductId id)
         {
             if (!(id is OPGSProductId))
             {
-                return "unrecognized product ID";
-            }
-            if ((id as OPGSProductId).Size == RoverProductSize.Thumbnail)
-            {
-                return "thumbnail product";
-            }
-            if ((id as OPGSProductId).SiteDrive.Drive % 2 == 1)
-            {
-                return "odd drive number (in-motion)";
+                return "not an OPGS product ID";
             }
             //MSL OPGS single frame product IDs don't actually have sol number in them
             //though they do have SCLK, but we don't currently derive a sol from that
             if (id.HasSol() && solBlacklist.Contains(id.GetSol()))
             {
                 return "blacklisted sol";
-            }
-            //disabling this check - some missions might actually put e.g. RAS products in the list files.
-            //Consider that MSL unified meshes have RAS IDs in them, I think.
-            //if (!RoverProduct.IsGeometry(id.ProductType))
-            //{
-            //    return "not a geometry product";
-            //}
-            if (mission != null)
-            {
-                if (!mission.CheckProductId(id, out string reason))
-                {
-                    return reason;
-                }
-                if (!mission.UseForMeshing(id))
-                {
-                    return "product type not used for meshing";
-                }
-                var preferredEye = mission.PreferEyeForGeometry();
-                if (!RoverStereoPair.IsStereoEye(id.Camera, preferredEye))
-                {
-                    return string.Format("stereo eye {0} != {1}", id.Camera, preferredEye);
-                }
-                var preferredGeometry = mission.PreferLinearGeometryProducts() ?
-                    RoverProductGeometry.Linearized : RoverProductGeometry.Raw;
-                if (id.Geometry != preferredGeometry)
-                {
-                    return string.Format("linearity {0} != {1}", id.Geometry, preferredGeometry);
-                }
             }
             return null;
         }
 
+        private string FilterWedge(RoverProductId id)
+        {
+            string reason = FilterProduct(id);
+            if (reason != null)
+            {
+                return reason;
+            }
+            return mission.FilterContextualMeshWedge(id);
+        }
+
         private string FilterTexture(RoverProductId id)
         {
-            if (!(id is OPGSProductId))
+            string reason = FilterProduct(id);
+            if (reason != null)
             {
-                return "unrecognized product ID";
+                return reason;
             }
-            if ((id as OPGSProductId).Size == RoverProductSize.Thumbnail)
-            {
-                return "thumbnail product";
-            }
-            if ((id as OPGSProductId).SiteDrive.Drive % 2 == 1)
-            {
-                return "odd drive number (in-motion)";
-            }
-            //MSL OPGS single frame product IDs don't actually have sol number in them
-            //though they do have SCLK, but we don't currently derive a sol from that
-            if (id.HasSol() && solBlacklist.Contains(id.GetSol()))
-            {
-                return "blacklisted sol";
-            }
-            if (mission != null)
-            {
-                if (!mission.CheckProductId(id, out string reason))
-                {
-                    return reason;
-                }
-                if (!mission.UseForTexturing(id))
-                {
-                    return "product type not used for texturing";
-                }
-                var preferredGeometry = mission.PreferLinearRasterProducts() ?
-                    RoverProductGeometry.Linearized : RoverProductGeometry.Raw;
-                if (id.Geometry != preferredGeometry)
-                {
-                    return string.Format("linearity {0} != {1}", id.Geometry, preferredGeometry);
-                }
-            }
-            return null;
+            return mission.FilterContextualMeshTexture(id);
         }
 
         //RRR_[TTTT]SSSDDDD[I][_VV].lis
@@ -1287,8 +1238,7 @@ namespace OPS.Landform
 
         private SiteDriveList MakeList(String rdrDir, SiteDrive sd)
         {
-            return new SiteDriveList(rdrDir, sd, mission, pipeline,
-                                     (url, id) => FilterWedge(id), (url, id) => FilterTexture(id));
+            return new SiteDriveList(rdrDir, sd, mission, pipeline, FilterWedge, FilterTexture);
         }
 
         private Dictionary<SiteDrive, SiteDriveList> FindAllSiteDrives(string rdrDir, HashSet<int> sols)
@@ -1771,7 +1721,7 @@ namespace OPS.Landform
                 }
                 if (!keepers.ContainsKey(list.SiteDrive))
                 {
-                    var filtered = list.FilterToSolRange(minSol, maxSol);
+                    var filtered = list.ApplyMissionLimits().FilterToSolRange(minSol, maxSol);
                     if (filtered.NumSols > 0)
                     {
                         if (maxDistance <= 0)
@@ -1818,21 +1768,28 @@ namespace OPS.Landform
                 }
             }
 
+            int maxWedges = mission.GetMaxContextualMeshWedges();
+            int maxTextures = mission.GetMaxContextualMeshTextures();
             int totalSDs = keepers.Count;
             int totalWedges = keepers.Values.Sum(list => list.NumWedges);
-            if (maxSDs < int.MaxValue || maxWedges < int.MaxValue)
+            int totalTextures = keepers.Values.Sum(list => list.NumTextures);
+            if (maxSDs < int.MaxValue || maxWedges < int.MaxValue || maxTextures < int.MaxValue)
             {
                 var oversize = keepers.Values
                     .Where(l => l.SiteDrive != primarySD) //never cull the primary sitedrive
-                    .Where(l => l.NumWedges > maxWedges)
+                    .Where(l => (l.NumWedges > maxWedges || l.NumTextures > maxTextures))
                     .Select(l => l.SiteDrive)
                     .ToList();
+
                 foreach (var dead in oversize) {
-                    pipeline.LogInfo("not including oversize sitedrive {0} ({1} > {2} wedges) in contextual mesh " +
-                                     "for {3} to enforce total wedges {4} <= {5}",
-                                     dead, keepers[dead].NumWedges, maxWedges, primarySD, totalWedges, maxWedges);
+                    pipeline.LogInfo("not including oversize sitedrive {0} in contextual mesh for {1}: {2}",
+                                     dead, primarySD, 
+                                     keepers[dead].NumWedges > maxWedges ?
+                                     $"{keepers[dead].NumWedges} wedges > {maxWedges}" :
+                                     $"{keepers[dead].NumTextures} textures > {maxTextures}");
                     totalSDs--;
                     totalWedges -= keepers[dead].NumWedges;
+                    totalTextures -= keepers[dead].NumTextures;
                     keepers.Remove(dead);
                 }
 
@@ -1854,7 +1811,7 @@ namespace OPS.Landform
                 prioritized = prioritized.OrderBy(sd => keepers[sd].MaxSol).ToList();
 
                 var queue = new Queue<SiteDrive>(prioritized);
-                while (queue.Count > 0 && (totalSDs > maxSDs || totalWedges > maxWedges))
+                while (queue.Count > 0 && (totalSDs > maxSDs || totalWedges > maxWedges || totalTextures > maxTextures))
                 {
                     var dead = queue.Dequeue();
                     string distMsg = placesDB != null? $", distance {distance[dead]:F3}" : "";
@@ -1867,12 +1824,17 @@ namespace OPS.Landform
                     {
                         limitMsg += (limitMsg != "" ? ", " : "") + $"total wedges {totalWedges} <= {maxWedges}";
                     }
-                    pipeline.LogInfo("not including sitedrive {0} (sols {1}, {2} wedges{3}) in contextual mesh " +
-                                     "for {4} to enforce {5}",
-                                     dead, MakeSolRanges(keepers[dead].Sols), keepers[dead].NumWedges, distMsg,
-                                     primarySD, limitMsg);
+                    if (totalTextures > maxTextures)
+                    {
+                        limitMsg += (limitMsg != "" ? ", " : "") + $"total textures {totalTextures} <= {maxTextures}";
+                    }
+                    pipeline.LogInfo("not including sitedrive {0} (sols {1}, {2} wedges, {3} textures{4}) " +
+                                     "in contextual mesh for {5} to enforce {6}",
+                                     dead, MakeSolRanges(keepers[dead].Sols), keepers[dead].NumWedges,
+                                     keepers[dead].NumTextures, distMsg, primarySD, limitMsg);
                     totalSDs--;
                     totalWedges -= keepers[dead].NumWedges;
+                    totalTextures -= keepers[dead].NumTextures;
                     keepers.Remove(dead);
                 }
             }

@@ -121,6 +121,24 @@ namespace OPS.Pipeline
         //sorted in order of preference (best last)
         [ConfigEnvironmentVariable("LANDFORM_ALLOWED_PRODUCERS")]
         public string AllowedProducers { get; set; } = "OPGS"; 
+
+        [ConfigEnvironmentVariable("LANDFORM_MAX_CONTEXTUAL_MESH_WEDGES")]
+        public int MaxContextualMeshWedges { get; set; } = 500; 
+
+        [ConfigEnvironmentVariable("LANDFORM_MAX_CONTEXTUAL_MESH_TEXTURES")]
+        public int MaxContextualMeshTextures { get; set; } = 1000; 
+
+        [ConfigEnvironmentVariable("LANDFORM_MAX_CONTEXTUAL_MESH_NAVCAM_WEDGES_PER_SITEDRIVE")]
+        public int MaxContextualMeshNavcamWedgesPerSiteDrive { get; set; } = 100; 
+
+        [ConfigEnvironmentVariable("LANDFORM_MAX_CONTEXTUAL_MESH_NAVCAM_TEXTURES_PER_SITEDRIVE")]
+        public int MaxContextualMeshNavcamTexturesPerSiteDrive { get; set; } = 200; 
+
+        [ConfigEnvironmentVariable("LANDFORM_MAX_CONTEXTUAL_MESH_MASTCAM_WEDGES_PER_SITEDRIVE")]
+        public int MaxContextualMeshMastcamWedgesPerSiteDrive { get; set; } = 100; 
+
+        [ConfigEnvironmentVariable("LANDFORM_MAX_CONTEXTUAL_MESH_MASTCAM_TEXTURES_PER_SITEDRIVE")]
+        public int MaxContextualMeshMastcamTexturesPerSiteDrive { get; set; } = 200; 
     }
 
     public abstract class MissionSpecific : ConfigDefaultsProvider
@@ -992,6 +1010,101 @@ namespace OPS.Pipeline
                 dirs.AddRange(GetArmcamRDRSubdirs());
             }
             return dirs.ToArray();
+        }
+
+        public virtual int GetMaxContextualMeshWedges()
+        {
+            return MissionConfig.Instance.MaxContextualMeshWedges;
+        }
+
+        public virtual int GetMaxContextualMeshTextures()
+        {
+            return MissionConfig.Instance.MaxContextualMeshTextures;
+        }
+
+        public virtual int GetMaxContextualMeshNavcamWedgesPerSiteDrive()
+        {
+            return MissionConfig.Instance.MaxContextualMeshNavcamWedgesPerSiteDrive;
+        }
+
+        public virtual int GetMaxContextualMeshNavcamTexturesPerSiteDrive()
+        {
+            return MissionConfig.Instance.MaxContextualMeshNavcamTexturesPerSiteDrive;
+        }
+
+        public virtual int GetMaxContextualMeshMastcamWedgesPerSiteDrive()
+        {
+            return MissionConfig.Instance.MaxContextualMeshMastcamWedgesPerSiteDrive;
+        }
+
+        public virtual int GetMaxContextualMeshMastcamTexturesPerSiteDrive()
+        {
+            return MissionConfig.Instance.MaxContextualMeshMastcamTexturesPerSiteDrive;
+        }
+
+        public string FilterContextualMeshWedge(RoverProductId id)
+        {
+            string reason = FilterContextualmeshProduct(id);
+            if (reason != null)
+            {
+                return reason;
+            }
+            if (!UseForMeshing(id) && !UseForAlignment(id))
+            {
+                return "product type not used for meshing or alignment";
+            }
+            var preferredEye = PreferEyeForGeometry();
+            if (!RoverStereoPair.IsStereoEye(id.Camera, preferredEye))
+            {
+                return string.Format("stereo eye {0} != {1}", id.Camera, preferredEye);
+            }
+            var preferredGeometry = PreferLinearGeometryProducts() ?
+                RoverProductGeometry.Linearized : RoverProductGeometry.Raw;
+            if (id.Geometry != preferredGeometry)
+            {
+                return string.Format("linearity {0} != {1}", id.Geometry, preferredGeometry);
+            }
+            return null;
+        }
+
+        public string FilterContextualMeshTexture(RoverProductId id)
+        {
+            string reason = FilterContextualmeshProduct(id);
+            if (reason != null)
+            {
+                return reason;
+            }
+            if (!UseForTexturing(id))
+            {
+                return "product type not used for texturing";
+            }
+            var preferredGeometry = PreferLinearRasterProducts() ?
+                RoverProductGeometry.Linearized : RoverProductGeometry.Raw;
+            if (id.Geometry != preferredGeometry)
+            {
+                return string.Format("linearity {0} != {1}", id.Geometry, preferredGeometry);
+            }
+            return null;
+        }
+
+        private string FilterContextualmeshProduct(RoverProductId id)
+        {
+            if (id is OPGSProductId)
+            {
+                if ((id as OPGSProductId).Size == RoverProductSize.Thumbnail)
+                {
+                    return "thumbnail product";
+                }
+                if ((id as OPGSProductId).SiteDrive.Drive % 2 == 1)
+                {
+                    return "odd drive number (in-motion)";
+                }
+            }
+            if (!CheckProductId(id, out string reason))
+            {
+                return reason;
+            }
+            return null;
         }
 
         /// <summary>

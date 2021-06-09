@@ -703,7 +703,8 @@ namespace OPS.Pipeline
         // May break multiple images with different filters if they have the same timestamp (but does that happen?).
         protected string RoverMotionCounterFromTimeString(PDSParser parser)
         {
-            return ((M2020OPGSProductId)ParseProductId(parser.ProductIdString)).GetConcatenatedTimeString();
+            var id = (M2020OPGSProductId)ParseProductId(parser.ProductIdString);
+            return $"{id.Sol}_{id.Sclk}_{id.SclkMS}";
         }
 
         public override List<string> GetAllowedProcessingTypes()

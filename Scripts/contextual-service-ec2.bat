@@ -186,10 +186,6 @@ if not "%LANDFORM_MIN_PRIMARY_SITE_DRIVE_WEDGES%"=="" (
    set minmaxopts=%minmaxopts% --minprimarysitedrivewedges=%LANDFORM_MIN_PRIMARY_SITE_DRIVE_WEDGES%
 )
 
-if not "%LANDFORM_MAX_CONTEXTUAL_MESH_WEDGES%"=="" (
-   set minmaxopts=%minmaxopts% --maxcontextualmeshwedges=%LANDFORM_MAX_CONTEXTUAL_MESH_WEDGES%
-)
-
 if not "%LANDFORM_MAX_SITEDRIVES%"=="" (
    set minmaxopts=%minmaxopts% --maxsitedrives=%LANDFORM_MAX_SITEDRIVES%
 )

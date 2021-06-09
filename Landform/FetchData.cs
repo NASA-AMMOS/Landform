@@ -280,6 +280,8 @@ namespace OPS.Landform
         private Dictionary<SiteDrive, Dictionary<RoverProductCamera, UnifiedMesh>> unifiedMeshes =
             new Dictionary<SiteDrive, Dictionary<RoverProductCamera, UnifiedMesh>>();
 
+        private Dictionary<SiteDrive, SiteDriveList> sdLists = new Dictionary<SiteDrive, SiteDriveList>();
+
         public FetchData(FetchDataOptions opts)
         {
             options = opts;
@@ -771,6 +773,8 @@ namespace OPS.Landform
         //* mesh product filtering
         //* RoverObservationComparator.FilterProductIdGroups()
         //* unified mesh filtering
+        //* mission-specific wedge and texture count limits
+        //NOTE this should be synchronized with IngestAlignmentInputs.CullObservations()
         private List<string> FilterDownloads(List<string> urls)
         {
             var filtered = urls.OrderBy(url => url).Where(AcceptURL).ToList(); //sort makes spew more readable
@@ -881,6 +885,73 @@ namespace OPS.Landform
                     filtered = umFiltered;
                     filterProductIdGroups();
                     logger.InfoFormat("unified meshes filtered {0}->{1} products", countWas, filtered.Count);
+                }
+            }
+
+            //enforce mission specific wedge and texture count limits
+            if (mission != null)
+            {
+                var sdFiltered = new List<string>();
+                var idToURL = new Dictionary<RoverProductId, string>();
+                foreach (var url in filtered)
+                {
+                    var id = RoverProductId.Parse(GetProductIDString(url), mission); //all ids should parse now
+                    if (id is OPGSProductId)
+                    {
+                        var sd = ((OPGSProductId)id).SiteDrive;
+                        if (!sdLists.ContainsKey(sd))
+                        {
+                            sdLists[sd] = new SiteDriveList(mission, new ThunkLogger(logger));
+                        }
+                        sdLists[sd].Add(url);
+                        idToURL[id] = url;
+                    }
+                    else
+                    {
+                        sdFiltered.Add(url);
+                    }
+                }
+                foreach (var sd in sdLists.Keys)
+                {
+                    sdLists[sd] = sdLists[sd].ApplyMissionLimits();
+                }
+                int maxWedges = mission.GetMaxContextualMeshWedges();
+                int maxTextures = mission.GetMaxContextualMeshTextures();
+                int totalWedges = 0, totalTextures = 0;
+                var keepers = new HashSet<RoverProductId>();
+                foreach (var sd in sdLists.Keys.OrderByDescending(sd => sd).ToList())
+                {
+                    var sdl = sdLists[sd];
+                    int ntw = totalWedges + sdl.NumWedges;
+                    int ntt = totalTextures + sdl.NumTextures;
+                    if (ntw <= maxWedges && ntt <= maxTextures)
+                    {
+                        totalWedges += sdl.NumWedges;
+                        totalTextures += sdl.NumTextures;
+                        keepers.UnionWith(sdl.WedgeIDs);
+                        keepers.UnionWith(sdl.TextureIDs);
+                    }
+                    else
+                    {
+                        string msg = "";
+                        if (ntw > maxWedges)
+                        {
+                            msg += (msg != "" ? ", " : "") + $"total wedges {totalWedges} <= {maxWedges}";
+                        }
+                        if (ntt > maxTextures)
+                        {
+                            msg += (msg != "" ? ", " : "") + $"total textures {totalTextures} <= {maxTextures}";
+                        }
+                        logger.InfoFormat("culling sitedrive {0} ({1} wedges, {2} textures) to enforce {3}",
+                                          sd, sdl.NumWedges, sdl.NumTextures, msg);
+                    }
+                }
+                sdFiltered.AddRange(keepers.Select(id => idToURL[id]));
+                if (sdFiltered.Count < filtered.Count)
+                {
+                    int countWas = filtered.Count;
+                    filtered = sdFiltered;
+                    logger.InfoFormat("wedge and texture limits filtered {0}->{1} products", countWas, filtered.Count);
                 }
             }
 

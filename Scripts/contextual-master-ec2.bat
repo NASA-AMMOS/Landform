@@ -111,10 +111,6 @@ if not "%LANDFORM_CONTEXTUAL_MIN_PRIMARY_SITEDRIVE_WEDGES%"=="" (
    set masteropts=%masteropts% --minprimarysitedrivewedges=%LANDFORM_CONTEXTUAL_MIN_PRIMARY_SITEDRIVE_WEDGES%
 )
 
-if not "%LANDFORM_CONTEXTUAL_MAX_WEDGES%"=="" (
-   set masteropts=%masteropts% --maxcontextualmeshwedges=%LANDFORM_CONTEXTUAL_MAX_WEDGES%
-)
-
 if not "%LANDFORM_CONTEXTUAL_MAX_SITEDRIVES%"=="" (
    set masteropts=%masteropts% --maxsitedrives=%LANDFORM_CONTEXTUAL_MAX_SITEDRIVES%
 )
