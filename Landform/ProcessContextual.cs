@@ -1092,7 +1092,7 @@ namespace OPS.Landform
                                     pipeline.LogException(ex, "error fetching orbital asset " + url);
                                     //swallow exception and continue without it
                                     //IngestAlignmentInputs will also spew an error message but continue
-                                    //the contextual mesh should stillbuild but without the orbital asset
+                                    //the contextual mesh should still build but without the orbital asset(s)
                                 }
                             }
                             else
@@ -1101,8 +1101,12 @@ namespace OPS.Landform
                             }
                         }
                     };
-                    fetchOrbitalAsset(orbitalDEMUrl, orbitalDEMFile);
+                    //fetch the DEM after the image just in case they both can't fit within the MaxOrbital limit
+                    //in which case the DEM should win
+                    //TODO it would probably be better to download both with one call to fetch
+                    //but currently if we were to do that fetch would prioritize in order of their server timestamps
                     fetchOrbitalAsset(orbitalImageUrl, orbitalImageFile);
+                    fetchOrbitalAsset(orbitalDEMUrl, orbitalDEMFile);
                 }
 
                 if (!options.NoIngest)
