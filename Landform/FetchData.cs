@@ -281,6 +281,7 @@ namespace OPS.Landform
             new Dictionary<SiteDrive, Dictionary<RoverProductCamera, UnifiedMesh>>();
 
         private Dictionary<SiteDrive, SiteDriveList> sdLists = new Dictionary<SiteDrive, SiteDriveList>();
+        private HashSet<SiteDrive> droppedSiteDrives = new HashSet<SiteDrive>();
 
         public FetchData(FetchDataOptions opts)
         {
@@ -712,43 +713,50 @@ namespace OPS.Landform
                     //remove geometry field from IDs
                     idA = idA.Substring(0, gms) + idA.Substring(gms + gml);
                     idB = idB.Substring(0, gms) + idB.Substring(gms + gml);
-                    
-                    //remove version field from IDs
-                    if (id.GetVersionSpan(out int vrs, out int vrl))
-                    {
-                        if (vrs > gms)
-                        {
-                            vrs -= gml;
-                        }
-                        idA = idA.Substring(0, vrs) + idA.Substring(vrs + vrl);
-                        idB = idB.Substring(0, vrs) + idB.Substring(vrs + vrl);
-                    }
-                    else
-                    {
-                        vrs = int.MaxValue;
-                    }
-                    
+                }
+                else
+                {
+                    gms = int.MaxValue;
+                    gml = 0;
+                }
+                
+                if (!options.RespectUnifiedMeshGeometry && id.GetStereoPartnerSpan(out int sps, out int spl))
+                {
                     //also remove the stereo partner field
                     //so that if the unified mesh is linearized and lists just one stereo partner
                     //then all stereo partners are allowed
                     //or if the unified mesh is nonlinear then all linearized variants are allowed
                     //regardless of stereo partner
-                    if (id.GetStereoPartnerSpan(out int sps, out int spl))
+                    if (sps > gms)
                     {
-                        int offset = 0;
-                        if (sps > gms)
-                        {
-                            offset += gml;
-                        }
-                        if (sps > vrs)
-                        {
-                            offset += vrl;
-                        }
-                        sps -= offset;
-                        idA = idA.Substring(0, sps) + idA.Substring(sps + spl);
-                        idB = idB.Substring(0, sps) + idB.Substring(sps + spl);
+                        sps -= gml;
                     }
+                    idA = idA.Substring(0, sps) + idA.Substring(sps + spl);
+                    idB = idB.Substring(0, sps) + idB.Substring(sps + spl);
                 }
+                else
+                {
+                    sps = int.MaxValue;
+                    spl = 0;
+                }
+                    
+                if (id.GetVersionSpan(out int vrs, out int vrl))
+                {
+                    int offset = 0;
+                    if (vrs > gms)
+                    {
+                        offset += gml;
+                    }
+                    if (vrs > sps)
+                    {
+                        offset += spl;
+                    }
+                    vrs -= offset;
+                    //remove version field from IDs
+                    idA = idA.Substring(0, vrs) + idA.Substring(vrs + vrl);
+                    idB = idB.Substring(0, vrs) + idB.Substring(vrs + vrl);
+                }
+                    
                 return idA == idB;
             }
             
@@ -852,7 +860,7 @@ namespace OPS.Landform
                 foreach (var url in filtered)
                 {
                     string idStr = GetProductIDString(url);
-                    var id = RoverProductId.Parse(idStr, mission); //all ids should parse at this point
+                    var id = RoverProductId.Parse(idStr, mission); //all ids should parse now
                     if (CheckUnifiedMeshes(id))
                     {
                         umFiltered.Add(url);
@@ -891,7 +899,6 @@ namespace OPS.Landform
             //enforce mission specific wedge and texture count limits
             if (mission != null)
             {
-                var sdFiltered = new List<string>();
                 var idToURL = new Dictionary<RoverProductId, string>();
                 foreach (var url in filtered)
                 {
@@ -899,58 +906,45 @@ namespace OPS.Landform
                     if (id is OPGSProductId)
                     {
                         var sd = ((OPGSProductId)id).SiteDrive;
-                        if (!sdLists.ContainsKey(sd))
+                        if (!droppedSiteDrives.Contains(sd))
                         {
-                            sdLists[sd] = new SiteDriveList(mission, new ThunkLogger(logger));
+                            if (!sdLists.ContainsKey(sd))
+                            {
+                                sdLists[sd] = new SiteDriveList(mission, new ThunkLogger(logger));
+                            }
+                            sdLists[sd].Add(id, url);
+                            idToURL[id] = url;
                         }
-                        sdLists[sd].Add(url);
+                        else if (ShouldTrace(url))
+                        {
+                            logger.InfoFormat("filtered {0}: " +
+                                              "previously dropped sitedrive exceeded wedge or texture limits", url);
+                        }
+                    }
+                    else
+                    {
                         idToURL[id] = url;
                     }
-                    else
-                    {
-                        sdFiltered.Add(url);
-                    }
                 }
-                foreach (var sd in sdLists.Keys)
+                void droppedProduct(RoverProductId id)
                 {
-                    sdLists[sd] = sdLists[sd].ApplyMissionLimits();
+                    var url = idToURL[id];
+                    if (ShouldTrace(url))
+                    {
+                        logger.InfoFormat("filtered {0}: exceeded wedge or texture limits", url);
+                    }
                 }
-                int maxWedges = mission.GetMaxContextualMeshWedges();
-                int maxTextures = mission.GetMaxContextualMeshTextures();
-                int totalWedges = 0, totalTextures = 0;
-                var keepers = new HashSet<RoverProductId>();
-                foreach (var sd in sdLists.Keys.OrderByDescending(sd => sd).ToList())
+                void droppedSiteDrive(SiteDrive sd)
                 {
-                    var sdl = sdLists[sd];
-                    int ntw = totalWedges + sdl.NumWedges;
-                    int ntt = totalTextures + sdl.NumTextures;
-                    if (ntw <= maxWedges && ntt <= maxTextures)
-                    {
-                        totalWedges += sdl.NumWedges;
-                        totalTextures += sdl.NumTextures;
-                        keepers.UnionWith(sdl.WedgeIDs);
-                        keepers.UnionWith(sdl.TextureIDs);
-                    }
-                    else
-                    {
-                        string msg = "";
-                        if (ntw > maxWedges)
-                        {
-                            msg += (msg != "" ? ", " : "") + $"total wedges {totalWedges} <= {maxWedges}";
-                        }
-                        if (ntt > maxTextures)
-                        {
-                            msg += (msg != "" ? ", " : "") + $"total textures {totalTextures} <= {maxTextures}";
-                        }
-                        logger.InfoFormat("culling sitedrive {0} ({1} wedges, {2} textures) to enforce {3}",
-                                          sd, sdl.NumWedges, sdl.NumTextures, msg);
-                    }
+                    droppedSiteDrives.Add(sd);
                 }
-                sdFiltered.AddRange(keepers.Select(id => idToURL[id]));
+                SiteDriveList.ApplyMissionLimits(sdLists, idToURL, droppedProduct, droppedProduct, droppedSiteDrive);
+                var sdFiltered = new List<string>(idToURL.Values);
                 if (sdFiltered.Count < filtered.Count)
                 {
                     int countWas = filtered.Count;
                     filtered = sdFiltered;
+                    filterProductIdGroups(); //attempt to cull orphan masks
                     logger.InfoFormat("wedge and texture limits filtered {0}->{1} products", countWas, filtered.Count);
                 }
             }

@@ -355,34 +355,52 @@ namespace OPS.Pipeline
         {
             spew = spew ?? ((str, orig, filt) => {});
 
+            var filtered = new List<RoverProductId>();
+
+            //cull orphan masks
+            var empty = new List<RoverProductId>();
+            var groups = products.GroupBy(id => id.GetPartialId(this, includeProductType: false,
+                                                                includeVersion: false));
+            foreach (var group in groups)
+            {
+                var orig = group.ToList();
+                if (orig.Count > 0 && !orig.All(id => id.ProductType == RoverProductType.RoverMask))
+                {
+                    filtered.AddRange(orig);
+                }
+                else
+                {
+                    spew("orphan mask", orig, empty);
+                }
+            }
+
             //if we have multiple resolutions (downsample levels) within a single observation
             //then keep only the highest res (lowest downsample)
             //except keep all mask resolutions
             //because it can happen that the XYZ and RAS products have different downsamples
-            var groups = products.GroupBy(id => id.GetPartialId(this, includeProductType: false,
-                                                                includeVariants: false, includeVersion: false));
-            var highestRes = new List<RoverProductId>();
+            groups = filtered.GroupBy(id => id.GetPartialId(this, includeProductType: false,
+                                                            includeVariants: false, includeVersion: false));
+            filtered.Clear();
             foreach (var group in groups)
             {
                 var orig = group.ToList();
-
                 if (orig.Count > 0 && orig[0].ProductType == RoverProductType.RoverMask)
                 {
-                    highestRes.AddRange(orig);
+                    filtered.AddRange(orig);
                 }
                 else
                 {
                     //downsample 0-3, prefer lower
                     char minDS = orig.Select(id => id.FullId[DOWNSAMPLE_FIELD]).DefaultIfEmpty('0').Min();
-                    var filtered = orig.Where(id => id.FullId[DOWNSAMPLE_FIELD] == minDS).ToList();
-                    spew("downsample", orig, filtered);
-                    highestRes.AddRange(filtered);
+                    var filt = orig.Where(id => id.FullId[DOWNSAMPLE_FIELD] == minDS).ToList();
+                    spew("downsample", orig, filt);
+                    filtered.AddRange(filt);
                 }
             }
 
             Func<RoverProductId, bool> isEECAM = id => IsHazcam(id.Camera) || IsNavcam(id.Camera);
 
-            groups = highestRes.GroupBy(id => id.GetPartialId(this, includeVariants: false, includeVersion: false));
+            groups = filtered.GroupBy(id => id.GetPartialId(this, includeVariants: false, includeVersion: false));
             foreach (var group in groups)
             {
                 var orig = group.ToList();
@@ -398,7 +416,7 @@ namespace OPS.Pipeline
                     .Select(id => id.FullId[EECAM_DOWNSAMPLE_FIELD])
                     .DefaultIfEmpty('0')
                     .Max();
-                var filtered = orig.Where(id => !isEECAM(id) || id.FullId[EECAM_DOWNSAMPLE_FIELD] == maxEDS).ToList();
+                filtered = orig.Where(id => !isEECAM(id) || id.FullId[EECAM_DOWNSAMPLE_FIELD] == maxEDS).ToList();
                 spew("ECAM downsampling", orig, filtered);
                 orig = filtered;
 

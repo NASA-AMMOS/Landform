@@ -642,6 +642,8 @@ namespace OPS.Pipeline
                     //* same sequence number and timestamp(s)
                     //* same size (thumbnail vs regular)
                     //* same special processing
+                    //* same producer
+                    //* same mesh type
                     //but
                     //* all product types
                     //* all geometries (linearized, raw)
@@ -718,6 +720,15 @@ namespace OPS.Pipeline
                         }
                         
                         //apply any mission specific filtering (e.g. may handle variants)
+                        //note, the case of "orphan" mask products with no matching geometry or image product
+                        //is handled in the mission specific FilterProductIdGroups()
+                        //because it's tricky: for missions like MSL that can work with a mix of products
+                        //from different producers (e.g. OPGS, MSSS)
+                        //and when those have different product ID formats (cough, MSL)
+                        //then it can be hard or impossible to associate e.g. OPGS mask products
+                        //with MSSS image products just based on the product ID alone
+                        //(later when RDRs have been downloaded and parsed we can typically use RMC
+                        //to actually group products across producers)
                         filtered = mission.FilterProductIdGroups(orig, spew).ToList();
                         spew("mission", orig, filtered);
                         orig = filtered;

@@ -124,7 +124,8 @@ namespace OPS.Pipeline
             }
         }
 
-        public SiteDriveList ApplyMissionLimits()
+        public SiteDriveList ApplyMissionLimits(Action<RoverProductId> droppedWedge = null,
+                                                Action<RoverProductId> droppedTexture = null)
         {
             if (mission == null)
             {
@@ -138,33 +139,48 @@ namespace OPS.Pipeline
             int numDroppedWedges = 0, numDroppedNavcamWedges = 0, numDroppedMastcamWedges = 0;
             foreach (var id in WedgeIDs.OrderByDescending(id => id, new RoverProductIdTemporalComparer()))
             {
+                bool drop = false;
                 if (mission.IsNavcam(id.Camera))
                 {
                     if (numNavcamWedges >= maxNavcamWedges)
                     {
                         numDroppedNavcamWedges++;
-                        numDroppedWedges++;
-                        continue;
+                        drop = true;
                     }
-                    numNavcamWedges++;
+                    else
+                    {
+                        numNavcamWedges++;
+                    }
                 }
                 else if (mission.IsMastcam(id.Camera))
                 {
                     if (numMastcamWedges > maxMastcamWedges)
                     {
                         numDroppedMastcamWedges++;
-                        numDroppedWedges++;
-                        continue;
+                        drop = true;
                     }
-                    numMastcamWedges++;
+                    else
+                    {
+                        numMastcamWedges++;
+                    }
                 }
                 if (numWedges >= maxWedges)
                 {
-                    numDroppedWedges++;
-                    continue;
+                    drop = true;
                 }
-                numWedges++;
-                ret.Add(IDToURL[id]);
+                if (drop)
+                {
+                    numDroppedWedges++;
+                    if (droppedWedge != null)
+                    {
+                        droppedWedge(id);
+                    }
+                }
+                else
+                {
+                    numWedges++;
+                    ret.Add(IDToURL[id]);
+                }
             }
             if (numDroppedWedges > 0 && logger != null)
             {
@@ -180,33 +196,48 @@ namespace OPS.Pipeline
             int numDroppedTextures = 0, numDroppedNavcamTextures = 0, numDroppedMastcamTextures = 0;
             foreach (var id in TextureIDs.OrderByDescending(id => id, new RoverProductIdTemporalComparer()))
             {
+                bool drop = false;
                 if (mission.IsNavcam(id.Camera))
                 {
                     if (numNavcamTextures >= maxNavcamTextures)
                     {
                         numDroppedNavcamTextures++;
-                        numDroppedTextures++;
-                        continue;
+                        drop = true;
                     }
-                    numNavcamTextures++;
+                    else
+                    {
+                        numNavcamTextures++;
+                    }
                 }
                 else if (mission.IsMastcam(id.Camera))
                 {
                     if (numMastcamTextures > maxMastcamTextures)
                     {
                         numDroppedMastcamTextures++;
-                        numDroppedTextures++;
-                        continue;
+                        drop = true;
                     }
-                    numMastcamTextures++;
+                    else
+                    {
+                        numMastcamTextures++;
+                    }
                 }
                 if (numTextures >= maxTextures)
                 {
-                    numDroppedTextures++;
-                    continue;
+                    drop = true;
                 }
-                numTextures++;
-                ret.Add(IDToURL[id]);
+                if (drop)
+                {
+                    numDroppedTextures++;
+                    if (droppedTexture != null)
+                    {
+                        droppedTexture(id);
+                    }
+                }
+                else
+                {
+                    numTextures++;
+                    ret.Add(IDToURL[id]);
+                }
             }
             if (numDroppedTextures > 0 && logger != null)
             {
@@ -216,6 +247,134 @@ namespace OPS.Pipeline
                                numDroppedMastcamTextures, (numDroppedMastcamTextures + numMastcamTextures));
             }
             return ret;
+        }
+
+        public static void ApplyMissionLimits(Dictionary<SiteDrive, SiteDriveList> sdLists,
+                                              Dictionary<RoverProductId, string> idToURL,
+                                              Action<RoverProductId> droppedWedgeProduct = null,
+                                              Action<RoverProductId> droppedTextureProduct = null,
+                                              Action<SiteDrive> droppedSiteDrive = null)
+        {
+            MissionSpecific mission = sdLists.Values.Select(sdl => sdl.mission).Where(m => m != null).FirstOrDefault();
+            if (mission == null)
+            {
+                return;
+            }
+
+            ILogger logger = sdLists.Values.Select(sdl => sdl.logger).Where(l => l != null).FirstOrDefault();
+
+            string stem(RoverProductId id)
+            {
+                return id.GetPartialId(includeVersion: false, includeProductType: false);
+            }
+
+            var droppedWedges = new HashSet<string>();
+            void dw(RoverProductId id)
+            {
+                droppedWedges.Add(stem(id));
+                if (droppedWedgeProduct != null)
+                {
+                    droppedWedgeProduct(id);
+                }
+                idToURL.Remove(id); //remove after callback
+            }
+
+            var droppedTextures = new HashSet<string>();
+            void dt(RoverProductId id)
+            {
+                droppedTextures.Add(stem(id));
+                if (droppedTextureProduct != null)
+                {
+                    droppedTextureProduct(id);
+                }
+                idToURL.Remove(id); //remove after callback
+            }
+
+            foreach (var sd in sdLists.Keys)
+            {
+                sdLists[sd] = sdLists[sd].ApplyMissionLimits(dw, dt);
+            }
+
+            int maxWedges = mission.GetMaxContextualMeshWedges();
+            int maxTextures = mission.GetMaxContextualMeshTextures();
+            int totalWedges = 0, totalTextures = 0;
+            var keepers = new HashSet<RoverProductId>();
+            foreach (var sd in sdLists.Keys.OrderByDescending(sd => sd).ToList())
+            {
+                var sdl = sdLists[sd];
+                int ntw = totalWedges + sdl.NumWedges;
+                int ntt = totalTextures + sdl.NumTextures;
+                if (ntw <= maxWedges && ntt <= maxTextures)
+                {
+                    totalWedges += sdl.NumWedges;
+                    totalTextures += sdl.NumTextures;
+                    keepers.UnionWith(sdl.WedgeIDs);
+                    keepers.UnionWith(sdl.TextureIDs);
+                }
+                else
+                {
+                    foreach (var id in sdl.WedgeIDs)
+                    {
+                        dw(id);
+                    }
+                    foreach (var id in sdl.TextureIDs)
+                    {
+                        dt(id);
+                    }
+                    sdLists.Remove(sd);
+                    if (droppedSiteDrive != null)
+                    {
+                        droppedSiteDrive(sd);
+                    }
+                    if (logger != null)
+                    {
+                        string msg = "";
+                        if (ntw > maxWedges)
+                        {
+                            msg += (msg != "" ? ", " : "") + $"total wedges {totalWedges} <= {maxWedges}";
+                        }
+                        if (ntt > maxTextures)
+                        {
+                            msg += (msg != "" ? ", " : "") + $"total textures {totalTextures} <= {maxTextures}";
+                        }
+                        logger.LogInfo("culling sitedrive {0} ({1} wedges, {2} textures) to enforce {3}",
+                                       sd, sdl.NumWedges, sdl.NumTextures, msg);
+                    }
+                }
+            }
+
+            //remove auxilary products such as UVW, RNE, etc
+            //masks (MXY) are not handled here because they're tricky
+            //see comments in RoverObservationComparator.FilterProductIdGroups()
+            var dead = new HashSet<RoverProductId>();
+            foreach (var id in idToURL.Keys)
+            {
+                if (RoverProduct.IsMask(id.ProductType))
+                {
+                    continue;
+                }
+                else if (RoverProduct.IsGeometry(id.ProductType) && droppedWedges.Contains(stem(id)))
+                {
+                    if (droppedWedgeProduct != null)
+                    {
+                        droppedWedgeProduct(id);
+                    }
+                    dead.Add(id);
+                }
+                else if (RoverProduct.IsRaster(id.ProductType) && droppedTextures.Contains(stem(id)))
+                {
+                    if (droppedTextureProduct != null)
+                    {
+                        droppedTextureProduct(id);
+                    }
+                    dead.Add(id);
+                }
+            }
+
+            foreach (var id in dead)
+            {
+                idToURL.Remove(id);
+            }
         }
 
         public SiteDriveList FilterToSolRange(int min, int max)
@@ -253,10 +412,14 @@ namespace OPS.Pipeline
         {
             var idStr = StringHelper.GetLastUrlPathSegment(url, stripExtension: true);
             var id = RoverProductId.Parse(idStr, mission, throwOnFail: false);
+            return Add(id, url); 
+        }
 
+        public string Add(RoverProductId id, string url)
+        {
             if (id == null || !(id is OPGSProductId))
             {
-                return "failed to parse OPGS product ID";
+                return "not an OPGS product ID";
             }
             
             if (!id.IsSingleFrame() || !id.IsSingleCamera())
@@ -342,7 +505,7 @@ namespace OPS.Pipeline
                 }
                 else if (logger != null) //don't warn if e.g. replacing foo.VIC with foo.IMG
                 {
-                    logger.LogWarn("duplicate product ID {0}, replacing URL {1} with {2}", idStr, IDToURL[id], url);
+                    logger.LogWarn("duplicate product ID {0}, replacing URL {1} with {2}", id, IDToURL[id], url);
                 }
             }
             IDToURL[id] = url;

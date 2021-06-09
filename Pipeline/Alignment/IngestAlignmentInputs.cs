@@ -366,17 +366,18 @@ namespace OPS.Pipeline
         //NOTE this should also be synchronized with FetchData.FilterDownloads()
         private int CullObservations(IDictionary<string, IngestImage.Result> results)
         {
-            //apply RoverObservationComparator.FilterProductIdGroups()
-            var acceptedUrls = new HashSet<string>();
-            acceptedUrls.UnionWith(results.Values.Where(res => res.Accepted).Select(res => res.Url));
-            int na = acceptedUrls.Count;
             Action<string> log = null;
             if (pipeline.Verbose)
             {
                 log = msg => pipeline.LogInfo(msg);
             }
-            var filteredUrls = RoverObservationComparator
-                .FilterProductIdGroups(acceptedUrls, mission, RoverObservationComparator.LinearVariants.Both, log)
+
+            var filteredUrls = results.Values.Where(res => res.Accepted).Select(res => res.Url).Distinct().ToList();
+
+            //apply RoverObservationComparator.FilterProductIdGroups()
+            int na = filteredUrls.Count;
+            filteredUrls = RoverObservationComparator
+                .FilterProductIdGroups(filteredUrls, mission, RoverObservationComparator.LinearVariants.Both, log)
                 .ToList();
             pipeline.LogInfo("culled {0} -> {1} observations by product ID groups", na, filteredUrls.Count);
 
@@ -404,51 +405,32 @@ namespace OPS.Pipeline
 
             //enforce mission specific wedge and texture count limits
             var sdLists = new Dictionary<SiteDrive, SiteDriveList>();
+            var idToURL = new Dictionary<RoverProductId, string>();
             foreach (var obs in filteredObs)
             {
+                var id = RoverProductId.Parse(obs.Name, mission); //all ids should parse now
+                idToURL[id] = obs.Url;
                 var sd = obs.SiteDrive;
                 if (!sdLists.ContainsKey(sd))
                 {
                     sdLists[sd] = new SiteDriveList(mission, pipeline);
                 }
-                sdLists[sd].Add(obs.Url);
+                sdLists[sd].Add(id, obs.Url); //will be rejected if not an OPGS product ID or not XYZ or RAS
             }
-            foreach (var sd in sdLists.Keys)
-            {
-                sdLists[sd] = sdLists[sd].ApplyMissionLimits();
-            }
-            int maxWedges = mission.GetMaxContextualMeshWedges();
-            int maxTextures = mission.GetMaxContextualMeshTextures();
-            int totalWedges = 0, totalTextures = 0;
-            var keepers = new HashSet<string>();
-            foreach (var sd in sdLists.Keys.OrderByDescending(sd => sd).ToList())
-            {
-                var sdl = sdLists[sd];
-                int ntw = totalWedges + sdl.NumWedges;
-                int ntt = totalTextures + sdl.NumTextures;
-                if (ntw <= maxWedges && ntt <= maxTextures)
-                {
-                    totalWedges += sdl.NumWedges;
-                    totalTextures += sdl.NumTextures;
-                    keepers.UnionWith(sdl.WedgeIDs.Select(id => id.FullId));
-                    keepers.UnionWith(sdl.TextureIDs.Select(id => id.FullId));
-                }
-                else
-                {
-                    string msg = "";
-                    if (ntw > maxWedges)
-                    {
-                        msg += (msg != "" ? ", " : "") + $"total wedges {totalWedges} <= {maxWedges}";
-                    }
-                    if (ntt > maxTextures)
-                    {
-                        msg += (msg != "" ? ", " : "") + $"total textures {totalTextures} <= {maxTextures}";
-                    }
-                    pipeline.LogInfo("culling sitedrive {0} ({1} wedges, {2} textures) to enforce {3}",
-                                     sd, sdl.NumWedges, sdl.NumTextures, msg);
-                }
-            }
+            SiteDriveList.ApplyMissionLimits(sdLists, idToURL);
+            var keepers = new HashSet<string>(idToURL.Keys.Select(id => id.FullId));
             filteredObs = filteredObs.Where(obs => keepers.Contains(obs.Name)).ToList();
+            if (filteredObs.Count < na)
+            {
+                //attempt to cull orphan masks
+                keepers.Clear();
+                keepers.UnionWith(RoverObservationComparator.
+                                  FilterProductIdGroups(filteredObs.Select(obs => obs.Name),
+                                                        mission, RoverObservationComparator.LinearVariants.Both, log));
+                filteredObs = filteredObs.Where(obs => keepers.Contains(obs.Name)).ToList();
+            }
+            pipeline.LogInfo("culled {0} -> {1} observations by wedge and texture limits", na, filteredObs.Count);
+            na = filteredObs.Count;
 
             var obsNames = new HashSet<string>();
             obsNames.UnionWith(filteredObs.Select(obs => obs.Name));
@@ -460,7 +442,7 @@ namespace OPS.Pipeline
                 }
             }
 
-            return na;
+            return filteredObs.Count;
         }
 
         private void DeleteOrphans(IEnumerable<IngestImage.Result> results)
