@@ -22,10 +22,10 @@ namespace OPS.Pipeline
         }
 
         [ConfigEnvironmentVariable("LANDFORM_USE_MASTCAM_FOR_ALIGNMENT")]
-        public bool UseMastcamForAlignment { get; set; } = true;
+        public bool UseMastcamForAlignment { get; set; } = false;
 
         [ConfigEnvironmentVariable("LANDFORM_USE_MASTCAM_FOR_MESHING")]
-        public bool UseMastcamForMeshing { get; set; } = true;
+        public bool UseMastcamForMeshing { get; set; } = false;
 
         [ConfigEnvironmentVariable("LANDFORM_PREFER_LINEAR_GEOMETRY_PRODUCTS")]
         public bool PreferLinearGeometryProducts { get; set; } = false;
