@@ -1245,6 +1245,32 @@ namespace OPS.Landform
             return new SiteDriveList(rdrDir, sd, mission, pipeline, FilterWedge, FilterTexture);
         }
 
+        private List<string> GetSolDirs(string rdrDir, Func<int, bool> filterSol) 
+        {
+            var solDirs = new List<string>();
+            if (SiteDriveList.GetSolSpan(rdrDir, out int start, out int len))
+            {
+                string dir = rdrDir.Substring(0, start); //includes trailing slash
+                string sfx = rdrDir.Substring(start + len); //includes beginning slash
+                foreach (var url in storageHelper.SearchObjects(dir, recursive: false, folders: true, files: false))
+                {
+                    string solFolder = url.TrimEnd('/');
+                    string solStr = StringHelper.GetLastUrlPathSegment(solFolder);
+                    if (int.TryParse(solStr, out int sol) && filterSol(sol))
+                    {
+                        solDirs.Add(solFolder + sfx);
+                    }
+                }
+                pipeline.LogInfo("recursively searching {0} sol directories", solDirs.Count);
+            }
+            else
+            {
+                pipeline.LogWarn("could not find sol span, recursively searching RDR dir {0}", rdrDir);
+                solDirs.Add(rdrDir);
+            }
+            return solDirs;
+        }
+
         private Dictionary<SiteDrive, SiteDriveList> FindAllSiteDrives(string rdrDir, HashSet<int> sols)
         {
             var ret = new Dictionary<SiteDrive, SiteDriveList>();
@@ -1261,27 +1287,7 @@ namespace OPS.Landform
 
             pipeline.LogInfo("finding all sitedrives in RDR dir {0} for sols {1}", rdrDir, solRanges);
 
-            var solDirs = new List<string>();
-            if (SiteDriveList.GetSolSpan(rdrDir, out int start, out int len))
-            {
-                string dir = rdrDir.Substring(0, start); //includes trailing slash
-                foreach (var url in storageHelper.SearchObjects(dir, recursive: false, folders: true, files: false))
-                {
-                    string solStr = StringHelper.GetLastUrlPathSegment(url.TrimEnd('/'));
-                    if (int.TryParse(solStr, out int sol) && sols.Contains(sol))
-                    {
-                        solDirs.Add(url);
-                    }
-                }
-                pipeline.LogInfo("recursively searching {0} sol directories for wedges in sols {1}", solDirs.Count,
-                                 solRanges);
-            }
-            else
-            {
-                pipeline.LogWarn("could not find sol span, recursively searching RDR dir {0} for wedges in sols {1}",
-                                 rdrDir, solRanges);
-                solDirs.Add(rdrDir);
-            }
+            var solDirs = GetSolDirs(rdrDir, sol => sols.Contains(sol));
 
             string regex = "^.*/";
             string wp = StringHelper.WildcardToRegularExpressionString(options.WedgePattern, fullMatch: false);
@@ -1563,26 +1569,10 @@ namespace OPS.Landform
             {
                 int additionalWedges = 0, additionalWedgeSitedrives = 0;
 
-                var solDirs = new List<string>();
-                if (SiteDriveList.GetSolSpan(rdrDir, out int start, out int len))
-                {
-                    string dir = rdrDir.Substring(0, start); //includes trailing slash
-                    foreach (var url in storageHelper.SearchObjects(dir, recursive: false, folders: true, files: false))
-                    {
-                        string solStr = StringHelper.GetLastUrlPathSegment(url.TrimEnd('/'));
-                        if (int.TryParse(solStr, out int sol) && sol >= minSol && sol <= maxSol)
-                        {
-                            solDirs.Add(url);
-                        }
-                    }
-                    pipeline.LogInfo("recursively searching {0} sol directories for additional wedges", solDirs.Count);
-                }
-                else
-                {
-                    pipeline.LogWarn("could not find sol span, recursively searching RDR dir {0} for additional wedges",
-                                     rdrDir);
-                    solDirs.Add(rdrDir);
-                }
+                pipeline.LogInfo("searching for additional wedges in RDR dir {0} for sols {1}-{2}",
+                                 rdrDir, minSol, maxSol);
+
+                var solDirs = GetSolDirs(rdrDir, sol => (sol >= minSol && sol <= maxSol));
 
                 foreach (string dir in solDirs)
                 {
