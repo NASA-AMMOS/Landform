@@ -1341,11 +1341,11 @@ namespace OPS.Landform
             pipeline.LogInfo("filtering {0} sitedrive wedge lists for sols {1}", ret.Count, solRanges);
 
             var filtered = new Dictionary<SiteDrive, SiteDriveList>();
-            foreach (var sd in ret.Keys)
+            foreach (var sd in ret.Keys.OrderBy(sd => sd))
             {
                 if (ret[sd].NumWedges > 0)
                 {
-                    var filteredSD = ret[sd].FilterProductIDGroups(pipeline.Verbose);
+                    var filteredSD = ret[sd].FilterProductIDGroups();
                     if (filteredSD.NumWedges > 0)
                     {
                         filtered[sd] = filteredSD;
@@ -1375,7 +1375,7 @@ namespace OPS.Landform
             }
 
             pipeline.LogInfo("found {0} sitedrives for sols {1}", ret.Count, solRanges);
-            foreach (var sd in ret.Keys)
+            foreach (var sd in ret.Keys.OrderBy(sd => sd))
             {
                 pipeline.LogInfo("{0}: sols {1}, {2} wedges, {3} textures",
                                  sd, MakeSolRanges(ret[sd].Sols), ret[sd].NumWedges, ret[sd].NumTextures);
@@ -1403,11 +1403,11 @@ namespace OPS.Landform
             {
                 pipeline.LogInfo("filtering {0} sitedrive wedge lists", ret.Count);
                 var filtered = new Dictionary<SiteDrive, Stamped<SiteDriveList>>();
-                foreach (var sd in ret.Keys)
+                foreach (var sd in ret.Keys.OrderBy(sd => sd))
                 {
                     if (ret[sd].Value.NumWedges > 0)
                     {
-                        var filteredSD = ret[sd].Value.FilterProductIDGroups(pipeline.Verbose);
+                        var filteredSD = ret[sd].Value.FilterProductIDGroups();
                         if (filteredSD.NumWedges > 0)
                         {
                             filtered[sd] = new Stamped<SiteDriveList>(filteredSD, ret[sd].Timestamp);
@@ -1444,7 +1444,7 @@ namespace OPS.Landform
                 }
             }
 
-            foreach (var sd in urls.Keys)
+            foreach (var sd in urls.Keys.OrderBy(sd => sd))
             {
                 var sdList = MakeList(rdrDir, sd);
                 long latestTimestamp = -1;
@@ -1657,6 +1657,7 @@ namespace OPS.Landform
 
             ContextualMeshMessage orbitalOnlyMsg()
             {
+                pipeline.LogInfo("making orbital only contextual mesh");
                 return new ContextualMeshMessage()
                 {
                     rdrDir = rdrDir,
@@ -1696,70 +1697,84 @@ namespace OPS.Landform
                 return ret;
             }
 
+            int maxWedges = mission.GetMaxContextualMeshWedges();
+            int maxTextures = mission.GetMaxContextualMeshTextures();
+
+            pipeline.LogInfo("filtering sitedrives for contextual mesh{0}{1}" +
+                             ", max wedges {2} ({3} navcam/sitedrive, {4} mastcam/sitedrive)" +
+                             ", max textures {5} ({6} navcam/sitedrive, {7} mastcam/sitedrive)",
+                             maxDistance > 0 ? $", max distance {maxDistance}" : "",
+                             maxSDs < int.MaxValue ? $", max sitedrives {maxSDs}" : "",
+                             maxWedges,
+                             mission.GetMaxContextualMeshNavcamWedgesPerSiteDrive(),
+                             mission.GetMaxContextualMeshMastcamWedgesPerSiteDrive(),
+                             maxTextures,
+                             mission.GetMaxContextualMeshNavcamTexturesPerSiteDrive(),
+                             mission.GetMaxContextualMeshMastcamTexturesPerSiteDrive());
+
             var keepers = new Dictionary<SiteDrive, SiteDriveList>();
             keepers[primarySD] = primarySDList;
-
             var distance = new Dictionary<SiteDrive, double>();
-
-            foreach (var list in sds.Values)
+            foreach (var sd in sds.Keys.OrderBy(sd => sd))
             {
+                var list = sds[sd];
+
                 if (list.RDRDir != rdrDir)
                 {
                     pipeline.LogWarn("not including sitedrive {0} in contextual mesh for {1}, RDR dir {2} != {3}",
-                                     list.SiteDrive, primarySD, list.RDRDir, rdrDir);
+                                     sd, primarySD, list.RDRDir, rdrDir);
                     continue;
                 }
-                if (!keepers.ContainsKey(list.SiteDrive))
+
+                if (keepers.ContainsKey(sd))
                 {
-                    var filtered = list.ApplyMissionLimits().FilterToSolRange(minSol, maxSol);
-                    if (filtered.NumSols > 0)
+                    continue;
+                }
+
+                var filtered = list.ApplyMissionLimits().FilterToSolRange(minSol, maxSol);
+                if (filtered.NumSols == 0)
+                {
+                    pipeline.LogInfo("not including sitedrive {0} in contextual mesh for {1}, " +
+                                     "included sols {2} not in range {3}-{4}",
+                                     sd, primarySD, MakeSolRanges(list.Sols), minSol, maxSol);
+                    continue;
+                }
+
+                if (maxDistance <= 0)
+                {
+                    keepers[sd] = filtered;
+                    continue;
+                }
+
+                if (placesDB == null)
+                {
+                    pipeline.LogWarn("not including sitedrive {0} in contextual mesh for {1}, " +
+                                     "PlacesDB not available to check distance <= {2}", sd, primarySD, maxDistance);
+                    continue;
+                }
+                
+                try
+                {
+                    double dist = placesDB.GetOffset(primarySD, sd).Length();
+                    if (dist <= maxDistance)
                     {
-                        if (maxDistance <= 0)
-                        {
-                            keepers[list.SiteDrive] = filtered;
-                        }
-                        else if (placesDB != null)
-                        {
-                            try
-                            {
-                                double dist = placesDB.GetOffset(primarySD, list.SiteDrive).Length();
-                                if (dist <= maxDistance)
-                                {
-                                    keepers[list.SiteDrive] = filtered;
-                                    distance[list.SiteDrive] = dist;
-                                }
-                                else
-                                {
-                                    pipeline.LogInfo("not including sitedrive {0} in contextual mesh for {1}, " +
-                                                     "PlacesDB distance {2:F3} > {3:F3}",
-                                                     list.SiteDrive, primarySD, dist, maxDistance);
-                                }
-                            }
-                            catch (Exception ex)
-                            {
-                                pipeline.LogException
-                                    (ex, $"not including sitedrive {list.SiteDrive} in contextual mesh " +
-                                     $"for {primarySD}: error checking distance <= {maxDistance} with PlacesDB");
-                            }
-                        }
-                        else
-                        {
-                            pipeline.LogWarn("not including sitedrive {0} in contextual mesh for {1}, " +
-                                             "PlacesDB not available to check distance <= {2}",
-                                             list.SiteDrive, primarySD, maxDistance);
-                        }
+                        keepers[sd] = filtered;
+                        distance[sd] = dist;
                     }
                     else
                     {
                         pipeline.LogInfo("not including sitedrive {0} in contextual mesh for {1}, " +
-                                         "included sols {2} not in range {3}-{4}",
-                                         list.SiteDrive, primarySD, MakeSolRanges(list.Sols), minSol, maxSol);
+                                         "PlacesDB distance {2:F3} > {3:F3}", sd, primarySD, dist, maxDistance);
                     }
+                }
+                catch (Exception ex)
+                {
+                    pipeline.LogException
+                        (ex, $"not including sitedrive {sd} in contextual mesh for {primarySD}: " +
+                         $"error checking distance <= {maxDistance} with PlacesDB");
                 }
             }
 
-            int maxWedges = mission.GetMaxContextualMeshWedges();
-            int maxTextures = mission.GetMaxContextualMeshTextures();
             int totalSDs = keepers.Count;
             int totalWedges = keepers.Values.Sum(list => list.NumWedges);
             int totalTextures = keepers.Values.Sum(list => list.NumTextures);

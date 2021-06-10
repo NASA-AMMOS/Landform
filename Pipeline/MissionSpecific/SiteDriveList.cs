@@ -170,6 +170,10 @@ namespace OPS.Pipeline
                 }
                 if (drop)
                 {
+                    if (logger != null)
+                    {
+                        logger.LogVerbose("dropped wedge {0} from sitedrive {1}", id, SiteDrive);
+                    }
                     numDroppedWedges++;
                     if (droppedWedge != null)
                     {
@@ -178,6 +182,10 @@ namespace OPS.Pipeline
                 }
                 else
                 {
+                    if (logger != null)
+                    {
+                        logger.LogVerbose("kept wedge {0} in sitedrive {1}", id, SiteDrive);
+                    }
                     numWedges++;
                     ret.Add(IDToURL[id]);
                 }
@@ -227,6 +235,10 @@ namespace OPS.Pipeline
                 }
                 if (drop)
                 {
+                    if (logger != null)
+                    {
+                        logger.LogVerbose("dropped texture {0} from sitedrive {1}", id, SiteDrive);
+                    }
                     numDroppedTextures++;
                     if (droppedTexture != null)
                     {
@@ -235,6 +247,10 @@ namespace OPS.Pipeline
                 }
                 else
                 {
+                    if (logger != null)
+                    {
+                        logger.LogVerbose("kept texture {0} in sitedrive {1}", id, SiteDrive);
+                    }
                     numTextures++;
                     ret.Add(IDToURL[id]);
                 }
@@ -411,12 +427,12 @@ namespace OPS.Pipeline
             return ret;
         }
 
-        public SiteDriveList FilterProductIDGroups(bool verbose = false)
+        public SiteDriveList FilterProductIDGroups()
         {
             Action<string> log = null;
-            if (verbose && logger != null)
+            if (logger != null)
             {
-                log = msg => logger.LogInfo(msg);
+                log = msg => logger.LogVerbose(msg);
             }
             return FilterProductIDs(ids => RoverObservationComparator.FilterProductIDGroups(ids, mission, log: log));
         }
