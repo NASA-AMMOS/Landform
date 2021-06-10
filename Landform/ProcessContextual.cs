@@ -161,10 +161,10 @@ namespace OPS.Landform
         [Option(Default = null, HelpText = "Persistent download dir, defaults to \"fetched\" subdir of local Landform storage dir")]
         public string FetchDir { get; set; }
 
-        [Option(Default = null, HelpText = "Max fetched RDR bytes on disk, not including orbital, integer with optional case-insensitive suffix K,M,G, no limit if omitted or non-positive")]
+        [Option(Default = ProcessContextual.DEF_MAX_FETCH, HelpText = "Max fetched RDR bytes on disk, not including orbital, integer with optional case-insensitive suffix K,M,G, no limit if omitted or non-positive")]
         public string MaxFetch { get; set; }
 
-        [Option(Default = null, HelpText = "Max fetched orbital bytes on disk, integer with optional case-insensitive suffix K,M,G, no limit if empty or non-positive")]
+        [Option(Default = ProcessContextual.DEF_MAX_ORBITAL, HelpText = "Max fetched orbital bytes on disk, integer with optional case-insensitive suffix K,M,G, no limit if empty or non-positive")]
         public string MaxOrbital { get; set; }
 
         [Option(Default = false, HelpText = "Don't ingest")]
@@ -301,6 +301,9 @@ namespace OPS.Landform
         public const int DEF_MAX_SITEDRIVES = 64;
         public const double DEF_MAX_SITEDRIVE_DISTANCE = 2 * BuildGeometry.DEF_SURFACE_EXTENT;
         public const int DEF_MAX_SOL_RANGE = 200;
+
+        public const string DEF_MAX_FETCH = "100G";
+        public const string DEF_MAX_ORBITAL = "20G";
 
         //an example EOP message is
         //EOP at 2021-05-19 05-09-43

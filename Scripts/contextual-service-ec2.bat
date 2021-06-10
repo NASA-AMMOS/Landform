@@ -141,13 +141,13 @@ if not "%LANDFORM_CONTEXTUAL_EMBED_INDICES%"=="" set embedindices=--embedindexim
 
 rem --- end service specific boilerplate, begin service specific ---
 
-set maxfetch=50G
-if not "%LANDFORM_CONTEXTUAL_MAX_FETCH%"=="" set maxfetch=%LANDFORM_CONTEXTUAL_MAX_FETCH%
+set maxfetch=
+if not "%LANDFORM_CONTEXTUAL_MAX_FETCH%"=="" set maxfetch=--maxfetch=%LANDFORM_CONTEXTUAL_MAX_FETCH%
 
 set nocombinedmanifest=
 if not "%LANDFORM_CONTEXTUAL_NO_COMBINED_MANIFEST%"=="" set nocombinedmanifest=--nocombinedmanifest
 
-set maxorbital=--maxorbital=20G
+set maxorbital=
 if not "%LANDFORM_CONTEXTUAL_MAX_ORBITAL%"=="" set maxorbital=--maxorbital=%LANDFORM_CONTEXTUAL_MAX_ORBITAL%
 
 set orbitalopts=%maxorbital%
@@ -231,7 +231,7 @@ set tilingopts=%tilingopts% %maxfacespertile% %maxtileresolution% %mintileextent
 set tilingopts=%tilingopts% %notexturesplitrespectmaxtexelspermeter% %maxtexelspermeter% %maxorbitaltexelspermeter%
 set tilingopts=%tilingopts% %maxtexturestretch% %poweroftwotextures% %colorize% %maxglancingangledegrees% %skirtmode%
 
-set contextualopts=--maxfetch=%maxfetch% %nocombinedmanifest% %orbitalopts% %skyopts% %minmaxopts%
+set contextualopts=%maxfetch% %nocombinedmanifest% %orbitalopts% %skyopts% %minmaxopts%
 set contextualopts=%contextualopts% %tilingopts% %allowunmasked% %solblacklist% %extent% %surfaceextent%
 
 set appsdir=%bindir%\ExternalApps
