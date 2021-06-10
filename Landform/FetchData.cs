@@ -30,7 +30,7 @@ using OPS.Pipeline;
 /// When downloading RDRs from search locations that are folders in S3 buckets, various filtering is applied to attempt
 /// to download only the correct set of RDRs for use in a Landform tactical or contextual mesh workflow.
 /// MissionSpecific.CheckProductID() is consulted to only accept products used by the mission.
-/// RoverObservationComparator.FilterProductIdGroups() is called to resolve the best version/variant products to use.
+/// RoverObservationComparator.FilterProductIDGroups() is called to resolve the best version/variant products to use.
 /// And if unified meshes are enabled and available they are used to filter products to only those in the unified mesh.
 ///
 /// The --trace, --traceexts, --summary, and --dryrun options can be helpful to understand what products will be
@@ -779,7 +779,7 @@ namespace OPS.Landform
         //(which may be redundant if IndexS3Files() already did that, but ok)
         //then applies group based filtering rules including
         //* mesh product filtering
-        //* RoverObservationComparator.FilterProductIdGroups()
+        //* RoverObservationComparator.FilterProductIDGroups()
         //* unified mesh filtering
         //* mission-specific wedge and texture count limits
         //NOTE this should be synchronized with IngestAlignmentInputs.CullObservations()
@@ -837,7 +837,7 @@ namespace OPS.Landform
             //e.g. in workflows where multiple fetches could be done at different times
             //possibly resulting in multiple versions of a file still being downloaded
             //Note: the mission.CheckProductId() call above already ensured that RoverProductId.Parse() will succeed
-            void filterProductIdGroups()
+            void filterProductIDGroups()
             {
                 int nf = filtered.Count;
                 var linPref = options.KeepBothLinearVariants ?
@@ -845,13 +845,13 @@ namespace OPS.Landform
                 filtered = filtered
                     .GroupBy(url => StringHelper.GetUrlExtension(url).ToUpper())
                     .SelectMany(grp => RoverObservationComparator
-                                .FilterProductIdGroups(grp, mission, linPref, msg => logger.Info(msg), ShouldTrace))
+                                .FilterProductIDGroups(grp, mission, linPref, msg => logger.Info(msg), ShouldTrace))
                     .ToList();
                 logger.InfoFormat("RoverObservationComparator filtered {0}->{1} products", nf, filtered.Count);
             }
-            filterProductIdGroups();
+            filterProductIDGroups();
 
-            //apply unified mesh filter after RoverObservationComparator.FilterProductIdGroups()
+            //apply unified mesh filter after RoverObservationComparator.FilterProductIDGroups()
             //because that might remove e.g. a right eye geometry product if there is a corresponding left eye product
             //but the left eye product might also get removed by the unified mesh filter
             if (unifiedMeshes.Count > 0)
@@ -889,9 +889,9 @@ namespace OPS.Landform
                     //and if it doesn't have raster products
                     //or if the raster products have a different linearity than the geometry products did
                     //then we may have extra masks now
-                    //so filterProductIdGroups() again to cull those
+                    //so filterProductIDGroups() again to cull those
                     filtered = umFiltered;
-                    filterProductIdGroups();
+                    filterProductIDGroups();
                     logger.InfoFormat("unified meshes filtered {0}->{1} products", countWas, filtered.Count);
                 }
             }
@@ -944,7 +944,7 @@ namespace OPS.Landform
                 {
                     int countWas = filtered.Count;
                     filtered = sdFiltered;
-                    filterProductIdGroups(); //attempt to cull orphan masks
+                    filterProductIDGroups(); //attempt to cull orphan masks
                     logger.InfoFormat("wedge and texture limits filtered {0}->{1} products", countWas, filtered.Count);
                 }
             }

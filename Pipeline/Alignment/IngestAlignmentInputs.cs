@@ -366,18 +366,18 @@ namespace OPS.Pipeline
         //NOTE this should also be synchronized with FetchData.FilterDownloads()
         private int CullObservations(IDictionary<string, IngestImage.Result> results)
         {
-            Action<string> log = null;
+            Action<string> verbose = null;
             if (pipeline.Verbose)
             {
-                log = msg => pipeline.LogInfo(msg);
+                verbose = msg => pipeline.LogInfo(msg);
             }
 
             var filteredUrls = results.Values.Where(res => res.Accepted).Select(res => res.Url).Distinct().ToList();
 
-            //apply RoverObservationComparator.FilterProductIdGroups()
+            //apply RoverObservationComparator.FilterProductIDGroups()
             int na = filteredUrls.Count;
             filteredUrls = RoverObservationComparator
-                .FilterProductIdGroups(filteredUrls, mission, RoverObservationComparator.LinearVariants.Both, log)
+                .FilterProductIDGroups(filteredUrls, mission, RoverObservationComparator.LinearVariants.Both, verbose)
                 .ToList();
             pipeline.LogInfo("culled {0} -> {1} observations by product ID groups", na, filteredUrls.Count);
 
@@ -425,8 +425,8 @@ namespace OPS.Pipeline
                 //attempt to cull orphan masks
                 keepers.Clear();
                 keepers.UnionWith(RoverObservationComparator.
-                                  FilterProductIdGroups(filteredObs.Select(obs => obs.Name),
-                                                        mission, RoverObservationComparator.LinearVariants.Both, log));
+                                  FilterProductIDGroups(filteredObs.Select(obs => obs.Name), mission,
+                                                        RoverObservationComparator.LinearVariants.Both, verbose));
                 filteredObs = filteredObs.Where(obs => keepers.Contains(obs.Name)).ToList();
             }
             pipeline.LogInfo("culled {0} -> {1} observations by wedge and texture limits", na, filteredObs.Count);

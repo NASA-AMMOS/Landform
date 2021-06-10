@@ -307,10 +307,10 @@ namespace OPS.Pipeline
         }
 
         /// <summary>
-        /// see RoverObservationComparator.FilterProductIdGroups()  
+        /// see RoverObservationComparator.FilterProductIDGroups()  
         /// </summary>
         public virtual IEnumerable<RoverProductId>
-            FilterProductIdGroups(IEnumerable<RoverProductId> products,
+            FilterProductIDGroups(IEnumerable<RoverProductId> products,
                                   Action<string, List<RoverProductId>, List<RoverProductId>> spew = null)
         {
             return products;

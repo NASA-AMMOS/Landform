@@ -750,17 +750,11 @@ namespace OPS.Landform
             base.RunService();
         }
 
-        private string MakeSolRanges(HashSet<int> sols, int primarySol = -1)
+        private string MakeSolRanges(HashSet<int> sols)
         {
             var ranges = new List<int[]>();
-            var skipped = new List<int>();
             foreach (var sol in sols.OrderBy(sol => sol))
             {
-                if (primarySol >= 0 && Math.Abs(sol - primarySol) > solRange)
-                {
-                    skipped.Add(sol);
-                    continue;
-                }
                 if (ranges.Count == 0 || ranges[ranges.Count - 1][1] != sol - 1)
                 {
                     ranges.Add(new int[] { sol, sol });
@@ -770,19 +764,37 @@ namespace OPS.Landform
                     ranges[ranges.Count - 1][1] = sol;
                 }
             }
-            if (skipped.Count > 0)
-            {
-                pipeline.LogWarn("not including {0} sols out of range {1} from primary sol {2}: {3}",
-                                 skipped.Count, solRange, primarySol, string.Join(", ", skipped));
-            }
             return String.Join(",", ranges.Select(range => range[0] + (range[0] != range[1] ? ("-" + range[1]) : "")));
         }
 
-        private string MakeSolRanges(int[] sols, int primarySol = -1)
+        private string MakeSolRanges(int[] sols)
         {
-            var tmp = new HashSet<int>();
-            tmp.UnionWith(sols);
-            return MakeSolRanges(tmp, primarySol);
+            return MakeSolRanges(new HashSet<int>(sols));
+        }
+
+        private void RemoveBlacklistedSols(HashSet<int> sols, int primarySol)
+        {
+            HashSet<int> blacklisted = null;
+            if (solBlacklist.Length > 0)
+            {
+                blacklisted = new HashSet<int>();
+                blacklisted.UnionWith(sols);
+                blacklisted.IntersectWith(solBlacklist);
+                blacklisted.Remove(primarySol);
+                if (blacklisted.Count > 0)
+                {
+                    pipeline.LogInfo("removing {0} blacklisted sols: {1}",
+                                     blacklisted.Count, MakeSolRanges(blacklisted));
+                    sols.ExceptWith(blacklisted);
+                }
+            }
+            var skipped = new HashSet<int>(sols.Where(sol => Math.Abs(sol - primarySol) > solRange));
+            if (skipped.Count > 0)
+            {
+                pipeline.LogWarn("removed {0} sols out of range {1} from primary sol {2}",
+                                 skipped.Count, solRange, primarySol);
+                sols.ExceptWith(skipped);
+            }
         }
 
         private ContextualMeshParameters MakeParameters(ContextualMeshMessage msg)
@@ -826,7 +838,7 @@ namespace OPS.Landform
             sep = sep < 0 ? sols.Length : sep;
             int primarySol = int.Parse(sols.Substring(0, sep));
             var allSols = new HashSet<int>(IngestAlignmentInputs.ExpandSolSpecifier(sols));
-            RemoveBlacklistedSols(allSols, primarySol);
+            RemoveBlacklistedSols(allSols, primarySol); //also enforces solRange
             if (allSols.Count == 0)
             {
                 pipeline.LogInfo("no sols");
@@ -837,7 +849,7 @@ namespace OPS.Landform
 
             if (string.IsNullOrEmpty(siteDrives) || siteDrives.ToLower().Contains("auto"))
             {
-                var allSDs = FindAllSiteDrives(rdrDir, allSols);
+                var allSDs = FindAllSiteDrives(rdrDir, primarySol, allSols);
 
                 SiteDrive? primarySD = null;
                 var givenSDs = StringHelper.ParseList(siteDrives);
@@ -940,24 +952,6 @@ namespace OPS.Landform
             }
         }
 
-        private void RemoveBlacklistedSols(HashSet<int> sols, int primarySol)
-        {
-            HashSet<int> blacklisted = null;
-            if (solBlacklist.Length > 0)
-            {
-                blacklisted = new HashSet<int>();
-                blacklisted.UnionWith(sols);
-                blacklisted.IntersectWith(solBlacklist);
-                blacklisted.Remove(primarySol);
-                if (blacklisted.Count > 0)
-                {
-                    pipeline.LogInfo("removing {0} blacklisted sols: {1}",
-                                     blacklisted.Count, MakeSolRanges(blacklisted));
-                    sols.ExceptWith(blacklisted);
-                }
-            }
-        }
-
         private void BuildContextualTileset()
         {
             var parameters = MakeParameters(options.RDRDir, options.Sols, options.SiteDrives, options.NoSurface);
@@ -993,7 +987,7 @@ namespace OPS.Landform
             {
                 throw new ArgumentException("sols must contain primarySol");
             }
-            RemoveBlacklistedSols(sols, primarySol);
+            RemoveBlacklistedSols(sols, primarySol); //also enforces solRange
 
             SiteDrive primarySiteDrive = p.PrimarySiteDrive;
             HashSet<SiteDrive> siteDrives = p.SiteDrives;
@@ -1007,7 +1001,7 @@ namespace OPS.Landform
             string sdStr = primarySiteDrive.ToString();
             string solStr = SolToString(primarySol, forceNumeric: true);
             string sdsStr = string.Join(",", siteDrives.ToArray());
-            string solRanges = MakeSolRanges(sols, primarySol);
+            string solRanges = MakeSolRanges(sols);
             string project = string.Format("{0}_{1}", SolToString(primarySol), sdStr);
             string venue = string.Format("contextual_{0}_{1}", missionStr, project);
             string venueDir = storageDir + "/" + venue;
@@ -1271,7 +1265,7 @@ namespace OPS.Landform
             return solDirs;
         }
 
-        private Dictionary<SiteDrive, SiteDriveList> FindAllSiteDrives(string rdrDir, HashSet<int> sols)
+        private Dictionary<SiteDrive, SiteDriveList> FindAllSiteDrives(string rdrDir, int primarySol, HashSet<int> sols)
         {
             var ret = new Dictionary<SiteDrive, SiteDriveList>();
 
@@ -1339,8 +1333,8 @@ namespace OPS.Landform
                         }
                     }
                 }
-                pipeline.LogInfo("found {0} wedges, {1} textures from {2} URLs ({3} filtered), {4} new sitedrives",
-                                 nw, nt, nu, (nu - na), ns);
+                pipeline.LogInfo("found {0} wedges, {1} textures, {2} new sitedrives from {3} URLs ({4} accepted)",
+                                 nw, nt, ns, nu, na);
             }
 
             //keep only latest version of each product, remove non-preferred stereo eye, non-preferred lin/nonlin, etc
@@ -1351,18 +1345,15 @@ namespace OPS.Landform
             {
                 if (ret[sd].NumWedges > 0)
                 {
-                    var filteredSD = ret[sd]
-                        .FilterProductIDs(ids => RoverObservationComparator.FilterProductIdGroups(ids, mission));
+                    var filteredSD = ret[sd].FilterProductIDGroups(pipeline.Verbose);
                     if (filteredSD.NumWedges > 0)
                     {
                         filtered[sd] = filteredSD;
                     }
                     else
                     {
-                        pipeline.LogInfo("culled empty sitedrive after filtering {0}: " +
-                                         "sols {1}, {2} wedges, {3} textures -> sols {4}, {5} wedges, {6} textures",
-                                         sd, MakeSolRanges(ret[sd].Sols), ret[sd].NumWedges, ret[sd].NumTextures,
-                                         MakeSolRanges(filteredSD.Sols), filteredSD.NumWedges, filteredSD.NumTextures);
+                        pipeline.LogInfo("culled empty filtered sitedrive {0}: sols {1}, {2} wedges, {3} textures",
+                                         sd, MakeSolRanges(ret[sd].Sols), ret[sd].NumWedges, ret[sd].NumTextures);
                     }
                 }
                 else
@@ -1412,8 +1403,7 @@ namespace OPS.Landform
                 {
                     if (ret[sd].Value.NumWedges > 0)
                     {
-                        var filteredSD = ret[sd].Value
-                            .FilterProductIDs(ids => RoverObservationComparator.FilterProductIdGroups(ids, mission));
+                        var filteredSD = ret[sd].Value.FilterProductIDGroups(pipeline.Verbose);
                         if (filteredSD.NumWedges > 0)
                         {
                             filtered[sd] = new Stamped<SiteDriveList>(filteredSD, ret[sd].Timestamp);
@@ -1421,11 +1411,8 @@ namespace OPS.Landform
                         else
                         {
                             var sdl = ret[sd].Value;
-                            pipeline.LogInfo("culled empty sitedrive after filtering {0}: " +
-                                             "sols {1}, {2} wedges, {3} textures -> sols {4}, {5} wedges, {6} textures",
-                                             sd, MakeSolRanges(sdl.Sols), sdl.NumWedges, sdl.NumTextures,
-                                             MakeSolRanges(filteredSD.Sols), filteredSD.NumWedges,
-                                             filteredSD.NumTextures);
+                            pipeline.LogInfo("culled empty filtered sitedrive {0}: sols {1}, {2} wedges, {3} textures",
+                                             sd, MakeSolRanges(sdl.Sols), sdl.NumWedges, sdl.NumTextures);
                         }
                     }
                     else if (passthroughEmpty)
@@ -1841,7 +1828,7 @@ namespace OPS.Landform
                 rdrDir = rdrDir,
                 primarySol = primarySol,
                 primarySiteDrive = primarySD.ToString(),
-                sols = MakeSolRanges(sols, primarySol),
+                sols = MakeSolRanges(sols),
                 siteDrives = string.Join(",", keepers.Keys.OrderBy(sd => sd)),
                 numWedges = totalWedges,
                 timestamp = (long)UTCTime.NowMS()

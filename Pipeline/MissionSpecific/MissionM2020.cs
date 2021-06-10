@@ -350,23 +350,21 @@ namespace OPS.Pipeline
         }
         
         public override IEnumerable<RoverProductId>
-            FilterProductIdGroups(IEnumerable<RoverProductId> products,
+            FilterProductIDGroups(IEnumerable<RoverProductId> products,
                                   Action<string, List<RoverProductId>, List<RoverProductId>> spew = null)
         {
             spew = spew ?? ((str, orig, filt) => {});
 
-            var filtered = new List<RoverProductId>();
-
             //cull orphan masks
+            var omFiltered = new List<RoverProductId>();
             var empty = new List<RoverProductId>();
-            var groups = products.GroupBy(id => id.GetPartialId(this, includeProductType: false,
-                                                                includeVersion: false));
-            foreach (var group in groups)
+            foreach (var group in products.GroupBy(id => id.GetPartialId(this, includeProductType: false,
+                                                                         includeVersion: false)))
             {
                 var orig = group.ToList();
                 if (orig.Count > 0 && !orig.All(id => id.ProductType == RoverProductType.RoverMask))
                 {
-                    filtered.AddRange(orig);
+                    omFiltered.AddRange(orig);
                 }
                 else
                 {
@@ -378,30 +376,30 @@ namespace OPS.Pipeline
             //then keep only the highest res (lowest downsample)
             //except keep all mask resolutions
             //because it can happen that the XYZ and RAS products have different downsamples
-            groups = filtered.GroupBy(id => id.GetPartialId(this, includeProductType: false,
-                                                            includeVariants: false, includeVersion: false));
-            filtered.Clear();
-            foreach (var group in groups)
+            var dsFiltered = new List<RoverProductId>();
+            foreach (var group in omFiltered.GroupBy(id => id.GetPartialId(this, includeProductType: false,
+                                                                           includeVariants: false,
+                                                                           includeVersion: false)))
             {
                 var orig = group.ToList();
                 if (orig.Count > 0 && orig[0].ProductType == RoverProductType.RoverMask)
                 {
-                    filtered.AddRange(orig);
+                    dsFiltered.AddRange(orig);
                 }
                 else
                 {
                     //downsample 0-3, prefer lower
                     char minDS = orig.Select(id => id.FullId[DOWNSAMPLE_FIELD]).DefaultIfEmpty('0').Min();
-                    var filt = orig.Where(id => id.FullId[DOWNSAMPLE_FIELD] == minDS).ToList();
-                    spew("downsample", orig, filt);
-                    filtered.AddRange(filt);
+                    var filtered = orig.Where(id => id.FullId[DOWNSAMPLE_FIELD] == minDS).ToList();
+                    spew("downsample", orig, filtered);
+                    dsFiltered.AddRange(filtered);
                 }
             }
 
             Func<RoverProductId, bool> isEECAM = id => IsHazcam(id.Camera) || IsNavcam(id.Camera);
 
-            groups = filtered.GroupBy(id => id.GetPartialId(this, includeVariants: false, includeVersion: false));
-            foreach (var group in groups)
+            foreach (var group in dsFiltered.GroupBy(id => id.GetPartialId(this, includeVariants: false,
+                                                                           includeVersion: false)))
             {
                 var orig = group.ToList();
 
@@ -416,7 +414,7 @@ namespace OPS.Pipeline
                     .Select(id => id.FullId[EECAM_DOWNSAMPLE_FIELD])
                     .DefaultIfEmpty('0')
                     .Max();
-                filtered = orig.Where(id => !isEECAM(id) || id.FullId[EECAM_DOWNSAMPLE_FIELD] == maxEDS).ToList();
+                var filtered = orig.Where(id => !isEECAM(id) || id.FullId[EECAM_DOWNSAMPLE_FIELD] == maxEDS).ToList();
                 spew("ECAM downsampling", orig, filtered);
                 orig = filtered;
 

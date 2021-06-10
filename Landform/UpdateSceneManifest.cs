@@ -1045,7 +1045,7 @@ namespace OPS.Landform
                     }
                     var lp = RoverObservationComparator.LinearVariants.Best;
                     keepers =
-                        new HashSet<string>(RoverObservationComparator.FilterProductIdGroups(ids, mission, lp, log));
+                        new HashSet<string>(RoverObservationComparator.FilterProductIDGroups(ids, mission, lp, log));
                 }
                 else
                 {

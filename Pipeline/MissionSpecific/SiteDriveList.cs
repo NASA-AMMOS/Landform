@@ -407,6 +407,16 @@ namespace OPS.Pipeline
             return ret;
         }
 
+        public SiteDriveList FilterProductIDGroups(bool verbose = false)
+        {
+            Action<string> log = null;
+            if (verbose && logger != null)
+            {
+                log = msg => logger.LogInfo(msg);
+            }
+            return FilterProductIDs(ids => RoverObservationComparator.FilterProductIDGroups(ids, mission, log: log));
+        }
+
         //returns rejection reason iff rejected
         public string Add(string url)
         {
