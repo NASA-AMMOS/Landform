@@ -1349,6 +1349,10 @@ namespace OPS.Landform
                     if (filteredSD.NumWedges > 0)
                     {
                         filtered[sd] = filteredSD;
+                        pipeline.LogInfo("filtered sitedrive {0}: sols {1}->{2}, wedges {3}->{4}, textures {5}->{6}",
+                                         sd, MakeSolRanges(ret[sd].Sols), MakeSolRanges(filteredSD.Sols),
+                                         ret[sd].NumWedges, filteredSD.NumWedges,
+                                         ret[sd].NumTextures, filteredSD.NumTextures);
                     }
                     else
                     {
@@ -1407,6 +1411,11 @@ namespace OPS.Landform
                         if (filteredSD.NumWedges > 0)
                         {
                             filtered[sd] = new Stamped<SiteDriveList>(filteredSD, ret[sd].Timestamp);
+                            pipeline.LogInfo("filtered sitedrive {0}: " +
+                                             "sols {1}->{2}, wedges {3}->{4}, textures {5}->{6}",
+                                             sd, MakeSolRanges(ret[sd].Value.Sols), MakeSolRanges(filteredSD.Sols),
+                                             ret[sd].Value.NumWedges, filteredSD.NumWedges,
+                                             ret[sd].Value.NumTextures, filteredSD.NumTextures);
                         }
                         else
                         {
