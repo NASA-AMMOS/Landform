@@ -299,6 +299,7 @@ namespace OPS.Pipeline
             int maxTextures = mission.GetMaxContextualMeshTextures();
             int totalWedges = 0, totalTextures = 0;
             var keepers = new HashSet<RoverProductId>();
+            var deadSDs = new HashSet<SiteDrive>();
             foreach (var sd in sdLists.Keys.OrderByDescending(sd => sd).ToList())
             {
                 var sdl = sdLists[sd];
@@ -321,11 +322,11 @@ namespace OPS.Pipeline
                     {
                         dt(id);
                     }
-                    sdLists.Remove(sd);
                     if (droppedSiteDrive != null)
                     {
                         droppedSiteDrive(sd);
                     }
+                    deadSDs.Add(sd);
                     if (logger != null)
                     {
                         string msg = "";
@@ -342,11 +343,15 @@ namespace OPS.Pipeline
                     }
                 }
             }
+            foreach (var sd in deadSDs)
+            {
+                sdLists.Remove(sd);
+            }
 
             //remove auxilary products such as UVW, RNE, etc
             //masks (MXY) are not handled here because they're tricky
             //see comments in RoverObservationComparator.FilterProductIdGroups()
-            var dead = new HashSet<RoverProductId>();
+            var deadIDs = new HashSet<RoverProductId>();
             foreach (var id in idToURL.Keys)
             {
                 if (RoverProduct.IsMask(id.ProductType))
@@ -359,7 +364,7 @@ namespace OPS.Pipeline
                     {
                         droppedWedgeProduct(id);
                     }
-                    dead.Add(id);
+                    deadIDs.Add(id);
                 }
                 else if (RoverProduct.IsRaster(id.ProductType) && droppedTextures.Contains(stem(id)))
                 {
@@ -367,11 +372,10 @@ namespace OPS.Pipeline
                     {
                         droppedTextureProduct(id);
                     }
-                    dead.Add(id);
+                    deadIDs.Add(id);
                 }
             }
-
-            foreach (var id in dead)
+            foreach (var id in deadIDs)
             {
                 idToURL.Remove(id);
             }
