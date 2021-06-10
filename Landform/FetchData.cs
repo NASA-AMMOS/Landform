@@ -786,6 +786,10 @@ namespace OPS.Landform
         private List<string> FilterDownloads(List<string> urls)
         {
             var filtered = urls.OrderBy(url => url).Where(AcceptURL).ToList(); //sort makes spew more readable
+            if (filtered.Count < urls.Count)
+            {
+                logger.InfoFormat("filtered {0}->{1} products by URL", urls.Count, filtered.Count);
+            }
 
             if (options.OnlyMeshProducts && (!options.NoIV || !options.NoOBJ))
             {
@@ -818,6 +822,10 @@ namespace OPS.Landform
                         logger.InfoFormat("filtered {0}: product ID does not match any mesh ID", url);
                     }
                 }
+                if (meshFiltered.Count < filtered.Count)
+                {
+                    logger.InfoFormat("filtered {0}->{1} mesh-related products", filtered.Count, meshFiltered.Count);
+                }
                 filtered = meshFiltered;
             }
 
@@ -847,7 +855,10 @@ namespace OPS.Landform
                     .SelectMany(grp => RoverObservationComparator
                                 .FilterProductIDGroups(grp, mission, linPref, msg => logger.Info(msg), ShouldTrace))
                     .ToList();
-                logger.InfoFormat("RoverObservationComparator filtered {0}->{1} products", nf, filtered.Count);
+                if (filtered.Count < nf)
+                {
+                    logger.InfoFormat("filtered {0}->{1} products by ID", nf, filtered.Count);
+                }
             }
             filterProductIDGroups();
 
@@ -892,7 +903,7 @@ namespace OPS.Landform
                     //so filterProductIDGroups() again to cull those
                     filtered = umFiltered;
                     filterProductIDGroups();
-                    logger.InfoFormat("unified meshes filtered {0}->{1} products", countWas, filtered.Count);
+                    logger.InfoFormat("filtered {0}->{1} products by unified mesh", countWas, filtered.Count);
                 }
             }
 
@@ -945,7 +956,8 @@ namespace OPS.Landform
                     int countWas = filtered.Count;
                     filtered = sdFiltered;
                     filterProductIDGroups(); //attempt to cull orphan masks
-                    logger.InfoFormat("wedge and texture limits filtered {0}->{1} products", countWas, filtered.Count);
+                    logger.InfoFormat("filtered {0}->{1} products by wedge and texture limits",
+                                      countWas, filtered.Count);
                 }
             }
 
@@ -960,7 +972,10 @@ namespace OPS.Landform
                 }
             }
 
-            logger.InfoFormat("filtered {0}->{1} products", urls.Count, filtered.Count);
+            if (filtered.Count < urls.Count)
+            {
+                logger.InfoFormat("filtered {0}->{1} products", urls.Count, filtered.Count);
+            }
 
             return filtered;
         }
