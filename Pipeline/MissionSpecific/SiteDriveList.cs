@@ -306,7 +306,7 @@ namespace OPS.Pipeline
                 idToURL.Remove(id); //remove after callback
             }
 
-            foreach (var sd in sdLists.Keys)
+            foreach (var sd in new HashSet<SiteDrive>(sdLists.Keys))
             {
                 sdLists[sd] = sdLists[sd].ApplyMissionLimits(dw, dt);
             }
@@ -314,7 +314,6 @@ namespace OPS.Pipeline
             int maxWedges = mission.GetMaxContextualMeshWedges();
             int maxTextures = mission.GetMaxContextualMeshTextures();
             int totalWedges = 0, totalTextures = 0;
-            var keepers = new HashSet<RoverProductId>();
             var deadSDs = new HashSet<SiteDrive>();
             foreach (var sd in sdLists.Keys.OrderByDescending(sd => sd).ToList())
             {
@@ -325,8 +324,6 @@ namespace OPS.Pipeline
                 {
                     totalWedges += sdl.NumWedges;
                     totalTextures += sdl.NumTextures;
-                    keepers.UnionWith(sdl.WedgeIDs);
-                    keepers.UnionWith(sdl.TextureIDs);
                 }
                 else
                 {
