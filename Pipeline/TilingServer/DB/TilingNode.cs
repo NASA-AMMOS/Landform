@@ -308,7 +308,7 @@ namespace OPS.Pipeline.TilingServer
                 if (!alreadyUploaded.Contains(url))
                 {
                     pipeline.SaveFile(file, url);
-                    pipeline.LogVerbose("uploaded {0}", url);
+                    pipeline.LogVerbose("saved {0}", url);
                     alreadyUploaded.Add(url);
                 }
             };
