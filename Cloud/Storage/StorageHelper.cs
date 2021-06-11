@@ -20,12 +20,14 @@ namespace OPS.Cloud
     /// <summary>
     /// Interface with S3 data store
     /// </summary>
-    public class StorageHelper
+    public class StorageHelper : IDisposable
     {
         private ILog logger;
         private bool autodetectRegion;
         private AWSCredentials awsCredentials;
         private RegionEndpoint awsRegion;
+        private ConcurrentDictionary<string, AmazonS3Client> regionToClient =
+            new ConcurrentDictionary<string, AmazonS3Client>();
         private ConcurrentDictionary<string, RegionEndpoint> bucketToRegion =
             new ConcurrentDictionary<string, RegionEndpoint>();
 
@@ -76,6 +78,47 @@ namespace OPS.Cloud
                     awsRegion = RegionEndpoint.GetBySystemName(awsRegionName);
                 }
             }
+        }
+
+        private AmazonS3Client GetClient(string s3url)
+        {
+            RegionEndpoint region = awsRegion;
+            if (region == null && autodetectRegion)
+            {
+                region = GetRegion((new S3Url(s3url)).BucketName);
+            }
+            return GetClient(region);
+        }
+
+        private AmazonS3Client GetClient(RegionEndpoint region)
+        {
+            return regionToClient.GetOrAdd(region != null ? region.SystemName : "null", _ => {
+                if (awsCredentials != null && region != null)
+                {
+                    return new AmazonS3Client(awsCredentials, region);
+                }
+                else if (region != null)
+                {
+                    return new AmazonS3Client(region);
+                }
+                else if (awsCredentials != null)
+                {
+                    return new AmazonS3Client(awsCredentials);
+                }
+                else
+                {
+                    return new AmazonS3Client();
+                }
+            });
+        }
+
+        public void Dispose()
+        {
+            foreach (var client in regionToClient.Values)
+            {
+                client.Dispose();
+            }
+            regionToClient.Clear();
         }
 
         /// <summary>
@@ -470,36 +513,6 @@ namespace OPS.Cloud
                 {
                     logger.WarnFormat("error searching objects with prefix {0}: {1}", s3Url, e.Message);
                 }
-            }
-        }
-
-        private AmazonS3Client GetClient(string s3url)
-        {
-            RegionEndpoint region = awsRegion;
-            if (region == null && autodetectRegion)
-            {
-                region = GetRegion((new S3Url(s3url)).BucketName);
-            }
-            return GetClient(region);
-        }
-
-        private AmazonS3Client GetClient(RegionEndpoint region)
-        {
-            if (awsCredentials != null && region != null)
-            {
-                return new AmazonS3Client(awsCredentials, region);
-            }
-            else if (region != null)
-            {
-                return new AmazonS3Client(region);
-            }
-            else if (awsCredentials != null)
-            {
-                return new AmazonS3Client(awsCredentials);
-            }
-            else
-            {
-                return new AmazonS3Client();
             }
         }
 

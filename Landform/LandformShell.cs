@@ -151,20 +151,36 @@ namespace OPS.Landform
         protected double lastCredentialRefreshSecUTC;
         protected int credentialRefreshSec;
 
-        private volatile Process currentProcess;
-
+        private Object storageHelperLock = new Object();
         private StorageHelper _storageHelper;
         protected StorageHelper storageHelper
         {
             get
             {
-                if (_storageHelper == null)
+                lock (storageHelperLock)
                 {
-                    _storageHelper = new StorageHelper(awsProfile, awsRegion, pipeline.Logger);
+                    if (_storageHelper == null)
+                    {
+                        _storageHelper = new StorageHelper(awsProfile, awsRegion, pipeline.Logger);
+                    }
+                    return _storageHelper;
                 }
-                return _storageHelper;
+            }
+
+            set
+            {
+                lock (storageHelperLock)
+                {
+                    if (_storageHelper != null)
+                    {
+                        _storageHelper.Dispose();
+                    }
+                    _storageHelper = value;
+                }
             }
         }
+
+        private volatile Process currentProcess;
 
         public LandformShell(LandformShellOptions options) : base(options)
         {
@@ -286,7 +302,7 @@ namespace OPS.Landform
                 awsProfile = newProfile ?? originalAWSProfile;
             }
 
-            _storageHelper = null;
+            storageHelper = null;
         }
 
         protected abstract string GetLogFilePrefix();

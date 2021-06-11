@@ -52,18 +52,7 @@ namespace OPS.Landform
 
         private BenchmarkS3Options options;
 
-        private StorageHelper _storageHelper;
-        private StorageHelper storageHelper
-        {
-            get
-            {
-                if (_storageHelper == null)
-                {
-                    _storageHelper = new StorageHelper(options.AWSProfile, options.AWSRegion, logger);
-                }
-                return _storageHelper;
-            }
-        }
+        private StorageHelper storageHelper;
 
         private class FileInfo
         {
@@ -121,6 +110,8 @@ namespace OPS.Landform
                     options.AWSProfile = mission.GetDefaultAWSProfile();
                 }
             }
+
+            storageHelper = new StorageHelper(options.AWSProfile, options.AWSRegion, logger);
         }
 
         private List<DownloadInfo> GenerateFileList()

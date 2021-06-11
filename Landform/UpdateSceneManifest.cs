@@ -202,18 +202,7 @@ namespace OPS.Landform
         private string awsProfile;
         private string awsRegion;
 
-        private StorageHelper _storageHelper;
-        private StorageHelper storageHelper
-        {
-            get
-            {
-                if (_storageHelper == null)
-                {
-                    _storageHelper = new StorageHelper(awsProfile, awsRegion, pipeline.Logger);
-                }
-                return _storageHelper;
-            }
-        }
+        private StorageHelper storageHelper;
 
         private string s3Proxy;
 
@@ -539,18 +528,27 @@ namespace OPS.Landform
             //and leaving them null tidys up the spew a bit
         }
 
-        protected bool FileExists(string url)
+        private StorageHelper GetStorageHelper()
         {
-            return LandformShell.FileExists(pipeline, () => storageHelper, url);
+            if (storageHelper == null)
+            {
+                storageHelper = new StorageHelper(awsProfile, awsRegion, pipeline.Logger);
+            }
+            return storageHelper;
         }
 
-        protected IEnumerable<string> SearchFiles(string url, string globPattern,
-                                                  bool recursive = false, bool ignoreCase = false)
+        private bool FileExists(string url)
         {
-            return LandformShell.SearchFiles(pipeline, () => storageHelper, url, globPattern, recursive, ignoreCase);
+            return LandformShell.FileExists(pipeline, GetStorageHelper, url);
         }
 
-        protected string GetFile(string url, bool filenameUnique = true)
+        private IEnumerable<string> SearchFiles(string url, string globPattern,
+                                                bool recursive = false, bool ignoreCase = false)
+        {
+            return LandformShell.SearchFiles(pipeline, GetStorageHelper, url, globPattern, recursive, ignoreCase);
+        }
+
+        private string GetFile(string url, bool filenameUnique = true)
         {
             //try to re-use cached downloads from ProcessContextual or ProcessTactical
             string cacheDir = "manifest";
@@ -562,16 +560,15 @@ namespace OPS.Landform
             {
                 cacheDir = "tactical";
             }
-            return LandformShell.GetFile(pipeline, () => storageHelper, url, cacheDir, filenameUnique,
-                                         options.MaxRetries);
+            return LandformShell.GetFile(pipeline, GetStorageHelper, url, cacheDir, filenameUnique, options.MaxRetries);
         }
 
-        protected void SaveFile(string file, string url)
+        private void SaveFile(string file, string url)
         {
-            LandformShell.SaveFile(pipeline, () => storageHelper, file, url, dryRun: options.NoSave);
+            LandformShell.SaveFile(pipeline, GetStorageHelper, file, url, dryRun: options.NoSave);
         }
 
-        protected string GetRDR(string url)
+        private string GetRDR(string url)
         {
             string fetchDir = Path.Combine(LandformShell.GetStorageDir(pipeline), ProcessContextual.FETCH_DIR, "rdrs");
 
