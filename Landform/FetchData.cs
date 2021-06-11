@@ -617,6 +617,10 @@ namespace OPS.Landform
                 {
                     reason = "disallowed product id for " + mission.GetMission() + ": " + msReason;
                 }
+                else if (mission != null && mission.IsVideoProduct(id, url, () => storageHelper))
+                {
+                    reason = "excluded video image";
+                }
                 else if (acceptedSiteDrives.Length > 0 && id is OPGSProductId &&
                          !acceptedSiteDrives.Any(asd => asd == ((OPGSProductId)id).SiteDrive))
                 {

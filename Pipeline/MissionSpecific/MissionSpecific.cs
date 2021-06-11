@@ -40,6 +40,9 @@ namespace OPS.Pipeline
         [ConfigEnvironmentVariable("LANDFORM_ALLOW_PARTIAL_PRODUCTS")]
         public bool AllowPartialProducts { get; set; } = false;
 
+        [ConfigEnvironmentVariable("LANDFORM_ALLOW_VIDEO_PRODUCTS")]
+        public bool AllowVideoProducts { get; set; } = false;
+
         [ConfigEnvironmentVariable("LANDFORM_ALLOW_SUN_FINDING")]
         public bool AllowSunFinding { get; set; } = false;
 
@@ -433,6 +436,14 @@ namespace OPS.Pipeline
         }
 
         /// <summary>
+        /// whether to ingest video frame images
+        /// </summary>
+        public virtual bool AllowVideoProducts()
+        {
+            return MissionConfig.Instance.AllowVideoProducts;
+        }
+
+        /// <summary>
         /// whether to ingest sun finding images
         /// </summary>
         public virtual bool AllowSunFinding()
@@ -803,6 +814,11 @@ namespace OPS.Pipeline
             return CheckProductId(id, out string reason);
         }
 
+        public virtual bool IsVideoProduct(RoverProductId id, string url, Func<StorageHelper> storageHelper)
+        {
+            return false;
+        }
+
         public virtual IEnumerable<int[]> GetProductIdVariantSpans(RoverProductId id)
         {
             yield break;
@@ -840,6 +856,12 @@ namespace OPS.Pipeline
             if (!UseProduct(cam, pt))
             {
                 reason = string.Format("{0} {1} products not allowed", cam, pt);
+                return false;
+            }
+
+            if (!AllowVideoProducts() && parser.IsVideoFrame)
+            {
+                reason = "video frames not allowed";
                 return false;
             }
 
@@ -1042,9 +1064,9 @@ namespace OPS.Pipeline
             return MissionConfig.Instance.MaxContextualMeshMastcamTexturesPerSiteDrive;
         }
 
-        public string FilterContextualMeshWedge(RoverProductId id)
+        public virtual string FilterContextualMeshWedge(RoverProductId id, string url)
         {
-            string reason = FilterContextualmeshProduct(id);
+            string reason = FilterContextualmeshProduct(id, url);
             if (reason != null)
             {
                 return reason;
@@ -1067,9 +1089,9 @@ namespace OPS.Pipeline
             return null;
         }
 
-        public string FilterContextualMeshTexture(RoverProductId id)
+        public virtual string FilterContextualMeshTexture(RoverProductId id, string url)
         {
-            string reason = FilterContextualmeshProduct(id);
+            string reason = FilterContextualmeshProduct(id, url);
             if (reason != null)
             {
                 return reason;
@@ -1087,7 +1109,7 @@ namespace OPS.Pipeline
             return null;
         }
 
-        private string FilterContextualmeshProduct(RoverProductId id)
+        protected virtual string FilterContextualmeshProduct(RoverProductId id, string url)
         {
             if (id is OPGSProductId)
             {

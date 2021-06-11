@@ -52,13 +52,13 @@ namespace OPS.Pipeline
         private string[] pdsExts; //iff mission != null
 
         //id => rejection reason
-        private Func<RoverProductId, string> wedgeFilter, textureFilter;
+        private Func<RoverProductId, string, string> filterWedge, filterTexture;
 
         private Dictionary<int, HashSet<RoverProductId>> SolToIDs = new Dictionary<int, HashSet<RoverProductId>>();
 
         public SiteDriveList(MissionSpecific mission = null, ILogger logger = null,
-                             Func<RoverProductId, string> wedgeFilter = null,
-                             Func<RoverProductId, string> textureFilter = null)
+                             Func<RoverProductId, string, string> filterWedge = null,
+                             Func<RoverProductId, string, string> filterTexture = null)
         {
             this.mission = mission;
             this.logger = logger;
@@ -69,23 +69,23 @@ namespace OPS.Pipeline
                 {
                     pdsExts = StringHelper.ParseList(exts).Select(ext => ext.TrimStart('.').ToLower()).ToArray();
                 }
-                this.wedgeFilter = mission.FilterContextualMeshWedge;
-                this.textureFilter = mission.FilterContextualMeshTexture;
+                this.filterWedge = mission.FilterContextualMeshWedge;
+                this.filterTexture = mission.FilterContextualMeshTexture;
             }
-            if (wedgeFilter != null)
+            if (filterWedge != null)
             {
-                this.wedgeFilter = wedgeFilter;
+                this.filterWedge = filterWedge;
             }
-            if (textureFilter != null)
+            if (filterTexture != null)
             {
-                this.textureFilter = textureFilter;
+                this.filterTexture = filterTexture;
             }
         }
 
         public SiteDriveList(string rdrDir, SiteDrive siteDrive, MissionSpecific mission = null, ILogger logger = null,
-                             Func<RoverProductId, string> wedgeFilter = null,
-                             Func<RoverProductId, string> textureFilter = null)
-            : this(mission, logger, wedgeFilter, textureFilter)
+                             Func<RoverProductId, string, string> filterWedge = null,
+                             Func<RoverProductId, string, string> filterTexture = null)
+            : this(mission, logger, filterWedge, filterTexture)
         {
             if (string.IsNullOrEmpty(rdrDir))
             {
@@ -131,7 +131,7 @@ namespace OPS.Pipeline
             {
                 return this;
             }
-            var ret = new SiteDriveList(mission, logger, wedgeFilter, textureFilter);
+            var ret = new SiteDriveList(mission, logger, filterWedge, filterTexture);
             int maxWedges = mission.GetMaxContextualMeshWedges();
             int maxNavcamWedges = mission.GetMaxContextualMeshNavcamWedgesPerSiteDrive();
             int maxMastcamWedges = mission.GetMaxContextualMeshMastcamWedgesPerSiteDrive();
@@ -197,6 +197,7 @@ namespace OPS.Pipeline
                                numDroppedNavcamWedges, (numDroppedNavcamWedges + numNavcamWedges),
                                numDroppedMastcamWedges, (numDroppedMastcamWedges + numMastcamWedges));
             }
+
             int maxTextures = mission.GetMaxContextualMeshTextures();
             int maxNavcamTextures = mission.GetMaxContextualMeshNavcamTexturesPerSiteDrive();
             int maxMastcamTextures = mission.GetMaxContextualMeshMastcamTexturesPerSiteDrive();
@@ -400,7 +401,7 @@ namespace OPS.Pipeline
             {
                 return this;
             }
-            var ret = new SiteDriveList(mission, logger, wedgeFilter, textureFilter);
+            var ret = new SiteDriveList(mission, logger, filterWedge, filterTexture);
             foreach (int sol in SolToIDs.Keys)
             {
                 if (sol >= min && sol <= max)
@@ -416,7 +417,7 @@ namespace OPS.Pipeline
 
         public SiteDriveList FilterProductIDs(Func<IEnumerable<RoverProductId>, IEnumerable<RoverProductId>> filter)
         {
-            var ret = new SiteDriveList(mission, logger, wedgeFilter, textureFilter);
+            var ret = new SiteDriveList(mission, logger, filterWedge, filterTexture);
             foreach (var id in filter(IDToURL.Keys))
             {
                 ret.Add(IDToURL[id]);
@@ -483,9 +484,9 @@ namespace OPS.Pipeline
 
             if (RoverProduct.IsPointCloud(id.ProductType) && mission.UseForMeshing(id))
             {
-                if (wedgeFilter != null)
+                if (filterWedge != null)
                 {
-                    string reason = wedgeFilter(id);
+                    string reason = filterWedge(id, url);
                     if (!string.IsNullOrEmpty(reason))
                     {
                         return reason;
@@ -495,9 +496,9 @@ namespace OPS.Pipeline
             }
             else if (RoverProduct.IsImage(id.ProductType) && mission.UseForTexturing(id))
             {
-                if (textureFilter != null)
+                if (filterTexture != null)
                 {
-                    string reason = textureFilter(id);
+                    string reason = filterTexture(id, url);
                     if (!string.IsNullOrEmpty(reason))
                     {
                         return reason;

@@ -79,6 +79,8 @@ namespace OPS.Pipeline
         public const int VERSION_FIELD = 52;
         public const int VERSION_FIELD_LENGTH = 2;
 
+        public const int MIN_VIDEO_GROUP = 10;
+
         //https://wiki.jpl.nasa.gov/display/MSMFS/File+and+S3+Object+Path+Conventions
         //https://wiki.jpl.nasa.gov/display/MSMFS/Instruments+That+IDS+Processes
         private readonly string[] MASTCAM_RDR_SUBDIRS = new string[] { "zcam" };
@@ -348,21 +350,59 @@ namespace OPS.Pipeline
             
             return new RoverObservationComparator.CompareResult(0, "none");
         }
-        
+
         public override IEnumerable<RoverProductId>
             FilterProductIDGroups(IEnumerable<RoverProductId> products,
                                   Action<string, List<RoverProductId>, List<RoverProductId>> spew = null)
         {
             spew = spew ?? ((str, orig, filt) => {});
 
+            Func<RoverProductId, bool> isMask = id => id.ProductType == RoverProductType.RoverMask;
+            Func<RoverProductId, bool> isEECAM = id => IsHazcam(id.Camera) || IsNavcam(id.Camera);
+
+            var empty = new List<RoverProductId>();
+
+            //https://github.jpl.nasa.gov/OnSight/Landform/issues/1201
+            //cull video
+            if (!AllowVideoProducts())
+            {
+                var zcamProducts = products
+                    .Where(id => (id is M2020OPGSProductId) && IsMastcam(id.Camera))
+                    .Cast<M2020OPGSProductId>()
+                    .ToList();
+                if (zcamProducts.Count > 0)
+                {
+                    var vidSeqs = new HashSet<string>();
+                    var groups = zcamProducts.GroupBy(id => id.Sequence);
+                    foreach (var group in groups)
+                    {
+                        if (group.Select(id => id.GetPartialId(this, includeVersion: false)).Distinct().Count() >
+                            MIN_VIDEO_GROUP)
+                        {
+                            vidSeqs.Add(group.First().Sequence);
+                        }
+                    }
+                    foreach (var group in groups)
+                    {
+                        if (vidSeqs.Contains(group.Key))
+                        {
+                            spew("video sequence " + group.Key, group.Cast<RoverProductId>().ToList(), empty);
+                        }
+                    }
+                    products = zcamProducts
+                        .Where(id => !vidSeqs.Contains(id.Sequence))
+                        .Concat(products.Where(id => !(id is M2020OPGSProductId) || !IsMastcam(id.Camera)))
+                        .ToList();
+                }
+            }
+
             //cull orphan masks
             var omFiltered = new List<RoverProductId>();
-            var empty = new List<RoverProductId>();
             foreach (var group in products.GroupBy(id => id.GetPartialId(this, includeProductType: false,
                                                                          includeVersion: false)))
             {
                 var orig = group.ToList();
-                if (orig.Count > 0 && !orig.All(id => id.ProductType == RoverProductType.RoverMask))
+                if (orig.Count > 0 && !orig.All(isMask))
                 {
                     omFiltered.AddRange(orig);
                 }
@@ -371,35 +411,27 @@ namespace OPS.Pipeline
                     spew("orphan mask", orig, empty);
                 }
             }
+            products = omFiltered;
 
             //if we have multiple resolutions (downsample levels) within a single observation
             //then keep only the highest res (lowest downsample)
             //except keep all mask resolutions
             //because it can happen that the XYZ and RAS products have different downsamples
             var dsFiltered = new List<RoverProductId>();
-            foreach (var group in omFiltered.GroupBy(id => id.GetPartialId(this, includeProductType: false,
-                                                                           includeVariants: false,
-                                                                           includeVersion: false)))
+            foreach (var group in products.GroupBy(id => id.GetPartialId(this, includeProductType: false,
+                                                                         includeVariants: false,
+                                                                         includeVersion: false)))
             {
                 var orig = group.ToList();
-                if (orig.Count > 0 && orig[0].ProductType == RoverProductType.RoverMask)
-                {
-                    dsFiltered.AddRange(orig);
-                }
-                else
-                {
-                    //downsample 0-3, prefer lower
-                    char minDS = orig.Select(id => id.FullId[DOWNSAMPLE_FIELD]).DefaultIfEmpty('0').Min();
-                    var filtered = orig.Where(id => id.FullId[DOWNSAMPLE_FIELD] == minDS).ToList();
-                    spew("downsample", orig, filtered);
-                    dsFiltered.AddRange(filtered);
-                }
+                char minDS = orig.Select(id => id.FullId[DOWNSAMPLE_FIELD]).DefaultIfEmpty('0').Min();
+                var filtered = orig.Where(id => isMask(id) || id.FullId[DOWNSAMPLE_FIELD] == minDS).ToList();
+                spew("downsample", orig, filtered);
+                dsFiltered.AddRange(filtered);
             }
+            products = dsFiltered;
 
-            Func<RoverProductId, bool> isEECAM = id => IsHazcam(id.Camera) || IsNavcam(id.Camera);
-
-            foreach (var group in dsFiltered.GroupBy(id => id.GetPartialId(this, includeVariants: false,
-                                                                           includeVersion: false)))
+            foreach (var group in products.GroupBy(id => id.GetPartialId(this, includeVariants: false,
+                                                                         includeVersion: false)))
             {
                 var orig = group.ToList();
 
@@ -576,6 +608,41 @@ namespace OPS.Pipeline
             }
 
             return true;
+        }
+
+        public override bool IsVideoProduct(RoverProductId id, string url, Func<StorageHelper> storageHelper)
+        {
+            if (!IsMastcam(id.Camera))
+            {
+                return false;
+            }
+
+            if (!string.IsNullOrEmpty(url))
+            {
+                //https://github.jpl.nasa.gov/OnSight/Landform/issues/1201
+                url = StringHelper.NormalizeUrl(url);
+                int rdrIdx = url.LastIndexOf("/rdr/");
+                if (rdrIdx >= 0 && url.Length > rdrIdx + 5)
+                {
+                    string idStr = StringHelper.GetLastUrlPathSegment(url, stripExtension: true);
+                    if (idStr == id.FullId && (idStr.StartsWith("ZLF") || idStr.StartsWith("ZRF")) &&
+                        id.GetProductTypeSpan(out int pts, out int ptl) && id.GetVersionSpan(out int vs, out int vl) &&
+                        ptl == 3 && (vs + vl == idStr.Length) && (pts + ptl <= vs))
+                    {
+                        var sh = storageHelper();
+                        if (sh != null)
+                        {
+                            idStr = idStr.Substring(0, vs); //strip version
+                            url = StringHelper.StripLastUrlPathSegment(url) + "/";
+                            url = url.Substring(0, rdrIdx) + "/edr/" + url.Substring(rdrIdx + 5); //"/rdr/" -> "/edr/"
+                            url += idStr.Substring(0, pts) + "ECV" + idStr.Substring(pts + ptl); //product type -> ECV
+                            return sh.SearchObjects(url, recursive: false).Count() > 0;
+                        }
+                    }
+                }
+            }
+
+            return false;
         }
 
         public override IEnumerable<int[]> GetProductIdVariantSpans(RoverProductId id)

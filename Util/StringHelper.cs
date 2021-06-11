@@ -15,15 +15,23 @@ namespace OPS.Util
         /// </summary>
         /// <param name="value"></param>
         /// <returns></returns>
-        public static string WildcardToRegularExpressionString(string value, bool fullMatch = true)
+        public static string WildcardToRegularExpressionString(string value, bool fullMatch = true,
+                                                               bool matchSlashes = true)
         {
-            string regex = Regex.Escape(value).Replace("\\?", ".").Replace("\\*", ".*");
+            string any = matchSlashes ? "." : "[^/\\]";
+            string regex = Regex.Escape(value).Replace("\\?", any).Replace("\\*", any + "*");
             return fullMatch ? ("^" + regex + "$") : regex;
         }
 
-        public static Regex WildcardToRegularExpression(string value, RegexOptions opts = RegexOptions.None)
+        public static Regex WildcardToRegularExpression(string value, bool fullMatch = true, bool matchSlashes = true,
+                                                        RegexOptions opts = RegexOptions.None)
         {
-            return new Regex(WildcardToRegularExpressionString(value), opts);
+            return new Regex(WildcardToRegularExpressionString(value, fullMatch, matchSlashes), opts);
+        }
+
+        public static Regex WildcardToRegularExpression(string value, RegexOptions opts)
+        {
+            return WildcardToRegularExpression(value, true, true, opts);
         }
 
         public static string ReplaceIntWildcards(string str, int value, char wildcardChar = '#')
