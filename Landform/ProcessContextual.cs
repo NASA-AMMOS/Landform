@@ -324,6 +324,19 @@ namespace OPS.Landform
 
         private MessageQueue workerQueue, orbitalWorkerQueue;
 
+        //RDR directory -> sitedrive -> list or wedge URL -> last changed UTC milliseconds
+        //list and wedge URLs for which we recently recived ObjectCreated (i.e. changed) messages
+        //when MasterLoop() sees that none have changed for a given RDR directory in at least options.MasterDebounceSec
+        //then that directory will be processed and its changed URLs cleared
+        //synchronization is by locking this object itself
+        private Dictionary<string, Dictionary<SiteDrive, Dictionary<string, long>>> changedURLs =
+            new Dictionary<string, Dictionary<SiteDrive, Dictionary<string, long>>>();
+
+        //if EOP messages are enabled this is the timestamp of the latest EOP message in UTC millisecond
+        //MasterLoop() will process all pending changedURLs when this becomes non-negative
+        //synchronization is by locking changedURLs
+        private long eopTimestamp = -1;
+            
         //message sent from master to worker
         //defines the job of building one contextual mesh
         //equality is based only on rdrDir, primarySol, primarySiteDrive
@@ -400,19 +413,6 @@ namespace OPS.Landform
             return ret;
         }
 
-        //RDR directory -> sitedrive -> list or wedge URL -> last changed UTC milliseconds
-        //list and wedge URLs for which we recently recived ObjectCreated (i.e. changed) messages
-        //when MasterLoop() sees that none have changed for a given RDR directory in at least options.MasterDebounceSec
-        //then that directory will be processed and its changed URLs cleared
-        //synchronization is by locking this object itself
-        private Dictionary<string, Dictionary<SiteDrive, Dictionary<string, long>>> changedURLs =
-            new Dictionary<string, Dictionary<SiteDrive, Dictionary<string, long>>>();
-
-        //if EOP messages are enabled this is the timestamp of the latest EOP message in UTC millisecond
-        //MasterLoop() will process all pending changedURLs when this becomes non-negative
-        //synchronization is by locking changedURLs
-        private long eopTimestamp = -1;
-            
         public ProcessContextual(ProcessContextualOptions options) : base(options)
         {
             this.options = options;
@@ -1173,6 +1173,8 @@ namespace OPS.Landform
                 }
 
                 Cleanup(venueDir);
+
+                FetchData.ExpireEDRCache(msg => pipeline.LogInfo(msg));
             }
             catch
             {
@@ -1203,8 +1205,20 @@ namespace OPS.Landform
 
         private string FilterTexture(RoverProductId id, string url)
         {
+            bool edrExists(string s3Folder, string basename)
+            {
+                //only use cached folder listings in batch mode, i.e. when manually running a contextual mesh
+                //the master and worker services still use an EDR existence cache but don't list the whole EDR folder
+                //rather, they list and cache (for up to 2 days) each EDR product individually as needed
+                //because in some circumstances more EDRs could still arrive in the folder after the first listing
+                return FetchData.EDRExists(s3Folder, basename, mission, storageHelper,
+                                           cacheFolderListings: !serviceMode,
+                                           info: msg => pipeline.LogInfo(msg),
+                                           verbose: msg => pipeline.LogVerbose(msg),
+                                           warn: msg => pipeline.LogWarn(msg));
+            }
             return FilterProduct(id) ?? mission.FilterContextualMeshTexture(id, url) ??
-                (mission.IsVideoProduct(id, url, () => storageHelper) ? "excluded video product" : null);
+                (mission.IsVideoProduct(id, url, edrExists) ? "excluded video product" : null);
         }
 
         //RRR_[TTTT]SSSDDDD[I][_VV].lis
@@ -2206,6 +2220,8 @@ namespace OPS.Landform
                     {
                         pipeline.DeleteDownloadCache();
                     }
+
+                    FetchData.ExpireEDRCache(msg => pipeline.LogInfo(msg));
                 }
                 catch (Exception masterException)
                 {

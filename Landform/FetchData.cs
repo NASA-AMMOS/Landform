@@ -9,6 +9,7 @@ using System.Net;
 using System.Threading;
 using System.Diagnostics;
 using System.Text.RegularExpressions;
+using Amazon.S3;
 using Microsoft.Xna.Framework;
 using CommandLine;
 using log4net;
@@ -283,6 +284,12 @@ namespace OPS.Landform
         private Dictionary<SiteDrive, SiteDriveList> sdLists = new Dictionary<SiteDrive, SiteDriveList>();
         private HashSet<SiteDrive> droppedSiteDrives = new HashSet<SiteDrive>();
 
+        //edr s3 folder -> video product ID without version -> exists
+        private static Dictionary<string, Stamped<Dictionary<string, bool>>> edrCache =
+            new Dictionary<string, Stamped<Dictionary<string, bool>>>();
+
+        public const long EDR_CACHE_MAX_AGE_MS = 2 * 24 * 60 * 60 * 1000L; //2 days
+
         public FetchData(FetchDataOptions opts)
         {
             options = opts;
@@ -556,11 +563,129 @@ namespace OPS.Landform
                                    })
                     .ToList();
             }
-            catch (Amazon.S3.AmazonS3Exception e)
+            catch (AmazonS3Exception e)
             {
                 logger.InfoFormat("error searching {0}: {1}", s3Folder, e.Message);
                 return new List<string>();
             }
+        }
+
+        //if cacheFolderListings=true then cache the basenames of a non-recursive listing
+        //of all EDRs matching mission.GetVideoURLRegex() under s3Folder and check if basename is in that set
+        //otherwise cache the individual true/false existence of any s3 objects starting with s3Folder + basename
+        public static bool EDRExists(string s3Folder, string basename, MissionSpecific mission,
+                                     StorageHelper storageHelper, bool cacheFolderListings, Action<string> info = null,
+                                     Action<string> verbose = null, Action<string> warn = null)
+        {
+            bool uncachedSearch()
+            {
+                bool ret = storageHelper.SearchObjects(s3Folder + basename, recursive: false).Count() > 0;
+                if (ret && verbose != null)
+                {
+                    verbose("detected video product " + s3Folder + basename);
+                }
+                return ret;
+            }
+
+            var regex = mission.GetVideoURLRegex();
+            if (edrCache == null || regex == null)
+            {
+                return uncachedSearch();
+            }
+
+            Dictionary<string, bool> listEDRs()
+            {
+                var ret = new Dictionary<string, bool>();
+                try
+                {
+                    if (info != null)
+                    {
+                        info("listing all ECV EDRs in " + s3Folder);
+                    }
+                    foreach (var bn in storageHelper.SearchObjects(s3Folder, recursive: false,
+                                                                   filter: url => regex.IsMatch(url))
+                             .Select(url => regex.Match(url).Groups[1].Value))
+                    {
+                        ret[bn] = true;
+                    }
+                    if (info != null)
+                    {
+                        info($"caching list of {ret.Count} ECV EDRs in {s3Folder}");
+                    }
+                }
+                catch (AmazonS3Exception e)
+                {
+                    if (warn != null)
+                    {
+                        warn($"error searching {s3Folder}: {e.Message}");
+                    }
+                }
+                return ret;
+            }
+
+            lock (edrCache)
+            {
+                long now = (long)(UTCTime.NowMS());
+                bool validCache = edrCache.ContainsKey(s3Folder) &&
+                    (now - edrCache[s3Folder].Timestamp) <= EDR_CACHE_MAX_AGE_MS;
+                if (cacheFolderListings)
+                {
+                    if (!validCache)
+                    {
+                        edrCache[s3Folder] = new Stamped<Dictionary<string, bool>>(listEDRs());
+                    }
+                    return edrCache[s3Folder].Value.ContainsKey(basename);
+                }
+                else
+                {
+                    if (!validCache)
+                    {
+                        edrCache[s3Folder] = new Stamped<Dictionary<string, bool>>(new Dictionary<string, bool>());
+                    }
+                    if (!edrCache[s3Folder].Value.ContainsKey(basename))
+                    {
+                        edrCache[s3Folder].Value[basename] = uncachedSearch();
+                    }
+                    return edrCache[s3Folder].Value[basename];
+                }
+            }
+        }
+
+        public static void ExpireEDRCache(Action<string> info = null)
+        {
+            var dead = new HashSet<string>();
+            long now = (long)(UTCTime.NowMS());
+            lock (edrCache)
+            {
+                foreach (var s3Folder in edrCache.Keys)
+                {
+                    if (now - edrCache[s3Folder].Timestamp > EDR_CACHE_MAX_AGE_MS)
+                    {
+                        dead.Add(s3Folder);
+                    }
+                }
+            }
+            foreach (string s3Folder in dead)
+            {
+                edrCache.Remove(s3Folder);
+            }
+            if (dead.Count > 0 && info != null)
+            {
+                info($"expired {dead.Count} cached EDR folder listings more than {Fmt.HMS(EDR_CACHE_MAX_AGE_MS)} old");
+            }
+        }
+                                     
+        private bool EDRExists(string s3Folder, string basename)
+        {
+            void verbose(string msg)
+            {
+                if (options.Verbose)
+                {
+                    logger.Info(msg);
+                }
+            }
+            return EDRExists(s3Folder, basename, mission, storageHelper, cacheFolderListings: true,
+                             info: logger.Info, verbose: verbose, warn: logger.Warn);
         }
 
         //apply rules to filter an individual file
@@ -617,7 +742,7 @@ namespace OPS.Landform
                 {
                     reason = "disallowed product id for " + mission.GetMission() + ": " + msReason;
                 }
-                else if (mission != null && mission.IsVideoProduct(id, url, () => storageHelper))
+                else if (mission != null && mission.IsVideoProduct(id, url, EDRExists))
                 {
                     reason = "excluded video image";
                 }

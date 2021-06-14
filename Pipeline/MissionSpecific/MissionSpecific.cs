@@ -1,6 +1,8 @@
 ﻿using System;
 using System.IO;
 using System.Linq;
+using System.Text;
+using System.Text.RegularExpressions;
 using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 using log4net;
@@ -814,7 +816,19 @@ namespace OPS.Pipeline
             return CheckProductId(id, out string reason);
         }
 
-        public virtual bool IsVideoProduct(RoverProductId id, string url, Func<StorageHelper> storageHelper)
+        //null if not supported by mission
+        //otherwise first capturing group corresponds to second argument of edrExists callback for IsVideoProduct()
+        public virtual Regex GetVideoURLRegex()
+        {
+            return null;
+        }
+
+        //false if not supported by mission
+        //otherwise check if product ID and/or URL is a video product
+        //edrExists is an optional callback (s3Folder, fileBasename) => bool that is needed for some missions
+        //e.g. for M2020 it's not possible to know if a ZCAM image is a video frame just from its ID or URL
+        //but we can instead munge the URL into a corresponding ECV EDR url and check for that
+        public virtual bool IsVideoProduct(RoverProductId id, string url, Func<string, string, bool> edrExists)
         {
             return false;
         }

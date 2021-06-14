@@ -79,8 +79,6 @@ namespace OPS.Pipeline
         public const int VERSION_FIELD = 52;
         public const int VERSION_FIELD_LENGTH = 2;
 
-        public const int MIN_VIDEO_GROUP = 10;
-
         //https://wiki.jpl.nasa.gov/display/MSMFS/File+and+S3+Object+Path+Conventions
         //https://wiki.jpl.nasa.gov/display/MSMFS/Instruments+That+IDS+Processes
         private readonly string[] MASTCAM_RDR_SUBDIRS = new string[] { "zcam" };
@@ -364,37 +362,42 @@ namespace OPS.Pipeline
 
             //https://github.jpl.nasa.gov/OnSight/Landform/issues/1201
             //cull video
-            if (!AllowVideoProducts())
-            {
-                var zcamProducts = products
-                    .Where(id => (id is M2020OPGSProductId) && IsMastcam(id.Camera))
-                    .Cast<M2020OPGSProductId>()
-                    .ToList();
-                if (zcamProducts.Count > 0)
-                {
-                    var vidSeqs = new HashSet<string>();
-                    var groups = zcamProducts.GroupBy(id => id.Sequence);
-                    foreach (var group in groups)
-                    {
-                        if (group.Select(id => id.GetPartialId(this, includeVersion: false)).Distinct().Count() >
-                            MIN_VIDEO_GROUP)
-                        {
-                            vidSeqs.Add(group.First().Sequence);
-                        }
-                    }
-                    foreach (var group in groups)
-                    {
-                        if (vidSeqs.Contains(group.Key))
-                        {
-                            spew("video sequence " + group.Key, group.Cast<RoverProductId>().ToList(), empty);
-                        }
-                    }
-                    products = zcamProducts
-                        .Where(id => !vidSeqs.Contains(id.Sequence))
-                        .Concat(products.Where(id => !(id is M2020OPGSProductId) || !IsMastcam(id.Camera)))
-                        .ToList();
-                }
-            }
+            //the idea here is to find relatively large groups of zcam images all with the same sequence ID
+            //unfortunately it looks like this is a bogus approach, e.g. in sol 53 there are about 275 images in
+            //sequence ZCAM08100 but those don't appear to be video frames
+            //instead, see IsVideoProduct() which checks for a corresponding ECV EDR
+            //const int MIN_VIDEO_GROUP = 10;
+            //if (!AllowVideoProducts())
+            //{
+            //    var zcamProducts = products
+            //        .Where(id => (id is M2020OPGSProductId) && IsMastcam(id.Camera))
+            //        .Cast<M2020OPGSProductId>()
+            //        .ToList();
+            //    if (zcamProducts.Count > 0)
+            //    {
+            //        var vidSeqs = new HashSet<string>();
+            //        var groups = zcamProducts.GroupBy(id => id.Sequence);
+            //        foreach (var group in groups)
+            //        {
+            //            if (group.Select(id => id.GetPartialId(this, includeVersion: false)).Distinct().Count() >
+            //                MIN_VIDEO_GROUP)
+            //            {
+            //                vidSeqs.Add(group.First().Sequence);
+            //            }
+            //        }
+            //        foreach (var group in groups)
+            //        {
+            //            if (vidSeqs.Contains(group.Key))
+            //            {
+            //                spew("video sequence " + group.Key, group.Cast<RoverProductId>().ToList(), empty);
+            //            }
+            //        }
+            //        products = zcamProducts
+            //            .Where(id => !vidSeqs.Contains(id.Sequence))
+            //            .Concat(products.Where(id => !(id is M2020OPGSProductId) || !IsMastcam(id.Camera)))
+            //            .ToList();
+            //    }
+            //}
 
             //cull orphan masks
             var omFiltered = new List<RoverProductId>();
@@ -610,14 +613,14 @@ namespace OPS.Pipeline
             return true;
         }
 
-        public override bool IsVideoProduct(RoverProductId id, string url, Func<StorageHelper> storageHelper)
+        public override Regex GetVideoURLRegex()
         {
-            if (!IsMastcam(id.Camera))
-            {
-                return false;
-            }
+            return new Regex(@"^.*/(Z.0[^/]{20}ECV[^/]{26})\d{2}\.(IMG|VIC)$");
+        }
 
-            if (!string.IsNullOrEmpty(url))
+        public override bool IsVideoProduct(RoverProductId id, string url, Func<string, string, bool> edrExists)
+        {
+            if (IsMastcam(id.Camera) && !string.IsNullOrEmpty(url) && edrExists != null)
             {
                 //https://github.jpl.nasa.gov/OnSight/Landform/issues/1201
                 url = StringHelper.NormalizeUrl(url);
@@ -629,19 +632,15 @@ namespace OPS.Pipeline
                         id.GetProductTypeSpan(out int pts, out int ptl) && id.GetVersionSpan(out int vs, out int vl) &&
                         ptl == 3 && (vs + vl == idStr.Length) && (pts + ptl <= vs))
                     {
-                        var sh = storageHelper();
-                        if (sh != null)
-                        {
-                            idStr = idStr.Substring(0, vs); //strip version
-                            url = StringHelper.StripLastUrlPathSegment(url) + "/";
-                            url = url.Substring(0, rdrIdx) + "/edr/" + url.Substring(rdrIdx + 5); //"/rdr/" -> "/edr/"
-                            url += idStr.Substring(0, pts) + "ECV" + idStr.Substring(pts + ptl); //product type -> ECV
-                            return sh.SearchObjects(url, recursive: false).Count() > 0;
-                        }
+                        url = StringHelper.StripLastUrlPathSegment(url) + "/";
+                        url = url.Substring(0, rdrIdx) + "/edr/" + url.Substring(rdrIdx + 5); //"/rdr/" -> "/edr/"
+                        idStr = idStr.Substring(0, vs); //strip version
+                        idStr = idStr.Substring(0, pts) + "ECV" + idStr.Substring(pts + ptl); //prod type -> "ECV"
+                        idStr = idStr.Substring(0, 2) + "0" + idStr.Substring(3); //"Z?F" -> "Z?0"
+                        return edrExists(url, idStr);
                     }
                 }
             }
-
             return false;
         }
 
