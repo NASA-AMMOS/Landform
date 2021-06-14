@@ -128,22 +128,22 @@ namespace OPS.Pipeline
         public string AllowedProducers { get; set; } = "OPGS"; 
 
         [ConfigEnvironmentVariable("LANDFORM_MAX_CONTEXTUAL_MESH_WEDGES")]
-        public int MaxContextualMeshWedges { get; set; } = 500; 
+        public int MaxContextualMeshWedges { get; set; } = 2000; 
 
         [ConfigEnvironmentVariable("LANDFORM_MAX_CONTEXTUAL_MESH_TEXTURES")]
-        public int MaxContextualMeshTextures { get; set; } = 1000; 
+        public int MaxContextualMeshTextures { get; set; } = 4000; 
 
         [ConfigEnvironmentVariable("LANDFORM_MAX_CONTEXTUAL_MESH_NAVCAM_WEDGES_PER_SITEDRIVE")]
-        public int MaxContextualMeshNavcamWedgesPerSiteDrive { get; set; } = 100; 
+        public int MaxContextualMeshNavcamWedgesPerSiteDrive { get; set; } = 500; 
 
         [ConfigEnvironmentVariable("LANDFORM_MAX_CONTEXTUAL_MESH_NAVCAM_TEXTURES_PER_SITEDRIVE")]
-        public int MaxContextualMeshNavcamTexturesPerSiteDrive { get; set; } = 200; 
+        public int MaxContextualMeshNavcamTexturesPerSiteDrive { get; set; } = 1000; 
 
         [ConfigEnvironmentVariable("LANDFORM_MAX_CONTEXTUAL_MESH_MASTCAM_WEDGES_PER_SITEDRIVE")]
-        public int MaxContextualMeshMastcamWedgesPerSiteDrive { get; set; } = 100; 
+        public int MaxContextualMeshMastcamWedgesPerSiteDrive { get; set; } = 1500; 
 
         [ConfigEnvironmentVariable("LANDFORM_MAX_CONTEXTUAL_MESH_MASTCAM_TEXTURES_PER_SITEDRIVE")]
-        public int MaxContextualMeshMastcamTexturesPerSiteDrive { get; set; } = 200; 
+        public int MaxContextualMeshMastcamTexturesPerSiteDrive { get; set; } = 3000; 
     }
 
     public abstract class MissionSpecific : ConfigDefaultsProvider
