@@ -18,7 +18,7 @@ namespace OPS.Util
         public static string WildcardToRegularExpressionString(string value, bool fullMatch = true,
                                                                bool matchSlashes = true)
         {
-            string any = matchSlashes ? "." : "[^/\\]";
+            string any = matchSlashes ? "." : @"[^/\\]";
             string regex = Regex.Escape(value).Replace("\\?", any).Replace("\\*", any + "*");
             return fullMatch ? ("^" + regex + "$") : regex;
         }

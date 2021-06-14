@@ -1057,7 +1057,7 @@ namespace OPS.Landform
                     {
                         if (url.ToLower().StartsWith("s3"))
                         {
-                            success = storageHelper.DownloadFile(url, f);
+                            success = storageHelper.DownloadFile(url, f, logger: logger);
                         }
                         else
                         {

@@ -478,10 +478,9 @@ namespace OPS.Landform
                         reason = "no URL in message";
                         return false;
                     }
-                    string file = StringHelper.GetLastUrlPathSegment(url);
-                    bool isList = listRegex != null && listRegex.IsMatch(file);
-                    bool isWedge = wedgeRegex != null && wedgeRegex.IsMatch(file);
-                    bool isTexture = textureRegex != null && textureRegex.IsMatch(file);
+                    bool isList = listRegex != null && listRegex.IsMatch(url);
+                    bool isWedge = wedgeRegex != null && wedgeRegex.IsMatch(url);
+                    bool isTexture = textureRegex != null && textureRegex.IsMatch(url);
                     if (!isList && !isWedge && !isTexture)
                     {
                         reason = "unhandled file type: " + url;
@@ -552,7 +551,7 @@ namespace OPS.Landform
                     return true; //drop message, maybe file was deleted or renamed
                 }
                 var rdrDir = SiteDriveList.GetRDRDir(url);
-                if (rdrDir == null && listRegex != null && listRegex.IsMatch(StringHelper.GetLastUrlPathSegment(url)))
+                if (rdrDir == null && listRegex != null && listRegex.IsMatch(url))
                 {
                     //this will happen e.g. for s3://BUCKET/ids-pipeline/xyz_SSSDDDD.lis
                     //this is maybe a bit wasteful but the download should be cached
@@ -612,6 +611,13 @@ namespace OPS.Landform
             return false;
         }
 
+        private Regex MakeURLRegex(string filenamePattern)
+        {
+            string pat =
+                StringHelper.WildcardToRegularExpressionString(filenamePattern, fullMatch: false, matchSlashes: false);
+            return new Regex("^.*/" + pat + "$", RegexOptions.IgnoreCase);
+        }
+
         protected override bool ParseArguments()
         {
             options.RecursiveSearch = !options.NoRecursiveSearch;
@@ -638,17 +644,15 @@ namespace OPS.Landform
             if (!string.IsNullOrEmpty(options.WedgePattern) &&
                 !string.Equals(options.WedgePattern, "none", StringComparison.OrdinalIgnoreCase))
             {
-                wedgeRegex =
-                    StringHelper.WildcardToRegularExpression(options.WedgePattern, matchSlashes: false,
-                                                             opts: RegexOptions.IgnoreCase);
+                wedgeRegex = MakeURLRegex(options.WedgePattern);
+                pipeline.LogInfo("wedge regex: " + wedgeRegex);
             }
             
             if (!string.IsNullOrEmpty(options.TexturePattern) &&
                 !string.Equals(options.TexturePattern, "none", StringComparison.OrdinalIgnoreCase))
             {
-                textureRegex =
-                    StringHelper.WildcardToRegularExpression(options.TexturePattern, matchSlashes: false,
-                                                             opts: RegexOptions.IgnoreCase);
+                textureRegex = MakeURLRegex(options.TexturePattern);
+                pipeline.LogInfo("texture regex: " + textureRegex);
             }
             
             if (options.Master)
@@ -656,8 +660,8 @@ namespace OPS.Landform
                 if (!string.IsNullOrEmpty(options.ListPattern) &&
                     !string.Equals(options.ListPattern, "none", StringComparison.OrdinalIgnoreCase))
                 {
-                    listRegex = StringHelper.WildcardToRegularExpression(options.ListPattern, matchSlashes: false,
-                                                                         opts: RegexOptions.IgnoreCase);
+                    listRegex = MakeURLRegex(options.ListPattern);
+                    pipeline.LogInfo("list regex: " + listRegex);
                 }
 
                 if (!serviceUtilMode || options.DeleteQueues)
@@ -1314,6 +1318,10 @@ namespace OPS.Landform
             var solDirs = GetSolDirs(rdrDir, sol => sols.Contains(sol));
             string regex = MakeWedgeAndTextureRegex();
             string what = "wedges" + (textureRegex != null ? " and textures" : "");
+            if (pipeline.Verbose)
+            {
+                what += " matching " + regex;
+            }
             foreach (string dir in solDirs)
             {
                 pipeline.LogInfo("recursively searching {0} for {1}", dir, what);
@@ -1475,19 +1483,18 @@ namespace OPS.Landform
                         pipeline.LogWarn("file {0} not found", url);
                         continue;
                     }
-                    string file = StringHelper.GetLastUrlPathSegment(url);
-                    if (listRegex != null && listRegex.IsMatch(file))
+                    if (listRegex != null && listRegex.IsMatch(url))
                     {
                         LoadList(sdList, url);
                         listDirs.Add(StringHelper.StripLastUrlPathSegment(url) + "/");
                         listURLs.Add(url);
                     }
-                    else if (wedgeRegex != null && wedgeRegex.IsMatch(file))
+                    else if (wedgeRegex != null && wedgeRegex.IsMatch(url))
                     {
                         sdList.Add(url);
                         wedgeURLs.Add(url);
                     }
-                    else if (textureRegex != null && textureRegex.IsMatch(file))
+                    else if (textureRegex != null && textureRegex.IsMatch(url))
                     {
                         sdList.Add(url);
                         textureURLs.Add(url);
@@ -1588,6 +1595,10 @@ namespace OPS.Landform
                 string regex = MakeWedgeAndTextureRegex();
                 string what = (wedgeRegex != null && textureRegex != null) ? "wedges and textures" :
                     (wedgeRegex != null) ? "wedges" : "textures";
+                if (pipeline.Verbose)
+                {
+                    what += " matching " + regex;
+                }
 
                 pipeline.LogInfo("searching for additional {0} in RDR dir {1} for sols {2}-{3}",
                                  what, rdrDir, minSol, maxSol);

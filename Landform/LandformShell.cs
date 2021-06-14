@@ -174,6 +174,7 @@ namespace OPS.Landform
                     if (_storageHelper != null)
                     {
                         _storageHelper.Dispose();
+                        _storageHelper = null;
                     }
                     _storageHelper = value;
                 }
@@ -408,7 +409,7 @@ namespace OPS.Landform
                         {
                             pipeline.LogWarn("retrying download {0}", url);
                         }
-                        if (storageHelper().DownloadFile(url, path))
+                        if (storageHelper().DownloadFile(url, path, logger: pipeline.Logger))
                         {
                             break;
                         }
