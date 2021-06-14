@@ -573,9 +573,10 @@ namespace OPS.Landform
         //if cacheFolderListings=true then cache the basenames of a non-recursive listing
         //of all EDRs matching mission.GetVideoURLRegex() under s3Folder and check if basename is in that set
         //otherwise cache the individual true/false existence of any s3 objects starting with s3Folder + basename
-        public static bool EDRExists(string s3Folder, string basename, MissionSpecific mission,
-                                     StorageHelper storageHelper, bool cacheFolderListings, Action<string> info = null,
-                                     Action<string> verbose = null, Action<string> warn = null)
+        public static bool VideoEDRExists(string s3Folder, string basename, MissionSpecific mission,
+                                          StorageHelper storageHelper, bool cacheFolderListings,
+                                          Action<string> info = null, Action<string> verbose = null,
+                                          Action<string> warn = null)
         {
             bool uncachedSearch()
             {
@@ -600,7 +601,7 @@ namespace OPS.Landform
                 {
                     if (info != null)
                     {
-                        info("listing all ECV EDRs in " + s3Folder);
+                        info("listing all video EDRs in " + s3Folder);
                     }
                     foreach (var bn in storageHelper.SearchObjects(s3Folder, recursive: false,
                                                                    filter: url => regex.IsMatch(url))
@@ -610,7 +611,7 @@ namespace OPS.Landform
                     }
                     if (info != null)
                     {
-                        info($"caching list of {ret.Count} ECV EDRs in {s3Folder}");
+                        info($"caching list of {ret.Count} video EDRs in {s3Folder}");
                     }
                 }
                 catch (AmazonS3Exception e)
@@ -675,7 +676,7 @@ namespace OPS.Landform
             }
         }
                                      
-        private bool EDRExists(string s3Folder, string basename)
+        private bool VideoEDRExists(string s3Folder, string basename)
         {
             void verbose(string msg)
             {
@@ -684,8 +685,8 @@ namespace OPS.Landform
                     logger.Info(msg);
                 }
             }
-            return EDRExists(s3Folder, basename, mission, storageHelper, cacheFolderListings: true,
-                             info: logger.Info, verbose: verbose, warn: logger.Warn);
+            return VideoEDRExists(s3Folder, basename, mission, storageHelper, cacheFolderListings: true,
+                                  info: logger.Info, verbose: verbose, warn: logger.Warn);
         }
 
         //apply rules to filter an individual file
@@ -742,7 +743,7 @@ namespace OPS.Landform
                 {
                     reason = "disallowed product id for " + mission.GetMission() + ": " + msReason;
                 }
-                else if (mission != null && mission.IsVideoProduct(id, url, EDRExists))
+                else if (mission != null && mission.IsVideoProduct(id, url, VideoEDRExists))
                 {
                     reason = "excluded video image";
                 }

@@ -1205,20 +1205,20 @@ namespace OPS.Landform
 
         private string FilterTexture(RoverProductId id, string url)
         {
-            bool edrExists(string s3Folder, string basename)
+            bool videoEDRExists(string s3Folder, string basename)
             {
                 //only use cached folder listings in batch mode, i.e. when manually running a contextual mesh
                 //the master and worker services still use an EDR existence cache but don't list the whole EDR folder
                 //rather, they list and cache (for up to 2 days) each EDR product individually as needed
                 //because in some circumstances more EDRs could still arrive in the folder after the first listing
-                return FetchData.EDRExists(s3Folder, basename, mission, storageHelper,
-                                           cacheFolderListings: !serviceMode,
-                                           info: msg => pipeline.LogInfo(msg),
-                                           verbose: msg => pipeline.LogVerbose(msg),
-                                           warn: msg => pipeline.LogWarn(msg));
+                return FetchData.VideoEDRExists(s3Folder, basename, mission, storageHelper,
+                                                cacheFolderListings: !serviceMode,
+                                                info: msg => pipeline.LogInfo(msg),
+                                                verbose: msg => pipeline.LogVerbose(msg),
+                                                warn: msg => pipeline.LogWarn(msg));
             }
             return FilterProduct(id) ?? mission.FilterContextualMeshTexture(id, url) ??
-                (mission.IsVideoProduct(id, url, edrExists) ? "excluded video product" : null);
+                (mission.IsVideoProduct(id, url, videoEDRExists) ? "excluded video product" : null);
         }
 
         //RRR_[TTTT]SSSDDDD[I][_VV].lis

@@ -618,9 +618,9 @@ namespace OPS.Pipeline
             return new Regex(@"^.*/(Z.0[^/]{20}ECV[^/]{26})\d{2}\.(IMG|VIC)$");
         }
 
-        public override bool IsVideoProduct(RoverProductId id, string url, Func<string, string, bool> edrExists)
+        public override bool IsVideoProduct(RoverProductId id, string url, Func<string, string, bool> videoEDRExists)
         {
-            if (IsMastcam(id.Camera) && !string.IsNullOrEmpty(url) && edrExists != null)
+            if (IsMastcam(id.Camera) && !string.IsNullOrEmpty(url) && videoEDRExists != null)
             {
                 //https://github.jpl.nasa.gov/OnSight/Landform/issues/1201
                 url = StringHelper.NormalizeUrl(url);
@@ -637,7 +637,7 @@ namespace OPS.Pipeline
                         idStr = idStr.Substring(0, vs); //strip version
                         idStr = idStr.Substring(0, pts) + "ECV" + idStr.Substring(pts + ptl); //prod type -> "ECV"
                         idStr = idStr.Substring(0, 2) + "0" + idStr.Substring(3); //"Z?F" -> "Z?0"
-                        return edrExists(url, idStr);
+                        return videoEDRExists(url, idStr);
                     }
                 }
             }

@@ -817,7 +817,7 @@ namespace OPS.Pipeline
         }
 
         //null if not supported by mission
-        //otherwise first capturing group corresponds to second argument of edrExists callback for IsVideoProduct()
+        //otherwise first capturing group corresponds to second argument of videoEDRExists callback for IsVideoProduct()
         public virtual Regex GetVideoURLRegex()
         {
             return null;
@@ -825,10 +825,10 @@ namespace OPS.Pipeline
 
         //false if not supported by mission
         //otherwise check if product ID and/or URL is a video product
-        //edrExists is an optional callback (s3Folder, fileBasename) => bool that is needed for some missions
+        //videoEDRExists is an optional callback (s3Folder, fileBasename) => bool that is needed for some missions
         //e.g. for M2020 it's not possible to know if a ZCAM image is a video frame just from its ID or URL
         //but we can instead munge the URL into a corresponding ECV EDR url and check for that
-        public virtual bool IsVideoProduct(RoverProductId id, string url, Func<string, string, bool> edrExists)
+        public virtual bool IsVideoProduct(RoverProductId id, string url, Func<string, string, bool> videoEDRExists)
         {
             return false;
         }
