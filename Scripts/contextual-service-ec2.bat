@@ -198,6 +198,14 @@ if not "%LANDFORM_MAX_SOL_RANGE%"=="" (
    set minmaxopts=%minmaxopts% --maxsolrange=%LANDFORM_MAX_SOL_RANGE%
 )
 
+if not "%LANDFORM_CONTEXTUAL_MAX_SITEDRIVES_PER_SOL%"=="" (
+    set minmaxopts=%minmaxopts% --maxsitedrivespersol=%LANDFORM_CONTEXTUAL_MAX_SITEDRIVES_PER_SOL%
+)
+
+if not "%LANDFORM_CONTEXTUAL_MAX_SITEDRIVES_PER_SOL_PER_PASS%"=="" (
+    set minmaxopts=%minmaxopts% --maxsitedrivespersolperpass=%LANDFORM_CONTEXTUAL_MAX_SITEDRIVES_PER_SOL_PER_PASS%
+)
+
 set allowunmasked=
 if not "%LANDFORM_CONTEXTUAL_ALLOW_UNMASKED%"=="" set allowunmasked==--allowunmaskedroverobservations
 

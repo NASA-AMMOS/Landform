@@ -152,7 +152,7 @@ namespace OPS.Landform
         [Option(Default = null, HelpText = "Sol(s) and range(s) with primary one first, e.g. 8,6-10, mutually exclusive with --service")]
         public string Sols { get; set; }
 
-        [Option(Default = null, HelpText = "Sitedrives with primary one first, mutually exclusive with --service, if omitted or \"auto\" then autodetect sitedrive with most wedges in primary sol and all other qualifying sitedrives in sol range")]
+        [Option(Default = null, HelpText = "Sitedrives with primary one first, mutually exclusive with --service, if omitted or \"auto\" then autodetect highest numbered sitedrive in primary sol and all other qualifying sitedrives in sol range")]
         public string SiteDrives { get; set; }
 
         [Option(Default = false, HelpText = "Don't fetch")]
@@ -263,7 +263,7 @@ namespace OPS.Landform
         [Option(Default = false, HelpText = "Worker message queue(s) Landform owned")]
         public bool LandformOwnedWorkerQueue { get; set; }
 
-        [Option(Default = ProcessContextual.DEF_MIN_PRIMARY_SITEDRIVE_WEDGES, HelpText = "Minimum number of wedges for primary site drive in a contextual mesh, non-positive for no limit")]
+        [Option(Default = ProcessContextual.DEF_MIN_PRIMARY_SITEDRIVE_WEDGES, HelpText = "Minimum number of wedges for primary site drive in a contextual mesh, non-positive for no limit, does not apply to highest-numbered sitedrive per sol per pass")]
         public int MinPrimarySiteDriveWedges { get; set; }
 
         [Option(Default = ProcessContextual.DEF_MAX_SITEDRIVES, HelpText = "Max number of site drives to include in contextual mesh, non-positive for no limit")]
@@ -275,6 +275,12 @@ namespace OPS.Landform
 
         [Option(Default = ProcessContextual.DEF_MAX_SOL_RANGE, HelpText = "Max difference between sol and primary sol to include in contextual mesh, negative to use default")]
         public int MaxSolRange { get; set; }
+
+        [Option(Default = ProcessContextual.DEF_MAX_SITEDRIVES_PER_SOL, HelpText = "If positive, cull messages for older sitedrives to limit the total number of contextual messages per sol")]
+        public int MaxSiteDrivesPerSol { get; set; }
+
+        [Option(Default = ProcessContextual.DEF_MAX_SITEDRIVES_PER_SOL_PER_PASS, HelpText = "If positive, cull messages for older sitedrives to limit the total number of new contextual messages per sol for each pass")]
+        public int MaxSiteDrivesPerSolPerPass { get; set; }
 
         [Option(HelpText = "Allow rover observations for which no suitable rover mask is available or could be generated", Default = false)]
         public virtual bool AllowUnmaskedRoverObservations { get; set; }
@@ -304,6 +310,9 @@ namespace OPS.Landform
         public const int DEF_MAX_SITEDRIVES = 64;
         public const double DEF_MAX_SITEDRIVE_DISTANCE = 2 * BuildGeometry.DEF_SURFACE_EXTENT;
         public const int DEF_MAX_SOL_RANGE = 200;
+
+        public const int DEF_MAX_SITEDRIVES_PER_SOL = -1;
+        public const int DEF_MAX_SITEDRIVES_PER_SOL_PER_PASS = 1;
 
         public const string DEF_MAX_FETCH = "100G";
         public const string DEF_MAX_ORBITAL = "20G";
@@ -700,6 +709,11 @@ namespace OPS.Landform
             pipeline.LogInfo("contextual mesh extent {0}, surface extent {1}", options.Extent, options.SurfaceExtent);
             pipeline.LogInfo("max sol range {0}, max sitedrives {1}", solRange, maxSDs);
             pipeline.LogInfo("min wedges for primary sitedrive {0}", options.MinPrimarySiteDriveWedges);
+            pipeline.LogInfo("max sitedrives per sol {0}",
+                             options.MaxSiteDrivesPerSol > 0 ? options.MaxSiteDrivesPerSol.ToString() : "unlimited");
+            pipeline.LogInfo("max sitedrives per sol per pass {0}",
+                             options.MaxSiteDrivesPerSolPerPass > 0 ? options.MaxSiteDrivesPerSolPerPass.ToString() :
+                             "unlimited");
 
             pipeline.LogInfo("max wedges {0}, max textures {1}",
                              mission.GetMaxContextualMeshWedges(), mission.GetMaxContextualMeshTextures());
@@ -890,21 +904,27 @@ namespace OPS.Landform
                 else if (allSDs.Count > 0)
                 {
                     var primarySDCandidates = allSDs.Keys.Where(sd => allSDs[sd].Sols.Contains(primarySol)).ToList();
-                    int minWedges = options.MinPrimarySiteDriveWedges;
-                    if (minWedges > 0)
-                    {
-                        primarySDCandidates = primarySDCandidates
-                            .Where(sd => allSDs[sd].NumWedges >= minWedges)
-                            .ToList();
-                    }
                     if (primarySDCandidates.Count == 0)
                     {
-                        pipeline.LogError("no sitedrives{0} in sol {1}",
-                                         minWedges > 0 ? (" with at least " + minWedges + " wedges") : "", primarySol);
+                        pipeline.LogError("no sitedrives in sol {0}", primarySol);
                         return null;
                     }
-                    
-                    primarySD = primarySDCandidates.OrderByDescending(sd => allSDs[sd].NumWedges).First();
+                    //minWedges is not applied to the highest numbered sitedrive in a sol
+                    //so the auto primary sitedrive for a sol is always the highest numbered one
+                    //int minWedges = options.MinPrimarySiteDriveWedges;
+                    //if (minWedges > 0)
+                    //{
+                    //    primarySDCandidates = primarySDCandidates
+                    //        .Where(sd => allSDs[sd].NumWedges >= minWedges)
+                    //        .ToList();
+                    //    if (primarySDCandidates.Count == 0)
+                    //    {
+                    //        pipeline.LogError("no sitedrives with at least {0} wedges in sol {1}",
+                    //                          minWedges, primarySol);
+                    //        return null;
+                    //    }
+                    //}
+                    primarySD = primarySDCandidates.OrderByDescending(sd => sd).First();
                 }
 
                 if (givenSDs.Length > 0)
@@ -928,8 +948,12 @@ namespace OPS.Landform
                     return null;
                 }
 
+                var changedSDsBySol = new Dictionary<int, List<SiteDrive>>();
+                changedSDsBySol[primarySol] = new List<SiteDrive>();
+                changedSDsBySol[primarySol].Add(primarySD.Value);
+
                 var placesDB = !orbitalOnly ? InitPlacesDB() : null;
-                var msg = MakeContextualMeshMessage(primarySD.Value, allSDs, placesDB, orbitalOnly);
+                var msg = MakeContextualMeshMessage(primarySD.Value, changedSDsBySol, allSDs, placesDB, orbitalOnly);
 
                 if (msg == null)
                 {
@@ -1715,15 +1739,14 @@ namespace OPS.Landform
         /// Otherwise considers additional sitedrives from sdLists, which should all have same RDRDir as primarySDList.
         /// </summary>
         private ContextualMeshMessage MakeContextualMeshMessage(SiteDrive primarySD,
-                                                                Dictionary<SiteDrive, SiteDriveList> sds,
+                                                                Dictionary<int, List<SiteDrive>> changedSDsBySol,
+                                                                Dictionary<SiteDrive, SiteDriveList> allSDs,
                                                                 PlacesDB placesDB = null, bool orbitalOnly = false)
         {
-            SiteDriveList primarySDList = sds[primarySD];
+            SiteDriveList primarySDList = allSDs[primarySD];
 
             string rdrDir = primarySDList.RDRDir;
             int primarySol = primarySDList.MaxSol;
-
-            string name = string.Format("{0}_{1}", SolToString(primarySol), primarySD.ToString());
 
             ContextualMeshMessage orbitalOnlyMsg()
             {
@@ -1746,14 +1769,16 @@ namespace OPS.Landform
                 return orbitalOnlyMsg();
             }
 
-            double maxDistance = options.MaxSiteDriveDistance;
-
             int minSol = primarySol - solRange;
             int maxSol = primarySol + solRange;
             primarySDList = primarySDList.FilterToSolRange(minSol, maxSol);
 
+            string name = string.Format("{0}_{1}", SolToString(primarySol), primarySD.ToString());
+
             //primary site drive must have at least this many wedges
-            if (options.MinPrimarySiteDriveWedges > 0 && primarySDList.NumWedges < options.MinPrimarySiteDriveWedges)
+            //unless it's the highest numbered sitedrive in its sol
+            if ((!changedSDsBySol.ContainsKey(primarySol) || primarySD < changedSDsBySol[primarySol].Max()) &&
+                options.MinPrimarySiteDriveWedges > 0 && primarySDList.NumWedges < options.MinPrimarySiteDriveWedges)
             {
                 string msg = "not producing";
                 ContextualMeshMessage ret = null;
@@ -1769,6 +1794,7 @@ namespace OPS.Landform
 
             int maxWedges = mission.GetMaxContextualMeshWedges();
             int maxTextures = mission.GetMaxContextualMeshTextures();
+            double maxDistance = options.MaxSiteDriveDistance;
 
             pipeline.LogInfo("filtering sitedrives for contextual mesh{0}{1}" +
                              ", max wedges {2} ({3} navcam/sitedrive, {4} mastcam/sitedrive)" +
@@ -1785,9 +1811,9 @@ namespace OPS.Landform
             var keepers = new Dictionary<SiteDrive, SiteDriveList>();
             keepers[primarySD] = primarySDList;
             var distance = new Dictionary<SiteDrive, double>();
-            foreach (var sd in sds.Keys.OrderBy(sd => sd))
+            foreach (var sd in allSDs.Keys.OrderBy(sd => sd))
             {
-                var list = sds[sd];
+                var list = allSDs[sd];
 
                 if (list.RDRDir != rdrDir)
                 {
@@ -1933,6 +1959,7 @@ namespace OPS.Landform
         /// Combines a batch of new contextual mesh messages with existing ones in the worker queue.
         /// The messages must all have the same RDR dir.
         /// De-dupes, preferring newer-created messages to older.
+        /// enforces options.MaxSiteDrivesPerSol
         /// Returns messages sorted first by decreasing sol, then by decreasing number of wedges.
         /// </summary>
         private List<ContextualMeshMessage> CoalesceMessages(List<ContextualMeshMessage> newMsgsOldestToNewest)
@@ -1978,7 +2005,7 @@ namespace OPS.Landform
             //really there should be no dupes among the old messages
             //but just in case, keep them in order
             int oldMsgsCount = 0;
-            List<ContextualMeshMessage> reapExisting(MessageQueue queue, string what)
+            void reapExisting(MessageQueue queue, string what)
             {
                 var oldMsgsOldestToNewest = new List<ContextualMeshMessage>();
                 while (true)
@@ -1999,8 +2026,6 @@ namespace OPS.Landform
                 keepNewest(oldMsgsOldestToNewest, what);
 
                 oldMsgsCount += oldMsgsOldestToNewest.Count;
-
-                return oldMsgsOldestToNewest;
             }
 
             reapExisting(workerQueue, "existing");
@@ -2008,6 +2033,41 @@ namespace OPS.Landform
             if (orbitalWorkerQueue != null)
             {
                 reapExisting(orbitalWorkerQueue, "existing orbital only");
+            }
+
+            if (options.MaxSiteDrivesPerSol > 0)
+            {
+                var msgsBySol = new Dictionary<int, List<ContextualMeshMessage>>();
+                foreach (var msg in keepers)
+                {
+                    if (!msgsBySol.ContainsKey(msg.primarySol))
+                    {
+                        msgsBySol[msg.primarySol] = new List<ContextualMeshMessage>();
+                    }
+                    msgsBySol[msg.primarySol].Add(msg);
+                }
+                foreach (int sol in msgsBySol.Keys)
+                {
+                    var filtered = msgsBySol[sol]
+                        .OrderByDescending(msg => msg.primarySiteDrive)
+                        .Take(options.MaxSiteDrivesPerSol)
+                        .ToList();
+                    if (filtered.Count < msgsBySol[sol].Count)
+                    {
+                        var discarded = msgsBySol[sol]
+                            .OrderByDescending(msg => msg.primarySiteDrive)
+                            .Skip(options.MaxSiteDrivesPerSol)
+                            .ToList();
+                        pipeline.LogInfo("kept messages for {0} highest numbered sitedrives {1} for sol {2}, " +
+                                         "discarded {3} others for sitedrives {4}",
+                                         filtered.Count, string.Join(",", filtered.Select(msg => msg.primarySiteDrive)),
+                                         sol, discarded.Count,
+                                         string.Join(",", discarded.Select(msg => msg.primarySiteDrive)));
+                    }   
+                    msgsBySol[sol] = filtered;
+                }
+                keepers.Clear();
+                keepers.UnionWith(msgsBySol.Values.SelectMany(msgs => msgs));
             }
 
             pipeline.LogInfo("kept {0} coalesced messages from {1} old and {2} new",
@@ -2124,9 +2184,62 @@ namespace OPS.Landform
                     {
                         var sdLists = LoadSiteDriveLists(rdrDir, urlsToProcess[rdrDir]);
 
-                        if (sdLists.Count < 1)
+                        var changedSDs = urlsToProcess[rdrDir].Keys
+                            .Where(sd => sdLists.ContainsKey(sd))
+                            .OrderByDescending(sd => sd)
+                            .ToList();
+
+                        if (changedSDs.Count < 1)
                         {
+                            pipeline.LogWarn("failed to load sitedrive lists for RDR dir {0} " +
+                                             "with {1} changed URLs in {2} changed sitedrives {3}",
+                                             rdrDir, urlsToProcess[rdrDir].Values.Sum(urls => urls.Count),
+                                             urlsToProcess[rdrDir].Count, string.Join(",", urlsToProcess[rdrDir].Keys));
                             continue;
+                        }
+
+                        var allSDs = new Dictionary<SiteDrive, SiteDriveList>();
+                        foreach (var entry in sdLists)
+                        {
+                            allSDs[entry.Key] = entry.Value.Value;
+                        }
+
+                        var changedSDsBySol = new Dictionary<int, List<SiteDrive>>();
+                        foreach (var sd in changedSDs)
+                        {
+                            int sol = allSDs[sd].MaxSol;
+                            if (!changedSDsBySol.ContainsKey(sol))
+                            {
+                                changedSDsBySol[sol] = new List<SiteDrive>();
+                            }
+                            changedSDsBySol[sol].Add(sd);
+                        }
+
+                        if (options.MaxSiteDrivesPerSolPerPass > 0)
+                        {
+                            foreach (int sol in changedSDsBySol.Keys)
+                            {
+                                var filtered = changedSDsBySol[sol]
+                                    .OrderByDescending(sd => sd)
+                                    .Take(options.MaxSiteDrivesPerSolPerPass)
+                                    .ToList();
+                                if (filtered.Count < changedSDsBySol[sol].Count)
+                                {
+                                    var discarded = changedSDsBySol[sol]
+                                        .OrderByDescending(sd => sd)
+                                        .Skip(options.MaxSiteDrivesPerSolPerPass)
+                                        .ToList();
+                                    pipeline.LogInfo("kept {0} highest numbered sitedrives {1} for sol {2} " +
+                                                     "changed in this pass, discarded {3} other sitedrives {4}",
+                                                     filtered.Count, string.Join(",", filtered), sol,
+                                                     discarded.Count, string.Join(",", discarded));
+                                }   
+                                changedSDsBySol[sol] = filtered;
+                            }
+                            changedSDs = changedSDsBySol.Values
+                                .SelectMany(sds => sds)
+                                .OrderByDescending(sd => sd)
+                                .ToList();
                         }
 
                         var msgs = new List<Stamped<ContextualMeshMessage>>();
@@ -2140,16 +2253,12 @@ namespace OPS.Landform
                         lock (usePlaces ? credentialRefreshLock : new Object())
                         {
                             var placesDB = usePlaces ? InitPlacesDB() : null;
-                            foreach (var changedSD in urlsToProcess[rdrDir].Keys.Where(sd => sdLists.ContainsKey(sd)))
+                            foreach (var changedSD in changedSDs)
                             {
                                 try
                                 {
-                                    var allSDs = new Dictionary<SiteDrive, SiteDriveList>();
-                                    foreach (var entry in sdLists)
-                                    {
-                                        allSDs[entry.Key] = entry.Value.Value;
-                                    }
-                                    var msg = MakeContextualMeshMessage(changedSD, allSDs, placesDB, options.NoSurface);
+                                    var msg = MakeContextualMeshMessage(changedSD, changedSDsBySol, allSDs, placesDB,
+                                                                        options.NoSurface);
                                     if (msg != null)
                                     {
                                         msgs.Add(new Stamped<ContextualMeshMessage>(msg, sdLists[changedSD].Timestamp));
