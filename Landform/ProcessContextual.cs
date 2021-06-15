@@ -293,7 +293,7 @@ namespace OPS.Landform
     {
         public const string FETCH_DIR = "fetched";
 
-        new public const int DEF_MAX_HANDLER_SEC = 4 * 60 * 60; //4 hours
+        new public const int DEF_MAX_HANDLER_SEC = 6 * 60 * 60; //6 hours
         new public const int DEF_MAX_MESSAGE_AGE_SEC = 6 * 60 * 60; //6 hours
 
         public const int DEF_MASTER_MAX_HANDLER_SEC = 10 * 60; //10 minutes
