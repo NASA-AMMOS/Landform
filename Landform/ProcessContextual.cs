@@ -236,11 +236,14 @@ namespace OPS.Landform
         [Option(Default = null, HelpText = "Master service list filename pattern, case insensitive, e.g. xyz_*.lis, null, empty, or \"none\" to reject list files")]
         public string ListPattern { get; set; }
 
-        [Option(Default = "*XYZ*.IMG", HelpText = "Master service wedge filename pattern, case insensitive, null, empty,or \"none\" to reject wedge files")]
+        [Option(Default = ProcessContextual.DEF_WEDGE_PATTERN, HelpText = "Master service wedge filename pattern, case insensitive, null, empty,or \"none\" to reject wedge files")]
         public string WedgePattern { get; set; }
 
-        [Option(Default = "*RAS*.IMG", HelpText = "Master service texture filename pattern, case insensitive, null, empty,or \"none\" to reject texture files")]
+        [Option(Default = ProcessContextual.DEF_TEXTURE_PATTERN, HelpText = "Master service texture filename pattern, case insensitive, null, empty,or \"none\" to reject texture files")]
         public string TexturePattern { get; set; }
+
+        [Option(Default = ProcessContextual.DEF_EOP_PATTERN, HelpText = "Master service end-of-processing message pattern, case insensitive, null, empty,or \"none\" to reject EOP messages")]
+        public string EOPPattern { get; set; }
 
         [Option(Default = false, HelpText = "If using list files (--listpattern is specified) then don't search for sibling list files to detect available sitedrives")]
         public bool NoSearchForAdditionalLists { get; set; }
@@ -305,17 +308,20 @@ namespace OPS.Landform
         public const string DEF_MAX_FETCH = "100G";
         public const string DEF_MAX_ORBITAL = "20G";
 
+        public const string DEF_WEDGE_PATTERN = "*XYZ*.IMG";
+        public const string DEF_TEXTURE_PATTERN = "*RAS*.IMG";
+
         //an example EOP message is
         //EOP at 2021-05-19 05-09-43
         //however, because we don't know details of the time format (e.g. timezone, 12/24h)
         //let's just conservatively look for "EOP"
         //and call the timestamp the time we received it
         //which is more in line with how we timestamp changed RDR URLs anyway
-        public readonly Regex EOP_REGEX = new Regex(@"^\s*(EOP|eop)");
+        public const string DEF_EOP_PATTERN = "*EOP*"; 
 
         protected ProcessContextualOptions options;
 
-        private Regex listRegex, wedgeRegex, textureRegex;
+        private Regex listRegex, wedgeRegex, textureRegex, eopRegex;
 
         private int debounceMS;
         private int solRange, maxSDs;
@@ -603,7 +609,7 @@ namespace OPS.Landform
 
         protected override bool AlternateMessageHandler(string msg)
         {
-            if (EOP_REGEX.IsMatch(msg))
+            if (eopRegex != null && eopRegex.IsMatch(msg))
             {
                 eopTimestamp = (long)UTCTime.NowMS();
                 return true;
@@ -662,6 +668,14 @@ namespace OPS.Landform
                 {
                     listRegex = MakeURLRegex(options.ListPattern);
                     pipeline.LogInfo("list regex: " + listRegex);
+                }
+
+                if (!string.IsNullOrEmpty(options.EOPPattern) &&
+                    !string.Equals(options.EOPPattern, "none", StringComparison.OrdinalIgnoreCase))
+                {
+                    eopRegex = StringHelper.WildcardToRegularExpression(options.EOPPattern, fullMatch: true,
+                                                                        opts: RegexOptions.IgnoreCase);
+                    pipeline.LogInfo("EOP regex: " + eopRegex);
                 }
 
                 if (!serviceUtilMode || options.DeleteQueues)

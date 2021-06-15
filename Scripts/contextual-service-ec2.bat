@@ -215,6 +215,10 @@ if not "%LANDFORM_CONTEXTUAL_MAX_RECEIVE_COUNT%"=="" (
     set msgopts=%msgopts% --maxreceivecount=%LANDFORM_CONTEXTUAL_MAX_RECEIVE_COUNT%
 )
 
+if not "%LANDFORM_CONTEXTUAL_EOP_PATTERN%"=="" (
+    set msgopts=%msgopts% --eoppattern=%LANDFORM_CONTEXTUAL_EOP_PATTERN%
+)
+
 set svcextra=
 if not "%LANDFORM_CONTEXTUAL_OPTS%"=="" set svcextra=%LANDFORM_CONTEXTUAL_OPTS%
 
