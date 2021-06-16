@@ -6,6 +6,7 @@ using System.Text;
 using System.IO;
 using Microsoft.Xna.Framework;
 using System.Diagnostics;
+using RTree;
 using OPS.MathExtensions;
 using OPS.Util;
 using OPS.Imaging;
@@ -243,29 +244,34 @@ namespace OPS.Geometry
         /// </summary>
         public static void MergeNearbyVertices(this Mesh mesh, double eps)
         {
-            VertexKDTree kdTree = new VertexKDTree(mesh);
-            Dictionary<Vertex, int> vertexToIndex = new Dictionary<Vertex, int>();
+            var rTree = new RTree<int>();
             Dictionary<int, int> oldToNewIndex = new Dictionary<int, int>();
-            List<Vertex> uniqueVertices = new List<Vertex>();
             for (int i = 0; i < mesh.Vertices.Count; i++)
             {
                 Vertex v = mesh.Vertices[i];
-                if (!vertexToIndex.ContainsKey(v))
+                var nearestIndices = rTree.Intersects(v.Position.ToRectangle());
+                if (nearestIndices.Count > 0)
                 {
-                    Vertex closest = kdTree.NearestNeighbor(v.Position);
-                    if (vertexToIndex.ContainsKey(closest) && Vector3.Distance(v.Position, closest.Position) < eps)
+                    double minDistSq = double.PositiveInfinity;
+                    int closest = -1;
+                    foreach (int j in nearestIndices)
                     {
-                        vertexToIndex.Add(v, vertexToIndex[closest]); //close enough to existing point, merge
+                        double d2 = Vector3.DistanceSquared(mesh.Vertices[j].Position, v.Position);
+                        if (d2 < minDistSq)
+                        {
+                            closest = j;
+                            minDistSq = d2;
+                        }
                     }
-                    else //add as new point
-                    {
-                        vertexToIndex.Add(v, uniqueVertices.Count);
-                        uniqueVertices.Add(v);
-                    }
+                    oldToNewIndex[i] = closest;
                 }
-                oldToNewIndex.Add(i, vertexToIndex[v]);
+                else
+                {
+                    rTree.Add(v.Position.ToRectangle(eps), i);
+                    oldToNewIndex[i] = i;
+                }
             }
-            mesh.Vertices = uniqueVertices;
+            mesh.Vertices = oldToNewIndex.Values.Select(i => mesh.Vertices[i]).ToList();
             for (int i = 0; i < mesh.Faces.Count; i++)
             {
                 Face f = mesh.Faces[i];

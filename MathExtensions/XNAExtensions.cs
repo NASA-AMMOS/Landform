@@ -180,6 +180,14 @@ namespace OPS.MathExtensions
                                        (float)v.Z, (float)v.Z); //yes, z last
         }
 
+        public static RTree.Rectangle ToRectangle(this Vector3 v, double minSize)
+        {
+            float r = (float)(0.5 * minSize);
+            return new RTree.Rectangle((float)v.X - r, (float)v.Y + r,
+                                       (float)v.X - r, (float)v.Y + r,
+                                       (float)v.Z - r, (float)v.Z + r); //yes, z last
+        }
+
         public static RTree.Point ToRTreePoint(this Vector3 v)
         {
             return new RTree.Point((float)v.X, (float)v.Y, (float)v.Z);
