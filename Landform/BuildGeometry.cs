@@ -222,6 +222,8 @@ namespace OPS.Landform
         public const double DEF_BLEND_RADIUS = 3;
         public const double DEF_SEW_RADIUS = 0.2;
 
+        public const double SURFACE_HULL_MERGE_EPS = 0.01;
+
         public const int BLEND_GUTTER_SAMPLES = 4;
 
         private int dbgMeshCount;
@@ -235,8 +237,14 @@ namespace OPS.Landform
         private WedgeObservations.MeshOptions wedgeMeshOpts;
 
         private ConcurrentDictionary<string, Mesh> observationPointClouds = new ConcurrentDictionary<string, Mesh>();
+
+        private Mesh surfaceHull;
+        private MeshOperator surfaceHullUVMeshOp;
+
         private Mesh pointCloud;
+
         private BoundingBox pointCloudBounds, envelopeBounds;
+
         private Mesh mesh;
 
         private Mesh untrimmedMesh;
@@ -268,6 +276,7 @@ namespace OPS.Landform
                 if (!options.NoSurface)
                 {
                     RunPhase("build observation point clouds", BuildObservationPointClouds);
+                    RunPhase("build surface hull", MakeSurfaceHull);
                     RunPhase("merge point clouds", MergePointClouds);
                     RunPhase("reconstruct mesh", ReconstructMesh);
                     if (options.FilterTriangles > 0)
@@ -622,6 +631,43 @@ namespace OPS.Landform
                 Interlocked.Decrement(ref np);
                 Interlocked.Increment(ref nc);
             });
+
+            if (!options.NoAutoExpandSurfaceExtent)
+            {
+                double autoExtent = options.SurfaceExtent;
+                foreach (var pc in observationPointClouds.Values)
+                {
+                    var pcb = pc.Bounds();
+                    double pcExtent = 2 * Math.Max(Math.Max(Math.Abs(pcb.Min.X), Math.Abs(pcb.Max.X)),
+                                                   Math.Max(Math.Abs(pcb.Min.Y), Math.Abs(pcb.Max.Y)));
+                    autoExtent = Math.Min(options.Extent, Math.Max(autoExtent, Math.Ceiling(pcExtent)));
+                }
+                if (autoExtent > options.SurfaceExtent)
+                {
+                    pipeline.LogInfo("expanding surface extent from {0:f3} to {1:f3}m to fit input points",
+                                     options.SurfaceExtent, autoExtent);
+                    options.SurfaceExtent = autoExtent;
+                    if (!options.NoOrbital)
+                    {
+                        blendExtent = Math.Min(options.Extent, options.SurfaceExtent + 2 * Math.Max(blendRadius, 0));
+                    }
+                }
+            }
+        }
+
+        private void MakeSurfaceHull()
+        {
+            surfaceHull = Delaunay.Triangulate(observationPointClouds.Values.SelectMany(pc => pc.Vertices));
+            pipeline.LogInfo("merging nearby vertices in surface hull ({0} vertices, {1} faces), epsilon {2:f3}m",
+                             Fmt.KMG(surfaceHull.Vertices.Count), Fmt.KMG(surfaceHull.Faces.Count),
+                             SURFACE_HULL_MERGE_EPS);
+            surfaceHull.MergeNearbyVertices(SURFACE_HULL_MERGE_EPS);
+            pipeline.LogInfo("merging surface hull has {0} vertices, {1} triangles after merging",
+                             Fmt.KMG(surfaceHull.Vertices.Count), Fmt.KMG(surfaceHull.Faces.Count));
+            pipeline.LogInfo("making surface hull UV mesh operator");
+            surfaceHull.XYToUV();
+            surfaceHullUVMeshOp =
+                new MeshOperator(surfaceHull, buildFaceTree: false, buildVertexTree: false, buildUVFaceTree: true);
         }
 
         private void MergePointClouds()
@@ -653,33 +699,11 @@ namespace OPS.Landform
 
             int numNonOrbitalClouds = cloudList.Count;
 
-            if (!options.NoAutoExpandSurfaceExtent)
-            {
-                double autoExtent = options.SurfaceExtent;
-                foreach (var pc in cloudList)
-                {
-                    var pcb = pc.Bounds();
-                    double pcExtent = 2 * Math.Max(Math.Max(Math.Abs(pcb.Min.X), Math.Abs(pcb.Max.X)),
-                                                   Math.Max(Math.Abs(pcb.Min.Y), Math.Abs(pcb.Max.Y)));
-                    autoExtent = Math.Min(options.Extent, Math.Max(autoExtent, Math.Ceiling(pcExtent)));
-                }
-                if (autoExtent > options.SurfaceExtent)
-                {
-                    pipeline.LogInfo("expanding surface extent from {0:f3} to {1:f3}m to fit input points",
-                                     options.SurfaceExtent, autoExtent);
-                    options.SurfaceExtent = autoExtent;
-                    if (!options.NoOrbital)
-                    {
-                        blendExtent = Math.Min(options.Extent, options.SurfaceExtent + 2 * Math.Max(blendRadius, 0));
-                    }
-                }
-            }
-
             if (!options.NoFillHoles && !options.NoOrbital && orbitalFillSamplesPerPixel > 0 && orbitalDEM != null)
             {
                 pipeline.LogInfo("adding orbital point cloud for hole filling, subsample {0}",
                                  orbitalFillSamplesPerPixel);
-                var opc = MakeOrbitalPointCloud(Delaunay.Triangulate(cloudList.SelectMany(pc => pc.Vertices)));
+                var opc = MakeOrbitalPointCloud();
                 double ons = 1;
                 switch (wedgeMeshOpts.NormalScale)
                 {
@@ -886,9 +910,12 @@ namespace OPS.Landform
                 throw new Exception("failed to build mesh");
             }
 
-            CleanMesh();
-
             SaveDebugMesh(mesh, "reconstructed");
+
+            pipeline.LogInfo("clipping reconstructed mesh to surface hull");
+            ClipMeshToMask(surfaceHullUVMeshOp, strict: true);
+
+            SaveDebugMesh(mesh, "hull-trimmed");
         }
 
         private void FilterMesh()
@@ -1064,6 +1091,28 @@ namespace OPS.Landform
             }
         }
 
+        private void ClipMeshToMask(MeshOperator uvMeshOp, bool strict)
+        {
+            bool checkVert(int index)
+            {
+                var xy = new Vector2(mesh.Vertices[index].Position.X, mesh.Vertices[index].Position.Y);
+                return uvMeshOp.UVToBarycentric(xy) != null;
+            }
+            if (strict)
+            {
+                mesh.Faces = mesh.Faces
+                    .Where(face => checkVert(face.P0) && checkVert(face.P1) && checkVert(face.P2))
+                    .ToList();
+            }
+            else
+            {
+                mesh.Faces = mesh.Faces
+                    .Where(face => checkVert(face.P0) || checkVert(face.P1) || checkVert(face.P2))
+                    .ToList();
+            }
+            CleanMesh();
+        }
+
         //Replace mesh with a new reconstruction that
         //(1) uses less picky trimming
         //(2) but that is clipped in the XY plane to the mask we already created
@@ -1083,41 +1132,25 @@ namespace OPS.Landform
                 SaveDebugMesh(mesh, "trimmed-lenient");
             }
 
-            mesh.Faces = mesh.Faces.Where(face =>
-            {
-                //Get rid of faces if all of their endpoints fall fall outside mask mesh
-                //TODO: clip on any overlap and stitch meshes
-                //Currently the output of trimmer does not have a clean boundary which makes stitching difficult
-                //change || to && for stronger clip
-                return (maskUVMeshOp.UVToBarycentric(new Vector2(mesh.Vertices[face.P0].Position.X,
-                                                                 mesh.Vertices[face.P0].Position.Y)) != null ||
-                        maskUVMeshOp.UVToBarycentric(new Vector2(mesh.Vertices[face.P1].Position.X,
-                                                                 mesh.Vertices[face.P1].Position.Y)) != null ||
-                        maskUVMeshOp.UVToBarycentric(new Vector2(mesh.Vertices[face.P2].Position.X,
-                                                                 mesh.Vertices[face.P2].Position.Y)) != null);
-            }).ToList();
-
-            CleanMesh();
+            //TODO: clip on any overlap and stitch meshes
+            //Currently the output of trimmer does not have a clean boundary which makes stitching difficult
+            ClipMeshToMask(maskUVMeshOp, strict: false);
 
             SaveDebugMesh(mesh, "masked");
         }
 
-        private Mesh MakeOrbitalPointCloud(Mesh surfaceHull = null)
+        private Mesh MakeOrbitalPointCloud()
         {
             int surfaceRadiusPixels = (int)Math.Ceiling(0.5 * options.SurfaceExtent / orbitalDEMMetersPerPixel);
             Vector3 meshOriginInOrbital = Vector3.Transform(Vector3.Zero, meshToOrbital);
             var surfaceBounds = orbitalDEM.GetSubrectPixels(surfaceRadiusPixels, meshOriginInOrbital);
+            pipeline.LogInfo("making orbital point cloud");
             var ret = MakeOrbitalMesh(orbitalFillSamplesPerPixel, surfaceBounds);
             ret.Faces.Clear();
-            if (surfaceHull != null)
-            {
-                surfaceHull.XYToUV();
-                var meshOp =
-                    new MeshOperator(surfaceHull, buildFaceTree: false, buildVertexTree: false, buildUVFaceTree: true);
-                ret.Vertices = ret.Vertices
-                    .Where(v => meshOp.UVToBarycentric(new Vector2(v.Position.X, v.Position.Y)) != null)
-                    .ToList();
-            }
+            pipeline.LogInfo("clipping orbital point cloud to surface hull");
+            ret.Vertices = ret.Vertices
+                .Where(v => surfaceHullUVMeshOp.UVToBarycentric(new Vector2(v.Position.X, v.Position.Y)) != null)
+                .ToList();
             return ret;
         }
 
