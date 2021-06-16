@@ -130,7 +130,7 @@ namespace OPS.Landform
         [Option(HelpText = "Orbital sampling rate to fill holes, negative to use DEM resolution, 0 to disable", Default = 15)]
         public double OrbitalFillPointsPerMeter { get; set; }
 
-        [Option(HelpText = "Orbital sampling confidence to fill holes", Default = 0.01)]
+        [Option(HelpText = "Orbital sampling confidence to fill holes", Default = 0.1)]
         public double OrbitalFillPoissonConfidence { get; set; }
 
         [Option(HelpText = "Mask resolution for clipping surface/orbital", Default = 2)]
