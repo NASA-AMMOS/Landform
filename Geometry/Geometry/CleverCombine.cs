@@ -75,17 +75,17 @@ namespace OPS.Geometry
         //thread local storage
         private class TLSXYZ
         {
-            public Dictionary<int, int[]> cloudsInCell;
-            public Dictionary<int, int[]> cloudsInNeighborhood;
+            public Dictionary<int, int[]> cloudsInCell, cloudsInNeighborhood;
             public List<int> dead;
-            public List<Vertex> keepers;
+            public List<Vertex> pointsInCell, keepers;
 
-            public TLSXYZ(int numClouds, int expectedMaxKeepersPerThread)
+            public TLSXYZ(int numClouds, int expectedMaxKeepersPerThread, int maxPointsPerCell)
             {
                 cloudsInCell = new Dictionary<int, int[]>(numClouds);
                 cloudsInNeighborhood = new Dictionary<int, int[]>(numClouds);
                 dead = new List<int>(numClouds);
                 keepers = new List<Vertex>(expectedMaxKeepersPerThread);
+                pointsInCell = maxPointsPerCell > 0 ? new List<Vertex>() : null;
             }
         }
             
@@ -165,7 +165,9 @@ namespace OPS.Geometry
                 logger.LogInfo("CleverCombine: pruning {0}x{1}x{2} ({3}) cells", gridX, gridY, gridZ, Fmt.KMG(gridXYZ));
             }
             int expectedMaxKeepersPerThread = numPoints / CoreLimitedParallel.GetMaxCores();
-            CoreLimitedParallel.For(0, gridXYZ, () => new TLSXYZ(numClouds, expectedMaxKeepersPerThread), (cell, tls) =>
+            CoreLimitedParallel.For(0, gridXYZ,
+            () => new TLSXYZ(numClouds, expectedMaxKeepersPerThread, maxPointsPerCell),
+            (cell, tls) =>
             {
                 int i = (cell % gridXY) / gridX; //0 to gridY - 1
                 int j = (cell % gridXY) % gridX; //0 to gridX -1
@@ -302,36 +304,40 @@ namespace OPS.Geometry
                     break; //no more outlier clouds
                 }
 
-                tls.keepers.Clear();
+                int numPointsInCell = tls.cloudsInCell.Values.Sum(pts => pts.Length);
+                List<Vertex> dest = null;
+                if (maxPointsPerCell > 0 && numPointsInCell > maxPointsPerCell)
+                {
+                    tls.pointsInCell.Clear();
+                    tls.pointsInCell.Capacity = Math.Max(tls.pointsInCell.Capacity, numPointsInCell);
+                    dest = tls.pointsInCell;
+                }
+                else
+                {
+                    dest = tls.keepers;
+                }
+                    
+                tls.keepers.Capacity =
+                    Math.Max(tls.keepers.Capacity,
+                             tls.keepers.Count + (dest == tls.keepers ? numPointsInCell : maxPointsPerCell));
+
                 foreach (var entry in tls.cloudsInCell)
                 {
                     foreach (var v in entry.Value)
                     {
-                        tls.keepers.Add(clouds[entry.Key].Vertices[v]);
+                        dest.Add(clouds[entry.Key].Vertices[v]);
                     }
                 }
 
-                if (maxPointsPerCell > 0 && tls.keepers.Count > maxPointsPerCell)
+                if (dest == tls.pointsInCell)
                 {
-                    NumberHelper.Shuffle(tls.keepers, rng);
+                    NumberHelper.Shuffle(tls.pointsInCell, rng);
+                    tls.keepers.AddRange(tls.pointsInCell.Take(maxPointsPerCell));
                 }
 
                 return tls;
             },
-            tls =>
-            {
-                lock (output)
-                {
-                    if (maxPointsPerCell > 0 && tls.keepers.Count > maxPointsPerCell)
-                    {
-                        output.Vertices.AddRange(tls.keepers.Take(maxPointsPerCell));
-                    }
-                    else
-                    {
-                        output.Vertices.AddRange(tls.keepers);
-                    }
-                }
-            });
+            tls => { lock (output) { output.Vertices.AddRange(tls.keepers); } });
 
             if (logger != null)
             {
