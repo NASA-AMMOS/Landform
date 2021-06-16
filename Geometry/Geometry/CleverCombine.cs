@@ -160,6 +160,9 @@ namespace OPS.Geometry
             double smallestNNDistanceSq = smallestNNDistance * smallestNNDistance;
             double maxMSEThreshold = maxRMSE * maxRMSE;
 
+            int smallestCell = int.MaxValue;
+            int biggestCell = 0;
+
             if (logger != null)
             {
                 logger.LogInfo("CleverCombine: pruning {0}x{1}x{2} ({3}) cells", gridX, gridY, gridZ, Fmt.KMG(gridXYZ));
@@ -333,7 +336,11 @@ namespace OPS.Geometry
                 {
                     NumberHelper.Shuffle(tls.pointsInCell, rng);
                     tls.keepers.AddRange(tls.pointsInCell.Take(maxPointsPerCell));
+                    numPointsInCell = maxPointsPerCell;
                 }
+
+                InterlockedExtensions.Min(ref smallestCell, numPointsInCell);
+                InterlockedExtensions.Max(ref biggestCell, numPointsInCell);
 
                 return tls;
             },
@@ -354,7 +361,9 @@ namespace OPS.Geometry
 
             if (logger != null)
             {
-                logger.LogInfo("CleverCombine: returning {0} vertices", Fmt.KMG(output.Vertices.Count));
+                logger.LogInfo("CleverCombine: returning {0} vertices, {1}-{2} per cell",
+                               Fmt.KMG(output.Vertices.Count), Fmt.KMG(smallestCell < int.MaxValue ? smallestCell : 0),
+                               Fmt.KMG(biggestCell));
             }
 
             return output;

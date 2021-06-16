@@ -7,6 +7,98 @@ using System.Threading.Tasks;
 
 namespace OPS.Util
 {
+    //https://stackoverflow.com/questions/13042045
+    public class InterlockedExtensions
+    {
+        public static int Min(ref int target, int newValue)
+        {
+            return Compare(ref target, newValue, (nv, v) => nv < v);
+        }
+
+        public static int Max(ref int target, int newValue)
+        {
+            return Compare(ref target, newValue, (nv, v) => nv > v);
+        }
+
+        public static long Min(ref long target, long newValue)
+        {
+            return Compare(ref target, newValue, (nv, v) => nv < v);
+        }
+
+        public static long Max(ref long target, long newValue)
+        {
+            return Compare(ref target, newValue, (nv, v) => nv > v);
+        }
+
+        public static float Min(ref float target, float newValue)
+        {
+            return Compare(ref target, newValue, (nv, v) => nv < v);
+        }
+
+        public static float Max(ref float target, float newValue)
+        {
+            return Compare(ref target, newValue, (nv, v) => nv > v);
+        }
+
+        public static double Min(ref double target, double newValue)
+        {
+            return Compare(ref target, newValue, (nv, v) => nv < v);
+        }
+
+        public static double Max(ref double target, double newValue)
+        {
+            return Compare(ref target, newValue, (nv, v) => nv > v);
+        }
+
+        public static int Compare(ref int target, int newValue, Func<int, int, bool> func)
+        {
+            int val;
+            bool newWins;
+            do
+            {
+                val = target;
+                newWins = func(newValue, val);
+            } while (newWins && Interlocked.CompareExchange(ref target, newValue, val) != val);
+            return newWins ? newValue : val;
+        }
+
+        public static long Compare(ref long target, long newValue, Func<long, long, bool> func)
+        {
+            long val;
+            bool newWins;
+            do
+            {
+                val = target;
+                newWins = func(newValue, val);
+            } while (newWins && Interlocked.CompareExchange(ref target, newValue, val) != val);
+            return newWins ? newValue : val;
+        }
+
+        public static float Compare(ref float target, float newValue, Func<float, float, bool> func)
+        {
+            float val;
+            bool newWins;
+            do
+            {
+                val = target;
+                newWins = func(newValue, val);
+            } while (newWins && Interlocked.CompareExchange(ref target, newValue, val) != val);
+            return newWins ? newValue : val;
+        }
+
+        public static double Compare(ref double target, double newValue, Func<double, double, bool> func)
+        {
+            double val;
+            bool newWins;
+            do
+            {
+                val = target;
+                newWins = func(newValue, val);
+            } while (newWins && Interlocked.CompareExchange(ref target, newValue, val) != val);
+            return newWins ? newValue : val;
+        }
+    }
+
     public class Serial
     {
         /// <summary>
