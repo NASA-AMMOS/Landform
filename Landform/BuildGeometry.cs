@@ -657,13 +657,18 @@ namespace OPS.Landform
 
         private void MakeSurfaceHull()
         {
-            surfaceHull = Delaunay.Triangulate(observationPointClouds.Values.SelectMany(pc => pc.Vertices));
-            pipeline.LogInfo("merging nearby vertices in surface hull ({0} vertices, {1} faces), epsilon {2:f3}m",
-                             Fmt.KMG(surfaceHull.Vertices.Count), Fmt.KMG(surfaceHull.Faces.Count),
-                             SURFACE_HULL_MERGE_EPS);
-            surfaceHull.MergeNearbyVertices(SURFACE_HULL_MERGE_EPS);
-            pipeline.LogInfo("merging surface hull has {0} vertices, {1} triangles after merging",
+            var reducedSurfaceCloud = new Mesh();
+            reducedSurfaceCloud.Vertices = observationPointClouds.Values.SelectMany(pc => pc.Vertices).ToList();
+            pipeline.LogInfo("merging nearby vertices to make surface hull, {0} vertices, epsilon {1:f3}m",
+                             Fmt.KMG(reducedSurfaceCloud.Vertices.Count), SURFACE_HULL_MERGE_EPS);
+            reducedSurfaceCloud.MergeNearbyVertices(SURFACE_HULL_MERGE_EPS);
+
+            pipeline.LogInfo("delaunay triangulating {0} points to make surface hull",
+                             Fmt.KMG(reducedSurfaceCloud.Vertices.Count));
+            surfaceHull = Delaunay.Triangulate(reducedSurfaceCloud.Vertices);
+            pipeline.LogInfo("surface hull has {0} vertices, {1} triangles",
                              Fmt.KMG(surfaceHull.Vertices.Count), Fmt.KMG(surfaceHull.Faces.Count));
+
             pipeline.LogInfo("making surface hull UV mesh operator");
             surfaceHull.XYToUV();
             surfaceHullUVMeshOp =
