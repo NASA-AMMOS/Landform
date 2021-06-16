@@ -507,6 +507,11 @@ namespace OPS.Landform
                     cmd += string.Format(" {0} {1}", entry.Key, entry.Value);
                 }
             }
+            string extraArgs = Environment.GetEnvironmentVariable($"LANDFORM_{cmd.Replace('-','_').ToUpper()}_EXTRA");
+            if (!string.IsNullOrEmpty(extraArgs))
+            {
+                cmd += " " + extraArgs;
+            }
             pipeline.LogInfo("{0}running {1} {2}", lsopts.DryRun ? "dry " : "", landformExe, cmd);
             if (!lsopts.DryRun)
             {
