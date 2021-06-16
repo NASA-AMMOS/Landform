@@ -653,6 +653,28 @@ namespace OPS.Landform
 
             int numNonOrbitalClouds = cloudList.Count;
 
+            if (!options.NoAutoExpandSurfaceExtent)
+            {
+                double autoExtent = options.SurfaceExtent;
+                foreach (var pc in cloudList)
+                {
+                    var pcb = pc.Bounds();
+                    double pcExtent = Math.Max(Math.Max(Math.Abs(pcb.Min.X), Math.Abs(pcb.Max.X)),
+                                               Math.Max(Math.Abs(pcb.Min.Y), Math.Abs(pcb.Max.Y)));
+                    autoExtent = Math.Min(options.Extent, Math.Max(autoExtent, Math.Ceiling(pcExtent)));
+                }
+                if (autoExtent > options.SurfaceExtent)
+                {
+                    pipeline.LogInfo("expanding surface extent from {0:f3} to {1:f3}m to fit input points",
+                                     options.SurfaceExtent, autoExtent);
+                    options.SurfaceExtent = autoExtent;
+                    if (!options.NoOrbital)
+                    {
+                        blendExtent = Math.Min(options.Extent, options.SurfaceExtent + 2 * Math.Max(blendRadius, 0));
+                    }
+                }
+            }
+
             if (!options.NoFillHoles && !options.NoOrbital && orbitalFillSamplesPerPixel > 0 && orbitalDEM != null)
             {
                 pipeline.LogInfo("adding orbital point cloud for hole filling, subsample {0}",
@@ -806,25 +828,6 @@ namespace OPS.Landform
                 colored.ColorByNormalMagnitude(low, high);
                 colored.NormalizeNormals();
                 SaveDebugMesh(colored, wedgeMeshOpts.NormalScale.ToString());
-            }
-
-            if (!options.NoAutoExpandSurfaceExtent)
-            {
-                double pcExtent = Math.Max(Math.Max(Math.Abs(pointCloudBounds.Min.X),
-                                                    Math.Abs(pointCloudBounds.Max.X)),
-                                           Math.Max(Math.Abs(pointCloudBounds.Min.Y),
-                                                    Math.Abs(pointCloudBounds.Max.Y)));
-                pcExtent = Math.Min(options.Extent, pcExtent);
-                if (pcExtent > options.SurfaceExtent)
-                {
-                    pipeline.LogInfo("expanded surface extent from {0:f3} to {1:f3}m to fit input points",
-                                     options.SurfaceExtent, pcExtent);
-                    options.SurfaceExtent = pcExtent;
-                    if (!options.NoOrbital)
-                    {
-                        blendExtent = Math.Min(options.Extent, options.SurfaceExtent + 2 * Math.Max(blendRadius, 0));
-                    }
-                }
             }
         }
 
