@@ -1410,8 +1410,16 @@ namespace OPS.Landform
             {
                 return;
             }
+
             long target = Math.Max(0, maxBytes - minFreeBytes);
-            bool summarized = false;
+            if (diskBytes < target)
+            {
+                return;
+            }
+
+            logger.InfoFormat("deleting least-recently used downloads, current disk usage {0}, target {1}",
+                              Fmt.DiskBytes(diskBytes), Fmt.DiskBytes(target));
+
             var lru = lruDownloads;
             HashSet<string> deleted = null;
             if (keep != null)
@@ -1419,27 +1427,41 @@ namespace OPS.Landform
                 lru = new Queue<FileInfo>(lru.Where(file => !keep.Contains(file.FullName)));
                 deleted = new HashSet<string>();
             }
-            while (lru.Count > 0 && diskBytes > target)
+
+            int ndf = 0, ndd = 0;
+            long ndb = 0;
+            DateTime? first = null, last = null;
+            while (diskBytes > target)
             {
-                if (!summarized)
+                if (lru.Count == 0)
                 {
-                    logger.InfoFormat("deleting least-recently used downloads, current disk usage {0}, target {1}",
+                    logger.WarnFormat("no more LRU downloads to delete, but current disk usage {0} > {1}",
                                       Fmt.DiskBytes(diskBytes), Fmt.DiskBytes(target));
-                    summarized = true;
+                    break;
                 }
                 var file = lru.Dequeue(); //removes from beginning of queue (oldest)
                 try
                 {
                     long bytes = file.Length;
-                    logger.InfoFormat("deleting least-recently used file {0} ({1} bytes, last access {2}), " +
-                                      "{3}/{4} bytes currently free, target min free bytes {5}",
-                                      file.FullName, Fmt.DiskBytes(bytes), file.LastAccessTime,
-                                      Fmt.DiskBytes(maxBytes - diskBytes), //may be negative
-                                      Fmt.DiskBytes(maxBytes), Fmt.DiskBytes(minFreeBytes));
+                    if (options.Verbose)
+                    {
+                        logger.InfoFormat("deleting least-recently used file {0} ({1} bytes, last access {2}), " +
+                                          "{3}/{4} bytes currently free, target min free bytes {5}",
+                                          file.FullName, Fmt.DiskBytes(bytes), file.LastAccessTime,
+                                          Fmt.DiskBytes(maxBytes - diskBytes), //may be negative
+                                          Fmt.DiskBytes(maxBytes), Fmt.DiskBytes(minFreeBytes));
+                    }
                     file.Delete();
                     diskBytes -= bytes;
                     deletedBytes += bytes;
                     deletedFiles++;
+                    ndf++;
+                    ndb += bytes;
+                    if (!first.HasValue)
+                    {
+                        first = file.LastAccessTime;
+                    }
+                    last = file.LastAccessTime;
                     if (deleted != null)
                     {
                         deleted.Add(file.FullName);
@@ -1448,6 +1470,7 @@ namespace OPS.Landform
                     {
                         file.Directory.Delete();
                         deletedDirectories++;
+                        ndd++;
                     }
                 }
                 catch (Exception ex)
@@ -1455,20 +1478,24 @@ namespace OPS.Landform
                     logger.ErrorFormat("error deleting LRU download {0}: {1}", file.FullName, ex.Message);
                 }
             }
+
             if (deletedFiles > 0)
             {
                 if (lru != lruDownloads)
                 {
                     lruDownloads = new Queue<FileInfo>(lruDownloads.Where(file => !deleted.Contains(file.FullName)));
                 }
-                logger.InfoFormat("deleted {0} LRU files (cumulative), {1} bytes, {2}/{3} bytes free",
-                                  Fmt.DiskBytes(deletedFiles), Fmt.DiskBytes(deletedBytes),
+                logger.InfoFormat("deleted {0} LRU files ({1} cumulative) with last access times {2} to {3}, " +
+                                  "{4} bytes ({5} cumulative), {6}/{7} bytes free",
+                                  Fmt.KMG(ndf), Fmt.KMG(deletedFiles), first.Value, last.Value,
+                                  Fmt.DiskBytes(ndb), Fmt.DiskBytes(deletedBytes),
                                   Fmt.DiskBytes(maxBytes - diskBytes), //may be negative
                                   Fmt.DiskBytes(maxBytes));
             }
+
             if (deletedDirectories > 0)
             {
-                logger.InfoFormat("deleted {0} empty directories (cumulative)", Fmt.KMG(deletedDirectories));
+                logger.InfoFormat("deleted {0} empty directories ({1} cumulative)", ndd, Fmt.KMG(deletedDirectories));
             }
         }
 
