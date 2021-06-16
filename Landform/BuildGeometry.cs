@@ -633,8 +633,6 @@ namespace OPS.Landform
                 return (obs as RoverObservation).SiteDrive.ToString();
             }).ToArray();
 
-            int nv = observationPointClouds.Values.Sum(pc => pc.Vertices.Count);
-
             var cloudList = groups.Select(group =>
             {
                 var obsClouds = group.Select(pair => pair.Value).ToArray();
@@ -680,6 +678,7 @@ namespace OPS.Landform
             }
 
             var clouds = cloudList.ToArray();
+            long nv = clouds.Sum(pc => pc.Vertices.Count);
 
             int numDownward = 0;
             foreach (Mesh cloud in clouds)
