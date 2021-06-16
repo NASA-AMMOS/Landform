@@ -659,8 +659,8 @@ namespace OPS.Landform
                 foreach (var pc in cloudList)
                 {
                     var pcb = pc.Bounds();
-                    double pcExtent = Math.Max(Math.Max(Math.Abs(pcb.Min.X), Math.Abs(pcb.Max.X)),
-                                               Math.Max(Math.Abs(pcb.Min.Y), Math.Abs(pcb.Max.Y)));
+                    double pcExtent = 2 * Math.Max(Math.Max(Math.Abs(pcb.Min.X), Math.Abs(pcb.Max.X)),
+                                                   Math.Max(Math.Abs(pcb.Min.Y), Math.Abs(pcb.Max.Y)));
                     autoExtent = Math.Min(options.Extent, Math.Max(autoExtent, Math.Ceiling(pcExtent)));
                 }
                 if (autoExtent > options.SurfaceExtent)
