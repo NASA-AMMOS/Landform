@@ -302,6 +302,7 @@ namespace OPS.Geometry
                     break; //no more outlier clouds
                 }
 
+                tls.keepers.Clear();
                 foreach (var entry in tls.cloudsInCell)
                 {
                     foreach (var v in entry.Value)
