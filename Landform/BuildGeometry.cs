@@ -1078,7 +1078,9 @@ namespace OPS.Landform
             int surfaceRadiusPixels = (int)Math.Ceiling(0.5 * options.SurfaceExtent / orbitalDEMMetersPerPixel);
             Vector3 meshOriginInOrbital = Vector3.Transform(Vector3.Zero, meshToOrbital);
             var surfaceBounds = orbitalDEM.GetSubrectPixels(surfaceRadiusPixels, meshOriginInOrbital);
-            return MakeOrbitalMesh(orbitalFillSamplesPerPixel, surfaceBounds);
+            var ret = MakeOrbitalMesh(orbitalFillSamplesPerPixel, surfaceBounds);
+            ret.Faces.Clear();
+            return ret;
         }
 
         private Mesh MakeOrbitalMesh(double subsample, Image.Subrect outerBounds, Image.Subrect innerBounds = null,
