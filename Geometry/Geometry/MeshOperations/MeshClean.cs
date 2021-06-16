@@ -217,8 +217,8 @@ namespace OPS.Geometry
         public static void RemoveUnreferencedVertices(this Mesh mesh)
         {
             var referencedIndices = mesh.VertexIndicesReferencedByFaces();
-            List<Vertex> referencedVertices = new List<Vertex>();
-            Dictionary<int, int> oldToNewIndex = new Dictionary<int, int>();
+            var referencedVertices = new List<Vertex>();
+            var oldToNewIndex = new Dictionary<int, int>();
             for (int i = 0; i < mesh.Vertices.Count; i++)
             {
                 // Is this vertex referenced by a face?
@@ -245,7 +245,8 @@ namespace OPS.Geometry
         public static void MergeNearbyVertices(this Mesh mesh, double eps)
         {
             var rTree = new RTree<int>();
-            Dictionary<int, int> oldToNewIndex = new Dictionary<int, int>();
+            var newVertices = new List<Vertex>();
+            var oldToNewIndex = new Dictionary<int, int>();
             for (int i = 0; i < mesh.Vertices.Count; i++)
             {
                 Vertex v = mesh.Vertices[i];
@@ -263,15 +264,16 @@ namespace OPS.Geometry
                             minDistSq = d2;
                         }
                     }
-                    oldToNewIndex[i] = closest;
+                    oldToNewIndex[i] = oldToNewIndex[closest];
                 }
                 else
                 {
                     rTree.Add(v.Position.ToRectangle(eps), i);
-                    oldToNewIndex[i] = i;
+                    oldToNewIndex[i] = newVertices.Count;
+                    newVertices.Add(v);
                 }
             }
-            mesh.Vertices = oldToNewIndex.Values.Select(i => mesh.Vertices[i]).ToList();
+            mesh.Vertices = newVertices;
             for (int i = 0; i < mesh.Faces.Count; i++)
             {
                 Face f = mesh.Faces[i];
