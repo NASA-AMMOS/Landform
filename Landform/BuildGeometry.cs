@@ -160,6 +160,9 @@ namespace OPS.Landform
         [Option(HelpText = "Clever combine cell aspect (height relative to width)", Default = CleverCombine.DEF_CELL_ASPECT)]
         public double CleverCombineCellAspect { get; set; }
 
+        [Option(HelpText = "Clever combine max points per cell", Default = CleverCombine.DEF_MAX_POINTS_PER_CELL)]
+        public int CleverCombineMaxPointsPerCell { get; set; }
+
         [Option(HelpText = "Expand poinnt bounds to envelope bounds", Default = TilingDefaults.PARENT_CLIP_BOUNDS_EXPAND_HEIGHT)]
         public double ExpandEnvelopeBounds { get; set; }
 
@@ -765,7 +768,8 @@ namespace OPS.Landform
                                      clouds.Length, options.CleverCombineCellSize, options.CleverCombineCellAspect,
                                      Fmt.KMG(nv));
                     
-                    var cc = new CleverCombine(options.CleverCombineCellSize, options.CleverCombineCellAspect);
+                    var cc = new CleverCombine(options.CleverCombineCellSize, options.CleverCombineCellAspect,
+                                               options.CleverCombineMaxPointsPerCell);
                     pointCloud = cc.Combine(clouds, origins, pipeline);
                     
                     pipeline.LogInfo("clever combine returned {0} points", Fmt.KMG(pointCloud.Vertices.Count));
