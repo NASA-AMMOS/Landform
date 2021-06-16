@@ -763,9 +763,10 @@ namespace OPS.Landform
 
                 if (clouds.Length > 1)
                 {
-                    pipeline.LogInfo("clever combining {0} point clouds, cell size {1}, aspect {2}, total {3} pts",
+                    pipeline.LogInfo("clever combining {0} point clouds, cell size {1}, aspect {2}, " +
+                                     "max points per cell {3}, total {4} pts",
                                      clouds.Length, options.CleverCombineCellSize, options.CleverCombineCellAspect,
-                                     Fmt.KMG(nv));
+                                     options.CleverCombineMaxPointsPerCell, Fmt.KMG(nv));
                     
                     var cc = new CleverCombine(options.CleverCombineCellSize, options.CleverCombineCellAspect,
                                                options.CleverCombineMaxPointsPerCell);
