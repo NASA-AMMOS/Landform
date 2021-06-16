@@ -246,44 +246,54 @@ namespace OPS.Geometry
         {
             var rTree = new RTree<int>();
             var newVertices = new List<Vertex>();
-            var oldToNewIndex = new Dictionary<int, int>();
+            var oldToNewIndex = mesh.Faces.Count > 0 ? new Dictionary<int, int>() : null;
             for (int i = 0; i < mesh.Vertices.Count; i++)
             {
                 Vertex v = mesh.Vertices[i];
-                var nearestIndices = rTree.Intersects(v.Position.ToRectangle());
+                var nearestIndices = rTree.Intersects(v.Position.ToRectangle(eps));
                 if (nearestIndices.Count > 0)
                 {
-                    double minDistSq = double.PositiveInfinity;
-                    int closest = -1;
-                    foreach (int j in nearestIndices)
+                    if (oldToNewIndex != null)
                     {
-                        double d2 = Vector3.DistanceSquared(mesh.Vertices[j].Position, v.Position);
-                        if (d2 < minDistSq)
+                        double minDistSq = double.PositiveInfinity;
+                        int closest = -1;
+                        foreach (int j in nearestIndices)
                         {
-                            closest = j;
-                            minDistSq = d2;
+                            double d2 = Vector3.DistanceSquared(mesh.Vertices[j].Position, v.Position);
+                            if (d2 < minDistSq)
+                            {
+                                closest = j;
+                                minDistSq = d2;
+                            }
                         }
+                        oldToNewIndex[i] = oldToNewIndex[closest];
                     }
-                    oldToNewIndex[i] = oldToNewIndex[closest];
                 }
                 else
                 {
                     rTree.Add(v.Position.ToRectangle(eps), i);
-                    oldToNewIndex[i] = newVertices.Count;
+                    if (oldToNewIndex != null)
+                    {
+                        oldToNewIndex[i] = newVertices.Count;
+                    }
                     newVertices.Add(v);
                 }
             }
             mesh.Vertices = newVertices;
-            for (int i = 0; i < mesh.Faces.Count; i++)
+
+            if (oldToNewIndex != null)
             {
-                Face f = mesh.Faces[i];
-                f.P0 = oldToNewIndex[f.P0];
-                f.P1 = oldToNewIndex[f.P1];
-                f.P2 = oldToNewIndex[f.P2];
-                mesh.Faces[i] = f;
+                for (int i = 0; i < mesh.Faces.Count; i++)
+                {
+                    Face f = mesh.Faces[i];
+                    f.P0 = oldToNewIndex[f.P0];
+                    f.P1 = oldToNewIndex[f.P1];
+                    f.P2 = oldToNewIndex[f.P2];
+                    mesh.Faces[i] = f;
+                }
+                mesh.RemoveInvalidFaces();
+                mesh.RemoveIdenticalFaces();
             }
-            mesh.RemoveInvalidFaces();
-            mesh.RemoveIdenticalFaces();
         }
 
         /// <summary>
