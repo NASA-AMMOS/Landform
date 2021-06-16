@@ -112,6 +112,9 @@ namespace OPS.Landform
         [Option(HelpText = "Final clip box XY size in meters, 0 to clip to aggregate point cloud bounds", Default = BuildGeometry.DEF_EXTENT)]
         public double Extent { get; set; }
 
+        [Option(HelpText = "Don't expand --surfacextent to fit aggregate point cloud bounds", Default = false)]
+        public bool NoAutoExpandSurfaceExtent { get; set; }
+
         [Option(HelpText = "Pre-clip observation point clouds to XY box of this size in meters around mesh frame origin if positive", Default = 0)]
         public double PreClipPointCloudExtent { get; set; }
 
@@ -803,6 +806,25 @@ namespace OPS.Landform
                 colored.ColorByNormalMagnitude(low, high);
                 colored.NormalizeNormals();
                 SaveDebugMesh(colored, wedgeMeshOpts.NormalScale.ToString());
+            }
+
+            if (!options.NoAutoExpandSurfaceExtent)
+            {
+                double pcExtent = Math.Max(Math.Max(Math.Abs(pointCloudBounds.Min.X),
+                                                    Math.Abs(pointCloudBounds.Max.X)),
+                                           Math.Max(Math.Abs(pointCloudBounds.Min.Y),
+                                                    Math.Abs(pointCloudBounds.Max.Y)));
+                pcExtent = Math.Min(options.Extent, pcExtent);
+                if (pcExtent > options.SurfaceExtent)
+                {
+                    pipeline.LogInfo("expanded surface extent from {0:f3} to {1:f3}m to fit input points",
+                                     options.SurfaceExtent, pcExtent);
+                    options.SurfaceExtent = pcExtent;
+                    if (!options.NoOrbital)
+                    {
+                        blendExtent = Math.Min(options.Extent, options.SurfaceExtent + 2 * Math.Max(blendRadius, 0));
+                    }
+                }
             }
         }
 
