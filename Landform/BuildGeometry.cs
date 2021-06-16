@@ -669,6 +669,8 @@ namespace OPS.Landform
             pipeline.LogInfo("surface hull has {0} vertices, {1} triangles",
                              Fmt.KMG(surfaceHull.Vertices.Count), Fmt.KMG(surfaceHull.Faces.Count));
 
+            SaveDebugMesh(surfaceHull, "surface-hull");
+
             pipeline.LogInfo("making surface hull UV mesh operator");
             surfaceHull.XYToUV();
             surfaceHullUVMeshOp =
