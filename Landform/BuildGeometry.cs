@@ -679,7 +679,7 @@ namespace OPS.Landform
             {
                 pipeline.LogInfo("adding orbital point cloud for hole filling, subsample {0}",
                                  orbitalFillSamplesPerPixel);
-                var opc = MakeOrbitalPointCloud();
+                var opc = MakeOrbitalPointCloud(Delaunay.Triangulate(cloudList.SelectMany(pc => pc.Vertices)));
                 double ons = 1;
                 switch (wedgeMeshOpts.NormalScale)
                 {
@@ -1102,13 +1102,22 @@ namespace OPS.Landform
             SaveDebugMesh(mesh, "masked");
         }
 
-        private Mesh MakeOrbitalPointCloud()
+        private Mesh MakeOrbitalPointCloud(Mesh surfaceHull = null)
         {
             int surfaceRadiusPixels = (int)Math.Ceiling(0.5 * options.SurfaceExtent / orbitalDEMMetersPerPixel);
             Vector3 meshOriginInOrbital = Vector3.Transform(Vector3.Zero, meshToOrbital);
             var surfaceBounds = orbitalDEM.GetSubrectPixels(surfaceRadiusPixels, meshOriginInOrbital);
             var ret = MakeOrbitalMesh(orbitalFillSamplesPerPixel, surfaceBounds);
             ret.Faces.Clear();
+            if (surfaceHull != null)
+            {
+                surfaceHull.XYToUV();
+                var meshOp =
+                    new MeshOperator(surfaceHull, buildFaceTree: false, buildVertexTree: false, buildUVFaceTree: true);
+                ret.Vertices = ret.Vertices
+                    .Where(v => meshOp.UVToBarycentric(new Vector2(v.Position.X, v.Position.Y)) != null)
+                    .ToList();
+            }
             return ret;
         }
 
