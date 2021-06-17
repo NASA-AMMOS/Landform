@@ -28,15 +28,15 @@ namespace OPS.Pipeline
         public bool UseMastcamForMeshing { get; set; } = false;
 
         [ConfigEnvironmentVariable("LANDFORM_USE_REAR_HAZCAM_FOR_ALIGNMENT")]
-        public bool UseRearHazcamForAlignment { get; set; } = false;
+        public bool UseRearHazcamForAlignment { get; set; } = true;
 
         [ConfigEnvironmentVariable("LANDFORM_USE_REAR_HAZCAM_FOR_MESHING")]
-        public bool UseRearHazcamForMeshing { get; set; } = false;
+        public bool UseRearHazcamForMeshing { get; set; } = true;
 
         [ConfigEnvironmentVariable("LANDFORM_PREFER_LINEAR_GEOMETRY_PRODUCTS")]
         public bool PreferLinearGeometryProducts { get; set; } = false;
 
-        //CSSO credentials uername parameter in SSM, {venue} will be replaced
+        //CSSO credentials username parameter in SSM, {venue} will be replaced
         [ConfigEnvironmentVariable("LANDFORM_CSSO_USERNAME_PARAMETER_IN_SSM")]
         public string CSSOUsernameParameterInSSM { get; set; } = "/m20/{venue}/ids/pipeline/csso_username";
 
@@ -66,7 +66,7 @@ namespace OPS.Pipeline
         //sorted in order of preference (best last)
         //https://wiki.jpl.nasa.gov/pages/viewpage.action?spaceKey=MSMFS&title=Special+Character+Flags
         [ConfigEnvironmentVariable("LANDFORM_ALLOWED_PROCESSING_TYPES")]
-        public string AllowedProcessingTypes { get; set; } = "_,C"; 
+        public string AllowedProcessingTypes { get; set; } = "_,C,P,S,R"; 
 
         //comma separated list of producers to allow
         //must match RoverProductProducer enum values
