@@ -751,7 +751,7 @@ namespace OPS.Pipeline
                         msg = string.Format("  {0} images {1}x{2}-{3}x{4}, {5} total pixels", imgStats.Count,
                                             minImg.ImageWidth, minImg.ImageHeight,
                                             maxImg.ImageWidth, maxImg.ImageHeight,
-                                            Fmt.KMG(imgStats.Sum(s => s.NumPixels)));
+                                            Fmt.KMG(imgStats.Sum(s => (long)(s.NumPixels))));
                     }
 
                     int numIndices = mipStats.Count(s => s.HasIndex);
@@ -792,7 +792,7 @@ namespace OPS.Pipeline
                             msg += string.Format(", {0}-{1} tris ({2} total), mesh area {3:f3}-{4:f3}m^2 ({5} total)"
                                                  + "; tri area {6:f3}-{7:f3}{8}",
                                                  Fmt.KMG(minTris), Fmt.KMG(maxTris),
-                                                 Fmt.KMG(triStats.Sum(s => s.NumTris)),
+                                                 Fmt.KMG(triStats.Sum(s => (long)(s.NumTris))),
                                                  minMeshArea, maxMeshArea, Fmt.KMG(triStats.Sum(s => s.MeshArea)),
                                                  minTriArea, maxTriArea, triAreaUnit);
                             writeLine(msg);
@@ -857,8 +857,8 @@ namespace OPS.Pipeline
 
             writeLine(string.Format("{0} meshes, {1} textures, {2} triangles, {3} texels",
                                     meshStats.Count, meshStats.Count(s => s.NumPixels > 0),
-                                    Fmt.KMG(meshStats.Sum(s => s.NumTris)),
-                                    Fmt.KMG(meshStats.Sum(s => s.NumPixels))));
+                                    Fmt.KMG(meshStats.Sum(s => (long)(s.NumTris))),
+                                    Fmt.KMG(meshStats.Sum(s => (long)(s.NumPixels)))));
 
             if (meshStats.Count > 0)
             {

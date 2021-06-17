@@ -818,7 +818,7 @@ namespace OPS.Landform
                                         {
                                             backprojectedPixels[obsIndex] = 1;
                                         }
-                                        else
+                                        else if (backprojectedPixels[obsIndex] < int.MaxValue)
                                         {
                                             backprojectedPixels[obsIndex] = backprojectedPixels[obsIndex] + 1;
                                         }
