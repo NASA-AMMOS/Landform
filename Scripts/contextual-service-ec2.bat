@@ -189,6 +189,10 @@ if not "%LANDFORM_CONTEXTUAL_MAX_AUTO_SURFACE_EXTENT%"=="" (
    set extentopts=%extentopts% --maxautosurfaceextent=%LANDFORM_CONTEXTUAL_MAX_AUTO_SURFACE_EXTENT%
 )
 
+if not "%LANDFORM_CONTEXTUAL_USE_EXPANDED_SURFACE_EXTENT_FOR_TILING%"=="" (
+   set extentopts=%extentopts% --useexpandedsurfaceextentfortiling
+)
+
 set minmaxopts=
 if not "%LANDFORM_MIN_PRIMARY_SITE_DRIVE_WEDGES%"=="" (
    set minmaxopts=%minmaxopts% --minprimarysitedrivewedges=%LANDFORM_MIN_PRIMARY_SITE_DRIVE_WEDGES%

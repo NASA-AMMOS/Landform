@@ -20,58 +20,70 @@ using System.IO;
 ///
 /// Runs after all alignment stages (e.g. bev-align, heightmap-align), but before build-tiling-input.
 ///
+/// The mesh frame is typically the frame of the primary sitedrive.  Detailed reconstruction incorporating both surface
+/// observations and orbital data, if available, is performed within a square bounding box centered on the origin of
+/// mesh frame, which is also typically the center of the primary sitedrive.  If orbital data is available, coarser
+/// reconstruction may also be performed outside that bounds to a larger square bounds.  The inner box is typically auto
+/// expanded to fit the available surface point clouds within the range 64-256m.  The outer bounds is typically set at
+/// 1024m.
+///
 /// The observation pointclouds are typically combined with CleverCombine which attempts to reject outlier points using
-/// a grid-based approach.
+/// a grid-based approach, and which also limits the total number of samples per XY grid cell.  Grid cells are typically
+/// 2.5cm square, and the limit is typically 6 samples for cell, or about 1 sample per square cm.  Orbital sample points
+/// are typically also added at a sampling rate of 8 points per lineal meter within the convex hull of the observation
+/// pointclouds.  This both fills holes in the observation pointclouds and sets up a convex boundary for the input point
+/// cloud, which helps later when clipping extraneous peripheral triangles from the mesh reconstruction (particularly
+/// with Poisson reconstruction).
 ///
-/// The mesh is then reconstructed on the full scene point cloud, typically with Poisson reconstruction.  Mission normal
+/// The mesh is then reconstructed on the combined point cloud, typically with Poisson reconstruction.  Mission normal
 /// map RDRs (UVW products) give each point a normal vector, which is usually required.  Points with bad or suspected
-/// bad normals are filtered before reconstruction.  Optionally the normals can be scaled by an estimate of the
-/// confidence of each point, though at this time ingestion of mission RNE products is still TODO
+/// bad normals are filtered before reconstruction.  The normals are typically scaled by an estimate of the confidence
+/// of each point, though at this time ingestion of mission RNE products is still TODO
 /// https://github.jpl.nasa.gov/OnSight/Landform/issues/766 (and such products may not even be available) so we use
-/// distance from the camera as a proxy.
+/// distance from the camera as a proxy.  Orbital sample points have normals that point straight up and a fixed
+/// confidence, typically 0.2.
 ///
-/// The reconstructed mesh is cleaned and clipped to a surface data bounding box typically 64m square around the origin
-/// of the primary sitedrive frame for the contextual mesh.  Its vertex normals are recomputed from its faces to avoid
-/// issues with bad normals corrupting downstream operations such as reconstruction of parent tile meshes.
+/// The reconstructed mesh is cleaned and clipped to the convex hull of the surface point clouds.  Its vertex normals
+/// are recomputed from its faces to avoid issues with bad normals corrupting downstream operations such as
+/// reconstruction of parent tile meshes.
 ///
-/// Hole filling is then typically performed.  A non-convex outer boundary is computed by creating a shrinkwrap mesh and
-/// finding its largest boundary polygon.  That polygon is then triangulated and used as a "surface mask" for further
-/// operations.  The surface mesh is reconstructed from the full scene point cloud a second time, but this time with
-/// less aggressive trimming options.  The resulting mesh is clipped to the surface mask created from the original
-/// construction.  In this way the potential undesirable effects of less aggressive surface trimming around the outer
-/// boundary of the mesh are avoided, but the benefits of allowing more internal hole filling are gained.
+/// An optional hole filling step is then performed.  This step is typically enabled only if orbital data is not
+/// available to fill holes and establish a convex boundary in the original pointcloud.  The hole filling algorithm
+/// computes a non-convex outer boundary by creating a shrinkwrap mesh and finding its largest boundary polygon.  That
+/// polygon is then triangulated and used as a "surface mask" for further operations.  The surface mesh is reconstructed
+/// from the full scene point cloud a second time, but this time with less aggressive trimming options.  The resulting
+/// mesh is clipped to the surface mask.  In this way the potential undesirable effects of less aggressive surface
+/// trimming around the outer boundary of the mesh are avoided, but the benefits of allowing more internal hole filling
+/// are gained.
 ///
 /// If an orbital DEM is available a square portion of it centered on the origin of the primary sitedrive frame is
 /// organized meshed.  The bounds of this mesh may be larger than the surface mesh bounds.  It is also possible for the
 /// orbital mesh bounds to be the same as the surface mesh bounds, but they can't be smaller.
 ///
-/// Typically the orbital mesh includes both coarse and fine portions.  A fine area is defined within a small blend
-/// radius (typicaly 3m) of the surface bounds. A reasonable level of interpolation (typically 8 samples/meter) is used
-/// in that area so that the individal triangles in the organized mesh are not too large.  Trianges with vertices inside
-/// the surface mask are not included (the surface mask is computed if either hole filling or orbital meshing is to be
-/// performed), so that the orbital fine mesh is approximately periperhal to the surface mesh.  Because the organized
-/// mesh triangles in the orbital fine mesh are limited in size the matching at the boundary between the surface and
-/// orbital meshes is typically not too far off at this point, but there will still be a gap.  The orbital fine mesh is
-/// then sewn and blended to the surface mesh: vertices of the orbital mesh close to a vertex of the surface mesh
-/// (typically 0.2m) are snapped to the nearest vertex of the surface mesh.  Other vertices of the orbital fine mesh are
-/// adjusted in height with a blend based on the average of the nearest surface vertex heights and the distance to the
-/// surface mesh.
+/// Typically the orbital mesh includes both coarse and fine portions.  A fine area is defined within the surface bounds
+/// offset by a small blend radius, typicaly 3m. A higher level of interpolation (typically 8 samples/meter) is used in
+/// that area so that the individal triangles are not too large.  Orbital mesh triangles with vertices that overlap the
+/// surface mesh in the XY plane are not included, so that the orbital fine mesh is approximately periperhal to the
+/// surface mesh.  The matching at the boundary between the surface and orbital meshes is typically not too far off at
+/// this point, but there will still be a gap.  The orbital fine mesh is then sewn and blended to the surface mesh:
+/// vertices of the orbital mesh close to a vertex of the surface mesh (typically 0.2m) are snapped to the nearest
+/// vertex of the surface mesh.  Other vertices of the orbital fine mesh are adjusted in height with a blend based on
+/// the average of the nearest surface vertex heights and the distance to the surface mesh.
 ///
 /// If the total clip extent is larger than the orbital fine mesh extent, then a coarse orbital mesh is also added,
-/// with a smaller amount of interpolation (typically 1 sample/meter).  The orbital fine mesh is typically computed with
-/// a small outer gutter area (typically 4 samples) that is not subject to blending.  This helps ensure a seamless
+/// with a smaller amount of interpolation, typically 1 sample/meter.  The orbital fine mesh is typically computed with
+/// a small outer gutter area, typically 4 samples, that is not subject to blending.  This helps ensure a seamless
 /// boundary between the fine and coarse portions of the orbital mesh under certain conditions.  As long as the sampling
 /// rate of the coarse portion matches the actual DEM resolution, and the sampling rate of the fine portion is an
 /// integer (which it is currently constrained to be), then they should line up because the subsampling is linear.
 ///
-/// The resulting mesh is always saved as a PlyGZDataProduct to project storage with metadata in a SceneMesh object in
-/// linked from the alignment project in the project database.
+/// The resulting mesh is always saved to project storage as a PlyGZDataProduct, with metadata in a SceneMesh object.
 ///
 /// The scene mesh will always have normals but will typically not have texture coordinates.  Because its topology can
 /// be complex it can be non-trivial to atlas it.  In the typical contextual mesh workflow this is handled by only
-/// atlasing the leaf and parent tile meshes, which are typically much smaller.
-///
-/// Atlasing of the full scene mesh can be attempted by specifying --generateuvs.
+/// atlasing the leaf and parent tile meshes, which are typically much smaller.  Atlasing of the full scene mesh can be
+/// attempted by specifying --generateuvs.  https://github.jpl.nasa.gov/OnSight/Landform/issues/902,
+/// https://github.jpl.nasa.gov/OnSight/Landform/issues/1116
 ///
 /// If a tileset is not required, the full scene mesh can also be directly saved by specifying an output mesh as the
 /// second positional command line argument.  When running locally this can be either a relative or absolute disk path
@@ -114,6 +126,9 @@ namespace OPS.Landform
 
         [Option(HelpText = "Don't expand --surfacextent to fit aggregate point cloud bounds", Default = false)]
         public bool NoAutoExpandSurfaceExtent { get; set; }
+
+        [Option(HelpText = "If --surfaceextent was auto expanded, save the original value with the scene mesh for use in tiling", Default = false)]
+        public bool UseExpandedSurfaceExtentForTiling { get; set; }
 
         [Option(HelpText = "Max auto --surfaceextent", Default = BuildGeometry.DEF_MAX_AUTO_SURFACE_EXTENT)]
         public double MaxAutoSurfaceExtent { get; set; }
@@ -257,6 +272,7 @@ namespace OPS.Landform
 
         private Mesh orbitalMesh;
 
+        private double originalSurfaceExtent;
         private double blendRadius, sewRadius;
         private double blendExtent;
         private int orbitalBlendSamplesPerPixel, orbitalFillSamplesPerPixel;
@@ -398,6 +414,7 @@ namespace OPS.Landform
             {
                 options.NoSurface = true;
             }
+            originalSurfaceExtent = options.SurfaceExtent;
 
             if (!options.NoOrbital)
             {
@@ -1593,6 +1610,13 @@ namespace OPS.Landform
             else if (options.SurfaceExtent > 0)
             {
                 surfaceExtent = options.SurfaceExtent;
+            }
+
+            if (surfaceExtent > originalSurfaceExtent && !options.UseExpandedSurfaceExtentForTiling)
+            {
+                pipeline.LogInfo("saving original surface extent {0:f3}m for tiling instead of expanded extent {1:f3}m",
+                                 originalSurfaceExtent, surfaceExtent);
+                surfaceExtent = originalSurfaceExtent;
             }
             
             var sceneMesh = SceneMesh.Find(pipeline, project.Name, MeshVariant.Default);
