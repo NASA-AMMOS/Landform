@@ -1222,7 +1222,7 @@ namespace OPS.Landform
             int orbitalRadiusPixels = (int)Math.Ceiling(0.5 * options.Extent / orbitalDEMMetersPerPixel);
             int blendRadiusPixels = (int)Math.Ceiling(0.5 * blendExtent / orbitalDEMMetersPerPixel);
 
-            var maskOp = maskUVMeshOp;
+            var maskOp = maskUVMeshOp ?? surfaceHullUVMeshOp;
             if (maskOp == null && mesh != null) //CreateSurfaceMaskMesh() failed or wasn't run
             {
                 var tmp = new Mesh(mesh);
