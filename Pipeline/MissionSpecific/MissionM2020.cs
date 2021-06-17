@@ -27,6 +27,12 @@ namespace OPS.Pipeline
         [ConfigEnvironmentVariable("LANDFORM_USE_MASTCAM_FOR_MESHING")]
         public bool UseMastcamForMeshing { get; set; } = false;
 
+        [ConfigEnvironmentVariable("LANDFORM_USE_REAR_HAZCAM_FOR_ALIGNMENT")]
+        public bool UseRearHazcamForAlignment { get; set; } = false;
+
+        [ConfigEnvironmentVariable("LANDFORM_USE_REAR_HAZCAM_FOR_MESHING")]
+        public bool UseRearHazcamForMeshing { get; set; } = false;
+
         [ConfigEnvironmentVariable("LANDFORM_PREFER_LINEAR_GEOMETRY_PRODUCTS")]
         public bool PreferLinearGeometryProducts { get; set; } = false;
 
@@ -283,6 +289,16 @@ namespace OPS.Pipeline
         public override bool UseMastcamForMeshing()
         {
             return MissionM2020Config.Instance.UseMastcamForMeshing;
+        }
+
+        public override bool UseRearHazcamForAlignment()
+        {
+            return MissionM2020Config.Instance.UseRearHazcamForAlignment;
+        }
+
+        public override bool UseRearHazcamForMeshing()
+        {
+            return MissionM2020Config.Instance.UseRearHazcamForMeshing;
         }
 
         public override bool PreferLinearGeometryProducts()

@@ -82,6 +82,15 @@ namespace OPS.Pipeline
         [ConfigEnvironmentVariable("LANDFORM_USE_HAZCAM_FOR_TEXTURING")]
         public bool UseHazcamForTexturing { get; set; } = true;
 
+        [ConfigEnvironmentVariable("LANDFORM_USE_REAR_HAZCAM_FOR_ALIGNMENT")]
+        public bool UseRearHazcamForAlignment { get; set; } = true;
+
+        [ConfigEnvironmentVariable("LANDFORM_USE_REAR_HAZCAM_FOR_MESHING")]
+        public bool UseRearHazcamForMeshing { get; set; } = true;
+
+        [ConfigEnvironmentVariable("LANDFORM_USE_REAR_HAZCAM_FOR_TEXTURING")]
+        public bool UseRearHazcamForTexturing { get; set; } = true;
+
         [ConfigEnvironmentVariable("LANDFORM_USE_NAVCAM_FOR_ALIGNMENT")]
         public bool UseNavcamForAlignment { get; set; } = true;
 
@@ -349,6 +358,12 @@ namespace OPS.Pipeline
                     camera == RoverProductCamera.RearHazcamRight;
         }
 
+        public virtual bool IsRearHazcam(RoverProductCamera camera)
+        {
+                return camera == RoverProductCamera.RearHazcamLeft ||
+                    camera == RoverProductCamera.RearHazcamRight;
+        }
+
         public virtual bool IsMastcam(RoverProductCamera camera)
         {
            return camera == RoverProductCamera.Mastcam ||
@@ -527,6 +542,21 @@ namespace OPS.Pipeline
             return MissionConfig.Instance.UseHazcamForTexturing;
         }
 
+        public virtual bool UseRearHazcamForAlignment()
+        {
+            return MissionConfig.Instance.UseRearHazcamForAlignment;
+        }
+
+        public virtual bool UseRearHazcamForMeshing()
+        {
+            return MissionConfig.Instance.UseRearHazcamForMeshing;
+        }
+
+        public virtual bool UseRearHazcamForTexturing()
+        {
+            return MissionConfig.Instance.UseRearHazcamForTexturing;
+        }
+
         public virtual bool UseNavcamForAlignment()
         {
             return MissionConfig.Instance.UseNavcamForAlignment;
@@ -619,7 +649,7 @@ namespace OPS.Pipeline
 
         public virtual bool UseForAlignment(RoverProductCamera cam)
         {
-            return (IsHazcam(cam) && UseHazcamForAlignment()) ||
+            return (IsHazcam(cam) && UseHazcamForAlignment() && (!IsRearHazcam(cam) || UseRearHazcamForAlignment())) ||
                 (IsNavcam(cam) && UseNavcamForAlignment()) ||
                 (IsMastcam(cam) && UseMastcamForAlignment()) ||
                 (IsArmcam(cam) && UseArmcamForAlignment());
@@ -637,7 +667,7 @@ namespace OPS.Pipeline
 
         public virtual bool UseForMeshing(RoverProductCamera cam)
         {
-            return (IsHazcam(cam) && UseHazcamForMeshing()) ||
+            return (IsHazcam(cam) && UseHazcamForMeshing() && (!IsRearHazcam(cam) || UseRearHazcamForMeshing())) ||
                 (IsNavcam(cam) && UseNavcamForMeshing()) ||
                 (IsMastcam(cam) && UseMastcamForMeshing()) ||
                 (IsArmcam(cam) && UseArmcamForMeshing());
@@ -655,7 +685,7 @@ namespace OPS.Pipeline
 
         public virtual bool UseForTexturing(RoverProductCamera cam)
         {
-            return (IsHazcam(cam) && UseHazcamForTexturing()) ||
+            return (IsHazcam(cam) && UseHazcamForTexturing() && (!IsRearHazcam(cam) || UseRearHazcamForTexturing())) ||
                 (IsNavcam(cam) && UseNavcamForTexturing()) ||
                 (IsMastcam(cam) && UseMastcamForTexturing()) ||
                 (IsArmcam(cam) && UseArmcamForTexturing());
@@ -663,7 +693,9 @@ namespace OPS.Pipeline
 
         public virtual bool UseCamera(RoverProductCamera cam)
         {
-            return (IsHazcam(cam) && (UseHazcamForAlignment() || UseHazcamForMeshing() || UseHazcamForTexturing())) ||
+            return (IsHazcam(cam) && (UseHazcamForAlignment() || UseHazcamForMeshing() || UseHazcamForTexturing()) &&
+                    (!IsRearHazcam(cam) ||
+                     UseRearHazcamForAlignment() || UseRearHazcamForMeshing() || UseRearHazcamForTexturing())) ||
                 (IsNavcam(cam) && (UseNavcamForAlignment() || UseNavcamForMeshing() || UseNavcamForTexturing())) ||
                 (IsMastcam(cam) && (UseMastcamForAlignment() || UseMastcamForMeshing() || UseMastcamForTexturing())) ||
                 (IsArmcam(cam) && (UseArmcamForAlignment() || UseArmcamForMeshing() || UseArmcamForTexturing()));
@@ -671,7 +703,8 @@ namespace OPS.Pipeline
 
         public virtual bool UseRasterProducts(RoverProductCamera cam)
         {
-            return (IsHazcam(cam) && (UseHazcamForAlignment() || UseHazcamForTexturing())) ||
+            return (IsHazcam(cam) && (UseHazcamForAlignment() || UseHazcamForTexturing()) &&
+                    (!IsRearHazcam(cam) || UseRearHazcamForAlignment() || UseRearHazcamForTexturing())) ||
                 (IsNavcam(cam) && (UseNavcamForAlignment() || UseNavcamForTexturing())) ||
                 (IsMastcam(cam) && (UseMastcamForAlignment() || UseMastcamForTexturing())) ||
                 (IsArmcam(cam) && (UseArmcamForAlignment() || UseArmcamForTexturing()));
@@ -679,7 +712,8 @@ namespace OPS.Pipeline
 
         public virtual bool UseGeometryProducts(RoverProductCamera cam)
         {
-            return (IsHazcam(cam) && (UseHazcamForAlignment() || UseHazcamForMeshing())) ||
+            return (IsHazcam(cam) && (UseHazcamForAlignment() || UseHazcamForMeshing()) &&
+                    (!IsRearHazcam(cam) || UseRearHazcamForAlignment() || UseRearHazcamForMeshing())) ||
                 (IsNavcam(cam) && (UseNavcamForAlignment() || UseNavcamForMeshing())) ||
                 (IsMastcam(cam) && (UseMastcamForAlignment() || UseMastcamForMeshing())) ||
                 (IsArmcam(cam) && (UseArmcamForAlignment() || UseArmcamForMeshing()));
