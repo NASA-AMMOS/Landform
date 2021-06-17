@@ -473,6 +473,7 @@ namespace OPS.Landform
         protected int RunCommand(string cmd, HashSet<string> allowedFlags, bool throwOnError, bool throwOnKill,
                                  params string[] args)
         {
+            string extraArgs = Environment.GetEnvironmentVariable($"LANDFORM_{cmd.Replace('-','_').ToUpper()}_EXTRA");
             cmd = cmd + " " + string.Join(" ", args.Where(arg => !string.IsNullOrEmpty(arg)));
             var stdFlags = new Dictionary<string, bool>()
                 {
@@ -507,7 +508,6 @@ namespace OPS.Landform
                     cmd += string.Format(" {0} {1}", entry.Key, entry.Value);
                 }
             }
-            string extraArgs = Environment.GetEnvironmentVariable($"LANDFORM_{cmd.Replace('-','_').ToUpper()}_EXTRA");
             if (!string.IsNullOrEmpty(extraArgs))
             {
                 cmd += " " + extraArgs;
