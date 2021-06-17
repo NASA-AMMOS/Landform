@@ -237,6 +237,7 @@ namespace OPS.Landform
         private WedgeObservations.MeshOptions wedgeMeshOpts;
 
         private ConcurrentDictionary<string, Mesh> observationPointClouds = new ConcurrentDictionary<string, Mesh>();
+        private Mesh orbitalPointCloud;
 
         private Mesh surfaceHull;
         private MeshOperator surfaceHullUVMeshOp;
@@ -288,10 +289,16 @@ namespace OPS.Landform
                 if (!options.NoSurface)
                 {
                     RunPhase("clip surface mesh", ClipSurfaceMesh);
-                    RunPhase("create surface mask mesh", CreateSurfaceMaskMesh);
-                    if (maskUVMeshOp != null) //CreateSurfaceMaskMesh() failed
+                    if (orbitalPointCloud == null)
                     {
-                        RunPhase("reconstruct surface to mask", ReconstructSurfaceToMask);
+                        //if we merged with an orbital pointcloud (which would have been clipped to the surface XY hull)
+                        //then let's just go with that as far as hole filling and boundary definition go
+                        //https://github.jpl.nasa.gov/OnSight/Landform/issues/1157
+                        RunPhase("create surface mask mesh", CreateSurfaceMaskMesh);
+                        if (maskUVMeshOp != null) //CreateSurfaceMaskMesh() failed
+                        {
+                            RunPhase("reconstruct surface to mask", ReconstructSurfaceToMask);
+                        }
                     }
                 }
 
@@ -710,27 +717,9 @@ namespace OPS.Landform
             {
                 pipeline.LogInfo("adding orbital point cloud for hole filling, subsample {0}",
                                  orbitalFillSamplesPerPixel);
-                var opc = MakeOrbitalPointCloud();
-                double ons = 1;
-                switch (wedgeMeshOpts.NormalScale)
-                {
-                    case NormalScale.Confidence: ons = options.OrbitalFillPoissonConfidence; break;
-                    case NormalScale.PointScale: ons = 2 * orbitalDEMMetersPerPixel / orbitalFillSamplesPerPixel; break;
-                    case NormalScale.None: break;
-                }
-                if (ons != 1)
-                {
-                    if (ons <= 0)
-                    {
-                        throw new ArgumentException($"orbital normal scale {ons} <= 0");
-                    }
-                    foreach (Vertex v in opc.Vertices)
-                    {
-                        v.Normal *= ons;
-                    }
-                }
-                cloudList.Add(opc);
-                pipeline.LogInfo("orbital point cloud has {0} points", Fmt.KMG(opc.Vertices.Count));
+                MakeOrbitalPointCloud();
+                cloudList.Add(orbitalPointCloud);
+                pipeline.LogInfo("orbital point cloud has {0} points", Fmt.KMG(orbitalPointCloud.Vertices.Count));
             }
 
             var clouds = cloudList.ToArray();
@@ -1146,19 +1135,47 @@ namespace OPS.Landform
             SaveDebugMesh(mesh, "masked");
         }
 
-        private Mesh MakeOrbitalPointCloud()
+        private void MakeOrbitalPointCloud()
         {
             int surfaceRadiusPixels = (int)Math.Ceiling(0.5 * options.SurfaceExtent / orbitalDEMMetersPerPixel);
             Vector3 meshOriginInOrbital = Vector3.Transform(Vector3.Zero, meshToOrbital);
             var surfaceBounds = orbitalDEM.GetSubrectPixels(surfaceRadiusPixels, meshOriginInOrbital);
-            pipeline.LogInfo("making orbital point cloud");
-            var ret = MakeOrbitalMesh(orbitalFillSamplesPerPixel, surfaceBounds);
-            ret.Faces.Clear();
+            double ons = 1;
+            string nsm = "";
+            switch (wedgeMeshOpts.NormalScale)
+            {
+                case NormalScale.Confidence:
+                    {
+                        ons = options.OrbitalFillPoissonConfidence;
+                        nsm = $", confidence {ons:f3}";
+                        break;
+                    }
+                case NormalScale.PointScale:
+                    {
+                        ons = 2 * orbitalDEMMetersPerPixel / orbitalFillSamplesPerPixel;
+                        nsm = $", point scale {ons:f3}";
+                        break;
+                    }
+                case NormalScale.None: break;
+            }
+            if (ons <= 0)
+            {
+                throw new ArgumentException($"orbital normal scale {ons} <= 0");
+            }
+            pipeline.LogInfo("making orbital point cloud{0}", nsm);
+            orbitalPointCloud = MakeOrbitalMesh(orbitalFillSamplesPerPixel, surfaceBounds);
+            orbitalPointCloud.Faces.Clear();
             pipeline.LogInfo("clipping orbital point cloud to surface hull");
-            ret.Vertices = ret.Vertices
+            orbitalPointCloud.Vertices = orbitalPointCloud.Vertices
                 .Where(v => surfaceHullUVMeshOp.UVToBarycentric(new Vector2(v.Position.X, v.Position.Y)) != null)
                 .ToList();
-            return ret;
+            if (ons != 1)
+            {
+                foreach (Vertex v in orbitalPointCloud.Vertices)
+                {
+                    v.Normal *= ons;
+                }
+            }
         }
 
         private Mesh MakeOrbitalMesh(double subsample, Image.Subrect outerBounds, Image.Subrect innerBounds = null,
@@ -1184,7 +1201,7 @@ namespace OPS.Landform
             int blendRadiusPixels = (int)Math.Ceiling(0.5 * blendExtent / orbitalDEMMetersPerPixel);
 
             var maskOp = maskUVMeshOp;
-            if (maskOp == null && mesh != null) //CreateSurfaceMaskMesh() failed
+            if (maskOp == null && mesh != null) //CreateSurfaceMaskMesh() failed or wasn't run
             {
                 var tmp = new Mesh(mesh);
                 tmp.XYToUV();
