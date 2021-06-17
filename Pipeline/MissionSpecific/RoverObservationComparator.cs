@@ -652,6 +652,7 @@ namespace OPS.Pipeline
                                                                  includeProductType: false, includeGeometry: false,
                                                                  includeColorFilter: false, includeVariants: false,
                                                                  includeVersion: false, includeStereoEye: false,
+                                                                 includeSpecialProcessing: false,
                                                                  includeStereoPartner: false)))
                 {
                     //obsGroup contains ids of
@@ -659,7 +660,6 @@ namespace OPS.Pipeline
                     //* same instrument (but any stereo eye)
                     //* same sequence number and timestamp(s)
                     //* same size (thumbnail vs regular)
-                    //* same special processing
                     //* same producer
                     //* same mesh type
                     //but
@@ -670,6 +670,7 @@ namespace OPS.Pipeline
                     //* all versions
                     //* all stereo eyes (left, right, mono)
                     //* all stereo partners
+                    //* all special processings
                     
                     var orig = obsGroup.ToList();
                     
