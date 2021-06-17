@@ -174,14 +174,22 @@ if not "%LANDFORM_CONTEXTUAL_SKY_MIN_BACKPROJECT_RADIUS%"=="" (
     set skyopts=%skyopts% --skyminbackprojectradius=%LANDFORM_CONTEXTUAL_SKY_MIN_BACKPROJECT_RADIUS%
 )
 
-set extent=
-if not "%LANDFORM_CONTEXTUAL_EXTENT%"=="" set extent=--extent=%LANDFORM_CONTEXTUAL_EXTENT%
+set extentopts=
+if not "%LANDFORM_CONTEXTUAL_EXTENT%"=="" set extentopts=--extent=%LANDFORM_CONTEXTUAL_EXTENT%
 
-set surfaceextent=
-if not "%LANDFORM_CONTEXTUAL_SURFACE_EXTENT%"=="" set surfaceextent=--surfaceextent=%LANDFORM_CONTEXTUAL_SURFACE_EXTENT%
+if not "%LANDFORM_CONTEXTUAL_SURFACE_EXTENT%"=="" (
+   set extentopts=%extentopts% --surfaceextent=%LANDFORM_CONTEXTUAL_SURFACE_EXTENT%
+)
+
+if not "%LANDFORM_CONTEXTUAL_NO_AUTO_SURFACE_EXTENT%"=="" (
+   set extentopts=%extentopts% --noautosurfaceextent
+)
+
+if not "%LANDFORM_CONTEXTUAL_MAX_AUTO_SURFACE_EXTENT%"=="" (
+   set extentopts=%extentopts% --maxautosurfaceextent=%LANDFORM_CONTEXTUAL_MAX_AUTO_SURFACE_EXTENT%
+)
 
 set minmaxopts=
-
 if not "%LANDFORM_MIN_PRIMARY_SITE_DRIVE_WEDGES%"=="" (
    set minmaxopts=%minmaxopts% --minprimarysitedrivewedges=%LANDFORM_MIN_PRIMARY_SITE_DRIVE_WEDGES%
 )
@@ -244,7 +252,7 @@ set tilingopts=%tilingopts% %notexturesplitrespectmaxtexelspermeter% %maxtexelsp
 set tilingopts=%tilingopts% %maxtexturestretch% %poweroftwotextures% %colorize% %maxglancingangledegrees% %skirtmode%
 
 set contextualopts=%maxfetch% %nocombinedmanifest% %orbitalopts% %skyopts% %minmaxopts%
-set contextualopts=%contextualopts% %tilingopts% %allowunmasked% %solblacklist% %extent% %surfaceextent%
+set contextualopts=%contextualopts% %tilingopts% %allowunmasked% %solblacklist% %extentopts%
 
 set appsdir=%bindir%\ExternalApps
 if exist %appsdir%\opengl32-for-ivcat.dll (

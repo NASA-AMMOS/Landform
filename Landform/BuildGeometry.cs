@@ -115,6 +115,9 @@ namespace OPS.Landform
         [Option(HelpText = "Don't expand --surfacextent to fit aggregate point cloud bounds", Default = false)]
         public bool NoAutoExpandSurfaceExtent { get; set; }
 
+        [Option(HelpText = "Max auto --surfaceextent", Default = BuildGeometry.DEF_MAX_AUTO_SURFACE_EXTENT)]
+        public double MaxAutoSurfaceExtent { get; set; }
+
         [Option(HelpText = "Pre-clip observation point clouds to XY box of this size in meters around mesh frame origin if positive", Default = 0)]
         public double PreClipPointCloudExtent { get; set; }
 
@@ -218,6 +221,7 @@ namespace OPS.Landform
 
         public const double DEF_EXTENT = 1024;
         public const double DEF_SURFACE_EXTENT = 64;
+        public const double DEF_MAX_AUTO_SURFACE_EXTENT = 256;
 
         public const double DEF_BLEND_RADIUS = 3;
         public const double DEF_SEW_RADIUS = 0.2;
@@ -647,7 +651,8 @@ namespace OPS.Landform
                     var pcb = pc.Bounds();
                     double pcExtent = 2 * Math.Max(Math.Max(Math.Abs(pcb.Min.X), Math.Abs(pcb.Max.X)),
                                                    Math.Max(Math.Abs(pcb.Min.Y), Math.Abs(pcb.Max.Y)));
-                    autoExtent = Math.Min(options.Extent, Math.Max(autoExtent, Math.Ceiling(pcExtent)));
+                    autoExtent = Math.Max(autoExtent, Math.Ceiling(pcExtent));
+                    autoExtent = Math.Min(options.MaxAutoSurfaceExtent, Math.Min(options.Extent, autoExtent));
                 }
                 if (autoExtent > options.SurfaceExtent)
                 {
