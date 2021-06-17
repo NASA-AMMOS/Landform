@@ -17,7 +17,7 @@ namespace OPS.Geometry
     {
         public const double DEF_CELL_SIZE = 0.025;
         public const double DEF_CELL_ASPECT = -1;
-        public const int DEF_MAX_POINTS_PER_CELL = 20; //20 / (2.5*2.5) = 3.2 points/cm^2
+        public const int DEF_MAX_POINTS_PER_CELL = 6; //6 / (2.5*2.5) ~= 1 point/cm^2
 
         //size of XY grid cell (meters)
         private readonly double cellSize;

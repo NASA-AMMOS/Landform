@@ -46,7 +46,7 @@ using System.IO;
 /// orbital mesh bounds to be the same as the surface mesh bounds, but they can't be smaller.
 ///
 /// Typically the orbital mesh includes both coarse and fine portions.  A fine area is defined within a small blend
-/// radius (typicaly 3m) of the surface bounds. A reasonable level of interpolation (typically 15 samples/meter) is used
+/// radius (typicaly 3m) of the surface bounds. A reasonable level of interpolation (typically 8 samples/meter) is used
 /// in that area so that the individal triangles in the organized mesh are not too large.  Trianges with vertices inside
 /// the surface mask are not included (the surface mask is computed if either hole filling or orbital meshing is to be
 /// performed), so that the orbital fine mesh is approximately periperhal to the surface mesh.  Because the organized
@@ -127,13 +127,13 @@ namespace OPS.Landform
         [Option(HelpText = "Mask offset for clipping surface/orbital", Default = 0.05)]
         public double MaskOffset { get; set; }
 
-        [Option(HelpText = "Orbital sampling rate inside blend radius, non-positive to use DEM resolution", Default = 15)]
+        [Option(HelpText = "Orbital sampling rate inside blend radius, non-positive to use DEM resolution", Default = 8)]
         public double OrbitalBlendPointsPerMeter { get; set; }
 
-        [Option(HelpText = "Orbital sampling rate to fill holes, negative to use DEM resolution, 0 to disable", Default = 15)]
+        [Option(HelpText = "Orbital sampling rate to fill holes, negative to use DEM resolution, 0 to disable", Default = 8)]
         public double OrbitalFillPointsPerMeter { get; set; }
 
-        [Option(HelpText = "Orbital sampling confidence to fill holes", Default = 0.1)]
+        [Option(HelpText = "Orbital sampling confidence to fill holes", Default = 0.2)]
         public double OrbitalFillPoissonConfidence { get; set; }
 
         [Option(HelpText = "Mask resolution for clipping surface/orbital", Default = 2)]
