@@ -331,7 +331,7 @@ namespace OPS.Landform
                 return false; //e.g. --help
             }
 
-            if (messageQueue == null)
+            if (!serviceMode && !serviceUtilMode)
             {
                 if (string.IsNullOrEmpty(options.InputPath))
                 {
