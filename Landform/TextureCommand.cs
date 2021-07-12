@@ -305,16 +305,23 @@ namespace OPS.Landform
                 Interlocked.Increment(ref np);
 
                 pipeline.LogVerbose("creating blurred image for observation {0}, processing {1} in parallel, " +
-                                        "completed {2}/{3}", obs.Name, np, nc, no);
+                                    "completed {2}/{3}", obs.Name, np, nc, no);
 
                 try
                 {
-                    Image orig = pipeline.LoadImage(obs.Url);
+                    Image img = pipeline.LoadImage(obs.Url);
                     
+                    if (obs.MaskGuid != Guid.Empty)
+                    {
+                        var mask = pipeline.GetDataProduct<PngDataProduct>(project, obs.MaskGuid).Image;
+                        img = new Image(img); //don't mutate cached image
+                        img.UnionMask(mask, new float[] { 0 }); //0 means bad, 1 means good
+                    }
+
                     //notes from TerrainTools PDSImageRoutines.cs
                     //"Used to do a guass blur 4 with photoshop"
                     //the current code is: img.SmoothBlur(13, 13)
-                    Image blurredImage = (new Image(orig)).GaussianBoxBlur(tcopts.ObservationBlurRadius);
+                    Image blurredImage = img.GaussianBoxBlur(tcopts.ObservationBlurRadius);
                     
 #if DBG_BLURRED
                     if (tcopts.WriteDebug)

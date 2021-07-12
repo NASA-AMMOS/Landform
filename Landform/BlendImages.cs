@@ -231,11 +231,11 @@ namespace OPS.Landform
                     }
                 }
 
+                RunPhase("check/build observation image masks", BuildObservationImageMasks);
                 RunPhase("check/generate blurred observation images", BuildBlurredObservationImages);
 
                 if (options.PreadjustLuminance > 0 || options.Colorize)
                 {
-                    RunPhase("check/build observation image masks", BuildObservationImageMasks);
                     RunPhase("check/build observation image stats", BuildObservationImageStats);
                 }
 
