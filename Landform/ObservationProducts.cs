@@ -242,7 +242,7 @@ namespace OPS.Landform
                     return 0; //help
                 }
 
-                RunPhase("generate observation products",GenerateObservationProducts);
+                RunPhase("generate observation products", GenerateObservationProducts);
 
                 if (options.MergedSiteDriveMeshes)
                 {
@@ -425,17 +425,38 @@ namespace OPS.Landform
                 Image img = null;
                 if (buildWedgeImages && obs.Texture != null)
                 {
-                    img = BuildWedgeImage(obs, ibs);
+                    try
+                    {
+                        img = BuildWedgeImage(obs, ibs);
+                    }
+                    catch (Exception ex)
+                    {
+                        pipeline.LogWarn("error building wedge image: " + ex.Message);
+                    }
                 }
 
                 if (options.MaskImages && !obs.Empty)
                 {
-                    SaveImage(BuildMaskImage(obs, ibs), sdPrefix + obs.Name + "_mask");
+                    try
+                    {
+                        SaveImage(BuildMaskImage(obs, ibs), sdPrefix + obs.Name + "_mask");
+                    }
+                    catch (Exception ex)
+                    {
+                        pipeline.LogWarn("error building or saving mask image: " + ex.Message);
+                    }
                 }
 
-                if (!options.NoWedgeImages && img != null)
+                if (img != null && !options.NoWedgeImages)
                 {
-                    SaveImage(img, sdPrefix + obs.Name);
+                    try
+                    {
+                        SaveImage(img, sdPrefix + obs.Name);
+                    }
+                    catch (Exception ex)
+                    {
+                        pipeline.LogWarn("error saving image: " + ex.Message);
+                    }
                 }
 
                 if (options.MergedSiteDriveMeshes && mesh != null)
@@ -448,39 +469,71 @@ namespace OPS.Landform
                 }
 
                 //save the wedge mesh now that we have both it and its texture
-                if (!options.NoWedgeMeshes && mesh != null)
+                if (mesh != null && !options.NoWedgeMeshes)
                 {
-                    if (options.ColorMeshesBy != MeshColor.None && options.ColorMeshesBy != MeshColor.Texture)
+                    try
                     {
-                        if (options.MergedSiteDriveMeshes)
+                        if (options.ColorMeshesBy != MeshColor.None && options.ColorMeshesBy != MeshColor.Texture)
                         {
-                            //mutate a copy of the wedge mesh here
-                            //because we already saved it for use later in generating the merged sitedrive mesh
-                            mesh = new Mesh(mesh);
+                            if (options.MergedSiteDriveMeshes)
+                            {
+                                //mutate a copy of the wedge mesh here
+                                //because we already saved it for use later in generating the merged sitedrive mesh
+                                mesh = new Mesh(mesh);
+                            }
+                            mesh.ColorBy(options.ColorMeshesBy,
+                                         options.ConvertNormalsToTilts ? options.TiltMode : TiltMode.None,
+                                         stretch: options.StretchContrast, nStddev: options.StretchStdDev);
                         }
-                        mesh.ColorBy(options.ColorMeshesBy,
-                                     options.ConvertNormalsToTilts ? options.TiltMode : TiltMode.None,
-                                     stretch: options.StretchContrast, nStddev: options.StretchStdDev);
+                        SaveMesh(mesh, sdPrefix + obs.Name,
+                                 (withTextures && img != null) ? (obs.Name + imageExt) : null);
                     }
-                    SaveMesh(mesh, sdPrefix + obs.Name, (withTextures && img != null) ? (obs.Name + imageExt) : null);
+                    catch (Exception ex)
+                    {
+                        pipeline.LogWarn("error saving mesh: " + ex.Message);
+                    }
                 }
                 
                 Image mask = null;
 
                 if (options.NormalsImages && obs.Normals != null)
                 {
-                    string kind = options.ConvertNormalsToTilts ? "Tilts" : "Normals";
-                    FinishImage(BuildNormalsImage(obs, mbs, ref mask), mask, mbs, sdPrefix + obs.Name, kind);
+                    try
+                    {
+                        string kind = options.ConvertNormalsToTilts ? "Tilts" : "Normals";
+                        var ni = BuildNormalsImage(obs, mbs, ref mask);
+                        FinishImage(ni, mask, mbs, sdPrefix + obs.Name, kind);
+                    }
+                    catch (Exception ex)
+                    {
+                        pipeline.LogWarn("error creating normals image: " + ex.Message);
+                    }
                 }
                 
                 if (options.CurvatureImages && obs.Points != null && obs.Normals != null)
                 {
-                    FinishImage(BuildCurvaturesImage(obs, mbs, ref mask), mask, mbs, sdPrefix + obs.Name, "Curvature");
+                    try
+                    {
+                        var ci = BuildCurvaturesImage(obs, mbs, ref mask);
+                        FinishImage(ci, mask, mbs, sdPrefix + obs.Name, "Curvature");
+                    }
+                    catch (Exception ex)
+                    {
+                        pipeline.LogWarn("error creating curvature image: " + ex.Message);
+                    }
                 }
                 
                 if (options.ElevationImages && obs.Points != null)
                 {
-                    FinishImage(BuildElevationsImage(obs, mbs, ref mask), mask, mbs, sdPrefix + obs.Name, "Elevation");
+                    try
+                    {
+                        var ei = BuildElevationsImage(obs, mbs, ref mask);
+                        FinishImage(ei, mask, mbs, sdPrefix + obs.Name, "Elevation");
+                    }
+                    catch (Exception ex)
+                    {
+                        pipeline.LogWarn("error creating elevation image: " + ex.Message);
+                    }
                 }
                 
                 if (options.FrustumHullMeshes && (obs.Texture != null || obs.Points != null))
@@ -513,10 +566,10 @@ namespace OPS.Landform
                 {
                     foreach (var otherObs in wedgeObservations)
                     {
-                        if (obs != otherObs && otherObs.Points != null &&
-                            Overlap.Find(pipeline, project.Name, otherObs.Texture.Name, obs.Texture.Name) != null)
+                        try
                         {
-                            try
+                            if (obs != otherObs && otherObs.Points != null &&
+                                Overlap.Find(pipeline, project.Name, otherObs.Texture.Name, obs.Texture.Name) != null)
                             {
                                 Image deltaRange = DeltaRangeImage.Create(pipeline, masker, otherObs, obs, frameCache,
                                                                           options.UsePriors, options.OnlyAligned);
@@ -524,10 +577,10 @@ namespace OPS.Landform
                                 SaveFloatTIFF(deltaRange, name);
                                 SaveImage(DeltaRangeImage.CreatePreview(deltaRange), name + "_preview");
                             }
-                            catch (Exception ex)
-                            {
-                                pipeline.LogWarn("error creating delta range image: " + ex.Message);
-                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            pipeline.LogWarn("error creating delta range image: " + ex.Message);
                         }
                     }
                 }
@@ -777,27 +830,32 @@ namespace OPS.Landform
                     {
                         mesh = MeshMerge.Merge(inputs.Select(pr => pr.Item2).ToArray());
                     }
+
+                    if (mesh == null)
+                    {
+                        throw new Exception("failed to generate merged mesh");
+                    }
+                
+                    if (img == null && options.ColorMeshesBy != MeshColor.None)
+                    {
+                        mesh.ColorBy(options.ColorMeshesBy,
+                                     options.ConvertNormalsToTilts ? options.TiltMode : TiltMode.None,
+                                     allowAdjustColors: true,
+                                     stretch: options.StretchContrast, nStddev: options.StretchStdDev);
+                    }
+                    
+                    if (mesh.HasVertices && (options.PointCloud || mesh.HasFaces))
+                    {
+                        if (img != null)
+                        {
+                            SaveImage(img, siteDrive);
+                        }
+                        SaveMesh(mesh, siteDrive, img != null ? (siteDrive + imageExt) : null);
+                    }
                 }
                 catch (Exception ex)
                 {
                     pipeline.LogWarn("error creating merged mesh for site drive {0}: {1}", siteDrive, ex.Message);
-                }
-                
-                if (mesh != null && img == null && options.ColorMeshesBy != MeshColor.None)
-                {
-                    mesh.ColorBy(options.ColorMeshesBy,
-                                 options.ConvertNormalsToTilts ? options.TiltMode : TiltMode.None,
-                                 allowAdjustColors: true,
-                                 stretch: options.StretchContrast, nStddev: options.StretchStdDev);
-                }
-                
-                if (mesh != null && mesh.HasVertices && (options.PointCloud || mesh.HasFaces))
-                {
-                    if (img != null)
-                    {
-                        SaveImage(img, siteDrive);
-                    }
-                    SaveMesh(mesh, siteDrive, img != null ? (siteDrive + imageExt) : null);
                 }
             }
         }
