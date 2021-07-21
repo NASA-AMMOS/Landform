@@ -65,7 +65,7 @@ if [ ! -f $out/$viewer/index.html ]; then
         unzip ./$out/$viewer.zip -d ./$out
     fi
     # see $docurl...
-    sed -i '/<script.*nity.*oader.js.*script>/i <script>XMLHttpRequest.prototype.originalOpen = XMLHttpRequest.prototype.open; var newOpen = function(_, url) { var original = this.originalOpen.apply(this, arguments); if (url.match(/https:\/\/[^/]*\.m20\.jpl\.nasa\.gov.*/g) !== null) this.withCredentials = true; return original; }; XMLHttpRequest.prototype.open = newOpen;</script>' $out/$viewer/index.html
+    sed -i '/<script.*nity.*oader.js.*script>/i <script>XMLHttpRequest.prototype.originalOpen = XMLHttpRequest.prototype.open; var newOpen = function(_, url) { var original = this.originalOpen.apply(this, arguments); if (url.match(/https:\\/\\/[^/]*\\.m20\\.jpl\\.nasa\\.gov.*/g)) this.withCredentials = true; return original; }; XMLHttpRequest.prototype.open = newOpen;</script>' $out/$viewer/index.html
 fi
 
 pem=localhost-${venue}.pem
