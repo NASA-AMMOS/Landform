@@ -811,11 +811,12 @@ namespace OPS.Landform
                         pipeline.LogVerbose("cached options: {0}", rec.CreationOptions);
                         pipeline.LogVerbose("required options: {0}", bevOptions.Serialize());
                     }
-                    else if ((includeBEVs && rec.BEVGuid == null) || (includeDEMs && rec.DEMGuid == null))
+                    else if ((includeBEVs && (rec.BEVGuid == null || rec.BEVGuid == Guid.Empty)) ||
+                             (includeDEMs && (rec.DEMGuid == null || rec.DEMGuid == Guid.Empty)))
                     {
                         pipeline.LogInfo("missing BEV or DEM image for cached BEV {0}", siteDrive);
                     }
-                    else if ((includeBEVs || includeDEMs) && rec.MaskGuid == null)
+                    else if ((includeBEVs || includeDEMs) && (rec.MaskGuid == null || rec.MaskGuid == Guid.Empty))
                     {
                         pipeline.LogInfo("missing BEV or DEM mask image for cached BEV {0}", siteDrive);
                     }
@@ -823,9 +824,12 @@ namespace OPS.Landform
                     {
                         pipeline.LogInfo("loading cached BEV/DEM for {0}", siteDrive);
 
-                        var mask = pipeline.GetDataProduct<TiffDataProduct>(project, rec.MaskGuid).Image;
-                        pipeline.LogInfo("loaded {0}x{1} BEV/DEM mask for site drive {2}",
-                                         mask.Width, mask.Height, siteDrive);
+                        Image mask = null;
+                        if (includeBEVs || includeDEMs) {
+                            mask = pipeline.GetDataProduct<TiffDataProduct>(project, rec.MaskGuid).Image;
+                            pipeline.LogInfo("loaded {0}x{1} BEV/DEM mask for site drive {2}",
+                                             mask.Width, mask.Height, siteDrive);
+                        }
 
                         if (includeBEVs)
                         {
