@@ -167,10 +167,9 @@ namespace OPS.Landform
         public const string SKY_TILING_DIR = "tiling/SkyTile";
         public const string SKY_TILESET_DIR = "tiling/SkyTileSet";
 
-        public const double WARP_MIN = 5;
-        public const double WARP_MAX_REL = 0.9;
-        public const double WARP_MAX_ADJ = 5;
         public const double DEF_WARP_OCCLUSION_MESH = 0.2;
+        public const double WARP_MIN = 5;
+        public const double WARP_MAX_ADJ = 5;
 
         private BuildSkySphereOptions options;
 
@@ -548,31 +547,21 @@ namespace OPS.Landform
             if (sceneOccludesSky && options.WarpOcclusionMesh > 0)
             {
                 var warpedMesh = new Mesh(mesh);
-                double r = sceneRadius / Math.Sqrt(2); //circumscribed radius to inscribed radius
-                if (sceneBounds.HasValue)
-                {
-                    var llc = sceneBounds.Value.Min.XY();
-                    var urc = sceneBounds.Value.Max.XY();
-                    r = MathE.Min(Math.Abs(llc.X), Math.Abs(llc.Y), Math.Abs(urc.X), Math.Abs(urc.Y));
-                }
-                //double warpMin = r * WARP_MIN_REL;
-                double warpMin = WARP_MIN;
-                double warpMax = r * WARP_MAX_REL;
                 if (sceneOccludesSky && options.WarpOcclusionMesh > 0)
                 {
-                    pipeline.LogInfo("warping occlusion mesh {0}x (limit {1:F3}m) in range {2:F3}m to {3:F3}m",
-                                     1 + options.WarpOcclusionMesh, WARP_MAX_ADJ, warpMin, warpMax);
+                    pipeline.LogInfo("warping occlusion mesh {0}x, limit {1:F3}m)",
+                                     1 + options.WarpOcclusionMesh, WARP_MAX_ADJ);
                 }
-                //mesh frame is site drive frame
-                //so z=0 is at surface elevation at site drive location
                 //mission surface frames are X north, Y right, Z down
+                //mesh frame is site drive frame so mesh frame z=0 is at surface elevation at site drive origin
                 foreach (var v in warpedMesh.Vertices)
                 {
                     double vz = v.Position.Z;
-                    double vr = v.Position.XY().Length();
-                    if (vr >= warpMin && vr <= warpMax)
+                    double vr = v.Position.XY().Length() - WARP_MIN;
+                    if (vr > 0)
                     {
-                        double adj = Math.Min(WARP_MAX_ADJ, Math.Abs(vz) * options.WarpOcclusionMesh);
+                        double adjRel = options.WarpOcclusionMesh * Math.Min(1, vr);
+                        double adj = Math.Min(WARP_MAX_ADJ, Math.Abs(vz) * adjRel);
                         v.Position.Z = vz - adj; //-z is towards zenith
                     }
                 }
