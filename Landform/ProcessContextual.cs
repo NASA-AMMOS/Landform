@@ -1044,13 +1044,14 @@ namespace OPS.Landform
                 throw new ArgumentException("siteDrives must contain primarySiteDrive");
             }
 
+            bool orbitalOnly = p.OrbitalOnly || options.NoSurface;
             string missionStr = mission != null ? mission.GetMission().ToString() : "None";
             string fullMissionStr = mission != null ? mission.GetMissionWithVenue() : "None";
             string sdStr = primarySiteDrive.ToString();
             string solStr = SolToString(primarySol, forceNumeric: true);
             string sdsStr = string.Join(",", siteDrives.ToArray());
             string solRanges = MakeSolRanges(sols);
-            string project = string.Format("{0}_{1}", SolToString(primarySol), sdStr);
+            string project = string.Format("{0}_{1}{2}", SolToString(primarySol), sdStr, orbitalOnly ? "_orbital" : "");
             string venue = string.Format("contextual_{0}_{1}", missionStr, project);
             string venueDir = storageDir + "/" + venue;
             string solDir = StringHelper.ReplaceIntWildcards(rdrDir, primarySol);
@@ -1073,7 +1074,6 @@ namespace OPS.Landform
             {
                 noOrbital = "--noorbital";
             }
-            bool orbitalOnly = p.OrbitalOnly || options.NoSurface;
             string noSurface = orbitalOnly ? "--nosurface" : "";
 
             string orbitalDEMFileOpt = !string.IsNullOrEmpty(orbitalDEMFile) ? $"--orbitaldem={orbitalDEMFile}" : null;
@@ -1190,7 +1190,7 @@ namespace OPS.Landform
                                "--sol", solStr, "--sitedrive", sdStr, "--sols", solRanges, "--sitedrives", sdsStr,
                                "--manifestfile", tilesetDir + "/" + SCENE_JSON);
 
-                    SaveTileset(tilesetDir, project, destDir, orbitalOnly ? "_orbital" : "");
+                    SaveTileset(tilesetDir, project, destDir);
 
                     if (!options.NoSky && !orbitalOnly)
                     {
@@ -1202,7 +1202,7 @@ namespace OPS.Landform
                     }
                 }
 
-                if (!options.NoCombinedManifest)
+                if (!options.NoCombinedManifest && !orbitalOnly)
                 {
                     RunCommand("update-scene-manifest", project, allowUnmasked, "--tilesetdir", destDir,
                                "--rdrdir", rdrDir, "--sol", solStr, "--sitedrive", sdStr,

@@ -608,6 +608,7 @@ namespace OPS.Pipeline
             }
 
             bool sky = tilesetId.EndsWith("_sky");
+            bool orbital = tilesetId.EndsWith("_orbital");
 
             var sdFrame = GetOrAddSiteDriveFrame(primarySiteDrive);
 
@@ -624,60 +625,72 @@ namespace OPS.Pipeline
             {
                 tileset.groups.Add("sky");
             }
+            if (orbital)
+            {
+                tileset.groups.Add("orbital");
+            }
 
             tileset.contextual_primary_sol = primarySol.ToString();
-            tileset.contextual_sol_ranges = solRanges;
+            tileset.contextual_sol_ranges = orbital ? primarySol.ToString() : solRanges;
             tileset.contextual_primary_site_drive = primarySiteDrive;
-            tileset.contextual_site_drives = siteDrives;
+            tileset.contextual_site_drives = orbital ? primarySiteDrive : siteDrives;
 
             if (logger != null)
             {
                 logger.LogInfo("creating or updating {0} image manifests", images.Count);
             }
 
-            var bpp = backprojectedPixels;
             tileset.image_ids.Clear();
-            var sols = new HashSet<int>();
-            foreach (var obs in images)
-            {
-                //differentiate image manifest for contextual vs tactical
-                //even for same image product ID
-                //as the contextual mesh image may have an aligned coordinate frame
-                var image = GetOrAddImage("contextual_" + obs.Name);
-                image.product_id = obs.Name;
-                image.uri = null; //see SceneManifestHelper.UpdateImageURIs()
-                image.thumbnail = null; //see SceneManifestHelper.UpdateImageURIs()
-                image.frame_id = "contextual_" + obs.FrameName;
-                image.index = obs.Index;
-                int nbpp = bpp != null && bpp.ContainsKey(obs.Index) ? bpp[obs.Index] : 0;
-                if (sky)
-                {
-                    image.backprojected_pixels_sky += nbpp;
-                }
-                else
-                {
-                    image.backprojected_pixels += nbpp;
-                }
-                image.width = obs.Width;
-                image.height = obs.Height;
-                image.bands = obs.Bands;
-                image.model = new CameraModelManifest(obs.CameraModel);
-
-                tileset.image_ids.Add(image.id);
-
-                if (!Frames.ContainsKey(image.frame_id))
-                {
-                    var frame = GetOrAddFrame(image.frame_id);
-                    frame.parent_id = sdFrame.id;
-                    var xform = frameCache.GetObservationTransform(obs, primarySiteDrive, usePriors, onlyAligned);
-                    frame.translation = xform.MeanTranslation;
-                    frame.rotation = xform.MeanRotation;
-                }
-
-                sols.Add(obs.Day);
-            }
             tileset.sols.Clear();
-            tileset.sols.AddRange(sols);
+
+            if (orbital)
+            {
+                tileset.sols.Add(primarySol);
+            }
+            else
+            {
+                var bpp = backprojectedPixels;
+                var sols = new HashSet<int>();
+                foreach (var obs in images)
+                {
+                    //differentiate image manifest for contextual vs tactical
+                    //even for same image product ID
+                    //as the contextual mesh image may have an aligned coordinate frame
+                    var image = GetOrAddImage("contextual_" + obs.Name);
+                    image.product_id = obs.Name;
+                    image.uri = null; //see SceneManifestHelper.UpdateImageURIs()
+                    image.thumbnail = null; //see SceneManifestHelper.UpdateImageURIs()
+                    image.frame_id = "contextual_" + obs.FrameName;
+                    image.index = obs.Index;
+                    int nbpp = bpp != null && bpp.ContainsKey(obs.Index) ? bpp[obs.Index] : 0;
+                    if (sky)
+                    {
+                        image.backprojected_pixels_sky += nbpp;
+                    }
+                    else
+                    {
+                        image.backprojected_pixels += nbpp;
+                    }
+                    image.width = obs.Width;
+                    image.height = obs.Height;
+                    image.bands = obs.Bands;
+                    image.model = new CameraModelManifest(obs.CameraModel);
+                    
+                    tileset.image_ids.Add(image.id);
+                    
+                    if (!Frames.ContainsKey(image.frame_id))
+                    {
+                        var frame = GetOrAddFrame(image.frame_id);
+                        frame.parent_id = sdFrame.id;
+                        var xform = frameCache.GetObservationTransform(obs, primarySiteDrive, usePriors, onlyAligned);
+                        frame.translation = xform.MeanTranslation;
+                        frame.rotation = xform.MeanRotation;
+                    }
+                    
+                    sols.Add(obs.Day);
+                }
+                tileset.sols.AddRange(sols);
+            }
         }
     }
 }

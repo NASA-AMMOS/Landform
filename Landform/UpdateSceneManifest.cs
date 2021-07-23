@@ -773,6 +773,22 @@ namespace OPS.Landform
                                                                images, backprojectedPixels, pipeline);
                 }
             }
+
+            if (!options.NoOrbital)
+            {
+                string orbitalTilesetId = tilesetId + "_orbital";
+                string orbitalTilesetUrl = FindJSONUrl(orbitalTilesetId);
+                if (orbitalTilesetUrl != null)
+                {
+                    images = null;
+                    sceneManifest.AddOrUpdateContextualTileset(orbitalTilesetId,
+                                                               !options.NoURLs ? orbitalTilesetUrl : null,
+                                                               options.Sol, options.SiteDrive,
+                                                               options.Sols, options.SiteDrives,
+                                                               frameCache, options.UsePriors, options.OnlyAligned,
+                                                               images, backprojectedPixels, pipeline);
+                }
+            }
         }
 
         private List<RoverObservation> FilterImages(List<RoverObservation> images, MeshVariant meshVariant,
