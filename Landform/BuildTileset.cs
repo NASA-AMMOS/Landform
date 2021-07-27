@@ -20,22 +20,22 @@ using OPS.Pipeline.TilingServer;
 ///
 /// In some workflows, e.g. tactical mesh tiling where existing LODs were loaded from an input mesh RDR, the role of
 /// build-tileset is mostly a format conversion, because build-tiling-input already defined all leaf and parent tile
-/// meshes and textures.  build-tileset creates B3DM "batched 3D model" files containing a binary GLTF mesh and a JPG
-/// texture for each tile, starting from the tile mesh and texture files saved to project storage in build-tiling-input
-/// (typically in PLY and PNG formats).  build-tiling-input also writes a TileList data product which indexes those
-/// intermediate products and contains some related metadata.  The TileList is referred to by the SceneMesh in the
-/// alignment project database.
+/// meshes and textures.  build-tileset creates B3DM "batched 3D model" files containing a binary GLTF mesh and a PNG
+/// (or possibly JPG) texture for each tile, starting from the tile mesh and texture files saved to project storage in
+/// build-tiling-input (typically in PLY and PNG formats).  build-tiling-input also writes a TileList data product which
+/// indexes those intermediate products and contains some related metadata.  The TileList is referred to by the
+/// SceneMesh in the alignment project database.
 ///
-/// In other workflows, e.g. contextual mesh, build-tiling-input only defined the leaf tile names, meshes, and textures.
+/// In other workflows, e.g. contextual mesh, build-tiling-input only creates the leaf tile names, meshes, and textures.
 /// In that case build-tiling-input first builds all parent tile meshes and textures before converting tiles to B3DM.
 /// Parent tile meshes are typically built by merging and decimating their children's meshes.  Parent tile textures are
 /// typically baked from their children's textures.
 ///
-/// Interestingly, the topology of the entire tileset tree is always fully defined by build-tiling-input, because
-/// build-tiling-input always defines all leaf tile names.  Any missing parent tiles are inferrable from the
-/// naming convention of the leaf tile, because each character in a tile's name is one breadcrumb along the path from
-/// the tile tree root to that tile.  E.g. in a binary tiling scheme tile 01101 would be the second child of the first
-/// child of the second child of the second child of the first child of the root.
+/// The topology of the entire tileset tree is always fully defined by build-tiling-input, because build-tiling-input
+/// always defines all leaf tile names.  Any missing parent tiles are inferrable from the naming convention of the leaf
+/// tile, because each character in a tile's name is one breadcrumb along the path from the tile tree root to that tile.
+/// E.g. in a binary tiling scheme tile 01101 would be the second child of the first child of the second child of the
+/// second child of the first child of the root.
 ///
 /// Similarly, the full tileset geometry is defined by the leaf meshes (and their bounds), and the full tileset texture
 /// is defined by the leaf textures.

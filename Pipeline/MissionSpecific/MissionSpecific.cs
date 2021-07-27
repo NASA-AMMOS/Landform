@@ -1,6 +1,8 @@
 ﻿using System;
 using System.IO;
 using System.Linq;
+using System.Text;
+using System.Text.RegularExpressions;
 using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 using log4net;
@@ -40,6 +42,9 @@ namespace OPS.Pipeline
         [ConfigEnvironmentVariable("LANDFORM_ALLOW_PARTIAL_PRODUCTS")]
         public bool AllowPartialProducts { get; set; } = false;
 
+        [ConfigEnvironmentVariable("LANDFORM_ALLOW_VIDEO_PRODUCTS")]
+        public bool AllowVideoProducts { get; set; } = false;
+
         [ConfigEnvironmentVariable("LANDFORM_ALLOW_SUN_FINDING")]
         public bool AllowSunFinding { get; set; } = false;
 
@@ -77,6 +82,15 @@ namespace OPS.Pipeline
         [ConfigEnvironmentVariable("LANDFORM_USE_HAZCAM_FOR_TEXTURING")]
         public bool UseHazcamForTexturing { get; set; } = true;
 
+        [ConfigEnvironmentVariable("LANDFORM_USE_REAR_HAZCAM_FOR_ALIGNMENT")]
+        public bool UseRearHazcamForAlignment { get; set; } = true;
+
+        [ConfigEnvironmentVariable("LANDFORM_USE_REAR_HAZCAM_FOR_MESHING")]
+        public bool UseRearHazcamForMeshing { get; set; } = true;
+
+        [ConfigEnvironmentVariable("LANDFORM_USE_REAR_HAZCAM_FOR_TEXTURING")]
+        public bool UseRearHazcamForTexturing { get; set; } = true;
+
         [ConfigEnvironmentVariable("LANDFORM_USE_NAVCAM_FOR_ALIGNMENT")]
         public bool UseNavcamForAlignment { get; set; } = true;
 
@@ -106,7 +120,7 @@ namespace OPS.Pipeline
         public bool UseArmcamForTexturing { get; set; } = false;
 
         [ConfigEnvironmentVariable("LANDFORM_USE_UNIFIED_MESHES")]
-        public bool UseUnifiedMeshes { get; set; } = true;
+        public bool UseUnifiedMeshes { get; set; } = false;
 
         [ConfigEnvironmentVariable("LANDFORM_UNIFIED_MESH_PRODUCT_TYPE")]
         public string UnifiedMeshProductType { get; set; } = "RAS";
@@ -121,10 +135,34 @@ namespace OPS.Pipeline
         //sorted in order of preference (best last)
         [ConfigEnvironmentVariable("LANDFORM_ALLOWED_PRODUCERS")]
         public string AllowedProducers { get; set; } = "OPGS"; 
+
+        [ConfigEnvironmentVariable("LANDFORM_MAX_CONTEXTUAL_MESH_WEDGES")]
+        public int MaxContextualMeshWedges { get; set; } = 2000; 
+
+        [ConfigEnvironmentVariable("LANDFORM_MAX_CONTEXTUAL_MESH_TEXTURES")]
+        public int MaxContextualMeshTextures { get; set; } = 4000; 
+
+        [ConfigEnvironmentVariable("LANDFORM_MAX_CONTEXTUAL_MESH_NAVCAM_WEDGES_PER_SITEDRIVE")]
+        public int MaxContextualMeshNavcamWedgesPerSiteDrive { get; set; } = 500; 
+
+        [ConfigEnvironmentVariable("LANDFORM_MAX_CONTEXTUAL_MESH_NAVCAM_TEXTURES_PER_SITEDRIVE")]
+        public int MaxContextualMeshNavcamTexturesPerSiteDrive { get; set; } = 1000; 
+
+        [ConfigEnvironmentVariable("LANDFORM_MAX_CONTEXTUAL_MESH_MASTCAM_WEDGES_PER_SITEDRIVE")]
+        public int MaxContextualMeshMastcamWedgesPerSiteDrive { get; set; } = 1500; 
+
+        [ConfigEnvironmentVariable("LANDFORM_MAX_CONTEXTUAL_MESH_MASTCAM_TEXTURES_PER_SITEDRIVE")]
+        public int MaxContextualMeshMastcamTexturesPerSiteDrive { get; set; } = 3000; 
     }
 
     public abstract class MissionSpecific : ConfigDefaultsProvider
     {
+        private readonly string[] DEFAULT_HAZCAM_RDR_SUBDIRS = new string[] { "fcam", "rcam" };
+        private readonly string[] DEFAULT_NAVCAM_RDR_SUBDIRS = new string[] { "ncam" };
+        private readonly string[] DEFAULT_MASTCAM_RDR_SUBDIRS = new string[] { "mcam" };
+        private readonly string[] DEFAULT_ARMCAM_RDR_SUBDIRS = null;
+        private readonly string[] DEFAULT_UNIFIED_MESH_RDR_SUBDIRS = new string[] { "mesh" };
+
         protected readonly string venue;
 
         protected MissionSpecific(string venue = null)
@@ -283,10 +321,10 @@ namespace OPS.Pipeline
         }
 
         /// <summary>
-        /// see RoverObservationComparator.FilterProductIdGroups()  
+        /// see RoverObservationComparator.FilterProductIDGroups()  
         /// </summary>
         public virtual IEnumerable<RoverProductId>
-            FilterProductIdGroups(IEnumerable<RoverProductId> products,
+            FilterProductIDGroups(IEnumerable<RoverProductId> products,
                                   Action<string, List<RoverProductId>, List<RoverProductId>> spew = null)
         {
             return products;
@@ -317,6 +355,12 @@ namespace OPS.Pipeline
                     camera == RoverProductCamera.FrontHazcamLeft ||
                     camera == RoverProductCamera.FrontHazcamRight ||
                     camera == RoverProductCamera.RearHazcamLeft ||
+                    camera == RoverProductCamera.RearHazcamRight;
+        }
+
+        public virtual bool IsRearHazcam(RoverProductCamera camera)
+        {
+                return camera == RoverProductCamera.RearHazcamLeft ||
                     camera == RoverProductCamera.RearHazcamRight;
         }
 
@@ -409,6 +453,14 @@ namespace OPS.Pipeline
         }
 
         /// <summary>
+        /// whether to ingest video frame images
+        /// </summary>
+        public virtual bool AllowVideoProducts()
+        {
+            return MissionConfig.Instance.AllowVideoProducts;
+        }
+
+        /// <summary>
         /// whether to ingest sun finding images
         /// </summary>
         public virtual bool AllowSunFinding()
@@ -490,6 +542,21 @@ namespace OPS.Pipeline
             return MissionConfig.Instance.UseHazcamForTexturing;
         }
 
+        public virtual bool UseRearHazcamForAlignment()
+        {
+            return MissionConfig.Instance.UseRearHazcamForAlignment;
+        }
+
+        public virtual bool UseRearHazcamForMeshing()
+        {
+            return MissionConfig.Instance.UseRearHazcamForMeshing;
+        }
+
+        public virtual bool UseRearHazcamForTexturing()
+        {
+            return MissionConfig.Instance.UseRearHazcamForTexturing;
+        }
+
         public virtual bool UseNavcamForAlignment()
         {
             return MissionConfig.Instance.UseNavcamForAlignment;
@@ -535,6 +602,31 @@ namespace OPS.Pipeline
             return MissionConfig.Instance.UseArmcamForTexturing;
         }
 
+        public virtual string[] GetHazcamRDRSubdirs()
+        {
+            return DEFAULT_HAZCAM_RDR_SUBDIRS;
+        }
+
+        public virtual string[] GetNavcamRDRSubdirs()
+        {
+            return DEFAULT_NAVCAM_RDR_SUBDIRS;
+        }
+
+        public virtual string[] GetMastcamRDRSubdirs()
+        {
+            return DEFAULT_MASTCAM_RDR_SUBDIRS;
+        }
+
+        public virtual string[] GetArmcamRDRSubdirs()
+        {
+            return DEFAULT_ARMCAM_RDR_SUBDIRS;
+        }
+
+        public virtual string[] GetUnifiedMeshRDRSubdirs()
+        {
+            return DEFAULT_UNIFIED_MESH_RDR_SUBDIRS;
+        }
+
         public virtual bool UseUnifiedMeshes()
         {
             return MissionConfig.Instance.UseUnifiedMeshes;
@@ -557,7 +649,7 @@ namespace OPS.Pipeline
 
         public virtual bool UseForAlignment(RoverProductCamera cam)
         {
-            return (IsHazcam(cam) && UseHazcamForAlignment()) ||
+            return (IsHazcam(cam) && UseHazcamForAlignment() && (!IsRearHazcam(cam) || UseRearHazcamForAlignment())) ||
                 (IsNavcam(cam) && UseNavcamForAlignment()) ||
                 (IsMastcam(cam) && UseMastcamForAlignment()) ||
                 (IsArmcam(cam) && UseArmcamForAlignment());
@@ -575,7 +667,7 @@ namespace OPS.Pipeline
 
         public virtual bool UseForMeshing(RoverProductCamera cam)
         {
-            return (IsHazcam(cam) && UseHazcamForMeshing()) ||
+            return (IsHazcam(cam) && UseHazcamForMeshing() && (!IsRearHazcam(cam) || UseRearHazcamForMeshing())) ||
                 (IsNavcam(cam) && UseNavcamForMeshing()) ||
                 (IsMastcam(cam) && UseMastcamForMeshing()) ||
                 (IsArmcam(cam) && UseArmcamForMeshing());
@@ -593,7 +685,7 @@ namespace OPS.Pipeline
 
         public virtual bool UseForTexturing(RoverProductCamera cam)
         {
-            return (IsHazcam(cam) && UseHazcamForTexturing()) ||
+            return (IsHazcam(cam) && UseHazcamForTexturing() && (!IsRearHazcam(cam) || UseRearHazcamForTexturing())) ||
                 (IsNavcam(cam) && UseNavcamForTexturing()) ||
                 (IsMastcam(cam) && UseMastcamForTexturing()) ||
                 (IsArmcam(cam) && UseArmcamForTexturing());
@@ -601,7 +693,9 @@ namespace OPS.Pipeline
 
         public virtual bool UseCamera(RoverProductCamera cam)
         {
-            return (IsHazcam(cam) && (UseHazcamForAlignment() || UseHazcamForMeshing() || UseHazcamForTexturing())) ||
+            return (IsHazcam(cam) && (UseHazcamForAlignment() || UseHazcamForMeshing() || UseHazcamForTexturing()) &&
+                    (!IsRearHazcam(cam) ||
+                     UseRearHazcamForAlignment() || UseRearHazcamForMeshing() || UseRearHazcamForTexturing())) ||
                 (IsNavcam(cam) && (UseNavcamForAlignment() || UseNavcamForMeshing() || UseNavcamForTexturing())) ||
                 (IsMastcam(cam) && (UseMastcamForAlignment() || UseMastcamForMeshing() || UseMastcamForTexturing())) ||
                 (IsArmcam(cam) && (UseArmcamForAlignment() || UseArmcamForMeshing() || UseArmcamForTexturing()));
@@ -609,7 +703,8 @@ namespace OPS.Pipeline
 
         public virtual bool UseRasterProducts(RoverProductCamera cam)
         {
-            return (IsHazcam(cam) && (UseHazcamForAlignment() || UseHazcamForTexturing())) ||
+            return (IsHazcam(cam) && (UseHazcamForAlignment() || UseHazcamForTexturing()) &&
+                    (!IsRearHazcam(cam) || UseRearHazcamForAlignment() || UseRearHazcamForTexturing())) ||
                 (IsNavcam(cam) && (UseNavcamForAlignment() || UseNavcamForTexturing())) ||
                 (IsMastcam(cam) && (UseMastcamForAlignment() || UseMastcamForTexturing())) ||
                 (IsArmcam(cam) && (UseArmcamForAlignment() || UseArmcamForTexturing()));
@@ -617,7 +712,8 @@ namespace OPS.Pipeline
 
         public virtual bool UseGeometryProducts(RoverProductCamera cam)
         {
-            return (IsHazcam(cam) && (UseHazcamForAlignment() || UseHazcamForMeshing())) ||
+            return (IsHazcam(cam) && (UseHazcamForAlignment() || UseHazcamForMeshing()) &&
+                    (!IsRearHazcam(cam) || UseRearHazcamForAlignment() || UseRearHazcamForMeshing())) ||
                 (IsNavcam(cam) && (UseNavcamForAlignment() || UseNavcamForMeshing())) ||
                 (IsMastcam(cam) && (UseMastcamForAlignment() || UseMastcamForMeshing())) ||
                 (IsArmcam(cam) && (UseArmcamForAlignment() || UseArmcamForMeshing()));
@@ -754,6 +850,23 @@ namespace OPS.Pipeline
             return CheckProductId(id, out string reason);
         }
 
+        //null if not supported by mission
+        //otherwise first capturing group corresponds to second argument of videoEDRExists callback for IsVideoProduct()
+        public virtual Regex GetVideoURLRegex()
+        {
+            return null;
+        }
+
+        //false if not supported by mission
+        //otherwise check if product ID and/or URL is a video product
+        //videoEDRExists is an optional callback (s3Folder, fileBasename) => bool that is needed for some missions
+        //e.g. for M2020 it's not possible to know if a ZCAM image is a video frame just from its ID or URL
+        //but we can instead munge the URL into a corresponding ECV EDR url and check for that
+        public virtual bool IsVideoProduct(RoverProductId id, string url, Func<string, string, bool> videoEDRExists)
+        {
+            return false;
+        }
+
         public virtual IEnumerable<int[]> GetProductIdVariantSpans(RoverProductId id)
         {
             yield break;
@@ -791,6 +904,12 @@ namespace OPS.Pipeline
             if (!UseProduct(cam, pt))
             {
                 reason = string.Format("{0} {1} products not allowed", cam, pt);
+                return false;
+            }
+
+            if (!AllowVideoProducts() && parser.IsVideoFrame)
+            {
+                reason = "video frames not allowed";
                 return false;
             }
 
@@ -925,6 +1044,137 @@ namespace OPS.Pipeline
         public string GetTacticalMeshFrame(string idStr)
         {
             return GetTacticalMeshFrame(ParseProductId(idStr));
+        }
+
+        /// <summary>
+        /// Get the subdirs of the RDR directory to search for contextual mesh RDRs.
+        /// Order matters: fetch will process the subdirs in order.
+        /// Unified meshes should be fetched before RDRs they pertain to.
+        /// Other instruments should be in priority order as fetch may trim downloads to fit max download limits.
+        /// </summary>
+        public virtual string[] GetContextualMeshRDRSubdirs()
+        {
+            var dirs = new List<string>();
+            if (UseUnifiedMeshes() && GetUnifiedMeshRDRSubdirs() != null)
+            {
+                dirs.AddRange(GetUnifiedMeshRDRSubdirs());
+            }
+            if ((UseNavcamForAlignment() || UseNavcamForMeshing() || UseNavcamForTexturing()) &&
+                GetNavcamRDRSubdirs() != null)
+            {
+                dirs.AddRange(GetNavcamRDRSubdirs());
+            }
+            if ((UseHazcamForAlignment() || UseHazcamForMeshing() || UseHazcamForTexturing()) &&
+                GetHazcamRDRSubdirs() != null)
+            {
+                dirs.AddRange(GetHazcamRDRSubdirs());
+            }
+            if ((UseMastcamForAlignment() || UseMastcamForMeshing() || UseMastcamForTexturing()) &&
+                GetMastcamRDRSubdirs() != null)
+            {
+                dirs.AddRange(GetMastcamRDRSubdirs());
+            }
+            if ((UseArmcamForAlignment() || UseArmcamForMeshing() || UseArmcamForTexturing()) &&
+                GetArmcamRDRSubdirs() != null)
+            {
+                dirs.AddRange(GetArmcamRDRSubdirs());
+            }
+            return dirs.ToArray();
+        }
+
+        public virtual int GetMaxContextualMeshWedges()
+        {
+            return MissionConfig.Instance.MaxContextualMeshWedges;
+        }
+
+        public virtual int GetMaxContextualMeshTextures()
+        {
+            return MissionConfig.Instance.MaxContextualMeshTextures;
+        }
+
+        public virtual int GetMaxContextualMeshNavcamWedgesPerSiteDrive()
+        {
+            return MissionConfig.Instance.MaxContextualMeshNavcamWedgesPerSiteDrive;
+        }
+
+        public virtual int GetMaxContextualMeshNavcamTexturesPerSiteDrive()
+        {
+            return MissionConfig.Instance.MaxContextualMeshNavcamTexturesPerSiteDrive;
+        }
+
+        public virtual int GetMaxContextualMeshMastcamWedgesPerSiteDrive()
+        {
+            return MissionConfig.Instance.MaxContextualMeshMastcamWedgesPerSiteDrive;
+        }
+
+        public virtual int GetMaxContextualMeshMastcamTexturesPerSiteDrive()
+        {
+            return MissionConfig.Instance.MaxContextualMeshMastcamTexturesPerSiteDrive;
+        }
+
+        public virtual string FilterContextualMeshWedge(RoverProductId id, string url)
+        {
+            string reason = FilterContextualmeshProduct(id, url);
+            if (reason != null)
+            {
+                return reason;
+            }
+            if (!UseForMeshing(id) && !UseForAlignment(id))
+            {
+                return "product type not used for meshing or alignment";
+            }
+            var preferredEye = PreferEyeForGeometry();
+            if (!RoverStereoPair.IsStereoEye(id.Camera, preferredEye))
+            {
+                return string.Format("stereo eye {0} != {1}", id.Camera, preferredEye);
+            }
+            var preferredGeometry = PreferLinearGeometryProducts() ?
+                RoverProductGeometry.Linearized : RoverProductGeometry.Raw;
+            if (id.Geometry != preferredGeometry)
+            {
+                return string.Format("linearity {0} != {1}", id.Geometry, preferredGeometry);
+            }
+            return null;
+        }
+
+        public virtual string FilterContextualMeshTexture(RoverProductId id, string url)
+        {
+            string reason = FilterContextualmeshProduct(id, url);
+            if (reason != null)
+            {
+                return reason;
+            }
+            if (!UseForTexturing(id))
+            {
+                return "product type not used for texturing";
+            }
+            var preferredGeometry = PreferLinearRasterProducts() ?
+                RoverProductGeometry.Linearized : RoverProductGeometry.Raw;
+            if (id.Geometry != preferredGeometry)
+            {
+                return string.Format("linearity {0} != {1}", id.Geometry, preferredGeometry);
+            }
+            return null;
+        }
+
+        protected virtual string FilterContextualmeshProduct(RoverProductId id, string url)
+        {
+            if (id is OPGSProductId)
+            {
+                if ((id as OPGSProductId).Size == RoverProductSize.Thumbnail)
+                {
+                    return "thumbnail product";
+                }
+                if ((id as OPGSProductId).SiteDrive.Drive % 2 == 1)
+                {
+                    return "odd drive number (in-motion)";
+                }
+            }
+            if (!CheckProductId(id, out string reason))
+            {
+                return reason;
+            }
+            return null;
         }
 
         /// <summary>

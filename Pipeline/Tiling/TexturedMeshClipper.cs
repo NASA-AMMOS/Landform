@@ -553,7 +553,7 @@ namespace OPS.Pipeline
                 img = img.ResizeMax(maxTextureSize);
                 if (index != null)
                 {
-                    index = index.ResizeMaxNearest(maxTextureSize);
+                    index = index.ResizeMax(maxTextureSize, nearestNeighborSampling: true);
                 }
                 if (logger != null)
                 {

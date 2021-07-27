@@ -48,7 +48,7 @@ namespace OPS.Pipeline
                 return new CompareResult(code, reason);
             }
 
-            //NOTE: the order of comparisons here should approximately match the order in FilterProductIdGroups()
+            //NOTE: the order of comparisons here should approximately match the order in FilterProductIDGroups()
 
             //this function can only make judgements about observations in the same frame
             //StereoFrameName abstracts Left/Right distinctions
@@ -403,7 +403,7 @@ namespace OPS.Pipeline
         /// But that's OK it's just intended to be a first pass.
         /// </summary>
         public static IEnumerable<string>
-            FilterProductIdGroups(IEnumerable<string> products, MissionSpecific mission = null,
+            FilterProductIDGroups(IEnumerable<string> products, MissionSpecific mission = null,
                                   LinearVariants linVars = LinearVariants.Best,
                                   Action<string> log = null, Func<string, bool> logFilter = null)
         {
@@ -436,7 +436,7 @@ namespace OPS.Pipeline
                 return StringHelper.GetLastUrlPathSegment(idToProducts[id][0]);
             }
 
-            foreach (var id in FilterProductIdGroups(idToProducts.Keys, mission, linVars, log, logFilter, idToFile))
+            foreach (var id in FilterProductIDGroups(idToProducts.Keys, mission, linVars, log, logFilter, idToFile))
             {
                 foreach (var product in idToProducts[id])
                 {
@@ -446,10 +446,10 @@ namespace OPS.Pipeline
         }
 
         /// <summary>
-        /// Implementation of FilterProductIdGroups(IEnumerable<string>, ...), operates directly on product IDs.
+        /// Implementation of FilterProductIDGroups(IEnumerable<string>, ...), operates directly on product IDs.
         /// </summary>
         public static IEnumerable<RoverProductId>
-            FilterProductIdGroups(IEnumerable<RoverProductId> products, MissionSpecific mission = null,
+            FilterProductIDGroups(IEnumerable<RoverProductId> products, MissionSpecific mission = null,
                                   LinearVariants linVars = LinearVariants.Best,
                                   Action<string> log = null, Func<string, bool> logFilter = null,
                                   Func<RoverProductId, string> idToFile = null)
@@ -617,6 +617,24 @@ namespace OPS.Pipeline
                 }
             }
 
+            //apply any mission specific filtering (e.g. may handle variants)
+            //note, the case of "orphan" mask products with no matching geometry or image product
+            //is handled in the mission specific FilterProductIDGroups()
+            //because it's tricky: for missions like MSL that can work with a mix of products
+            //from different producers (e.g. OPGS, MSSS)
+            //and when those have different product ID formats (cough, MSL)
+            //then it can be hard or impossible to associate e.g. OPGS mask products
+            //with MSSS image products just based on the product ID alone
+            //(later when RDRs have been downloaded and parsed we can typically use RMC
+            //to actually group products across producers)
+            if (mission != null)
+            {
+                var orig = products.ToList();
+                var filtered = mission.FilterProductIDGroups(orig, spew).ToList();
+                spew("mission", orig, filtered);
+                products = filtered;
+            }
+
             //filter each type of ID separately
             //this keeps us from comparing e.g. MSSS to OPGS ids
             //but the code just doesn't support that
@@ -634,6 +652,7 @@ namespace OPS.Pipeline
                                                                  includeProductType: false, includeGeometry: false,
                                                                  includeColorFilter: false, includeVariants: false,
                                                                  includeVersion: false, includeStereoEye: false,
+                                                                 includeSpecialProcessing: false,
                                                                  includeStereoPartner: false)))
                 {
                     //obsGroup contains ids of
@@ -641,7 +660,8 @@ namespace OPS.Pipeline
                     //* same instrument (but any stereo eye)
                     //* same sequence number and timestamp(s)
                     //* same size (thumbnail vs regular)
-                    //* same special processing
+                    //* same producer
+                    //* same mesh type
                     //but
                     //* all product types
                     //* all geometries (linearized, raw)
@@ -650,6 +670,7 @@ namespace OPS.Pipeline
                     //* all versions
                     //* all stereo eyes (left, right, mono)
                     //* all stereo partners
+                    //* all special processings
                     
                     var orig = obsGroup.ToList();
                     
@@ -716,11 +737,6 @@ namespace OPS.Pipeline
                             spew("linearity", orig, filtered);
                             orig = filtered;
                         }
-                        
-                        //apply any mission specific filtering (e.g. may handle variants)
-                        filtered = mission.FilterProductIdGroups(orig, spew).ToList();
-                        spew("mission", orig, filtered);
-                        orig = filtered;
                     }
 
                     foreach (var id in filtered)

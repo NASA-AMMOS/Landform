@@ -363,21 +363,25 @@ namespace OPS.Pipeline
             }
         }
 
+        //NOTE this should also be synchronized with FetchData.FilterDownloads()
         private int CullObservations(IDictionary<string, IngestImage.Result> results)
         {
-            var acceptedUrls = new HashSet<string>();
-            acceptedUrls.UnionWith(results.Values.Where(res => res.Accepted).Select(res => res.Url));
-            int na = acceptedUrls.Count;
-            Action<string> log = null;
+            Action<string> verbose = null;
             if (pipeline.Verbose)
             {
-                log = msg => pipeline.LogInfo(msg);
+                verbose = msg => pipeline.LogInfo(msg);
             }
-            var filteredUrls = RoverObservationComparator
-                .FilterProductIdGroups(acceptedUrls, mission, RoverObservationComparator.LinearVariants.Both, log)
+
+            var filteredUrls = results.Values.Where(res => res.Accepted).Select(res => res.Url).Distinct().ToList();
+
+            //apply RoverObservationComparator.FilterProductIDGroups()
+            int na = filteredUrls.Count;
+            filteredUrls = RoverObservationComparator
+                .FilterProductIDGroups(filteredUrls, mission, RoverObservationComparator.LinearVariants.Both, verbose)
                 .ToList();
             pipeline.LogInfo("culled {0} -> {1} observations by product ID groups", na, filteredUrls.Count);
 
+            //select only RoverObservations
             var filteredObs = filteredUrls
                 .Select(url => results[StringHelper.StripUrlExtension(url)].Observation)
                 .Where(obs => obs is RoverObservation)
@@ -385,6 +389,7 @@ namespace OPS.Pipeline
                 .ToList();
             na = filteredObs.Count;
 
+            //apply RoverObservationComparator.KeepBestRoverObservations()
             // if linear and nonlinear images are allowed this code will keep for each observation either:
             // 1) one image: the best image (regardless of linearity) if the image contents are different
             //    in higher priority compares than linearity
@@ -398,6 +403,35 @@ namespace OPS.Pipeline
             pipeline.LogInfo("culled {0} -> {1} observations by observation comparator", na, filteredObs.Count);
             na = filteredObs.Count;
 
+            //enforce mission specific wedge and texture count limits
+            var sdLists = new Dictionary<SiteDrive, SiteDriveList>();
+            var idToURL = new Dictionary<RoverProductId, string>();
+            foreach (var obs in filteredObs)
+            {
+                var id = RoverProductId.Parse(obs.Name, mission); //all ids should parse now
+                idToURL[id] = obs.Url;
+                var sd = obs.SiteDrive;
+                if (!sdLists.ContainsKey(sd))
+                {
+                    sdLists[sd] = new SiteDriveList(mission, pipeline);
+                }
+                sdLists[sd].Add(id, obs.Url); //will be rejected if not an OPGS product ID or not XYZ or RAS
+            }
+            SiteDriveList.ApplyMissionLimits(sdLists, idToURL);
+            var keepers = new HashSet<string>(idToURL.Keys.Select(id => id.FullId));
+            filteredObs = filteredObs.Where(obs => keepers.Contains(obs.Name)).ToList();
+            if (filteredObs.Count < na)
+            {
+                //attempt to cull orphan masks
+                keepers.Clear();
+                keepers.UnionWith(RoverObservationComparator.
+                                  FilterProductIDGroups(filteredObs.Select(obs => obs.Name), mission,
+                                                        RoverObservationComparator.LinearVariants.Both, verbose));
+                filteredObs = filteredObs.Where(obs => keepers.Contains(obs.Name)).ToList();
+            }
+            pipeline.LogInfo("culled {0} -> {1} observations by wedge and texture limits", na, filteredObs.Count);
+            na = filteredObs.Count;
+
             var obsNames = new HashSet<string>();
             obsNames.UnionWith(filteredObs.Select(obs => obs.Name));
             foreach (var res in results.Values)
@@ -408,7 +442,7 @@ namespace OPS.Pipeline
                 }
             }
 
-            return na;
+            return filteredObs.Count;
         }
 
         private void DeleteOrphans(IEnumerable<IngestImage.Result> results)

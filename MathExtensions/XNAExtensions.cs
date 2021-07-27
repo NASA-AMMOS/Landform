@@ -175,9 +175,17 @@ namespace OPS.MathExtensions
 
         public static RTree.Rectangle ToRectangle(this Vector3 v)
         {
-            return new RTree.Rectangle((float)v.X, (float)v.Y,
-                                       (float)v.X, (float)v.Y,
-                                       (float)v.Z, (float)v.Z); //yes, z last
+            return new RTree.Rectangle((float)v.X, (float)v.Y, //x1, y1
+                                       (float)v.X, (float)v.Y, //x2, y2
+                                       (float)v.Z, (float)v.Z); //z1, z2 (yes, z last)
+        }
+
+        public static RTree.Rectangle ToRectangle(this Vector3 v, double minSize)
+        {
+            float r = (float)(0.5 * minSize);
+            return new RTree.Rectangle((float)v.X - r, (float)v.Y - r, //x1, y1
+                                       (float)v.X + r, (float)v.Y + r, //x2, y2
+                                       (float)v.Z - r, (float)v.Z + r); //z1, z2 (yes, z last)
         }
 
         public static RTree.Point ToRTreePoint(this Vector3 v)

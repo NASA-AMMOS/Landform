@@ -10,11 +10,11 @@ namespace OPS.Pipeline
         public const int LENGTH = 36;
 
         public readonly string Config, Seqnum;
-        public readonly int Sclk;
+        public readonly long Sclk;
 
         protected MSLOPGSProductId(string fullId, string producer, string productType, string camera, string geometry,
                                    string config, string version, string size, int site, int drive,
-                                   string spec, int sclk, string seqnum)
+                                   string spec, long sclk, string seqnum)
             : base(fullId, producer, productType, camera, geometry, config, version, size, site, drive, spec)
         {
             this.Config = config;
@@ -50,7 +50,7 @@ namespace OPS.Pipeline
                 return null;
             }
 
-            if (!int.TryParse(sclkStr, out int sclk))
+            if (!ParseSclk(sclkStr, out long sclk))
             {
                 return null;
             }
@@ -58,6 +58,33 @@ namespace OPS.Pipeline
             return new MSLOPGSProductId(fullId: productId, producer: venue, productType: prodType, camera: inst,
                                         geometry: geom, config: config, version: ver, size: samp,
                                         site: site, drive: drive, spec: spec, sclk: sclk, seqnum: seqnum);
+        }
+
+        public static bool ParseSclk(string str, out long sclk)
+        {
+            sclk = -1;
+            if (string.IsNullOrEmpty(str))
+            {
+                return false;
+            }
+            if (Char.IsLetter(str, 0)) //1,099,999,999 - 3,599,999,999
+            {
+                char c = char.ToUpper(str[0]);
+                str = str.Substring(1);
+                if (str.Length != 8 || !long.TryParse(str, out sclk))
+                {
+                    return false;
+                }
+                sclk += (10 + (c - 'A')) * 100000000L;
+            }
+            else //0 - 999,999,999
+            {
+                if (!long.TryParse(str, out sclk))
+                {
+                    return false;
+                }
+            }
+            return true;
         }
 
         protected override RoverProductProducer ParseProducer(string producer, string camera)
@@ -145,6 +172,16 @@ namespace OPS.Pipeline
             start = 34;
             length = 1;
             return true;
+        }
+
+        public override bool HasSclk()
+        {
+            return true;
+        }
+
+        public override double GetSclk()
+        {
+            return Sclk;
         }
     }
 

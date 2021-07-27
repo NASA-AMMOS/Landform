@@ -112,7 +112,7 @@ namespace OPS.Landform
         [Option(HelpText = "Max tile texture atlas stretch (0 = no stretch, 1 = unlimited)", Default = TilingDefaults.MAX_TEXTURE_STRETCH)]
         public double MaxTextureStretch { get; set; }
 
-        [Option(HelpText = "Require power of two tile textures", Default = TilingDefaults.POWER_OF_TWO_TEXTURES)]
+        [Option(HelpText = "Require power of two tile textures (note: when clipping textures if input image is not power of two, tile textures may not be either)", Default = TilingDefaults.POWER_OF_TWO_TEXTURES)]
         public bool PowerOfTwoTextures { get; set; }
 
         [Option(HelpText = "Colorize mono images to median chrominance", Default = false)]
@@ -151,20 +151,37 @@ namespace OPS.Landform
         protected double lastCredentialRefreshSecUTC;
         protected int credentialRefreshSec;
 
-        private volatile Process currentProcess;
-
+        private Object storageHelperLock = new Object();
         private StorageHelper _storageHelper;
         protected StorageHelper storageHelper
         {
             get
             {
-                if (_storageHelper == null)
+                lock (storageHelperLock)
                 {
-                    _storageHelper = new StorageHelper(awsProfile, awsRegion, pipeline.Logger);
+                    if (_storageHelper == null)
+                    {
+                        _storageHelper = new StorageHelper(awsProfile, awsRegion, pipeline.Logger);
+                    }
+                    return _storageHelper;
                 }
-                return _storageHelper;
+            }
+
+            set
+            {
+                lock (storageHelperLock)
+                {
+                    if (_storageHelper != null)
+                    {
+                        _storageHelper.Dispose();
+                        _storageHelper = null;
+                    }
+                    _storageHelper = value;
+                }
             }
         }
+
+        private volatile Process currentProcess;
 
         public LandformShell(LandformShellOptions options) : base(options)
         {
@@ -286,7 +303,7 @@ namespace OPS.Landform
                 awsProfile = newProfile ?? originalAWSProfile;
             }
 
-            _storageHelper = null;
+            storageHelper = null;
         }
 
         protected abstract string GetLogFilePrefix();
@@ -392,7 +409,7 @@ namespace OPS.Landform
                         {
                             pipeline.LogWarn("retrying download {0}", url);
                         }
-                        if (storageHelper().DownloadFile(url, path))
+                        if (storageHelper().DownloadFile(url, path, logger: pipeline.Logger))
                         {
                             break;
                         }
@@ -456,6 +473,7 @@ namespace OPS.Landform
         protected int RunCommand(string cmd, HashSet<string> allowedFlags, bool throwOnError, bool throwOnKill,
                                  params string[] args)
         {
+            string extraArgs = Environment.GetEnvironmentVariable($"LANDFORM_{cmd.Replace('-','_').ToUpper()}_EXTRA");
             cmd = cmd + " " + string.Join(" ", args.Where(arg => !string.IsNullOrEmpty(arg)));
             var stdFlags = new Dictionary<string, bool>()
                 {
@@ -489,6 +507,10 @@ namespace OPS.Landform
                 {
                     cmd += string.Format(" {0} {1}", entry.Key, entry.Value);
                 }
+            }
+            if (!string.IsNullOrEmpty(extraArgs))
+            {
+                cmd += " " + extraArgs;
             }
             pipeline.LogInfo("{0}running {1} {2}", lsopts.DryRun ? "dry " : "", landformExe, cmd);
             if (!lsopts.DryRun)

@@ -129,8 +129,8 @@ namespace OPS.Landform
         [Option(HelpText = "Disable generating UVs by texture projection", Default = false)]
         public bool NoTextureProjection { get; set; }
 
-        [Option(HelpText = "Align tile bounds to camera axis for improved texture utilization when using texture projection", Default = false)]
-        public bool AlignToCamera { get; set; }
+        [Option(HelpText = "Don't align tile bounds to camera axis for improved texture utilization when using texture projection", Default = false)]
+        public bool NoAlignToCamera { get; set; }
 
         [Option(HelpText = "Enable synthesizing intermediate LODs when fewer precomputed LODs than tile tree levels", Default = false)]
         public bool SynthesizeExtraLODs { get; set; }
@@ -331,7 +331,7 @@ namespace OPS.Landform
                 return false; //e.g. --help
             }
 
-            if (messageQueue == null)
+            if (!serviceMode && !serviceUtilMode)
             {
                 if (string.IsNullOrEmpty(options.InputPath))
                 {
@@ -993,7 +993,7 @@ namespace OPS.Landform
             string loadLODs = !options.NoLoadExistingLODs ? "--loadlods" : "";
             string fixupLODs = options.FixupLODs;
             string noTextureProjection = options.NoTextureProjection ? "--notextureprojection" : "";
-            string alignToCamera = options.AlignToCamera ? "--aligntocamera" : "";
+            string noAlignToCam = options.NoAlignToCamera ? "--noaligntocamera" : "";
             string synthesizeExtraLODs = options.SynthesizeExtraLODs ? "--synthesizeextralods" : "";
             string noLimitTreeHeightToLODs = options.NoLimitTreeHeightToLODs ? "--nolimittreeheighttolods" : "";
 
@@ -1027,7 +1027,7 @@ namespace OPS.Landform
                 {
                     BuildTilingInput(project, "--mission", fullMissionStr, "--meshframe", "tactical", "--inputmesh",
                                      meshFile, "--inputtexture", imageFile, loadLODs, "--fixuplods", fixupLODs,
-                                     noTextureProjection, alignToCamera, synthesizeExtraLODs, noLimitTreeHeightToLODs);
+                                     noTextureProjection, noAlignToCam, synthesizeExtraLODs, noLimitTreeHeightToLODs);
                     
                     BuildTileset(project);
 

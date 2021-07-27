@@ -38,7 +38,7 @@ namespace OPS.Landform
         [Option(HelpText = "Use level of detail meshes provided in input mesh", Default = false)]
         public bool LoadLODs { get; set; }
 
-        [Option(HelpText = "Create or fix LOD meshes, comma separated list of min-max ranges, finest to coarsest", Default = TextureCommand.DEF_FIXUP_LODS)]
+        [Option(HelpText = "Create or fix LOD meshes, comma separated list of min-max ranges, finest to coarsest, or \"null\" to disable", Default = TextureCommand.DEF_FIXUP_LODS)]
         public string FixupLODs { get; set; }
 
         [Option(HelpText = "Occlusion mesh in same frame as input mesh, defaults to input mesh", Default = null)]
@@ -305,16 +305,23 @@ namespace OPS.Landform
                 Interlocked.Increment(ref np);
 
                 pipeline.LogVerbose("creating blurred image for observation {0}, processing {1} in parallel, " +
-                                        "completed {2}/{3}", obs.Name, np, nc, no);
+                                    "completed {2}/{3}", obs.Name, np, nc, no);
 
                 try
                 {
-                    Image orig = pipeline.LoadImage(obs.Url);
+                    Image img = pipeline.LoadImage(obs.Url);
                     
+                    if (obs.MaskGuid != Guid.Empty)
+                    {
+                        var mask = pipeline.GetDataProduct<PngDataProduct>(project, obs.MaskGuid).Image;
+                        img = new Image(img); //don't mutate cached image
+                        img.UnionMask(mask, new float[] { 0 }); //0 means bad, 1 means good
+                    }
+
                     //notes from TerrainTools PDSImageRoutines.cs
                     //"Used to do a guass blur 4 with photoshop"
                     //the current code is: img.SmoothBlur(13, 13)
-                    Image blurredImage = (new Image(orig)).GaussianBoxBlur(tcopts.ObservationBlurRadius);
+                    Image blurredImage = img.GaussianBoxBlur(tcopts.ObservationBlurRadius);
                     
 #if DBG_BLURRED
                     if (tcopts.WriteDebug)
@@ -526,13 +533,15 @@ namespace OPS.Landform
 
             for (int lod = 0; lod < meshLOD.Count; lod++)
             {
-                pipeline.LogInfo("LOD {0}: {1} vertices, {2} faces",
-                                 lod, Fmt.KMG(meshLOD[lod].Vertices.Count), Fmt.KMG(meshLOD[lod].Faces.Count));
+                pipeline.LogInfo("LOD {0}: {1} vertices, {2} faces, bounds {3}",
+                                 lod, Fmt.KMG(meshLOD[lod].Vertices.Count), Fmt.KMG(meshLOD[lod].Faces.Count),
+                                 meshLOD[lod].Bounds().FmtExtent());
             }
 
             bool canGenUVs = CanAtlasSceneMesh();
 
-            if (tcopts.LoadLODs && !string.IsNullOrEmpty(tcopts.FixupLODs) && (!requireUVs || canGenUVs))
+            if (tcopts.LoadLODs && !string.IsNullOrEmpty(tcopts.FixupLODs) && (tcopts.FixupLODs.ToLower() != "null") &&
+                (!requireUVs || canGenUVs))
             {
                 int[][] ranges = null;
                 try

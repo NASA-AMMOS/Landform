@@ -50,9 +50,13 @@ namespace OPS.Pipeline
         }
 
         public static Dictionary<SiteDrive, Dictionary<RoverProductCamera, UnifiedMesh>>
-            LoadAll(List<string> paths, MissionSpecific mission = null)
+            LoadAll(List<string> paths, MissionSpecific mission = null,
+                    Dictionary<SiteDrive, Dictionary<RoverProductCamera, UnifiedMesh>> unifiedMeshes = null)
         {
-            var unifiedMeshes = new Dictionary<SiteDrive, Dictionary<RoverProductCamera, UnifiedMesh>>();
+            if (unifiedMeshes == null)
+            {
+                unifiedMeshes = new Dictionary<SiteDrive, Dictionary<RoverProductCamera, UnifiedMesh>>();
+            }
             foreach (var path in paths)
             {
                 var id = RoverProductId.Parse(StringHelper.GetLastUrlPathSegment(path, stripExtension: true), mission);
@@ -82,6 +86,14 @@ namespace OPS.Pipeline
             return unifiedMeshes;
         }
 
+        public static bool CheckUnifiedMeshProductId(RoverProductId id, MissionSpecific mission = null)
+        {
+            return id != null && id is UnifiedMeshProductIdBase &&
+                ((OPGSProductId)id).Size != RoverProductSize.Thumbnail &&
+                !id.IsSingleFrame() && id.IsSingleCamera() && id.IsSingleSiteDrive() &&
+                (mission == null || mission.CheckProductId(id));
+        }
+
         public static List<string> CollectLatest(List<string> urls, MissionSpecific mission = null)
         {
             var latest = new Dictionary<SiteDrive, Dictionary<RoverProductCamera, string>>();
@@ -91,9 +103,7 @@ namespace OPS.Pipeline
                 {
                     var idStr = StringHelper.GetLastUrlPathSegment(url, stripExtension: true);
                     var id = RoverProductId.Parse(idStr, mission, throwOnFail: false);
-                    if (id != null && id is OPGSProductId && ((OPGSProductId)id).Size != RoverProductSize.Thumbnail &&
-                        !id.IsSingleFrame() && id.IsSingleCamera() && id.IsSingleSiteDrive() &&
-                        (mission == null || mission.CheckProductId(id)))
+                    if (CheckUnifiedMeshProductId(id, mission))
                     {
                         //rely on mission.CheckProductId() to allow only unified meshes for the correct cameras
                         //and also to filter linear/nonlinear if only one or the other is allowed

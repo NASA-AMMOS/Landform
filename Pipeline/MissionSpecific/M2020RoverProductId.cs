@@ -10,20 +10,22 @@ namespace OPS.Pipeline
         public const int LENGTH = 54;
 
         public readonly string ColorFilter, Venue, Sequence, Camspec, Downsample, Compression, MeshType;
-        public readonly int Ts0, Ts1, Ts2;
+        public readonly int Sol;
+        public readonly long Sclk;
+        public readonly int SclkMS;
 
         protected M2020OPGSProductId(string fullId, string producer, string productType, string camera, string geometry,
                                      string color, string version, string size, int site, int drive,
-                                     string spec, int ts0, string venue, int ts1, int ts2,
+                                     string spec, int sol, string venue, long sclk, int sclkMS,
                                      string sequence, string camspec, string downsample, string compression,
                                      string meshType)
             : base(fullId, producer, productType, camera, geometry, color, version, size, site, drive, spec)
         {
             this.ColorFilter = color;
-            this.Ts0 = ts0;
+            this.Sol = sol;
             this.Venue = venue;
-            this.Ts1 = ts1;
-            this.Ts2 = ts2;
+            this.Sclk = sclk;
+            this.SclkMS = sclkMS;
             this.Sequence = sequence;
             this.Camspec = camspec;
             this.Downsample = downsample;
@@ -63,24 +65,68 @@ namespace OPS.Pipeline
             string producer = productId.Substring(51, 1);
             string version = productId.Substring(52, 2);
 
-            int ts0 = ParseSol(ts0Str);
+            int sol = ParseSol(ts0Str);
             int site = ParseSite(siteStr);
             int drive = ParseDrive(driveStr);
-            if (ts0 < 0 || site < 0 || drive < 0)
+            if (sol < 0 || site < 0 || drive < 0)
             {
                 return null;
             }
 
-            if (!int.TryParse(ts1Str, out int ts1) || !int.TryParse(ts2Str, out int ts2))
+            if (!ParseSclk(ts0Str, ts1Str, ts2Str, out long sclk, out int sclkMS))
             {
                 return null;
             }
 
             return new M2020OPGSProductId(fullId: productId, producer: producer, productType: prodType, camera: inst,
                                           geometry: geometry, color: colorFilter, version: version, size: thumb,
-                                          site: site, drive: drive, spec: spec, ts0: ts0, venue: venue, ts1: ts1,
-                                          ts2: ts2, sequence: sequence, camspec: camspec, downsample: downsample,
+                                          site: site, drive: drive, spec: spec, sol: sol, venue: venue, sclk: sclk,
+                                          sclkMS: sclkMS, sequence: sequence, camspec: camspec, downsample: downsample,
                                           compression: compression, meshType: meshType);
+        }
+
+        public static bool ParseSclk(string ts0Str, string ts1Str, string ts2Str, out long sclk, out int sclkMS)
+        {
+            sclk = -1;
+            sclkMS = -1;
+            if (string.IsNullOrEmpty(ts0Str) || string.IsNullOrEmpty(ts1Str) || string.IsNullOrEmpty(ts2Str))
+            {
+                return false;
+            }
+            if (Char.IsLetter(ts0Str, ts0Str.Length - 1)) //ground test in which SCLK is reset
+            {
+                //MMDDHHmmss
+                if (ts1Str.Length == 10 &&
+                    int.TryParse(ts1Str.Substring(0, 2), out int MM) &&
+                    int.TryParse(ts1Str.Substring(2, 2), out int DD) &&
+                    int.TryParse(ts1Str.Substring(4, 2), out int HH) &&
+                    int.TryParse(ts1Str.Substring(6, 2), out int mm) &&
+                    int.TryParse(ts1Str.Substring(8, 2), out int ss))
+                {
+                    int yr = 2020;
+                    sclk = (long)((new DateTime(yr, MM, DD, HH, mm, ss)).Subtract(new DateTime(yr, 1, 1)).TotalSeconds);
+                }
+                else
+                {
+                    return false;
+                }
+            }
+            else
+            {
+                if (ts1Str.All(c => c == '_'))
+                {
+                    sclk = 9999999999L; //9,999,999,999
+                }
+                else if (!long.TryParse(ts1Str, out sclk))
+                {
+                    return false;
+                }
+            }
+            if (!int.TryParse(ts2Str, out sclkMS))
+            {
+                return false;
+            }
+            return true;
         }
 
         //parse a 4 character sol string
@@ -119,11 +165,6 @@ namespace OPS.Pipeline
         public static string SolToString(int sol)
         {
             return string.Format("{0:D4}", sol);
-        }
-
-        public string GetConcatenatedTimeString()
-        {
-            return Ts0 + "_" + Ts1 + "_" + Ts2;
         }
 
         protected override RoverProductProducer ParseProducer(string producer, string camera)
@@ -233,7 +274,17 @@ namespace OPS.Pipeline
 
         public override int GetSol()
         {
-            return Ts0;
+            return Sol;
+        }
+
+        public override bool HasSclk()
+        {
+            return true;
+        }
+
+        public override double GetSclk()
+        {
+            return Sclk + (SclkMS * 0.001);
         }
     }
 

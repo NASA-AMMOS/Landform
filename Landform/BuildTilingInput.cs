@@ -124,8 +124,8 @@ namespace OPS.Landform
         [Option(HelpText = "Don't use approximated areas for the tilesplit test", Default = false)]
         public bool NoApproxTileSplit { get; set; }
 
-        [Option(HelpText = "Align tile bounds to camera axis for improved texture utilization when using texture projection", Default = false)]
-        public bool AlignToCamera { get; set; }
+        [Option(HelpText = "Don't align tile bounds to camera axis for improved texture utilization when using texture projection", Default = false)]
+        public bool NoAlignToCamera { get; set; }
 
         [Option(HelpText = "Enable synthesizing intermediate LODs when fewer precomputed LODs than tile tree levels", Default = false)]
         public bool SynthesizeExtraLODs { get; set; }
@@ -648,7 +648,7 @@ namespace OPS.Landform
 
                 options.AtlasMode = AtlasMode.Project;
 
-                if (options.AlignToCamera && (texImg.CameraModel is CAHV))
+                if (!options.NoAlignToCamera && (texImg.CameraModel is CAHV))
                 {
                     Vector3 a = Vector3.Normalize((texImg.CameraModel as CAHV).A);
                     a = Vector3.TransformNormal(a, camToMesh);
@@ -709,6 +709,24 @@ namespace OPS.Landform
                 sceneTexture = sceneTexture.ResizeMax(sceneTextureResolution);
                 pipeline.LogInfo("resized scene texture to {0}x{1}, max size {2}",
                                  sceneTexture.Width, sceneTexture.Height, sceneTextureResolution);
+            }
+            if (options.PowerOfTwoTextures && (textureMode == TextureMode.Clip) &&
+                (!NumberHelper.IsPowerOfTwo(sceneTexture.Width) || !NumberHelper.IsPowerOfTwo(sceneTexture.Height)))
+            {
+                //the problem with this is that ResizePowerOfTwo() does not maintain aspect ratio
+                //if (!TextureProjectionEnabled())
+                //{
+                //    int origWidth = sceneTexture.Width, origHeight = sceneTexture.Height;
+                //    sceneTexture = sceneTexture.ResizePowerOfTwo();
+                //    pipeline.LogInfo("resized scene texture from {0}x{1} to {2}x{3} for power of two textures",
+                //                     origWidth, origHeight, sceneTexture.Width, sceneTexture.Height);
+                //}
+                //else
+                //{
+                    pipeline.LogWarn("scene texture resolution {0}x{1} is not power of two, " +
+                                     "clipped tile textures may not be power of two",
+                                     sceneTexture.Width, sceneTexture.Height);
+                //}
             }
         }
 
@@ -1261,7 +1279,8 @@ namespace OPS.Landform
                     pipeline.LogVerbose("clipping texture for tile " + tile.Name);
                     var texClipper = new TexturedMeshClipper(powerOfTwoTextures: options.PowerOfTwoTextures,
                                                              logger: pipeline, logPrefix: tile.Name);
-                    var tmp = texClipper.RemapMeshClipImage(mip.Mesh, sceneTexture, sceneIndex, resolution);
+                    var tmp = texClipper.RemapMeshClipImage(mip.Mesh, sceneTexture, sceneIndex,
+                                                            tile.IsLeaf ? maxTileResolution : resolution);
                     mip.Mesh = tmp.Mesh; //may have been re-atlassed
                     mip.Image = tmp.Image;
                     mip.Index = tmp.Index;

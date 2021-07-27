@@ -336,10 +336,15 @@ namespace OPS.Landform
             int ovt = overrideVisibilityTimeout;
             switch (lvopts.MessageType)
             {
-                case MessageType.Generic: return queue.DequeueOne<GenericMessage>(overrideVisibilityTimeout: ovt);
-                case MessageType.S3Event: return queue.DequeueOne<S3EventMessage>(overrideVisibilityTimeout: ovt);
+                case MessageType.Generic:
+                    return queue.DequeueOne<GenericMessage>(overrideVisibilityTimeout: ovt,
+                                                            altHandler: AlternateMessageHandler);
+                case MessageType.S3Event:
+                    return queue.DequeueOne<S3EventMessage>(overrideVisibilityTimeout: ovt,
+                                                            altHandler: AlternateMessageHandler);
                 case MessageType.SNSWrappedS3Event:
-                    return queue.DequeueOne<SNSMessageWrapper>(overrideVisibilityTimeout: ovt);
+                    return queue.DequeueOne<SNSMessageWrapper>(overrideVisibilityTimeout: ovt,
+                                                               altHandler: AlternateMessageHandler);
                 default: throw new ArgumentException("unhandled messsage type " + lvopts.MessageType);
             }
         }
@@ -403,6 +408,16 @@ namespace OPS.Landform
         /// Can throw.  
         /// </summary>
         protected abstract bool HandleMessage(QueueMessage msg);
+
+        /// <summary>
+        /// Optional hook to handle unusual messages.
+        /// Returns true if it handled the message, (the usual message handling codepath is then short-circuited).
+        /// Can throw.  
+        /// </summary>
+        protected virtual bool AlternateMessageHandler(string msg)
+        {
+            return false;
+        }
 
         //Filter out some subfolders on S3.
         protected virtual bool AcceptBucketPath(string url, bool allowInternal = false)

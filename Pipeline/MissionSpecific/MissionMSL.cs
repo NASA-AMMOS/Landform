@@ -19,6 +19,9 @@ namespace OPS.Pipeline
             return CONFIG_FILENAME;
         }
         
+        [ConfigEnvironmentVariable("LANDFORM_USE_UNIFIED_MESHES")]
+        public bool UseUnifiedMeshes { get; set; } = true;
+
         [ConfigEnvironmentVariable("LANDFORM_ALLOW_PDS_LABEL_FILES")]
         public bool AllowPDSLabelFiles { get; set; } = true;
         
@@ -40,6 +43,8 @@ namespace OPS.Pipeline
         public const int MIN_HAZ_EXPOSURE = 80;
         public const int MIN_MASTCAM_FOCUS_CUTOFF = 3;
         public const int MAX_MASTCAM_WIDTH = 1344; //TODO this is unused
+
+        private readonly string[] ARMCAM_RDR_SUBDIRS = new string[] { "mhli" };
 
         public MissionMSL(string venue = null) : base(venue) { }
 
@@ -133,6 +138,16 @@ namespace OPS.Pipeline
         public override bool IsArmcam(RoverProductCamera cam)
         {
             return cam == RoverProductCamera.MAHLI;
+        }
+
+        public override string[] GetArmcamRDRSubdirs()
+        {
+            return ARMCAM_RDR_SUBDIRS;
+        }
+
+        public override bool UseUnifiedMeshes()
+        {
+            return MissionMSLConfig.Instance.UseUnifiedMeshes;
         }
 
         public override bool AllowPDSLabelFiles()

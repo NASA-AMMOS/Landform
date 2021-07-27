@@ -38,7 +38,7 @@ if not "%LANDFORM_CREDENTIAL_REFRESH_SEC%"=="" set credentialrefresh=--credentia
 
 rem --- end service boilerplate, begin service specific boilerplate ---
 
-set queue=m20-ids-g-sqs-landform-contextual-worker
+set queue=
 if not "%LANDFORM_CONTEXTUAL_WORKER_QUEUE%"=="" set queue=%LANDFORM_CONTEXTUAL_WORKER_QUEUE%
 
 set failqueue=auto
@@ -141,13 +141,13 @@ if not "%LANDFORM_CONTEXTUAL_EMBED_INDICES%"=="" set embedindices=--embedindexim
 
 rem --- end service specific boilerplate, begin service specific ---
 
-set maxfetch=50G
-if not "%LANDFORM_CONTEXTUAL_MAX_FETCH%"=="" set maxfetch=%LANDFORM_CONTEXTUAL_MAX_FETCH%
+set maxfetch=
+if not "%LANDFORM_CONTEXTUAL_MAX_FETCH%"=="" set maxfetch=--maxfetch=%LANDFORM_CONTEXTUAL_MAX_FETCH%
 
 set nocombinedmanifest=
 if not "%LANDFORM_CONTEXTUAL_NO_COMBINED_MANIFEST%"=="" set nocombinedmanifest=--nocombinedmanifest
 
-set maxorbital=--maxorbital=20G
+set maxorbital=
 if not "%LANDFORM_CONTEXTUAL_MAX_ORBITAL%"=="" set maxorbital=--maxorbital=%LANDFORM_CONTEXTUAL_MAX_ORBITAL%
 
 set orbitalopts=%maxorbital%
@@ -174,20 +174,28 @@ if not "%LANDFORM_CONTEXTUAL_SKY_MIN_BACKPROJECT_RADIUS%"=="" (
     set skyopts=%skyopts% --skyminbackprojectradius=%LANDFORM_CONTEXTUAL_SKY_MIN_BACKPROJECT_RADIUS%
 )
 
-set extent=
-if not "%LANDFORM_CONTEXTUAL_EXTENT%"=="" set extent=--extent=%LANDFORM_CONTEXTUAL_EXTENT%
+set extentopts=
+if not "%LANDFORM_CONTEXTUAL_EXTENT%"=="" set extentopts=--extent=%LANDFORM_CONTEXTUAL_EXTENT%
 
-set surfaceextent=
-if not "%LANDFORM_CONTEXTUAL_SURFACE_EXTENT%"=="" set surfaceextent=--surfaceextent=%LANDFORM_CONTEXTUAL_SURFACE_EXTENT%
-
-set minmaxopts=
-
-if not "%LANDFORM_MIN_PRIMARY_SITE_DRIVE_WEDGES%"=="" (
-   set minmaxopts=%minmaxopts% --minprimarysitedrivewedges=%LANDFORM_MIN_PRIMARY_SITE_DRIVE_WEDGES%
+if not "%LANDFORM_CONTEXTUAL_SURFACE_EXTENT%"=="" (
+   set extentopts=%extentopts% --surfaceextent=%LANDFORM_CONTEXTUAL_SURFACE_EXTENT%
 )
 
-if not "%LANDFORM_MAX_CONTEXTUAL_MESH_WEDGES%"=="" (
-   set minmaxopts=%minmaxopts% --maxcontextualmeshwedges=%LANDFORM_MAX_CONTEXTUAL_MESH_WEDGES%
+if not "%LANDFORM_CONTEXTUAL_NO_AUTO_SURFACE_EXTENT%"=="" (
+   set extentopts=%extentopts% --noautosurfaceextent
+)
+
+if not "%LANDFORM_CONTEXTUAL_MAX_AUTO_SURFACE_EXTENT%"=="" (
+   set extentopts=%extentopts% --maxautosurfaceextent=%LANDFORM_CONTEXTUAL_MAX_AUTO_SURFACE_EXTENT%
+)
+
+if not "%LANDFORM_CONTEXTUAL_USE_EXPANDED_SURFACE_EXTENT_FOR_TILING%"=="" (
+   set extentopts=%extentopts% --useexpandedsurfaceextentfortiling
+)
+
+set minmaxopts=
+if not "%LANDFORM_MIN_PRIMARY_SITE_DRIVE_WEDGES%"=="" (
+   set minmaxopts=%minmaxopts% --minprimarysitedrivewedges=%LANDFORM_MIN_PRIMARY_SITE_DRIVE_WEDGES%
 )
 
 if not "%LANDFORM_MAX_SITEDRIVES%"=="" (
@@ -200,6 +208,14 @@ if not "%LANDFORM_MAX_SITEDRIVE_DISTANCE%"=="" (
 
 if not "%LANDFORM_MAX_SOL_RANGE%"=="" (
    set minmaxopts=%minmaxopts% --maxsolrange=%LANDFORM_MAX_SOL_RANGE%
+)
+
+if not "%LANDFORM_CONTEXTUAL_MAX_SITEDRIVES_PER_SOL%"=="" (
+    set minmaxopts=%minmaxopts% --maxsitedrivespersol=%LANDFORM_CONTEXTUAL_MAX_SITEDRIVES_PER_SOL%
+)
+
+if not "%LANDFORM_CONTEXTUAL_MAX_SITEDRIVES_PER_SOL_PER_PASS%"=="" (
+    set minmaxopts=%minmaxopts% --maxsitedrivespersolperpass=%LANDFORM_CONTEXTUAL_MAX_SITEDRIVES_PER_SOL_PER_PASS%
 )
 
 set allowunmasked=
@@ -219,6 +235,10 @@ if not "%LANDFORM_CONTEXTUAL_MAX_RECEIVE_COUNT%"=="" (
     set msgopts=%msgopts% --maxreceivecount=%LANDFORM_CONTEXTUAL_MAX_RECEIVE_COUNT%
 )
 
+if not "%LANDFORM_CONTEXTUAL_EOP_PATTERN%"=="" (
+    set msgopts=%msgopts% --eoppattern=%LANDFORM_CONTEXTUAL_EOP_PATTERN%
+)
+
 set svcextra=
 if not "%LANDFORM_CONTEXTUAL_OPTS%"=="" set svcextra=%LANDFORM_CONTEXTUAL_OPTS%
 
@@ -235,8 +255,8 @@ set tilingopts=%tilingopts% %maxfacespertile% %maxtileresolution% %mintileextent
 set tilingopts=%tilingopts% %notexturesplitrespectmaxtexelspermeter% %maxtexelspermeter% %maxorbitaltexelspermeter%
 set tilingopts=%tilingopts% %maxtexturestretch% %poweroftwotextures% %colorize% %maxglancingangledegrees% %skirtmode%
 
-set contextualopts=--maxfetch=%maxfetch% %nocombinedmanifest% %orbitalopts% %skyopts% %minmaxopts%
-set contextualopts=%contextualopts% %tilingopts% %allowunmasked% %solblacklist% %extent% %surfaceextent%
+set contextualopts=%maxfetch% %nocombinedmanifest% %orbitalopts% %skyopts% %minmaxopts%
+set contextualopts=%contextualopts% %tilingopts% %allowunmasked% %solblacklist% %extentopts%
 
 set appsdir=%bindir%\ExternalApps
 if exist %appsdir%\opengl32-for-ivcat.dll (

@@ -21,6 +21,8 @@ namespace OPS.Pipeline
 
         private static string[] IMAGE_REQUEST_GROUPS = new string[] { "IMAGE_REQUEST_PARMS" /* (sic) PDS and VIC */ };
 
+        private static string[] VIDEO_REQUEST_GROUPS = new string[] { "VIDEO_REQUEST_PARMS" /* (sic) PDS and VIC */ };
+
         private static string[] CAMERA_FRAME_GROUPS = new string[]
         {
             "GEOMETRIC_CAMERA_MODEL", //MSL OPGS, M2020 OPGS (and MSSS?)
@@ -336,15 +338,6 @@ namespace OPS.Pipeline
 
         public float[] InvalidConstant { get { return GetFloatArray(IMAGE_GROUPS, "INVALID_CONSTANT"); } }
 
-        //MSSS doesn't put this flag in there
-        public bool IsSunFinding
-        {
-            get
-            {
-                return GetString(IMAGE_REQUEST_GROUPS, "SOURCE_ID", throwOnFail: false) == "SUN";
-            }
-        }
-
         public RoverProductProducer ProducingInstitution
         {
             get
@@ -495,6 +488,24 @@ namespace OPS.Pipeline
                     }
                 }
                 return false;
+            }
+        }
+
+        //MSSS doesn't put this flag in there
+        public bool IsSunFinding
+        {
+            get
+            {
+                return GetString(IMAGE_REQUEST_GROUPS, "SOURCE_ID", throwOnFail: false) == "SUN";
+            }
+        }
+
+        public bool IsVideoFrame
+        {
+            get
+            {
+                string flag = GetString(VIDEO_REQUEST_GROUPS, "GROUP_APPLICABILITY_FLAG", throwOnFail: false);
+                return !string.IsNullOrEmpty(flag) && flag.ToUpper() == "TRUE";
             }
         }
     }

@@ -1,10 +1,30 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using OPS.Util;
 
 namespace OPS.Pipeline
 {
+    public class RoverProductIdTemporalComparer : IComparer<RoverProductId>
+    {
+        //-1 if a is earlier in time than b
+        //+1 if a is later in time than b
+        //0 if a and b are at the same time or are incommensurate in time
+        public int Compare(RoverProductId a, RoverProductId b)
+        {
+            if (a.HasSclk() && b.HasSclk())
+            {
+                return Math.Sign(a.GetSclk() - b.GetSclk());
+            }
+            else if (a.HasSol() && b.HasSol())
+            {
+                return Math.Sign(a.GetSol() - b.GetSol());
+            }
+            return 0;
+        }
+    }
+
     public abstract class RoverProductId
     {
         public readonly string FullId;
@@ -367,6 +387,17 @@ namespace OPS.Pipeline
         }
 
         public virtual int GetSol()
+        {
+            throw new NotImplementedException();
+        }
+
+        public virtual bool HasSclk()
+        {
+            return false;
+        }
+
+        //in seconds
+        public virtual double GetSclk()
         {
             throw new NotImplementedException();
         }

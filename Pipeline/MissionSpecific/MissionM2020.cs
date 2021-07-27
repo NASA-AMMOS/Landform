@@ -22,15 +22,21 @@ namespace OPS.Pipeline
         }
 
         [ConfigEnvironmentVariable("LANDFORM_USE_MASTCAM_FOR_ALIGNMENT")]
-        public bool UseMastcamForAlignment { get; set; } = true;
+        public bool UseMastcamForAlignment { get; set; } = false;
 
         [ConfigEnvironmentVariable("LANDFORM_USE_MASTCAM_FOR_MESHING")]
-        public bool UseMastcamForMeshing { get; set; } = true;
+        public bool UseMastcamForMeshing { get; set; } = false;
+
+        [ConfigEnvironmentVariable("LANDFORM_USE_REAR_HAZCAM_FOR_ALIGNMENT")]
+        public bool UseRearHazcamForAlignment { get; set; } = true;
+
+        [ConfigEnvironmentVariable("LANDFORM_USE_REAR_HAZCAM_FOR_MESHING")]
+        public bool UseRearHazcamForMeshing { get; set; } = true;
 
         [ConfigEnvironmentVariable("LANDFORM_PREFER_LINEAR_GEOMETRY_PRODUCTS")]
         public bool PreferLinearGeometryProducts { get; set; } = false;
 
-        //CSSO credentials uername parameter in SSM, {venue} will be replaced
+        //CSSO credentials username parameter in SSM, {venue} will be replaced
         [ConfigEnvironmentVariable("LANDFORM_CSSO_USERNAME_PARAMETER_IN_SSM")]
         public string CSSOUsernameParameterInSSM { get; set; } = "/m20/{venue}/ids/pipeline/csso_username";
 
@@ -46,6 +52,12 @@ namespace OPS.Pipeline
         [ConfigEnvironmentVariable("LANDFORM_CSSO_PASSWORD_PARAMETER_IN_SSM_ENCRYPTED")]
         public bool CSSOPasswordParameterInSSMEncrypted { get; set; } = true;
 
+        [ConfigEnvironmentVariable("LANDFORM_CSSO_CREDENTIAL_REFRESH_SEC")]
+        public int CSSOCredentialRefreshSec { get; set; } = 4 * 60 * 60; //4h
+
+        [ConfigEnvironmentVariable("LANDFORM_CSSO_CREDENTIAL_DURATION_SEC")]
+        public int CSSOCredentialDurationSec { get; set; } = 8 * 60 * 60; //8h
+
         //{venue} will be replaced with mission venue
         [ConfigEnvironmentVariable("LANDFORM_S3_DATA_PROXY")]
         public string S3Proxy { get; set; } = "https://data.{venue}.m20.jpl.nasa.gov";
@@ -54,7 +66,7 @@ namespace OPS.Pipeline
         //sorted in order of preference (best last)
         //https://wiki.jpl.nasa.gov/pages/viewpage.action?spaceKey=MSMFS&title=Special+Character+Flags
         [ConfigEnvironmentVariable("LANDFORM_ALLOWED_PROCESSING_TYPES")]
-        public string AllowedProcessingTypes { get; set; } = "_,C"; 
+        public string AllowedProcessingTypes { get; set; } = "_,C,P,S,R"; 
 
         //comma separated list of producers to allow
         //must match RoverProductProducer enum values
@@ -72,6 +84,11 @@ namespace OPS.Pipeline
         public const int COMPRESSION_FIELD_LENGTH = 2;
         public const int VERSION_FIELD = 52;
         public const int VERSION_FIELD_LENGTH = 2;
+
+        //https://wiki.jpl.nasa.gov/display/MSMFS/File+and+S3+Object+Path+Conventions
+        //https://wiki.jpl.nasa.gov/display/MSMFS/Instruments+That+IDS+Processes
+        private readonly string[] MASTCAM_RDR_SUBDIRS = new string[] { "zcam" };
+        private readonly string[] ARMCAM_RDR_SUBDIRS = new string[] { "shrlc" };
 
         public MissionM2020(string venue = null) : base(venue) { }
 
@@ -95,7 +112,8 @@ namespace OPS.Pipeline
                 }
             }
 
-            int duration = 8 * 60 * 60; //8h
+            var cfg = MissionM2020Config.Instance;
+            int duration = cfg.CSSOCredentialDurationSec;
             string section = "credss-app";
 
             awsProfile = awsProfile ?? GetDefaultAWSProfile();
@@ -104,8 +122,6 @@ namespace OPS.Pipeline
             string user = null, pass = null;
             try
             {
-                var cfg = MissionM2020Config.Instance;
-
                 using (var ps = new ParameterStore(awsProfile, awsRegion))
                 {
                     logger.LogInfo("opened parameter store to fetch CSSO credentials, profile={0}, region={1}",
@@ -217,7 +233,7 @@ namespace OPS.Pipeline
 
         public override int GetDefaultCredentialRefreshSec()
         {
-            return 4 * 60 * 60; //4h
+            return MissionM2020Config.Instance.CSSOCredentialRefreshSec;
         }
 
         //some images have invalid PLANET_DAY_NUMBER
@@ -273,6 +289,16 @@ namespace OPS.Pipeline
         public override bool UseMastcamForMeshing()
         {
             return MissionM2020Config.Instance.UseMastcamForMeshing;
+        }
+
+        public override bool UseRearHazcamForAlignment()
+        {
+            return MissionM2020Config.Instance.UseRearHazcamForAlignment;
+        }
+
+        public override bool UseRearHazcamForMeshing()
+        {
+            return MissionM2020Config.Instance.UseRearHazcamForMeshing;
         }
 
         public override bool PreferLinearGeometryProducts()
@@ -338,42 +364,93 @@ namespace OPS.Pipeline
             
             return new RoverObservationComparator.CompareResult(0, "none");
         }
-        
+
         public override IEnumerable<RoverProductId>
-            FilterProductIdGroups(IEnumerable<RoverProductId> products,
+            FilterProductIDGroups(IEnumerable<RoverProductId> products,
                                   Action<string, List<RoverProductId>, List<RoverProductId>> spew = null)
         {
             spew = spew ?? ((str, orig, filt) => {});
+
+            Func<RoverProductId, bool> isMask = id => id.ProductType == RoverProductType.RoverMask;
+            Func<RoverProductId, bool> isEECAM = id => IsHazcam(id.Camera) || IsNavcam(id.Camera);
+
+            var empty = new List<RoverProductId>();
+
+            //https://github.jpl.nasa.gov/OnSight/Landform/issues/1201
+            //cull video
+            //the idea here is to find relatively large groups of zcam images all with the same sequence ID
+            //unfortunately it looks like this is a bogus approach, e.g. in sol 53 there are about 275 images in
+            //sequence ZCAM08100 but those don't appear to be video frames
+            //instead, see IsVideoProduct() which checks for a corresponding ECV EDR
+            //const int MIN_VIDEO_GROUP = 10;
+            //if (!AllowVideoProducts())
+            //{
+            //    var zcamProducts = products
+            //        .Where(id => (id is M2020OPGSProductId) && IsMastcam(id.Camera))
+            //        .Cast<M2020OPGSProductId>()
+            //        .ToList();
+            //    if (zcamProducts.Count > 0)
+            //    {
+            //        var vidSeqs = new HashSet<string>();
+            //        var groups = zcamProducts.GroupBy(id => id.Sequence);
+            //        foreach (var group in groups)
+            //        {
+            //            if (group.Select(id => id.GetPartialId(this, includeVersion: false)).Distinct().Count() >
+            //                MIN_VIDEO_GROUP)
+            //            {
+            //                vidSeqs.Add(group.First().Sequence);
+            //            }
+            //        }
+            //        foreach (var group in groups)
+            //        {
+            //            if (vidSeqs.Contains(group.Key))
+            //            {
+            //                spew("video sequence " + group.Key, group.Cast<RoverProductId>().ToList(), empty);
+            //            }
+            //        }
+            //        products = zcamProducts
+            //            .Where(id => !vidSeqs.Contains(id.Sequence))
+            //            .Concat(products.Where(id => !(id is M2020OPGSProductId) || !IsMastcam(id.Camera)))
+            //            .ToList();
+            //    }
+            //}
+
+            //cull orphan masks
+            var omFiltered = new List<RoverProductId>();
+            foreach (var group in products.GroupBy(id => id.GetPartialId(this, includeProductType: false,
+                                                                         includeVersion: false)))
+            {
+                var orig = group.ToList();
+                if (orig.Count > 0 && !orig.All(isMask))
+                {
+                    omFiltered.AddRange(orig);
+                }
+                else
+                {
+                    spew("orphan mask", orig, empty);
+                }
+            }
+            products = omFiltered;
 
             //if we have multiple resolutions (downsample levels) within a single observation
             //then keep only the highest res (lowest downsample)
             //except keep all mask resolutions
             //because it can happen that the XYZ and RAS products have different downsamples
-            var groups = products.GroupBy(id => id.GetPartialId(this, includeProductType: false,
-                                                                includeVariants: false, includeVersion: false));
-            var highestRes = new List<RoverProductId>();
-            foreach (var group in groups)
+            var dsFiltered = new List<RoverProductId>();
+            foreach (var group in products.GroupBy(id => id.GetPartialId(this, includeProductType: false,
+                                                                         includeVariants: false,
+                                                                         includeVersion: false)))
             {
                 var orig = group.ToList();
-
-                if (orig.Count > 0 && orig[0].ProductType == RoverProductType.RoverMask)
-                {
-                    highestRes.AddRange(orig);
-                }
-                else
-                {
-                    //downsample 0-3, prefer lower
-                    char minDS = orig.Select(id => id.FullId[DOWNSAMPLE_FIELD]).DefaultIfEmpty('0').Min();
-                    var filtered = orig.Where(id => id.FullId[DOWNSAMPLE_FIELD] == minDS).ToList();
-                    spew("downsample", orig, filtered);
-                    highestRes.AddRange(filtered);
-                }
+                char minDS = orig.Select(id => id.FullId[DOWNSAMPLE_FIELD]).DefaultIfEmpty('0').Min();
+                var filtered = orig.Where(id => isMask(id) || id.FullId[DOWNSAMPLE_FIELD] == minDS).ToList();
+                spew("downsample", orig, filtered);
+                dsFiltered.AddRange(filtered);
             }
+            products = dsFiltered;
 
-            Func<RoverProductId, bool> isEECAM = id => IsHazcam(id.Camera) || IsNavcam(id.Camera);
-
-            groups = highestRes.GroupBy(id => id.GetPartialId(this, includeVariants: false, includeVersion: false));
-            foreach (var group in groups)
+            foreach (var group in products.GroupBy(id => id.GetPartialId(this, includeVariants: false,
+                                                                         includeVersion: false)))
             {
                 var orig = group.ToList();
 
@@ -473,6 +550,16 @@ namespace OPS.Pipeline
                 camera == RoverProductCamera.SHERLOCWATSONLeft || camera == RoverProductCamera.SHERLOCWATSONRight;
         }
 
+        public override string[] GetMastcamRDRSubdirs()
+        {
+            return MASTCAM_RDR_SUBDIRS;
+        }
+
+        public override string[] GetArmcamRDRSubdirs()
+        {
+            return ARMCAM_RDR_SUBDIRS;
+        }
+
         public override RoverProductId ParseProductId(string id)
         {
             id = StringHelper.GetLastUrlPathSegment(id, stripExtension: true);
@@ -540,6 +627,37 @@ namespace OPS.Pipeline
             }
 
             return true;
+        }
+
+        public override Regex GetVideoURLRegex()
+        {
+            return new Regex(@"^.*/(Z.0[^/]{20}ECV[^/]{26})\d{2}\.(IMG|VIC)$");
+        }
+
+        public override bool IsVideoProduct(RoverProductId id, string url, Func<string, string, bool> videoEDRExists)
+        {
+            if (IsMastcam(id.Camera) && !string.IsNullOrEmpty(url) && videoEDRExists != null)
+            {
+                //https://github.jpl.nasa.gov/OnSight/Landform/issues/1201
+                url = StringHelper.NormalizeUrl(url);
+                int rdrIdx = url.LastIndexOf("/rdr/");
+                if (rdrIdx >= 0 && url.Length > rdrIdx + 5)
+                {
+                    string idStr = StringHelper.GetLastUrlPathSegment(url, stripExtension: true);
+                    if (idStr == id.FullId && (idStr.StartsWith("ZLF") || idStr.StartsWith("ZRF")) &&
+                        id.GetProductTypeSpan(out int pts, out int ptl) && id.GetVersionSpan(out int vs, out int vl) &&
+                        ptl == 3 && (vs + vl == idStr.Length) && (pts + ptl <= vs))
+                    {
+                        url = StringHelper.StripLastUrlPathSegment(url) + "/";
+                        url = url.Substring(0, rdrIdx) + "/edr/" + url.Substring(rdrIdx + 5); //"/rdr/" -> "/edr/"
+                        idStr = idStr.Substring(0, vs); //strip version
+                        idStr = idStr.Substring(0, pts) + "ECV" + idStr.Substring(pts + ptl); //prod type -> "ECV"
+                        idStr = idStr.Substring(0, 2) + "0" + idStr.Substring(3); //"Z?F" -> "Z?0"
+                        return videoEDRExists(url, idStr);
+                    }
+                }
+            }
+            return false;
         }
 
         public override IEnumerable<int[]> GetProductIdVariantSpans(RoverProductId id)
@@ -683,7 +801,8 @@ namespace OPS.Pipeline
         // May break multiple images with different filters if they have the same timestamp (but does that happen?).
         protected string RoverMotionCounterFromTimeString(PDSParser parser)
         {
-            return ((M2020OPGSProductId)ParseProductId(parser.ProductIdString)).GetConcatenatedTimeString();
+            var id = (M2020OPGSProductId)ParseProductId(parser.ProductIdString);
+            return $"{id.Sol}_{id.Sclk}_{id.SclkMS}";
         }
 
         public override List<string> GetAllowedProcessingTypes()

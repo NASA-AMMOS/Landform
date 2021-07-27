@@ -63,7 +63,7 @@ using OPS.Pipeline.AlignmentServer;
 ///
 /// Example:
 ///
-/// Landform.exe ingest windjana --inputpath=out/windjana/rdrs/** --mission=MSL --orbitalframe=0311472
+/// Landform.exe ingest windjana --inputpath=out/windjana/rdrs/** --mission=MSL --meshframe=0311472
 ///    --orbitaldem=out/MSL/orbital/out_deltaradii_smg_1m.tif
 ///    --orbitalimage=out/MSL/orbital/out_clean_25cm.iGrid.ClipToDEM.tif
 ///

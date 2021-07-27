@@ -20,12 +20,14 @@ namespace OPS.Cloud
     /// <summary>
     /// Interface with S3 data store
     /// </summary>
-    public class StorageHelper
+    public class StorageHelper : IDisposable
     {
         private ILog logger;
         private bool autodetectRegion;
         private AWSCredentials awsCredentials;
         private RegionEndpoint awsRegion;
+        private ConcurrentDictionary<string, AmazonS3Client> regionToClient =
+            new ConcurrentDictionary<string, AmazonS3Client>();
         private ConcurrentDictionary<string, RegionEndpoint> bucketToRegion =
             new ConcurrentDictionary<string, RegionEndpoint>();
 
@@ -76,6 +78,47 @@ namespace OPS.Cloud
                     awsRegion = RegionEndpoint.GetBySystemName(awsRegionName);
                 }
             }
+        }
+
+        private AmazonS3Client GetClient(string s3url)
+        {
+            RegionEndpoint region = awsRegion;
+            if (region == null && autodetectRegion)
+            {
+                region = GetRegion((new S3Url(s3url)).BucketName);
+            }
+            return GetClient(region);
+        }
+
+        private AmazonS3Client GetClient(RegionEndpoint region)
+        {
+            return regionToClient.GetOrAdd(region != null ? region.SystemName : "null", _ => {
+                if (awsCredentials != null && region != null)
+                {
+                    return new AmazonS3Client(awsCredentials, region);
+                }
+                else if (region != null)
+                {
+                    return new AmazonS3Client(region);
+                }
+                else if (awsCredentials != null)
+                {
+                    return new AmazonS3Client(awsCredentials);
+                }
+                else
+                {
+                    return new AmazonS3Client();
+                }
+            });
+        }
+
+        public void Dispose()
+        {
+            foreach (var client in regionToClient.Values)
+            {
+                client.Dispose();
+            }
+            regionToClient.Clear();
         }
 
         /// <summary>
@@ -139,50 +182,61 @@ namespace OPS.Cloud
         /// <returns>returns list of S3 URLs</returns>
         public IEnumerable<string> SearchObjects(string s3url, string pattern = "*", bool recursive = true,
                                                  bool ignoreCase = false, bool folders = false, bool files = true,
-                                                 bool patternIsRegex = false)
+                                                 bool patternIsRegex = false, Func<string, bool> filter = null,
+                                                 Action<string, long, DateTime> metadata = null)
         {
             S3Url location = new S3Url(s3url);
             var opts = ignoreCase ? RegexOptions.IgnoreCase : RegexOptions.None;
             var regex =
                 patternIsRegex ? new Regex(pattern, opts) : StringHelper.WildcardToRegularExpression(pattern, opts);
-            using (var client = GetClient(s3url))
+            var client = GetClient(s3url);
+            var request = new ListObjectsV2Request { BucketName = location.BucketName };
+            if (location.Path.Length > 0)
             {
-                var request = new ListObjectsV2Request { BucketName = location.BucketName };
-                if (location.Path.Length > 0)
-                {
-                    request.Prefix = location.Path;
-                }
-                if (!recursive)
-                {
-                    request.Delimiter = "/";
-                }
-                ListObjectsV2Response response;
-                do
-                {
-                    response = client.ListObjectsV2(request);
-                    if (folders)
-                    {
-                        foreach (string pfx in response.CommonPrefixes)
-                        {
-                            if (regex.IsMatch(pfx))
-                            {
-                                yield return new S3Url(location.BucketName, pfx).Url;
-                            }
-                        }
-                    }
-                    if (files)
-                    {
-                        foreach (S3Object entry in response.S3Objects)
-                        {
-                            if (regex.IsMatch(entry.Key))
-                            {
-                                yield return new S3Url(location.BucketName, entry.Key).Url;
-                            }
-                        }
-                    }
-                    request.ContinuationToken = response.NextContinuationToken;
-                } while (response.IsTruncated == true);
+                request.Prefix = location.Path;
             }
+            if (!recursive)
+            {
+                request.Delimiter = "/";
+            }
+            ListObjectsV2Response response;
+            do
+            {
+                response = client.ListObjectsV2(request);
+                if (folders)
+                {
+                    foreach (string pfx in response.CommonPrefixes)
+                    {
+                        if (regex.IsMatch(pfx))
+                        {
+                            string url = new S3Url(location.BucketName, pfx).Url;
+                            if (filter == null || filter(url))
+                            {
+                                yield return url;
+                            }
+                        }
+                    }
+                }
+                if (files)
+                {
+                    foreach (S3Object entry in response.S3Objects)
+                    {
+                        if (regex.IsMatch(entry.Key))
+                        {
+                            string url = new S3Url(location.BucketName, entry.Key).Url;
+                            if (filter == null || filter(url))
+                            {
+                                if (metadata != null)
+                                {
+                                    metadata(url, entry.Size, entry.LastModified);
+                                }
+                                yield return url;
+                            }
+                        }
+                    }
+                }
+                request.ContinuationToken = response.NextContinuationToken;
+            } while (response.IsTruncated == true);
         }
 
         private long GetFileSize(AmazonS3Client client, S3Url location)
@@ -192,19 +246,23 @@ namespace OPS.Cloud
 
         public long FileSize(string s3url)
         {
-            using (var client = GetClient(s3url))
-            {
-                return GetFileSize(client, new S3Url(s3url));
-            }
+            return GetFileSize(GetClient(s3url), new S3Url(s3url));
+        }
+
+        private DateTime GetLastModified(AmazonS3Client client, S3Url location)
+        {
+            return GetObjectMetadata(client, location).LastModified;
+        }
+
+        public DateTime LastModified(string s3url)
+        {
+            return GetLastModified(GetClient(s3url), new S3Url(s3url));
         }
 
         public bool FileExists(string s3url)
         {
-            using (var client = GetClient(s3url))
-            {
-                S3Url location = new S3Url(s3url);
-                return new S3FileInfo(client, location.BucketName, location.Path).Exists;
-            }
+            S3Url location = new S3Url(s3url);
+            return new S3FileInfo(GetClient(s3url), location.BucketName, location.Path).Exists;
         }
 
         public bool FileSizeMatches(string s3url, string localfile)
@@ -213,12 +271,7 @@ namespace OPS.Cloud
             {
                 return false;
             }
-            bool result = false;
-            using (var client = GetClient(s3url))
-            {
-                result = FileSizeMatches(client, new S3Url(s3url), localfile);
-            }
-            return result;
+            return FileSizeMatches(GetClient(s3url), new S3Url(s3url), localfile);
         }
 
         /// <summary>
@@ -245,21 +298,32 @@ namespace OPS.Cloud
         /// <summary>
         /// Download a file and save it to local disk
         /// </summary>
-        public bool DownloadFile(string s3url, string filename)
+        public bool DownloadFile(string s3url, string filename, bool swallowExceptions = true, ILog logger = null)
         {
-            long expectedSize = -1;
-            long downloadedSize = 0;
-            using (var client = GetClient(s3url))
+            try
             {
+                var client = GetClient(s3url);
                 S3Url location = new S3Url(s3url);
                 using (TransferUtility tu = new TransferUtility(client))
                 {
                     tu.Download(filename, location.BucketName, location.Path);
                 }
-                expectedSize = GetFileSize(client, location);
-                downloadedSize = new FileInfo(filename).Length;
+                //this is a race condition if the file size can change on the server
+                //return GetFileSize(client, location) == (new FileInfo(filename)).Length;
+                return true;
             }
-            return expectedSize == downloadedSize;
+            catch (Exception e)
+            {
+                if (!swallowExceptions)
+                {
+                    throw;
+                }
+                else if (logger != null)
+                {
+                    logger.WarnFormat("error downloading S3 object {0}: {1}", s3url, e.Message);
+                }
+                return false;
+            }
         }
 
         /// <summary>
@@ -267,13 +331,10 @@ namespace OPS.Cloud
         /// </summary>
         public void DownloadDirectory(string s3url, string directory)
         {
-            using (var client = GetClient(s3url))
+            S3Url location = new S3Url(s3url);
+            using (TransferUtility tu = new TransferUtility(GetClient(s3url)))
             {
-                S3Url location = new S3Url(s3url);
-                using (TransferUtility tu = new TransferUtility(client))
-                {
-                    tu.DownloadDirectory(location.BucketName, location.Path, directory);
-                }
+                tu.DownloadDirectory(location.BucketName, location.Path, directory);
             }
         }
 
@@ -282,13 +343,10 @@ namespace OPS.Cloud
         /// </summary>
         public void UploadFile(string filename, string s3url)
         {
-            using (var client = GetClient(s3url))
+            S3Url location = new S3Url(s3url);
+            using (TransferUtility tu = new TransferUtility(GetClient(s3url)))
             {
-                S3Url location = new S3Url(s3url);
-                using (TransferUtility tu = new TransferUtility(client))
-                {
-                    UploadImpl(tu, filename, location.BucketName, location.Path);
-                }
+                UploadImpl(tu, filename, location.BucketName, location.Path);
             }
         }
 
@@ -321,14 +379,11 @@ namespace OPS.Cloud
         /// </summary>
         public void UploadFileSingleThread(string filename, string s3url)
         {
-            using (var client = GetClient(s3url))
+            S3Url location = new S3Url(s3url);
+            var cfg = new TransferUtilityConfig { ConcurrentServiceRequests = 1 };
+            using (TransferUtility tu = new TransferUtility(GetClient(s3url), cfg))
             {
-                S3Url location = new S3Url(s3url);
-                var cfg = new TransferUtilityConfig { ConcurrentServiceRequests = 1 };
-                using (TransferUtility tu = new TransferUtility(client, cfg))
-                {
-                    UploadImpl(tu, filename, location.BucketName, location.Path);
-                }
+                UploadImpl(tu, filename, location.BucketName, location.Path);
             }
         }
 
@@ -340,14 +395,11 @@ namespace OPS.Cloud
         /// </summary>
         public void GetStream(string s3url, Action<Stream> streamHandler)
         {
-            using (var client = GetClient(s3url))
+            TransferUtility tu = new TransferUtility(GetClient(s3url));
+            S3Url location = new S3Url(s3url);
+            using (var s = tu.OpenStream(location.BucketName, location.Path))
             {
-                TransferUtility tu = new TransferUtility(client);
-                S3Url location = new S3Url(s3url);
-                using (var s = tu.OpenStream(location.BucketName, location.Path))
-                {
-                    streamHandler(s);
-                }
+                streamHandler(s);
             }
         }
 
@@ -358,28 +410,22 @@ namespace OPS.Cloud
         public void GetStorageStream(string s3url, Action<Stream> streamHandler, long startPosition = 0,
                                      int bufferSize = 128 * 1024)
         {
-            using (var client = GetClient(s3url))
+            using (var s = new StorageStream(GetClient(s3url), s3url, startPosition, bufferSize))
             {
-                using (var s = new StorageStream(client, s3url, startPosition, bufferSize))
-                {
-                    streamHandler(s);
-                }
+                streamHandler(s);
             }
         }
 
         /// <summary>
         /// Delete an object
         /// </summary>
-        public void DeleteObject(string s3Url, bool ignoreErrors = true, ILog logger = null)
+        public void DeleteObject(string s3url, bool ignoreErrors = true, ILog logger = null)
         {
             logger = logger ?? this.logger;
             try
             {
-                using (var client = GetClient(s3Url))
-                {
-                    S3Url location = new S3Url(s3Url);
-                    client.DeleteObject(location.BucketName, location.Path);
-                }
+                S3Url location = new S3Url(s3url);
+                GetClient(s3url).DeleteObject(location.BucketName, location.Path);
             }
             catch (Exception e)
             {
@@ -389,7 +435,7 @@ namespace OPS.Cloud
                 }
                 else if (logger != null)
                 {
-                    logger.WarnFormat("error deleting S3 object {0}: {1}", s3Url, e.Message);
+                    logger.WarnFormat("error deleting S3 object {0}: {1}", s3url, e.Message);
                 }
             }
         }
@@ -397,21 +443,21 @@ namespace OPS.Cloud
         /// <summary>
         /// Delete a set of objects
         /// </summary>
-        public void DeleteObjects(string s3Url, string pattern = "*", bool recursive = true,
+        public void DeleteObjects(string s3url, string pattern = "*", bool recursive = true,
                                   bool ignoreErrors = true, ILog logger = null)
         {
             logger = logger ?? this.logger;
             try
             {
-                IEnumerable<string> objects = SearchObjects(s3Url, pattern, recursive);
+                IEnumerable<string> objects = SearchObjects(s3url, pattern, recursive);
 
                 objects = objects.Where(obj => {
-                        if (obj.StartsWith(s3Url))
+                        if (obj.StartsWith(s3url))
                         {
                             return true;
                         }
                         var msg = string.Format("suspicious glob result \"{0}\", should begin \"{1}\", not deleting",
-                                                obj, s3Url);
+                                                obj, s3url);
                         if (!ignoreErrors)
                         {
                             throw new System.Exception(msg);
@@ -425,14 +471,11 @@ namespace OPS.Cloud
 
                 DeleteObjectsRequest request = new DeleteObjectsRequest
                 {
-                    BucketName = (new S3Url(s3Url)).BucketName,
+                    BucketName = (new S3Url(s3url)).BucketName,
                     Objects = objects.Select(obj => new KeyVersion{ Key = (new S3Url(obj)).Path }).ToList()
                 };
  
-                using (var client = GetClient(s3Url))
-                {
-                    client.DeleteObjects(request);
-                }
+                GetClient(s3url).DeleteObjects(request);
             }
             catch (Exception e)
             {
@@ -442,38 +485,8 @@ namespace OPS.Cloud
                 }
                 else if (logger != null)
                 {
-                    logger.WarnFormat("error searching objects with prefix {0}: {1}", s3Url, e.Message);
+                    logger.WarnFormat("error searching objects with prefix {0}: {1}", s3url, e.Message);
                 }
-            }
-        }
-
-        private AmazonS3Client GetClient(string s3url)
-        {
-            RegionEndpoint region = awsRegion;
-            if (region == null && autodetectRegion)
-            {
-                region = GetRegion((new S3Url(s3url)).BucketName);
-            }
-            return GetClient(region);
-        }
-
-        private AmazonS3Client GetClient(RegionEndpoint region)
-        {
-            if (awsCredentials != null && region != null)
-            {
-                return new AmazonS3Client(awsCredentials, region);
-            }
-            else if (region != null)
-            {
-                return new AmazonS3Client(region);
-            }
-            else if (awsCredentials != null)
-            {
-                return new AmazonS3Client(awsCredentials);
-            }
-            else
-            {
-                return new AmazonS3Client();
             }
         }
 

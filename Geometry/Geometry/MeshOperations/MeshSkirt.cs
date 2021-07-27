@@ -25,11 +25,22 @@ namespace OPS.Geometry
         /// Because skirt points can be projected in different directions (and create bad looking skirts),
         /// skirtpoints will be merged if the distance between them divided by the skirt height falls below threshold
         /// </summary>
-        public static void AddSkirt(this Mesh mesh, SkirtMode axis, double relHeight = 0.02, double threshold = 0.15,
-                                    bool invert = false)
+        public static void AddSkirt(this Mesh mesh, SkirtMode axis,
+                                    double relHeight = 0.02, double minAbsHeight = 0.01, double maxAbsHeight = 0.1,
+                                    double threshold = 0.15, bool invert = false)
         {
             Vector3 size = mesh.Bounds().Extent();
-            double height = relHeight * Math.Max(Math.Max(size.X, size.Y), size.Z);
+            double height = minAbsHeight;
+            switch (axis)
+            {
+                case SkirtMode.Normal: height = relHeight * Math.Min(Math.Min(size.X, size.Y), size.Z); break;
+                case SkirtMode.X: height = relHeight * size.X; break;
+                case SkirtMode.Y: height = relHeight * size.Y; break;
+                case SkirtMode.Z: height = relHeight * size.Z; break;
+            }
+            height = Math.Max(height, minAbsHeight);
+            height = Math.Min(height, maxAbsHeight);
+
             threshold *= height;
 
             //make a position-only copy, then clean it

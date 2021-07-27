@@ -32,8 +32,12 @@ namespace OPS.Pipeline
         public const int MAX_UVATLAS_SEC = 2 * 60;
         public const TextureMode TEXTURE_MODE = TextureMode.Bake;
 
+        //these determine the range of intended maximum tile resolutions
+        //computed based on tile mesh area and intended max texels per meter
+        //actual tiles may have lower resolutions than either of these depending on other settings
+        //(e.g. non-power of two, clipped textures)
         public const int MAX_TILE_RESOLUTION = 512;
-        public const int MIN_TILE_RESOLUTION = 16;
+        public const int MIN_TILE_RESOLUTION = 128;
 
         public const double MAX_TEXELS_PER_METER = 512;
         public const double MAX_ORBITAL_TEXELS_PER_METER = 4;

@@ -6,6 +6,7 @@ using System.Text;
 using System.IO;
 using Microsoft.Xna.Framework;
 using System.Diagnostics;
+using RTree;
 using OPS.MathExtensions;
 using OPS.Util;
 using OPS.Imaging;
@@ -216,8 +217,8 @@ namespace OPS.Geometry
         public static void RemoveUnreferencedVertices(this Mesh mesh)
         {
             var referencedIndices = mesh.VertexIndicesReferencedByFaces();
-            List<Vertex> referencedVertices = new List<Vertex>();
-            Dictionary<int, int> oldToNewIndex = new Dictionary<int, int>();
+            var referencedVertices = new List<Vertex>();
+            var oldToNewIndex = new Dictionary<int, int>();
             for (int i = 0; i < mesh.Vertices.Count; i++)
             {
                 // Is this vertex referenced by a face?
@@ -243,39 +244,56 @@ namespace OPS.Geometry
         /// </summary>
         public static void MergeNearbyVertices(this Mesh mesh, double eps)
         {
-            VertexKDTree kdTree = new VertexKDTree(mesh);
-            Dictionary<Vertex, int> vertexToIndex = new Dictionary<Vertex, int>();
-            Dictionary<int, int> oldToNewIndex = new Dictionary<int, int>();
-            List<Vertex> uniqueVertices = new List<Vertex>();
+            var rTree = new RTree<int>();
+            var newVertices = new List<Vertex>();
+            var oldToNewIndex = mesh.Faces.Count > 0 ? new Dictionary<int, int>() : null;
             for (int i = 0; i < mesh.Vertices.Count; i++)
             {
                 Vertex v = mesh.Vertices[i];
-                if (!vertexToIndex.ContainsKey(v))
+                var nearestIndices = rTree.Intersects(v.Position.ToRectangle(eps));
+                if (nearestIndices.Count > 0)
                 {
-                    Vertex closest = kdTree.NearestNeighbor(v.Position);
-                    if (vertexToIndex.ContainsKey(closest) && Vector3.Distance(v.Position, closest.Position) < eps)
+                    if (oldToNewIndex != null)
                     {
-                        vertexToIndex.Add(v, vertexToIndex[closest]); //close enough to existing point, merge
-                    }
-                    else //add as new point
-                    {
-                        vertexToIndex.Add(v, uniqueVertices.Count);
-                        uniqueVertices.Add(v);
+                        double minDistSq = double.PositiveInfinity;
+                        int closest = -1;
+                        foreach (int j in nearestIndices)
+                        {
+                            double d2 = Vector3.DistanceSquared(mesh.Vertices[j].Position, v.Position);
+                            if (d2 < minDistSq)
+                            {
+                                closest = j;
+                                minDistSq = d2;
+                            }
+                        }
+                        oldToNewIndex[i] = oldToNewIndex[closest];
                     }
                 }
-                oldToNewIndex.Add(i, vertexToIndex[v]);
+                else
+                {
+                    rTree.Add(v.Position.ToRectangle(eps), i);
+                    if (oldToNewIndex != null)
+                    {
+                        oldToNewIndex[i] = newVertices.Count;
+                    }
+                    newVertices.Add(v);
+                }
             }
-            mesh.Vertices = uniqueVertices;
-            for (int i = 0; i < mesh.Faces.Count; i++)
+            mesh.Vertices = newVertices;
+
+            if (oldToNewIndex != null)
             {
-                Face f = mesh.Faces[i];
-                f.P0 = oldToNewIndex[f.P0];
-                f.P1 = oldToNewIndex[f.P1];
-                f.P2 = oldToNewIndex[f.P2];
-                mesh.Faces[i] = f;
+                for (int i = 0; i < mesh.Faces.Count; i++)
+                {
+                    Face f = mesh.Faces[i];
+                    f.P0 = oldToNewIndex[f.P0];
+                    f.P1 = oldToNewIndex[f.P1];
+                    f.P2 = oldToNewIndex[f.P2];
+                    mesh.Faces[i] = f;
+                }
+                mesh.RemoveInvalidFaces();
+                mesh.RemoveIdenticalFaces();
             }
-            mesh.RemoveInvalidFaces();
-            mesh.RemoveIdenticalFaces();
         }
 
         /// <summary>

@@ -142,6 +142,9 @@ namespace OPS.Landform
 
         [Option(Required = false, HelpText = "Preadjust image luminance towards global median before blending, 0 to disable, 1 for max", Default = TexturingDefaults.SKY_PREADJUST_LUMINANCE)]
         public double PreadjustLuminance { get; set; }
+
+        [Option(HelpText = "Boosting intermediate elevations in occlusion mesh by this factor to reduce ridgeline artifacts on sky", Default = BuildSkySphere.DEF_WARP_OCCLUSION_MESH)]
+        public double WarpOcclusionMesh { get; set; }
     }
 
     public class BuildSkySphere : TilingCommand
@@ -163,6 +166,10 @@ namespace OPS.Landform
 
         public const string SKY_TILING_DIR = "tiling/SkyTile";
         public const string SKY_TILESET_DIR = "tiling/SkyTileSet";
+
+        public const double DEF_WARP_OCCLUSION_MESH = 0.2;
+        public const double WARP_MIN = 5;
+        public const double WARP_MAX_ADJ = 5;
 
         private BuildSkySphereOptions options;
 
@@ -537,6 +544,29 @@ namespace OPS.Landform
                     v.Position = sphereCenter + dir * backprojectRadius;
                 }
             }
+            if (sceneOccludesSky && options.WarpOcclusionMesh > 0)
+            {
+                var warpedMesh = new Mesh(mesh);
+                if (sceneOccludesSky && options.WarpOcclusionMesh > 0)
+                {
+                    pipeline.LogInfo("warping occlusion mesh {0}x, limit {1:F3}m)",
+                                     1 + options.WarpOcclusionMesh, WARP_MAX_ADJ);
+                }
+                //mission surface frames are X north, Y right, Z down
+                //mesh frame is site drive frame so mesh frame z=0 is at surface elevation at site drive origin
+                foreach (var v in warpedMesh.Vertices)
+                {
+                    double vz = v.Position.Z;
+                    double vr = v.Position.XY().Length() - WARP_MIN;
+                    if (vr > 0)
+                    {
+                        double adjRel = options.WarpOcclusionMesh * Math.Min(1, vr);
+                        double adj = Math.Min(WARP_MAX_ADJ, Math.Abs(vz) * adjRel);
+                        v.Position.Z = vz - adj; //-z is towards zenith
+                    }
+                }
+                sceneCaster = new SceneCaster(warpedMesh);
+            }
             InitBackprojectStrategy(skyMesh, new MeshOperator(skyMesh), new SceneCaster(skyMesh),
                                     sceneOccludesSky ? sceneCaster : null, useSurfaceBounds: false);
         }
@@ -612,7 +642,7 @@ namespace OPS.Landform
             if (sceneBounds.HasValue)
             {
                 Vector3 size = sceneBounds.Value.Extent();
-                sceneWidth = Math.Max(size.X, size.Y); //what we really want here is center to side
+                sceneWidth = Math.Max(size.X, size.Y);
             }
             int innerExtentPixels = (int)Math.Ceiling(0.5 * sceneWidth / (orbitalDEMMetersPerPixel * decimate));
 

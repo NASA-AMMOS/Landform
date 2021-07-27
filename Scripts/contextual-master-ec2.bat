@@ -38,7 +38,7 @@ if not "%LANDFORM_CREDENTIAL_REFRESH_SEC%"=="" set credentialrefresh=--credentia
 
 rem --- end service boilerplate, begin service specific boilerplate ---
 
-set queue=m20-ids-g-sqs-landform-contextual
+set queue=
 if not "%LANDFORM_CONTEXTUAL_MASTER_QUEUE%"=="" set queue=%LANDFORM_CONTEXTUAL_MASTER_QUEUE%
 
 set failqueue=auto
@@ -78,10 +78,14 @@ if not "%LANDFORM_CONTEXTUAL_MASTER_OPTS%"=="" set svcextra=%LANDFORM_CONTEXTUAL
 
 rem --- end service specific boilerplate, begin service specific ---
 
-set workerqueue=m20-ids-g-sqs-landform-contextual-worker
-if not "%LANDFORM_CONTEXTUAL_WORKER_QUEUE%"=="" set workerqueue=%LANDFORM_CONTEXTUAL_WORKER_QUEUE%
+set masteropts=
 
-set masteropts=--workerqueuename=%workerqueue%
+if not "%LANDFORM_CONTEXTUAL_WORKER_QUEUE%"=="" set workerqueue=%LANDFORM_CONTEXTUAL_WORKER_QUEUE%
+set masteropts=%masteropts% --workerqueuename=%workerqueue%
+
+if not "%LANDFORM_CONTEXTUAL_ORBITAL_WORKER_QUEUE%"=="" (
+    set masteropts=%masteropts% --orbitalworkerqueuename=%LANDFORM_CONTEXTUAL_ORBITAL_WORKER_QUEUE%
+)
 
 if not "%LANDFORM_CONTEXTUAL_LIST_PATTERN%"=="" (
    set masteropts=%masteropts% --listpattern=%LANDFORM_CONTEXTUAL_LIST_PATTERN%
@@ -105,10 +109,6 @@ if not "%LANDFORM_CONTEXTUAL_MASTER_DEBOUNCE_SEC%"=="" (
 
 if not "%LANDFORM_CONTEXTUAL_MIN_PRIMARY_SITEDRIVE_WEDGES%"=="" (
    set masteropts=%masteropts% --minprimarysitedrivewedges=%LANDFORM_CONTEXTUAL_MIN_PRIMARY_SITEDRIVE_WEDGES%
-)
-
-if not "%LANDFORM_CONTEXTUAL_MAX_WEDGES%"=="" (
-   set masteropts=%masteropts% --maxcontextualmeshwedges=%LANDFORM_CONTEXTUAL_MAX_WEDGES%
 )
 
 if not "%LANDFORM_CONTEXTUAL_MAX_SITEDRIVES%"=="" (

@@ -20,58 +20,70 @@ using System.IO;
 ///
 /// Runs after all alignment stages (e.g. bev-align, heightmap-align), but before build-tiling-input.
 ///
+/// The mesh frame is typically the frame of the primary sitedrive.  Detailed reconstruction incorporating both surface
+/// observations and orbital data, if available, is performed within a square bounding box centered on the origin of
+/// mesh frame, which is also typically the center of the primary sitedrive.  If orbital data is available, coarser
+/// reconstruction may also be performed outside that bounds to a larger square bounds.  The inner box is typically auto
+/// expanded to fit the available surface point clouds within the range 64-256m.  The outer bounds is typically set at
+/// 1024m.
+///
 /// The observation pointclouds are typically combined with CleverCombine which attempts to reject outlier points using
-/// a grid-based approach.
+/// a grid-based approach, and which also limits the total number of samples per XY grid cell.  Grid cells are typically
+/// 2.5cm square, and the limit is typically 6 samples for cell, or about 1 sample per square cm.  Orbital sample points
+/// are typically also added at a sampling rate of 8 points per lineal meter within the convex hull of the observation
+/// pointclouds.  This both fills holes in the observation pointclouds and sets up a convex boundary for the input point
+/// cloud, which helps later when clipping extraneous peripheral triangles from the mesh reconstruction (particularly
+/// with Poisson reconstruction).
 ///
-/// The mesh is then reconstructed on the full scene point cloud, typically with Poisson reconstruction.  Mission normal
+/// The mesh is then reconstructed on the combined point cloud, typically with Poisson reconstruction.  Mission normal
 /// map RDRs (UVW products) give each point a normal vector, which is usually required.  Points with bad or suspected
-/// bad normals are filtered before reconstruction.  Optionally the normals can be scaled by an estimate of the
-/// confidence of each point, though at this time ingestion of mission RNE products is still TODO
+/// bad normals are filtered before reconstruction.  The normals are typically scaled by an estimate of the confidence
+/// of each point, though at this time ingestion of mission RNE products is still TODO
 /// https://github.jpl.nasa.gov/OnSight/Landform/issues/766 (and such products may not even be available) so we use
-/// distance from the camera as a proxy.
+/// distance from the camera as a proxy.  Orbital sample points have normals that point straight up and a fixed
+/// confidence, typically 0.2.
 ///
-/// The reconstructed mesh is cleaned and clipped to a surface data bounding box typically 64m square around the origin
-/// of the primary sitedrive frame for the contextual mesh.  Its vertex normals are recomputed from its faces to avoid
-/// issues with bad normals corrupting downstream operations such as reconstruction of parent tile meshes.
+/// The reconstructed mesh is cleaned and clipped to the convex hull of the surface point clouds.  Its vertex normals
+/// are recomputed from its faces to avoid issues with bad normals corrupting downstream operations such as
+/// reconstruction of parent tile meshes.
 ///
-/// Hole filling is then typically performed.  A non-convex outer boundary is computed by creating a shrinkwrap mesh and
-/// finding its largest boundary polygon.  That polygon is then triangulated and used as a "surface mask" for further
-/// operations.  The surface mesh is reconstructed from the full scene point cloud a second time, but this time with
-/// less aggressive trimming options.  The resulting mesh is clipped to the surface mask created from the original
-/// construction.  In this way the potential undesirable effects of less aggressive surface trimming around the outer
-/// boundary of the mesh are avoided, but the benefits of allowing more internal hole filling are gained.
+/// An optional hole filling step is then performed.  This step is typically enabled only if orbital data is not
+/// available to fill holes and establish a convex boundary in the original pointcloud.  The hole filling algorithm
+/// computes a non-convex outer boundary by creating a shrinkwrap mesh and finding its largest boundary polygon.  That
+/// polygon is then triangulated and used as a "surface mask" for further operations.  The surface mesh is reconstructed
+/// from the full scene point cloud a second time, but this time with less aggressive trimming options.  The resulting
+/// mesh is clipped to the surface mask.  In this way the potential undesirable effects of less aggressive surface
+/// trimming around the outer boundary of the mesh are avoided, but the benefits of allowing more internal hole filling
+/// are gained.
 ///
 /// If an orbital DEM is available a square portion of it centered on the origin of the primary sitedrive frame is
 /// organized meshed.  The bounds of this mesh may be larger than the surface mesh bounds.  It is also possible for the
 /// orbital mesh bounds to be the same as the surface mesh bounds, but they can't be smaller.
 ///
-/// Typically the orbital mesh includes both coarse and fine portions.  A fine area is defined within a small blend
-/// radius (typicaly 3m) of the surface bounds. A reasonable level of interpolation (typically 15 samples/meter) is used
-/// in that area so that the individal triangles in the organized mesh are not too large.  Trianges with vertices inside
-/// the surface mask are not included (the surface mask is computed if either hole filling or orbital meshing is to be
-/// performed), so that the orbital fine mesh is approximately periperhal to the surface mesh.  Because the organized
-/// mesh triangles in the orbital fine mesh are limited in size the matching at the boundary between the surface and
-/// orbital meshes is typically not too far off at this point, but there will still be a gap.  The orbital fine mesh is
-/// then sewn and blended to the surface mesh: vertices of the orbital mesh close to a vertex of the surface mesh
-/// (typically 0.2m) are snapped to the nearest vertex of the surface mesh.  Other vertices of the orbital fine mesh are
-/// adjusted in height with a blend based on the average of the nearest surface vertex heights and the distance to the
-/// surface mesh.
+/// Typically the orbital mesh includes both coarse and fine portions.  A fine area is defined within the surface bounds
+/// offset by a small blend radius, typicaly 3m. A higher level of interpolation (typically 8 samples/meter) is used in
+/// that area so that the individal triangles are not too large.  Orbital mesh triangles with vertices that overlap the
+/// surface mesh in the XY plane are not included, so that the orbital fine mesh is approximately periperhal to the
+/// surface mesh.  The matching at the boundary between the surface and orbital meshes is typically not too far off at
+/// this point, but there will still be a gap.  The orbital fine mesh is then sewn and blended to the surface mesh:
+/// vertices of the orbital mesh close to a vertex of the surface mesh (typically 0.2m) are snapped to the nearest
+/// vertex of the surface mesh.  Other vertices of the orbital fine mesh are adjusted in height with a blend based on
+/// the average of the nearest surface vertex heights and the distance to the surface mesh.
 ///
 /// If the total clip extent is larger than the orbital fine mesh extent, then a coarse orbital mesh is also added,
-/// with a smaller amount of interpolation (typically 1 sample/meter).  The orbital fine mesh is typically computed with
-/// a small outer gutter area (typically 4 samples) that is not subject to blending.  This helps ensure a seamless
+/// with a smaller amount of interpolation, typically 1 sample/meter.  The orbital fine mesh is typically computed with
+/// a small outer gutter area, typically 4 samples, that is not subject to blending.  This helps ensure a seamless
 /// boundary between the fine and coarse portions of the orbital mesh under certain conditions.  As long as the sampling
 /// rate of the coarse portion matches the actual DEM resolution, and the sampling rate of the fine portion is an
 /// integer (which it is currently constrained to be), then they should line up because the subsampling is linear.
 ///
-/// The resulting mesh is always saved as a PlyGZDataProduct to project storage with metadata in a SceneMesh object in
-/// linked from the alignment project in the project database.
+/// The resulting mesh is always saved to project storage as a PlyGZDataProduct, with metadata in a SceneMesh object.
 ///
 /// The scene mesh will always have normals but will typically not have texture coordinates.  Because its topology can
 /// be complex it can be non-trivial to atlas it.  In the typical contextual mesh workflow this is handled by only
-/// atlasing the leaf and parent tile meshes, which are typically much smaller.
-///
-/// Atlasing of the full scene mesh can be attempted by specifying --generateuvs.
+/// atlasing the leaf and parent tile meshes, which are typically much smaller.  Atlasing of the full scene mesh can be
+/// attempted by specifying --generateuvs.  https://github.jpl.nasa.gov/OnSight/Landform/issues/902,
+/// https://github.jpl.nasa.gov/OnSight/Landform/issues/1116
 ///
 /// If a tileset is not required, the full scene mesh can also be directly saved by specifying an output mesh as the
 /// second positional command line argument.  When running locally this can be either a relative or absolute disk path
@@ -112,6 +124,15 @@ namespace OPS.Landform
         [Option(HelpText = "Final clip box XY size in meters, 0 to clip to aggregate point cloud bounds", Default = BuildGeometry.DEF_EXTENT)]
         public double Extent { get; set; }
 
+        [Option(HelpText = "Don't expand --surfacextent to fit aggregate point cloud bounds", Default = false)]
+        public bool NoAutoExpandSurfaceExtent { get; set; }
+
+        [Option(HelpText = "If --surfaceextent was auto expanded, save the original value with the scene mesh for use in tiling", Default = false)]
+        public bool UseExpandedSurfaceExtentForTiling { get; set; }
+
+        [Option(HelpText = "Max auto --surfaceextent", Default = BuildGeometry.DEF_MAX_AUTO_SURFACE_EXTENT)]
+        public double MaxAutoSurfaceExtent { get; set; }
+
         [Option(HelpText = "Pre-clip observation point clouds to XY box of this size in meters around mesh frame origin if positive", Default = 0)]
         public double PreClipPointCloudExtent { get; set; }
 
@@ -124,13 +145,13 @@ namespace OPS.Landform
         [Option(HelpText = "Mask offset for clipping surface/orbital", Default = 0.05)]
         public double MaskOffset { get; set; }
 
-        [Option(HelpText = "Orbital sampling rate inside blend radius, non-positive to use DEM resolution", Default = 15)]
+        [Option(HelpText = "Orbital sampling rate inside blend radius, non-positive to use DEM resolution", Default = 8)]
         public double OrbitalBlendPointsPerMeter { get; set; }
 
-        [Option(HelpText = "Orbital sampling rate to fill holes, negative to use DEM resolution, 0 to disable", Default = 15)]
+        [Option(HelpText = "Orbital sampling rate to fill holes, negative to use DEM resolution, 0 to disable", Default = 8)]
         public double OrbitalFillPointsPerMeter { get; set; }
 
-        [Option(HelpText = "Orbital sampling confidence to fill holes", Default = 0.01)]
+        [Option(HelpText = "Orbital sampling confidence to fill holes", Default = 0.2)]
         public double OrbitalFillPoissonConfidence { get; set; }
 
         [Option(HelpText = "Mask resolution for clipping surface/orbital", Default = 2)]
@@ -159,6 +180,9 @@ namespace OPS.Landform
 
         [Option(HelpText = "Clever combine cell aspect (height relative to width)", Default = CleverCombine.DEF_CELL_ASPECT)]
         public double CleverCombineCellAspect { get; set; }
+
+        [Option(HelpText = "Clever combine max points per cell", Default = CleverCombine.DEF_MAX_POINTS_PER_CELL)]
+        public int CleverCombineMaxPointsPerCell { get; set; }
 
         [Option(HelpText = "Expand poinnt bounds to envelope bounds", Default = TilingDefaults.PARENT_CLIP_BOUNDS_EXPAND_HEIGHT)]
         public double ExpandEnvelopeBounds { get; set; }
@@ -212,9 +236,12 @@ namespace OPS.Landform
 
         public const double DEF_EXTENT = 1024;
         public const double DEF_SURFACE_EXTENT = 64;
+        public const double DEF_MAX_AUTO_SURFACE_EXTENT = 256;
 
         public const double DEF_BLEND_RADIUS = 3;
         public const double DEF_SEW_RADIUS = 0.2;
+
+        public const double SURFACE_HULL_MERGE_EPS = 0.01;
 
         public const int BLEND_GUTTER_SAMPLES = 4;
 
@@ -229,8 +256,15 @@ namespace OPS.Landform
         private WedgeObservations.MeshOptions wedgeMeshOpts;
 
         private ConcurrentDictionary<string, Mesh> observationPointClouds = new ConcurrentDictionary<string, Mesh>();
+        private Mesh orbitalPointCloud;
+
+        private Mesh surfaceHull;
+        private MeshOperator surfaceHullUVMeshOp;
+
         private Mesh pointCloud;
+
         private BoundingBox pointCloudBounds, envelopeBounds;
+
         private Mesh mesh;
 
         private Mesh untrimmedMesh;
@@ -238,6 +272,7 @@ namespace OPS.Landform
 
         private Mesh orbitalMesh;
 
+        private double originalSurfaceExtent;
         private double blendRadius, sewRadius;
         private double blendExtent;
         private int orbitalBlendSamplesPerPixel, orbitalFillSamplesPerPixel;
@@ -262,6 +297,7 @@ namespace OPS.Landform
                 if (!options.NoSurface)
                 {
                     RunPhase("build observation point clouds", BuildObservationPointClouds);
+                    RunPhase("build surface hull", MakeSurfaceHull);
                     RunPhase("merge point clouds", MergePointClouds);
                     RunPhase("reconstruct mesh", ReconstructMesh);
                     if (options.FilterTriangles > 0)
@@ -273,10 +309,16 @@ namespace OPS.Landform
                 if (!options.NoSurface)
                 {
                     RunPhase("clip surface mesh", ClipSurfaceMesh);
-                    RunPhase("create surface mask mesh", CreateSurfaceMaskMesh);
-                    if (maskUVMeshOp != null) //CreateSurfaceMaskMesh() failed
+                    if (orbitalPointCloud == null)
                     {
-                        RunPhase("reconstruct surface to mask", ReconstructSurfaceToMask);
+                        //if we merged with an orbital pointcloud (which would have been clipped to the surface XY hull)
+                        //then let's just go with that as far as hole filling and boundary definition go
+                        //https://github.jpl.nasa.gov/OnSight/Landform/issues/1157
+                        RunPhase("create surface mask mesh", CreateSurfaceMaskMesh);
+                        if (maskUVMeshOp != null) //CreateSurfaceMaskMesh() failed
+                        {
+                            RunPhase("reconstruct surface to mask", ReconstructSurfaceToMask);
+                        }
                     }
                 }
 
@@ -372,6 +414,7 @@ namespace OPS.Landform
             {
                 options.NoSurface = true;
             }
+            originalSurfaceExtent = options.SurfaceExtent;
 
             if (!options.NoOrbital)
             {
@@ -616,6 +659,51 @@ namespace OPS.Landform
                 Interlocked.Decrement(ref np);
                 Interlocked.Increment(ref nc);
             });
+
+            if (!options.NoAutoExpandSurfaceExtent)
+            {
+                double autoExtent = options.SurfaceExtent;
+                foreach (var pc in observationPointClouds.Values)
+                {
+                    var pcb = pc.Bounds();
+                    double pcExtent = 2 * Math.Max(Math.Max(Math.Abs(pcb.Min.X), Math.Abs(pcb.Max.X)),
+                                                   Math.Max(Math.Abs(pcb.Min.Y), Math.Abs(pcb.Max.Y)));
+                    autoExtent = Math.Max(autoExtent, Math.Ceiling(pcExtent));
+                    autoExtent = Math.Min(options.MaxAutoSurfaceExtent, Math.Min(options.Extent, autoExtent));
+                }
+                if (autoExtent > options.SurfaceExtent)
+                {
+                    pipeline.LogInfo("expanding surface extent from {0:f3} to {1:f3}m to fit input points",
+                                     options.SurfaceExtent, autoExtent);
+                    options.SurfaceExtent = autoExtent;
+                    if (!options.NoOrbital)
+                    {
+                        blendExtent = Math.Min(options.Extent, options.SurfaceExtent + 2 * Math.Max(blendRadius, 0));
+                    }
+                }
+            }
+        }
+
+        private void MakeSurfaceHull()
+        {
+            var reducedSurfaceCloud = new Mesh();
+            reducedSurfaceCloud.Vertices = observationPointClouds.Values.SelectMany(pc => pc.Vertices).ToList();
+            pipeline.LogInfo("merging nearby vertices to make surface hull, {0} vertices, epsilon {1:f3}m",
+                             Fmt.KMG(reducedSurfaceCloud.Vertices.Count), SURFACE_HULL_MERGE_EPS);
+            reducedSurfaceCloud.MergeNearbyVertices(SURFACE_HULL_MERGE_EPS);
+
+            pipeline.LogInfo("delaunay triangulating {0} points to make surface hull",
+                             Fmt.KMG(reducedSurfaceCloud.Vertices.Count));
+            surfaceHull = Delaunay.Triangulate(reducedSurfaceCloud.Vertices);
+            pipeline.LogInfo("surface hull has {0} vertices, {1} triangles",
+                             Fmt.KMG(surfaceHull.Vertices.Count), Fmt.KMG(surfaceHull.Faces.Count));
+
+            SaveDebugMesh(surfaceHull, "surface-hull");
+
+            pipeline.LogInfo("making surface hull UV mesh operator");
+            surfaceHull.XYToUV();
+            surfaceHullUVMeshOp =
+                new MeshOperator(surfaceHull, buildFaceTree: false, buildVertexTree: false, buildUVFaceTree: true);
         }
 
         private void MergePointClouds()
@@ -629,8 +717,6 @@ namespace OPS.Landform
                 }
                 return (obs as RoverObservation).SiteDrive.ToString();
             }).ToArray();
-
-            int nv = observationPointClouds.Values.Sum(pc => pc.Vertices.Count);
 
             var cloudList = groups.Select(group =>
             {
@@ -653,30 +739,13 @@ namespace OPS.Landform
             {
                 pipeline.LogInfo("adding orbital point cloud for hole filling, subsample {0}",
                                  orbitalFillSamplesPerPixel);
-                var opc = MakeOrbitalPointCloud();
-                double ons = 1;
-                switch (wedgeMeshOpts.NormalScale)
-                {
-                    case NormalScale.Confidence: ons = options.OrbitalFillPoissonConfidence; break;
-                    case NormalScale.PointScale: ons = 2 * orbitalDEMMetersPerPixel / orbitalFillSamplesPerPixel; break;
-                    case NormalScale.None: break;
-                }
-                if (ons != 1)
-                {
-                    if (ons <= 0)
-                    {
-                        throw new ArgumentException($"orbital normal scale {ons} <= 0");
-                    }
-                    foreach (Vertex v in opc.Vertices)
-                    {
-                        v.Normal *= ons;
-                    }
-                }
-                cloudList.Add(opc);
-                pipeline.LogInfo("orbital point cloud has {0} points", Fmt.KMG(opc.Vertices.Count));
+                MakeOrbitalPointCloud();
+                cloudList.Add(orbitalPointCloud);
+                pipeline.LogInfo("orbital point cloud has {0} points", Fmt.KMG(orbitalPointCloud.Vertices.Count));
             }
 
             var clouds = cloudList.ToArray();
+            long nv = clouds.Sum(pc => pc.Vertices.Count);
 
             int numDownward = 0;
             foreach (Mesh cloud in clouds)
@@ -761,11 +830,13 @@ namespace OPS.Landform
 
                 if (clouds.Length > 1)
                 {
-                    pipeline.LogInfo("clever combining {0} point clouds, cell size {1}, aspect {2}, total {3} pts",
+                    pipeline.LogInfo("clever combining {0} point clouds, cell size {1}, aspect {2}, " +
+                                     "max points per cell {3}, total {4} pts",
                                      clouds.Length, options.CleverCombineCellSize, options.CleverCombineCellAspect,
-                                     Fmt.KMG(nv));
+                                     options.CleverCombineMaxPointsPerCell, Fmt.KMG(nv));
                     
-                    var cc = new CleverCombine(options.CleverCombineCellSize, options.CleverCombineCellAspect);
+                    var cc = new CleverCombine(options.CleverCombineCellSize, options.CleverCombineCellAspect,
+                                               options.CleverCombineMaxPointsPerCell);
                     pointCloud = cc.Combine(clouds, origins, pipeline);
                     
                     pipeline.LogInfo("clever combine returned {0} points", Fmt.KMG(pointCloud.Vertices.Count));
@@ -857,9 +928,12 @@ namespace OPS.Landform
                 throw new Exception("failed to build mesh");
             }
 
-            CleanMesh();
-
             SaveDebugMesh(mesh, "reconstructed");
+
+            pipeline.LogInfo("clipping reconstructed mesh to surface hull");
+            ClipMeshToMask(surfaceHullUVMeshOp, strict: true);
+
+            SaveDebugMesh(mesh, "hull-trimmed");
         }
 
         private void FilterMesh()
@@ -1035,6 +1109,28 @@ namespace OPS.Landform
             }
         }
 
+        private void ClipMeshToMask(MeshOperator uvMeshOp, bool strict)
+        {
+            bool checkVert(int index)
+            {
+                var xy = new Vector2(mesh.Vertices[index].Position.X, mesh.Vertices[index].Position.Y);
+                return uvMeshOp.UVToBarycentric(xy) != null;
+            }
+            if (strict)
+            {
+                mesh.Faces = mesh.Faces
+                    .Where(face => checkVert(face.P0) && checkVert(face.P1) && checkVert(face.P2))
+                    .ToList();
+            }
+            else
+            {
+                mesh.Faces = mesh.Faces
+                    .Where(face => checkVert(face.P0) || checkVert(face.P1) || checkVert(face.P2))
+                    .ToList();
+            }
+            CleanMesh();
+        }
+
         //Replace mesh with a new reconstruction that
         //(1) uses less picky trimming
         //(2) but that is clipped in the XY plane to the mask we already created
@@ -1054,31 +1150,54 @@ namespace OPS.Landform
                 SaveDebugMesh(mesh, "trimmed-lenient");
             }
 
-            mesh.Faces = mesh.Faces.Where(face =>
-            {
-                //Get rid of faces if all of their endpoints fall fall outside mask mesh
-                //TODO: clip on any overlap and stitch meshes
-                //Currently the output of trimmer does not have a clean boundary which makes stitching difficult
-                //change || to && for stronger clip
-                return (maskUVMeshOp.UVToBarycentric(new Vector2(mesh.Vertices[face.P0].Position.X,
-                                                                 mesh.Vertices[face.P0].Position.Y)) != null ||
-                        maskUVMeshOp.UVToBarycentric(new Vector2(mesh.Vertices[face.P1].Position.X,
-                                                                 mesh.Vertices[face.P1].Position.Y)) != null ||
-                        maskUVMeshOp.UVToBarycentric(new Vector2(mesh.Vertices[face.P2].Position.X,
-                                                                 mesh.Vertices[face.P2].Position.Y)) != null);
-            }).ToList();
-
-            CleanMesh();
+            //TODO: clip on any overlap and stitch meshes
+            //Currently the output of trimmer does not have a clean boundary which makes stitching difficult
+            ClipMeshToMask(maskUVMeshOp, strict: false);
 
             SaveDebugMesh(mesh, "masked");
         }
 
-        private Mesh MakeOrbitalPointCloud()
+        private void MakeOrbitalPointCloud()
         {
             int surfaceRadiusPixels = (int)Math.Ceiling(0.5 * options.SurfaceExtent / orbitalDEMMetersPerPixel);
             Vector3 meshOriginInOrbital = Vector3.Transform(Vector3.Zero, meshToOrbital);
             var surfaceBounds = orbitalDEM.GetSubrectPixels(surfaceRadiusPixels, meshOriginInOrbital);
-            return MakeOrbitalMesh(orbitalFillSamplesPerPixel, surfaceBounds);
+            double ons = 1;
+            string nsm = "";
+            switch (wedgeMeshOpts.NormalScale)
+            {
+                case NormalScale.Confidence:
+                    {
+                        ons = options.OrbitalFillPoissonConfidence;
+                        nsm = $", confidence {ons:f3}";
+                        break;
+                    }
+                case NormalScale.PointScale:
+                    {
+                        ons = 2 * orbitalDEMMetersPerPixel / orbitalFillSamplesPerPixel;
+                        nsm = $", point scale {ons:f3}";
+                        break;
+                    }
+                case NormalScale.None: break;
+            }
+            if (ons <= 0)
+            {
+                throw new ArgumentException($"orbital normal scale {ons} <= 0");
+            }
+            pipeline.LogInfo("making orbital point cloud{0}", nsm);
+            orbitalPointCloud = MakeOrbitalMesh(orbitalFillSamplesPerPixel, surfaceBounds);
+            orbitalPointCloud.Faces.Clear();
+            pipeline.LogInfo("clipping orbital point cloud to surface hull");
+            orbitalPointCloud.Vertices = orbitalPointCloud.Vertices
+                .Where(v => surfaceHullUVMeshOp.UVToBarycentric(new Vector2(v.Position.X, v.Position.Y)) != null)
+                .ToList();
+            if (ons != 1)
+            {
+                foreach (Vertex v in orbitalPointCloud.Vertices)
+                {
+                    v.Normal *= ons;
+                }
+            }
         }
 
         private Mesh MakeOrbitalMesh(double subsample, Image.Subrect outerBounds, Image.Subrect innerBounds = null,
@@ -1103,8 +1222,8 @@ namespace OPS.Landform
             int orbitalRadiusPixels = (int)Math.Ceiling(0.5 * options.Extent / orbitalDEMMetersPerPixel);
             int blendRadiusPixels = (int)Math.Ceiling(0.5 * blendExtent / orbitalDEMMetersPerPixel);
 
-            var maskOp = maskUVMeshOp;
-            if (maskOp == null && mesh != null) //CreateSurfaceMaskMesh() failed
+            var maskOp = maskUVMeshOp ?? surfaceHullUVMeshOp;
+            if (maskOp == null && mesh != null) //CreateSurfaceMaskMesh() failed or wasn't run
             {
                 var tmp = new Mesh(mesh);
                 tmp.XYToUV();
@@ -1491,6 +1610,13 @@ namespace OPS.Landform
             else if (options.SurfaceExtent > 0)
             {
                 surfaceExtent = options.SurfaceExtent;
+            }
+
+            if (surfaceExtent > originalSurfaceExtent && !options.UseExpandedSurfaceExtentForTiling)
+            {
+                pipeline.LogInfo("saving original surface extent {0:f3}m for tiling instead of expanded extent {1:f3}m",
+                                 originalSurfaceExtent, surfaceExtent);
+                surfaceExtent = originalSurfaceExtent;
             }
             
             var sceneMesh = SceneMesh.Find(pipeline, project.Name, MeshVariant.Default);

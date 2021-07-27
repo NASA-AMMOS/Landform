@@ -934,8 +934,8 @@ namespace OPS.Geometry
             Action<string> verbose = null, warn = null;
             if (Logger != null)
             {
-                verbose = msg => Logger.LogVerbose(msg + " in " + filename);
-                warn = msg => Logger.LogWarn(msg + " in " + filename);
+                verbose = msg => Logger.LogVerbose($"{msg} in {filename} LOD {lod}");
+                warn = msg => Logger.LogWarn($"{msg} in {filename} LOD {lod}");
             }
             mesh.Clean(verbose: verbose, warn: warn);
 
