@@ -635,11 +635,6 @@ namespace OPS.Pipeline
             tileset.contextual_primary_site_drive = primarySiteDrive;
             tileset.contextual_site_drives = orbital ? primarySiteDrive : siteDrives;
 
-            if (logger != null)
-            {
-                logger.LogInfo("creating or updating {0} image manifests", images.Count);
-            }
-
             tileset.image_ids.Clear();
             tileset.sols.Clear();
 
@@ -651,6 +646,10 @@ namespace OPS.Pipeline
             {
                 var bpp = backprojectedPixels;
                 var sols = new HashSet<int>();
+                if (logger != null)
+                {
+                    logger.LogInfo("creating or updating {0} image manifests", images.Count);
+                }
                 foreach (var obs in images)
                 {
                     //differentiate image manifest for contextual vs tactical
