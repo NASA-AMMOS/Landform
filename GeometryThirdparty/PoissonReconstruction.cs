@@ -86,6 +86,8 @@ namespace OPS.Geometry
             //remove islands whose bounding box diameter is less than this ratio
             //of the max island bounding box diameter
             public double MinIslandRatio = DEF_MIN_ISLAND_RATIO;
+
+            public bool PreserveInputsOnError = true;
         };
 
         /// <summary>
@@ -123,10 +125,19 @@ namespace OPS.Geometry
             {
                 throw new MeshException("Poisson requires normals");
             }
-            if (pointCloud.ContainsZeroLengthNormals())
+            int nr = pointCloud.RemoveInvalidPoints();
+            if (nr > 0)
             {
-                if (logger != null) logger.LogWarn("Poisson input mesh had zero length normals - removing");
-                pointCloud.RemoveZeroLengthNormals();
+                if (logger != null) logger.LogWarn("Poisson input had invalid points, removed {0} points", nr);
+                if (pointCloud.Vertices.Count < 3)
+                {
+                    throw new MeshException("Poisson requires at least 3 vertices");
+                }
+            }
+            nr = pointCloud.RemoveInvalidNormals();
+            if (nr > 0)
+            {
+                if (logger != null) logger.LogWarn("Poisson input had invalid normals, removed {0} points", nr);
                 if (pointCloud.Vertices.Count < 3)
                 {
                     throw new MeshException("Poisson requires at least 3 vertices");
@@ -162,16 +173,16 @@ namespace OPS.Geometry
                 }
             }
 
+            var plyWriter = new PLYMaximumCompatibilityWriter();
+            string inputFile = null, envFile = null;
+
             Mesh result = null;
             TemporaryFile.GetAndDeleteMultiple(3, ".ply", files =>
             {
                 TemporaryFile.GetAndDeleteDirectory(tmpDir =>
                 {
-                    string inputFile = files[0];
-                    string envFile = files[1];
+                    inputFile = files[0];
                     string outputFile = files[2];
-
-                    var plyWriter = new PLYMaximumCompatibilityWriter();
 
                     PLYSerializer.Write(pointCloud, inputFile, plyWriter);
                     
@@ -200,6 +211,7 @@ namespace OPS.Geometry
                         {
                             if (options.Envelope.HasValue)
                             {
+                                envFile = files[1];
                                 PLYSerializer.Write(options.Envelope.Value.ToMesh(), envFile, plyWriter);
                             }
                             
@@ -280,6 +292,47 @@ namespace OPS.Geometry
                             logger.LogError(pr.OutputText);
                             logger.LogError(pr.ErrorText);
                         }
+                        if (options.PreserveInputsOnError)
+                        {
+                            if (inputFile != null)
+                            {
+                                try
+                                {
+                                    inputFile = inputFile.Substring(0, inputFile.Length - 4) + "_save.ply";
+                                    PLYSerializer.Write(pointCloud, inputFile, plyWriter);
+                                    if (logger != null)
+                                    {
+                                        logger.LogInfo("preserved input point cloud file at {0}", inputFile);
+                                    }
+                                }
+                                catch (Exception ex2)
+                                {
+                                    if (logger != null)
+                                    {
+                                        logger.LogException(ex2, "error preserving input point cloud file");
+                                    }
+                                }
+                            }
+                            if (envFile != null)
+                            {
+                                try
+                                {
+                                    envFile = envFile.Substring(0, envFile.Length - 4) + "_save.ply";
+                                    PLYSerializer.Write(options.Envelope.Value.ToMesh(), envFile, plyWriter);
+                                    if (logger != null)
+                                    {
+                                        logger.LogInfo("preserved input envelope file at {0}", envFile);
+                                    }
+                                }
+                                catch (Exception ex2)
+                                {
+                                    if (logger != null)
+                                    {
+                                        logger.LogException(ex2, "error preserving input envelope file");
+                                    }
+                                }
+                            }
+                        }
                         throw new MeshException("failed to run " + (cfg.PoissonExeLegacy ? "(legacy) " : "") +
                                                 reconstructExe + " " + arguments + ": " + ex.Message);
                     }
@@ -305,12 +358,12 @@ namespace OPS.Geometry
                             logger.LogInfo("removing islands less than {0} times largest island diameter",
                                            options.MinIslandRatio);
                         }
-                        int nr = result.RemoveIslands(options.MinIslandRatio);
+                        nr = result.RemoveIslands(options.MinIslandRatio);
                         if (result.Vertices.Count == 0 || result.Faces.Count == 0)
                         {
                             throw new MeshException("empty output after removing islands");
                         }
-                        if (logger != null)
+                        if (nr > 0 && logger != null)
                         {
                             logger.LogInfo("removed {0} islands, mesh has {1} faces", nr, Fmt.KMG(result.Faces.Count));
                         }
@@ -342,13 +395,15 @@ namespace OPS.Geometry
             var cfg = PoissonConfig.Instance;
             string trimmerExe = Path.Combine(PathHelper.GetApplicationPath(), "ExternalApps", cfg.TrimmerExe);
 
+            var plyWriter = new PLYMaximumCompatibilityWriter(writeNormalLengthsAsValue: true);
+            string inputFile = null;
+
             Mesh result = null;
             TemporaryFile.GetAndDeleteMultiple(2, ".ply", files =>
             {
-                string inputFile = files[0];
+                inputFile = files[0];
                 string outputFile = files[1];
                 
-                var plyWriter = new PLYMaximumCompatibilityWriter(writeNormalLengthsAsValue: true);
                 PLYSerializer.Write(meshWithValueScaledNormals, inputFile, plyWriter);
                 
                 string arguments = string.Format("--in {0} --out {1} --trim {2} {3}",
@@ -390,6 +445,25 @@ namespace OPS.Geometry
                     {
                         logger.LogError(pr.OutputText);
                         logger.LogError(pr.ErrorText);
+                    }
+                    if (options.PreserveInputsOnError && inputFile != null)
+                    {
+                        try
+                        {
+                            inputFile = inputFile.Substring(0, inputFile.Length - 4) + "_save.ply";
+                            PLYSerializer.Write(meshWithValueScaledNormals, inputFile, plyWriter);
+                            if (logger != null)
+                            {
+                                logger.LogInfo("preserved input point cloud file at {0}", inputFile);
+                            }
+                        }
+                        catch (Exception ex2)
+                        {
+                            if (logger != null)
+                            {
+                                logger.LogException(ex2, "error preserving input point cloud file");
+                            }
+                        }
                     }
                     throw new MeshException("failed to run " + (cfg.PoissonExeLegacy ? "(legacy) " : "") +
                                             trimmerExe + " " + arguments + ": " + ex.Message);

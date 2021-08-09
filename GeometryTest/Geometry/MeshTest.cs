@@ -231,11 +231,11 @@ namespace GeometryTest
             m.Vertices.Add(new Vertex(1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0));
             m.Vertices.Add(new Vertex(0, 1, 0, 0.3, 4, 2, 0, 0, 0, 0, 0, 0));
             m.Vertices.Add(new Vertex(0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0));
-            Assert.IsTrue(m.ContainsZeroLengthNormals());
+            Assert.IsTrue(m.ContainsInvalidNormals());
             m.Vertices[2].Normal.Normalize();
-            Assert.IsTrue(m.ContainsZeroLengthNormals());
+            Assert.IsTrue(m.ContainsInvalidNormals());
             m.Vertices[0].Normal = new Vector3(0.1, 2, 3);
-            Assert.IsFalse(m.ContainsZeroLengthNormals());
+            Assert.IsFalse(m.ContainsInvalidNormals());
         }
 
         [TestMethod]

@@ -21,6 +21,88 @@ namespace OPS.Geometry
         }
 
         /// <summary>
+        /// Returns true if any points are NaN or infinity
+        /// </summary>
+        /// <returns></returns>
+        public static bool ContainsInvalidPoints(this Mesh mesh)
+        {
+            foreach (var v in mesh.Vertices)
+            {
+                if (!v.Position.Valid())
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+        
+        public static int RemoveInvalidPoints(this Mesh mesh)
+        {
+            if (mesh.Faces.Count > 0)
+            {
+                throw new Exception("not supported in meshes that contain faces");
+            }
+            int nr = 0;
+            var newverts = new List<Vertex>(mesh.Vertices.Count);
+            foreach (var v in mesh.Vertices)
+            {
+                if (!v.Position.Valid())
+                {
+                    nr++;
+                    continue;
+                }
+                newverts.Add(v);
+            }
+            mesh.Vertices = newverts;
+            return nr;
+        }
+
+        /// <summary>
+        /// Returns true if any normals are very small, NaN, or infinity
+        /// </summary>
+        /// <returns></returns>
+        public static bool ContainsInvalidNormals(this Mesh mesh, double eps = 1e-5)
+        {
+            if (!mesh.HasNormals)
+            {
+                return false;
+            }
+            foreach (var v in mesh.Vertices)
+            {
+                if (!v.Normal.Valid() || v.Normal.Length() < eps) 
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+        
+        public static int RemoveInvalidNormals(this Mesh mesh, double eps = 1e-5)
+        {
+            if (!mesh.HasNormals)
+            {
+                return 0;
+            }
+            if (mesh.Faces.Count > 0)
+            {
+                throw new Exception("not supported in meshes that contain faces");
+            }
+            int nr = 0;
+            var newverts = new List<Vertex>(mesh.Vertices.Count);
+            foreach (var v in mesh.Vertices)
+            {
+                if (!v.Normal.Valid() || v.Normal.Length() < eps)
+                {
+                    nr++;
+                    continue;
+                }
+                newverts.Add(v);
+            }
+            mesh.Vertices = newverts;
+            return nr;
+        }
+
+        /// <summary>
         /// Checks if the face is logically or geometrically degenerate.
         /// Also checks that the involved UVs, if any, are valid.
         /// </summary>
@@ -74,40 +156,6 @@ namespace OPS.Geometry
                 }
             }
             return false;
-        }
-
-        /// <summary>
-        /// Returns true if any normals are zero
-        /// </summary>
-        /// <returns></returns>
-        public static bool ContainsZeroLengthNormals(this Mesh mesh)
-        {
-            foreach (var v in mesh.Vertices)
-            {
-                if (v.Normal.Length() < 1e-5)
-                {
-                    return true;
-                }
-            }
-            return false;
-        }
-        
-        public static void RemoveZeroLengthNormals(this Mesh mesh)
-        {
-            if (mesh.Faces.Count > 0)
-            {
-                throw new Exception("Mesh.RemoveZeroLengthNormals is not supported in meshes that contain faces");
-            }
-            var newverts = new List<Vertex>();
-            foreach (var v in mesh.Vertices)
-            {
-                if (v.Normal.Length() < 1e-5)
-                {
-                    continue;
-                }
-                newverts.Add(v);
-            }
-            mesh.Vertices = newverts;
         }
 
         /// <summary>

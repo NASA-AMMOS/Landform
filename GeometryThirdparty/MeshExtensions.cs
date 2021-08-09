@@ -117,7 +117,7 @@ namespace OPS.Geometry
             bool hadNormals = m.HasNormals;
             m = new Mesh(m); //make copy
             m.Clean();
-            if (!m.HasNormals || m.ContainsZeroLengthNormals())
+            if (!m.HasNormals || m.ContainsInvalidNormals())
             {
                 m.GenerateVertexNormals();
             }

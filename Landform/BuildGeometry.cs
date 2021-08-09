@@ -608,10 +608,17 @@ namespace OPS.Landform
                 {
                     int nv = pc.Vertices.Count;
 
-                    if (pc.ContainsZeroLengthNormals())
+                    int nr = pc.RemoveInvalidPoints();
+                    if (nr > 0)
                     {
-                        pc.RemoveZeroLengthNormals();
-                        pipeline.LogWarn("removed {0}/{1} points with zero normals in point cloud for observation {2}",
+                        pipeline.LogWarn("removed {0}/{1} invalid points for observation {2}",
+                                         nv - pc.Vertices.Count, Fmt.KMG(nv), ptsName);
+                    }
+
+                    nr = pc.RemoveInvalidNormals();
+                    if (nr > 0)
+                    {
+                        pipeline.LogWarn("removed {0}/{1} points with invalid normals for observation {2}",
                                          nv - pc.Vertices.Count, Fmt.KMG(nv), ptsName);
                     }
 
