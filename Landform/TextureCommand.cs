@@ -873,9 +873,9 @@ namespace OPS.Landform
                 pipeline.LogWarn("cannot create backproject strategy, no mesh operator");
                 return;
             }
-            if (sceneCaster == null)
+            if (meshCaster == null)
             {
-                pipeline.LogWarn("cannot create backproject strategy, no scene caster");
+                pipeline.LogWarn("cannot create backproject strategy, no mesh caster");
                 return;
             }
 
