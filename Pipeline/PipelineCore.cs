@@ -89,6 +89,8 @@ namespace OPS.Pipeline
         public readonly string StorageUrl;
         public readonly string StorageUrlWithVenue;
 
+        public string UserMasksDirectory { get; private set; }
+
         public virtual bool LegacyCompat { get { return false; } }
 
         public bool Quiet, Verbose, Debug, StackTraces;
@@ -346,6 +348,7 @@ namespace OPS.Pipeline
                 userMasks.AddOrUpdate(basename, _ => url, (_, __) => url);
             }
             LogInfo("found {0} user image masks in {1}", userMasks.Count, dir);
+            UserMasksDirectory = dir;
         }
 
         public Exception GetImageLoadException(string url)

@@ -222,6 +222,9 @@ namespace OPS.Landform
         [Option(Default = null, HelpText = "Override config folder (for compatibility)")]
         public string ConfigFolder { get; set; }
 
+        [Option(Default = null, HelpText = "Override user mask directory (for compatibility)")]
+        public string UserMasksDirectory { get; set; }
+
         [Option(Default = false, HelpText = "Print summary")]
         public bool Summary { get; set; }
 
