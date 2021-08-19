@@ -21,5 +21,8 @@ namespace OPS.Landform
 
         [Option(Default = null, HelpText = "Venue name")]
         public string Venue { get; set; }
+
+        [Option(Default = null, HelpText = "Override user mask directory (for compatibility)")]
+        public string UserMasksDirectory { get; set; }
     }
 }

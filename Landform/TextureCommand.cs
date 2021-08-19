@@ -184,7 +184,7 @@ namespace OPS.Landform
             {
                 orbitalImages = observationCache.GetAllObservations().Where(obs => obs.IsOrbitalImage).ToList();
 
-                roverImages = getRoverObservations(obs => obs.ObservationType == RoverProductType.Image);
+                roverImages = GetRoverObservations(obs => obs.ObservationType == RoverProductType.Image);
 
                 FilterRoverImages();
 
@@ -370,7 +370,7 @@ namespace OPS.Landform
                 {
                     Image img = pipeline.LoadImage(obs.Url);
 
-                    var maskObs = getBestMaskObservation(obs);
+                    var maskObs = GetBestMaskObservation(obs);
                     
                     Image maskImage = ImageMasker.MakeMask(pipeline, masker, maskObs != null ? maskObs.Url : null, img);
                     
@@ -873,9 +873,9 @@ namespace OPS.Landform
                 pipeline.LogWarn("cannot create backproject strategy, no mesh operator");
                 return;
             }
-            if (sceneCaster == null)
+            if (meshCaster == null)
             {
-                pipeline.LogWarn("cannot create backproject strategy, no scene caster");
+                pipeline.LogWarn("cannot create backproject strategy, no mesh caster");
                 return;
             }
 

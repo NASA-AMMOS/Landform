@@ -181,7 +181,7 @@ namespace QMDTMesher
         {
             var mwn = CloudCompare.GenerateNormals(m, normalRadius);
             mwn.FlipNormalsTowardPoint(EstimateCameraPos(m, cameraDist));
-            mwn.RemoveZeroLengthNormals();
+            mwn.RemoveInvalidNormals();
             return mwn;
         }
 

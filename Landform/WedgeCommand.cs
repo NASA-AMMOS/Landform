@@ -273,7 +273,7 @@ namespace OPS.Landform
             return false;
         }
 
-        protected List<RoverObservation> getRoverObservations(Func<RoverObservation, bool> filter = null)
+        protected List<RoverObservation> GetRoverObservations(Func<RoverObservation, bool> filter = null)
         {
             return observationCache.GetAllObservations()
                 .Where(obs => (obs is RoverObservation))
@@ -282,7 +282,7 @@ namespace OPS.Landform
                 .ToList();
         }
 
-        protected RoverObservation getBestMaskObservation(RoverObservation obs)
+        protected RoverObservation GetBestMaskObservation(RoverObservation obs)
         {
             var maskObs = observationCache.GetAllObservationsForFrame(frameCache.GetFrame(obs.FrameName))
                 .Where(o => o is RoverObservation)
@@ -326,18 +326,18 @@ namespace OPS.Landform
 
             if (!wcopts.AllowUnmaskedRoverObservations && (mission == null || !mission.CanMakeSyntheticRoverMasks()))
             {
-                var roverObs = getRoverObservations(obs => obs.ObservationType != RoverProductType.RoverMask);
+                var roverObs = GetRoverObservations(obs => obs.ObservationType != RoverProductType.RoverMask);
                 int nr = 0;
                 foreach (var obs in roverObs)
                 {
-                    if (getBestMaskObservation(obs) == null)
+                    if (GetBestMaskObservation(obs) == null)
                     {
                         observationCache.Remove(obs);
                         pipeline.LogVerbose("removing observation {0}, no matching rover mask product", obs.Name);
                         nr++;
                     }
                 }
-                var maskObs = getRoverObservations(obs => obs.ObservationType == RoverProductType.RoverMask);
+                var maskObs = GetRoverObservations(obs => obs.ObservationType == RoverProductType.RoverMask);
                 {
                     foreach (var obs in maskObs)
                     {

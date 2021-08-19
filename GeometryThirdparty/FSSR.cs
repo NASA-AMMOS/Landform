@@ -42,10 +42,19 @@ namespace OPS.Geometry
             {
                 throw new MeshException("FSSR requires normals");
             }
-            if (pointCloud.ContainsZeroLengthNormals())
+            int nr = pointCloud.RemoveInvalidPoints();
+            if (nr > 0)
             {
-                if (logger != null) logger.LogWarn("FSSR input mesh had zero length normals - removing");
-                pointCloud.RemoveZeroLengthNormals();
+                if (logger != null) logger.LogWarn("FSSR input had invalid points, removed {0} points", nr);
+                if (pointCloud.Vertices.Count < 3)
+                {
+                    throw new MeshException("FSSR requires at least 3 vertices");
+                }
+            }
+            nr = pointCloud.RemoveInvalidNormals();
+            if (nr > 0)
+            {
+                if (logger != null) logger.LogWarn("FSSR input had invalid normals, removed {0} points", nr);
                 if (pointCloud.Vertices.Count < 3)
                 {
                     throw new MeshException("FSSR requires at least 3 vertices");
