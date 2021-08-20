@@ -2236,7 +2236,7 @@ namespace OPS.Landform
 
                         if (options.MaxSiteDrivesPerSolPerPass > 0)
                         {
-                            foreach (int sol in changedSDsBySol.Keys)
+                            foreach (int sol in new HashSet<int>(changedSDsBySol.Keys))
                             {
                                 var filtered = changedSDsBySol[sol]
                                     .OrderByDescending(sd => sd)
@@ -2367,9 +2367,9 @@ namespace OPS.Landform
                 }
                 catch (Exception masterException)
                 {
-                    pipeline.LogException(masterException, string.Format("error in master loop, retrying in {0}",
-                                                                         Fmt.HMS(SERVICE_LOOP_RETRY_SEC * 1000)));
-                    SleepSec(SERVICE_LOOP_RETRY_SEC);
+                    pipeline.LogException(masterException, string.Format("error in master loop, throttling {0}",
+                                                                         Fmt.HMS(SERVICE_LOOP_THROTTLE_SEC * 1000)));
+                    SleepSec(SERVICE_LOOP_THROTTLE_SEC);
                 }
             }
         }
