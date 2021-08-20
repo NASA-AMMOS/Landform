@@ -538,7 +538,7 @@ namespace OPS.Landform
             return queue;
         }
 
-        private void SendMessage()
+        protected virtual void SendMessage()
         {
             pipeline.LogInfo("{0}sending message to queue {1}", lvopts.DryRun ? "dry " : "", messageQueue.Name);
             if (!lvopts.DryRun)
