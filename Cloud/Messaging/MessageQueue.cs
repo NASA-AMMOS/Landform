@@ -148,9 +148,9 @@ namespace OPS.Cloud
             Enqueue(JsonHelper.ToJson(message, autoTypes: autoTypes));
         }
 
-        public void Enqueue(string json)
+        public void Enqueue(string message)
         {
-            client.SendMessage(new SendMessageRequest(url, json));
+            client.SendMessage(new SendMessageRequest(url, message));
         }
 
         public void UpdateTimeout(QueueMessage m, int timeoutSec)

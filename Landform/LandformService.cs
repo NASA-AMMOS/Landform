@@ -88,7 +88,7 @@ namespace OPS.Landform
 
         public const int DEF_DEQUEUE_THROTTLE_MS = 1;
 
-        public const int SERVICE_LOOP_RETRY_SEC = 60;
+        public const int SERVICE_LOOP_THROTTLE_SEC = 60;
 
         public const int DEF_MAX_HANDLER_SEC = 10 * 60; //10 minutes
         public const int DEF_MAX_MESSAGE_AGE_SEC = 60 * 60; //1 hour
@@ -531,14 +531,14 @@ namespace OPS.Landform
                         return null;
                     }
                     pipeline.LogException(ex, string.Format("error opening/creating {0} queue {1}, retrying in {2}",
-                                                            what, name, Fmt.HMS(SERVICE_LOOP_RETRY_SEC * 1000)));
-                    SleepSec(SERVICE_LOOP_RETRY_SEC);
+                                                            what, name, Fmt.HMS(SERVICE_LOOP_THROTTLE_SEC * 1000)));
+                    SleepSec(SERVICE_LOOP_THROTTLE_SEC);
                 }
             }
             return queue;
         }
 
-        private void SendMessage()
+        protected virtual void SendMessage()
         {
             pipeline.LogInfo("{0}sending message to queue {1}", lvopts.DryRun ? "dry " : "", messageQueue.Name);
             if (!lvopts.DryRun)
@@ -782,9 +782,9 @@ namespace OPS.Landform
                 }
                 catch (Exception serviceException)
                 {
-                    pipeline.LogException(serviceException, string.Format("service loop error, retrying in {0}",
-                                                                          Fmt.HMS(SERVICE_LOOP_RETRY_SEC * 1000)));
-                    SleepSec(SERVICE_LOOP_RETRY_SEC);
+                    pipeline.LogException(serviceException, string.Format("service loop error, throttling {0}",
+                                                                          Fmt.HMS(SERVICE_LOOP_THROTTLE_SEC * 1000)));
+                    SleepSec(SERVICE_LOOP_THROTTLE_SEC);
                 }
             }
         }
