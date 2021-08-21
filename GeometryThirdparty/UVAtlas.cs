@@ -20,6 +20,13 @@ namespace OPS.Geometry
 
         public const int DEF_MAX_SEC = 5 * 60;
 
+        private class ThreadState
+        {
+            public volatile UVAtlasNET.UVAtlas.ReturnCode rc = UVAtlasNET.UVAtlas.ReturnCode.UNKNOWN;
+            public volatile bool done = false;
+            public volatile Exception error = null;
+        }
+
         /// <summary>
         /// Resulting UV coordinates will be normalized 0 - 1 and centered on pixels
         /// for an image with resolution `width` x `height`.
@@ -61,22 +68,30 @@ namespace OPS.Geometry
                 UVAtlasNET.UVAtlas.Quality.UVATLAS_GEODESIC_QUALITY : 
                 UVAtlasNET.UVAtlas.Quality.UVATLAS_DEFAULT;
 
-            UVAtlasNET.UVAtlas.ReturnCode rc = UVAtlasNET.UVAtlas.ReturnCode.UNKNOWN;
+            //ThreadState fields are volatile to ensure safe publication (memory fencing) from the worker thread to us
+            //need to put them in the ThreadState class because local variables can't be volatile in c#
+            var ts = new ThreadState();
             try
             {
-                bool done = false;
                 var thread = new Thread(() =>
                 {
-                    rc = UVAtlasNET.UVAtlas.Atlas(inX, inY, inZ, indices,
-                                                  out outU, out outV, out indices, out outVertexRemap,
-                                                  maxCharts, (float)maxStretch, (float)gutter, width, height, quality,
-                                                  (float)adjacencyEpsilon);
-                    done = true;
+                    try
+                    {
+                        ts.rc = UVAtlasNET.UVAtlas.Atlas(inX, inY, inZ, indices,
+                                                         out outU, out outV, out indices, out outVertexRemap,
+                                                         maxCharts, (float)maxStretch, (float)gutter, width, height,
+                                                         quality, (float)adjacencyEpsilon);
+                        ts.done = true;
+                    }
+                    catch (Exception ex)
+                    {
+                        ts.error = ex;
+                    }
                 });
                 thread.IsBackground = true; //don't make the process hang around just for this thread
                 double startTime = UTCTime.Now();
                 thread.Start();
-                while (!done)
+                while (!ts.done)
                 {
                     Thread.Sleep(100);
                     double durationSec = UTCTime.Now() - startTime;
@@ -90,41 +105,42 @@ namespace OPS.Geometry
                         //and that would take a bit of a rearchitecture to do well
                         //typically the entire tactical or contextual mesh pipeline is run in a separate process
                         //and we ran UVAtlas as a background thread, so it'll eat CPU but will die with the process
-                        throw new Exception(string.Format("UVAtlas runtime {0} > {1}",
-                                                          Fmt.HMS(durationSec * 1000), Fmt.HMS(maxSec * 1000)));
+                        if (logger != null)
+                        {
+                            logger.LogError("UVAtlas runtime {0} > {1}",
+                                            Fmt.HMS(durationSec * 1000), Fmt.HMS(maxSec * 1000));
+                        }
+                        break;
                     }
                 }
             }
             catch (Exception ex)
             {
-                if (logger != null)
-                {
-                    logger.LogError("UVAtlas error: " + ex.Message);
-                }
+                ts.error = ex;
             }
 
-            if (rc != UVAtlasNET.UVAtlas.ReturnCode.SUCCESS)
+            if (ts.error != null && logger != null)
             {
-                if (fallbackToNaive)
+                logger.LogError("UVAtlas error: " + ts.error.Message);
+            }
+
+            if (!ts.done || ts.error != null || ts.rc != UVAtlasNET.UVAtlas.ReturnCode.SUCCESS)
+            {
+                bool fallback = fallbackToNaive && ts.done;
+                if (logger != null)
                 {
-                    if (logger != null)
-                    {
-                        logger.LogError("UVAtlas failed, return code {0}, falling back to naive atlasing", rc);
-                    }
-                    if (!NaiveAtlas.Compute(mesh, out outU, out outV, out indices, out outVertexRemap))
-                    {
-                        if (logger != null)
-                        {
-                            logger.LogError("naive atlasing failed");
-                        }
-                        return false;
-                    }
+                    logger.LogError("UVAtlas failed, return code {0}{1}",
+                                    ts.rc, fallback ? ", falling back to naive atlasing" : "");
                 }
-                else
+                if (!fallback)
+                {
+                    return false;
+                }
+                if (!NaiveAtlas.Compute(mesh, out outU, out outV, out indices, out outVertexRemap))
                 {
                     if (logger != null)
                     {
-                        logger.LogError("UVAtlas failed, fallback to naive atlasing disabled");
+                        logger.LogError("UVAtlas fallback naive atlasing failed");
                     }
                     return false;
                 }

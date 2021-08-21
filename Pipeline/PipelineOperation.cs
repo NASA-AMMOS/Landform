@@ -70,7 +70,7 @@ namespace OPS.Pipeline
         {
             msg = string.Format(msg, args);
             pipeline.LogError(logPrefix + msg);
-            SendStatusToMaster("error: " + msg, error: true);
+            SendStatusToMaster("error: " + msg); //don't pass error=true, will cause state machine to abort 
         }
 
         public void LogException(Exception ex, string msg = null, int maxAggregateSpew = 1, bool stackTrace = false)
@@ -78,7 +78,7 @@ namespace OPS.Pipeline
             msg = logPrefix + (msg ?? "");
             pipeline.LogException(ex, msg, maxAggregateSpew, stackTrace);
             msg = string.Format("{0}{1}", !string.IsNullOrEmpty(msg) ? (msg + ": ") : "", ex.Message);
-            SendStatusToMaster("error: " + msg, error: true);
+            SendStatusToMaster("error: " + msg); //don't pass error=true, will cause state machine to abort 
         }
 
         protected void SendStatusToMaster(string status, bool done = false, bool error = false)

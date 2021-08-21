@@ -267,9 +267,17 @@ namespace OPS.Pipeline
                                                                status, done, error));
                 }
 
-                sendStatus("started");
-                workerDispatcher.Handle(msg); 
-                sendStatus("complete", done: true);
+                try
+                {
+                    sendStatus("started");
+                    workerDispatcher.Handle(msg); 
+                    sendStatus("complete", done: true);
+                }
+                catch (Exception ex)
+                {
+                    sendStatus("error: " + ex.Message, done: true, error: true);
+                    throw;
+                }
             }
             
             MessageLoop(workerQueue, handler, "worker", null, ex => { WorkerError = ex; return QuitOnWorkerError; });
