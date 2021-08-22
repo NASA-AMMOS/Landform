@@ -38,6 +38,13 @@ if not "%LANDFORM_CREDENTIAL_REFRESH_SEC%"=="" (
    set credentialrefresh=--credentialrefreshsec=%LANDFORM_CREDENTIAL_REFRESH_SEC%
 )
 
+set idleopts=
+if not "%LANDFORM_IDLE_SHUTDOWN_SEC%"=="" set idleopts=--idleshutdownsec=%LANDFORM_IDLE_SHUTDOWN_SEC%
+
+if not "%LANDFORM_IDLE_SHUTDOWN_METHOD%"=="" (
+   set idleopts=%idleopts% --idleshutdownmethod=%LANDFORM_IDLE_SHUTDOWN_METHOD%
+)
+
 rem --- end service boilerplate, begin service specific boilerplate ---
 
 set queue=
@@ -250,7 +257,7 @@ set stdopts=--configdir=%cfgdir% --configfolder=%cfgfolder% --logdir=%logdir% --
 set cfgopts=%stdopts% --venue=%venue% --maxcores=0 --randomseed=-1 --storagedir=%storagedir%
 set svcopts=%stdopts% --stacktraces --service --mission=%mission% --queuename=%queue% --failqueuename=%failqueue%
 set svcopts=%svcopts% --awsprofile=%awsprofile% --awsregion=%awsregion% %credentialrefresh%
-set svcopts=%svcopts% %msgopts%
+set svcopts=%svcopts% %msgopts% %idleopts%
 
 set tilingopts=%tilesetimageformat% %tilesetindexformat% %noindices% %embedindices%
 set tilingopts=%tilingopts% %maxfacespertile% %maxtileresolution% %mintileextent% %maxleafarea% %maxorbitalleafarea%

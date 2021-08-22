@@ -86,6 +86,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="CloudException.cs" />
+    <Compile Include="Compute\ComputeHelper.cs" />
     <Compile Include="Credentials.cs" />
     <Compile Include="Database\DBUtil.cs" />
     <Compile Include="Database\DynamoDBMetadata.cs" />
