@@ -191,7 +191,7 @@ namespace OPS.Pipeline
                 credssExe = credssFilename;
             }
 
-            string cmd = $"--venue {venue} --app-account -d {duration} -s {section} -u USER -p PASS";
+            string cmd = $"--venue {venue} --app-account -d {duration} -s {section} -u {user} -p PASS";
 
             if (logger != null)
             {
@@ -199,7 +199,6 @@ namespace OPS.Pipeline
             }
 
             //avoid plaintexting credentials in log
-            cmd = cmd.Replace("USER", user);
             cmd = cmd.Replace("PASS", pass);
 
             if (!dryRun)
