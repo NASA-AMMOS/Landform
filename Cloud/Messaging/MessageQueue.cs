@@ -308,9 +308,13 @@ namespace OPS.Cloud
             {
                 if (logger != null)
                 {
-                    logger.LogInfo("creating AWS SQS client for default profile and region");
+                    logger.LogInfo("creating AWS SQS client for default profile in region \"{0}\"", awsRegion);
                 }
                 return new AmazonSQSClient(awsRegion);
+            }
+            if (logger != null)
+            {
+                logger.LogInfo("creating AWS SQS client for default profile and region");
             }
             return new AmazonSQSClient();
         }
