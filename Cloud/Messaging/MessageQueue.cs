@@ -96,15 +96,18 @@ namespace OPS.Cloud
                         }
                     };
                 var res = client.GetQueueAttributes(req);
-                if (!quiet)
+                if (!quiet && logger != null)
                 {
                     logger.LogInfo("queue \"{0}\" exists, approx {1} messages ({2} in flight)",
                                    name, res.ApproximateNumberOfMessages, res.ApproximateNumberOfMessagesNotVisible);
                 }
                 if (res.VisibilityTimeout != timeoutSec)
                 {
-                    logger.LogWarn("visibility timeout for queue \"{0}\" is {1}s, expected {2}s",
-                                   name, res.VisibilityTimeout, timeoutSec);
+                    if (logger != null)
+                    {
+                        logger.LogWarn("visibility timeout for queue \"{0}\" is {1}s, expected {2}s",
+                                       name, res.VisibilityTimeout, timeoutSec);
+                    }
                     if (landformOwned)
                     {
                         var attrs = new Dictionary<string, string>();
@@ -121,7 +124,10 @@ namespace OPS.Cloud
             {
                 if (landformOwned && autoCreateIfLandformOwned)
                 {
-                    logger.LogInfo("creating queue \"{0}\"", name);
+                    if (logger != null)
+                    {
+                        logger.LogInfo("creating queue \"{0}\"", name);
+                    }
                     var req = new CreateQueueRequest() { QueueName = name };
                     req.Attributes["VisibilityTimeout"] = timeoutSec.ToString(); 
                     url = client.CreateQueue(req).QueueUrl;
@@ -133,7 +139,10 @@ namespace OPS.Cloud
             }
             catch (Exception ex)
             {
-                logger.LogError("error creating queue \"{0}\": {1}", name, ex.Message);
+                if (logger != null)
+                {
+                    logger.LogError("error creating queue \"{0}\": {1}", name, ex.Message);
+                }
                 throw;
             }
         }
@@ -207,7 +216,10 @@ namespace OPS.Cloud
             }
             catch (OverLimitException e)
             {
-                logger.LogError("client over limit: {0}", e.Message);
+                if (logger != null)
+                {
+                    logger.LogError("client over limit: {0}", e.Message);
+                }
                 throw;
             }
 
@@ -247,15 +259,20 @@ namespace OPS.Cloud
                 }
                 catch (Exception e)
                 {
-                    
-                    logger.LogError("invalid message '{0}' in {1} (deleting): {2}", msg.Body, Name, e.Message);
+                    if (logger != null)
+                    {
+                        logger.LogError("invalid message '{0}' in {1} (deleting): {2}", msg.Body, Name, e.Message);
+                    }
                     try
                     {
                         DeleteMessage(msg.ReceiptHandle);
                     }
                     catch (Exception e2)
                     {
-                        logger.LogError("error deleting message: {0}", e2.Message);
+                        if (logger != null)
+                        {
+                            logger.LogError("error deleting message: {0}", e2.Message);
+                        }
                     }
                     return null;
                 }
@@ -276,6 +293,33 @@ namespace OPS.Cloud
             client.DeleteMessage(new DeleteMessageRequest { QueueUrl = url, ReceiptHandle = receiptHandle });
         }
 
+        public int GetNumMessages(bool includeInvisible = false, bool throwOnError = false)
+        {
+            try
+            {
+                var req = new GetQueueAttributesRequest()
+                {
+                    QueueUrl = url,
+                    AttributeNames = { "ApproximateNumberOfMessages", "ApproximateNumberOfMessagesNotVisible" }
+                };
+                var res = client.GetQueueAttributes(req);
+                return res.ApproximateNumberOfMessages +
+                    (includeInvisible ? res.ApproximateNumberOfMessagesNotVisible : 0);
+            }
+            catch (Exception ex)
+            {
+                if (logger != null)
+                {
+                    logger.LogException(ex, "getting number of messages in queue " + Name);
+                }
+                if (throwOnError)
+                {
+                    throw;
+                }
+                return 0;
+            }
+        }
+        
         public static AmazonSQSClient GetClient(string awsProfileName = null, string awsRegionName = null,
                                                 ILogger logger = null)
         {

@@ -314,6 +314,14 @@ namespace OPS.Landform
             if (serviceMode)
             {
                 selfEC2InstanceID = ComputeHelper.GetSelfInstanceID(pipeline);
+                if (!string.IsNullOrEmpty(selfEC2InstanceID))
+                {
+                    pipeline.LogInfo("self EC2 instance ID: {0}", selfEC2InstanceID);
+                }
+                else
+                {
+                    pipeline.LogInfo("failed to get self EC2 instance ID");
+                }
 
                 if (lvopts.IdleShutdownSec > 0 && lvopts.IdleShutdownMethod != IdleShutdownMethod.None)
                 {
@@ -561,7 +569,7 @@ namespace OPS.Landform
                     {
                         return null;
                     }
-                    pipeline.LogException(ex, string.Format("error opening/creating {0} queue {1}, retrying in {2}",
+                    pipeline.LogException(ex, string.Format("opening/creating {0} queue {1}, retrying in {2}",
                                                             what, name, Fmt.HMS(SERVICE_LOOP_THROTTLE_SEC * 1e3)));
                     SleepSec(SERVICE_LOOP_THROTTLE_SEC);
                 }
@@ -717,7 +725,7 @@ namespace OPS.Landform
                 }
                 catch (Exception ex)
                 {
-                    pipeline.LogException(ex, "error creating EC2 client or stopping instance");
+                    pipeline.LogException(ex, "creating EC2 client or stopping instance");
                 }
                 if (!stopped)
                 {
@@ -792,7 +800,7 @@ namespace OPS.Landform
                             }
                             catch (Exception msgException)
                             {
-                                pipeline.LogException(msgException, "error handling " + desc);
+                                pipeline.LogException(msgException, "handling " + desc);
                             }
                             
                             currentMessage = null;
@@ -828,7 +836,7 @@ namespace OPS.Landform
                             }
                             catch (Exception deleteException)
                             {
-                                pipeline.LogException(deleteException, "error deleting message");
+                                pipeline.LogException(deleteException, "deleting message");
                             }
                         }
 
@@ -966,7 +974,7 @@ namespace OPS.Landform
                         }
                         catch (Exception ex)
                         {
-                            pipeline.LogException(ex, "error updating message timeout");
+                            pipeline.LogException(ex, "updating message timeout");
                         }
                     }
                 }

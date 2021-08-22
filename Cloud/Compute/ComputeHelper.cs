@@ -29,7 +29,7 @@ namespace OPS.Cloud
                 id = new StreamReader(resp.GetResponseStream()).ReadToEnd();
                 if (logger != null)
                 {
-                    logger.LogInfo("self EC2 instance ID: {0}", id);
+                    logger.LogVerbose("self EC2 instance ID: {0}", id);
                 }
             }
             catch (Exception ex)
@@ -58,8 +58,8 @@ namespace OPS.Cloud
             {
                 if (logger != null)
                 {
-                    logger.LogInfo("creating AWS EC2 client for profile \"{0}\" in region \"{1}\"",
-                                   awsProfileName, awsRegionName);
+                    logger.LogVerbose("creating AWS EC2 client for profile \"{0}\" in region \"{1}\"",
+                                      awsProfileName, awsRegionName);
                 }
                 client = new AmazonEC2Client(awsCredentials, awsRegion);
             }
@@ -67,7 +67,7 @@ namespace OPS.Cloud
             {
                 if (logger != null)
                 {
-                    logger.LogInfo("creating AWS EC2 client for profile \"{0}\" in default region", awsProfileName);
+                    logger.LogVerbose("creating AWS EC2 client for profile \"{0}\" in default region", awsProfileName);
                 }
                 client = new AmazonEC2Client(awsCredentials);
             }
@@ -75,7 +75,7 @@ namespace OPS.Cloud
             {
                 if (logger != null)
                 {
-                    logger.LogInfo("creating AWS EC2 client for default profile in region \"{0}\"", awsRegion);
+                    logger.LogVerbose("creating AWS EC2 client for default profile in region \"{0}\"", awsRegion);
                 }
                 client = new AmazonEC2Client(awsRegion);
             }
@@ -83,7 +83,7 @@ namespace OPS.Cloud
             {
                 if (logger != null)
                 {
-                    logger.LogInfo("creating AWS EC2 client for default profile and region");
+                    logger.LogVerbose("creating AWS EC2 client for default profile and region");
                 }
                 client = new AmazonEC2Client();
             }
@@ -91,6 +91,7 @@ namespace OPS.Cloud
 
         public List<string> InstanceNamePatternToIDs(string namePattern, InstanceState state = InstanceState.unknown)
         {
+            var ret = new List<string>();
             string msg = (state != InstanceState.unknown ? (state + " ") : "") +
                 "EC2 instances named \"" + namePattern + "\"";
             try
@@ -109,10 +110,9 @@ namespace OPS.Cloud
                 
                 if (logger != null)
                 {
-                    logger.LogInfo("finding " + msg);
+                    logger.LogVerbose("finding " + msg);
                 }
 
-                var ret = new List<string>();
                 do
                 {
                     var resp = client.DescribeInstances(req);
@@ -137,20 +137,18 @@ namespace OPS.Cloud
 
                 if (logger != null)
                 {
-                    logger.LogInfo("found {0} {1}: {2}{3}", ret.Count, msg, String.Join(", ", ret.Take(100)),
-                                   ret.Count > 100 ? ", ..." :"");
+                    logger.LogVerbose("found {0} {1}: {2}{3}", ret.Count, msg, String.Join(", ", ret.Take(100)),
+                                      ret.Count > 100 ? ", ..." :"");
                 }
-
-                return ret;
             }
             catch (Exception ex)
             {
                 if (logger != null)
                 {
-                    logger.LogException(ex, "error finding " + msg);
+                    logger.LogException(ex, "finding " + msg);
                 }
-                return null;
             }
+            return ret;
         }
 
         public InstanceState GetInstanceState(string instanceID)
@@ -175,7 +173,7 @@ namespace OPS.Cloud
                     {
                         if (ret != InstanceState.unknown)
                         {
-                            logger.LogInfo("EC2 instance {0} state: {1}", instanceID, ret);
+                            logger.LogVerbose("EC2 instance {0} state: {1}", instanceID, ret);
                         }
                         else
                         {
@@ -195,7 +193,7 @@ namespace OPS.Cloud
             {
                 if (logger != null)
                 {
-                    logger.LogException(ex, "error getting status for EC2 instance " + instanceID);
+                    logger.LogException(ex, "getting status for EC2 instance " + instanceID);
                 }
             }
             return ret;
@@ -210,7 +208,7 @@ namespace OPS.Cloud
                 {
                     if (logger != null)
                     {
-                        logger.LogInfo("starting EC2 instances {0}", String.Join(", ", instanceIDs));
+                        logger.LogVerbose("starting EC2 instances {0}", String.Join(", ", instanceIDs));
                     }
                     var req = new StartInstancesRequest() { InstanceIds = ids };
                     var resp = client.StartInstances(req);
@@ -218,8 +216,8 @@ namespace OPS.Cloud
                     {
                         if (change != null && logger != null)
                         {
-                            logger.LogInfo("EC2 instance {0} {1} -> {2}",
-                                           change.InstanceId, change.PreviousState.Name, change.CurrentState.Name);
+                            logger.LogVerbose("EC2 instance {0} {1} -> {2}",
+                                              change.InstanceId, change.PreviousState.Name, change.CurrentState.Name);
                         }
                     }
                 }
@@ -227,7 +225,7 @@ namespace OPS.Cloud
             }
             catch (Exception ex)
             {
-                logger.LogException(ex, "error starting EC2 instances " + String.Join(", ", instanceIDs));
+                logger.LogException(ex, "starting EC2 instances " + String.Join(", ", instanceIDs));
             }
             return false;
         }
@@ -241,7 +239,7 @@ namespace OPS.Cloud
                 {
                     if (logger != null)
                     {
-                        logger.LogInfo("stopping EC2 instances {0}", String.Join(", ", instanceIDs));
+                        logger.LogVerbose("stopping EC2 instances {0}", String.Join(", ", instanceIDs));
                     }
                     var req = new StopInstancesRequest() { InstanceIds = ids };
                     var resp = client.StopInstances(req);
@@ -249,8 +247,8 @@ namespace OPS.Cloud
                     {
                         if (change != null && logger != null)
                         {
-                            logger.LogInfo("EC2 instance {0} {1} -> {2}",
-                                           change.InstanceId, change.PreviousState.Name, change.CurrentState.Name);
+                            logger.LogVerbose("EC2 instance {0} {1} -> {2}",
+                                              change.InstanceId, change.PreviousState.Name, change.CurrentState.Name);
                         }
                     }
                 }
@@ -258,7 +256,7 @@ namespace OPS.Cloud
             }
             catch (Exception ex)
             {
-                logger.LogException(ex, "error stopping EC2 instances " + String.Join(", ", instanceIDs));
+                logger.LogException(ex, "stopping EC2 instances " + String.Join(", ", instanceIDs));
             }
             return false;
         }

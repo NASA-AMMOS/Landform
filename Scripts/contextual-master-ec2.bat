@@ -132,9 +132,24 @@ if not "%LANDFORM_CONTEXTUAL_MAX_SOL_RANGE%"=="" (
    set masteropts=%masteropts% --maxsolrange=%LANDFORM_CONTEXTUAL_MAX_SOL_RANGE%
 )
 
-set solblacklist=
 if not "%LANDFORM_CONTEXTUAL_SOL_BLACKLIST%"=="" (
     set masteropts=%masteropts% --solblacklist=%LANDFORM_CONTEXTUAL_SOL_BLACKLIST%
+)
+
+if not "%LANDFORM_CONTEXTUAL_AUTO_START_WORKERS%"=="" (
+    set masteropts=%masteropts% --autostartworkers
+)
+
+if not "%LANDFORM_CONTEXTUAL_WORKER_WATCHDOG_SEC%"=="" (
+    set masteropts=%masteropts% --workerwatchdogsec=%LANDFORM_CONTEXTUAL_WORKER_WATCHDOG_SEC%
+)
+
+if not "%LANDFORM_CONTEXTUAL_WORKER_INSTANCES%"=="" (
+    set masteropts=%masteropts% --workerinstances=%LANDFORM_CONTEXTUAL_WORKER_INSTANCES%
+)
+
+if not "%LANDFORM_CONTEXTUAL_ORBITAL_WORKER_INSTANCES%"=="" (
+    set masteropts=%masteropts% --orbitalworkerinstances=%LANDFORM_CONTEXTUAL_ORBITAL_WORKER_INSTANCES%
 )
 
 set stdopts=--configdir=%cfgdir% --configfolder=%cfgfolder% --logdir=%logdir% --tempdir=%tmpdir%
