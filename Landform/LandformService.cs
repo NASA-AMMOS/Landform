@@ -162,7 +162,7 @@ namespace OPS.Landform
         protected string selfEC2InstanceID;
 
         private double idleStartSec = -1;
-        private bool didIdleShutdown = false;
+        private bool didIdleShutdown, didIdleShutdownAnnounce;
 
         /// <summary>
         /// Simple JSON message for testing or in workflows not involving [SNS wrapped] S3 event messages.
@@ -881,8 +881,9 @@ namespace OPS.Landform
                                                      Fmt.HMS(lvopts.IdleShutdownSec * 1e3));
                                 }
                             }
-                            else if (idleSec > 0.8 * lvopts.IdleShutdownSec)
+                            else if (!didIdleShutdownAnnounce && idleSec > 0.8 * lvopts.IdleShutdownSec)
                             {
+                                didIdleShutdownAnnounce = true;
                                 pipeline.LogInfo("EC2 instance {0} (self) idle for {1}, shutting down after {2} idle",
                                                  selfEC2InstanceID, Fmt.HMS(idleSec * 1e3),
                                                  Fmt.HMS(lvopts.IdleShutdownSec * 1e3));
