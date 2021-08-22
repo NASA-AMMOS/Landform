@@ -34,7 +34,9 @@ set landform=%bindir%\Landform.exe
 if not "%LANDFORM_BIN%"=="" set landform=%LANDFORM_BIN%
 
 set credentialrefresh=
-if not "%LANDFORM_CREDENTIAL_REFRESH_SEC%"=="" set credentialrefresh=--credentialrefreshsec=%CREDENTIAL_REFRESH_SEC%
+if not "%LANDFORM_CREDENTIAL_REFRESH_SEC%"=="" (
+   set credentialrefresh=--credentialrefreshsec=%LANDFORM_CREDENTIAL_REFRESH_SEC%
+)
 
 rem --- end service boilerplate, begin service specific boilerplate ---
 
