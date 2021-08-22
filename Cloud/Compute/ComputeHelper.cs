@@ -11,12 +11,36 @@ using OPS.Util;
 
 namespace OPS.Cloud
 {
-    public class ComputeHelper
+    public class ComputeHelper : IDisposable
     {
         public enum InstanceState { unknown, pending, running, shutting_down, terminated, stopping, stopped };
 
         private AmazonEC2Client client;
         private ILogger logger;
+
+        public static string GetSelfInstanceID(ILogger logger = null)
+        {
+            //https://stackoverflow.com/a/9648259
+            string id = null;
+            try
+            {
+                var req = HttpWebRequest.Create("http://169.254.169.254/latest/meta-data/instance-id");
+                var resp = req.GetResponse();
+                id = new StreamReader(resp.GetResponseStream()).ReadToEnd();
+                if (logger != null)
+                {
+                    logger.LogInfo("self EC2 instance ID: {0}", id);
+                }
+            }
+            catch (Exception ex)
+            {
+                if (logger != null)
+                {
+                    logger.LogWarn("failed to get self EC2 instance ID (maybe not running on EC2): {0}", ex.Message);
+                }
+            }
+            return id;
+        }
 
         public ComputeHelper(string awsProfileName = null, string awsRegionName = null, ILogger logger = null)
         {
@@ -239,28 +263,9 @@ namespace OPS.Cloud
             return false;
         }
 
-        public static string GetSelfInstanceID(ILogger logger = null)
+        public void Dispose()
         {
-            //https://stackoverflow.com/a/9648259
-            string id = null;
-            try
-            {
-                var req = HttpWebRequest.Create("http://169.254.169.254/latest/meta-data/instance-id");
-                var resp = req.GetResponse();
-                id = new StreamReader(resp.GetResponseStream()).ReadToEnd();
-                if (logger != null)
-                {
-                    logger.LogInfo("self EC2 instance ID: {0}", id);
-                }
-            }
-            catch (Exception ex)
-            {
-                if (logger != null)
-                {
-                    logger.LogWarn("failed to get self EC2 instance ID (maybe not running on EC2): {0}", ex.Message);
-                }
-            }
-            return id;
+            client.Dispose();
         }
     }
 }

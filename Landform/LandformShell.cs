@@ -181,6 +181,36 @@ namespace OPS.Landform
             }
         }
 
+        private Object computeHelperLock = new Object();
+        private ComputeHelper _computeHelper;
+        protected ComputeHelper computeHelper
+        {
+            get
+            {
+                lock (computeHelperLock)
+                {
+                    if (_computeHelper == null)
+                    {
+                        _computeHelper = new ComputeHelper(awsProfile, awsRegion, pipeline);
+                    }
+                    return _computeHelper;
+                }
+            }
+
+            set
+            {
+                lock (computeHelperLock)
+                {
+                    if (_computeHelper != null)
+                    {
+                        _computeHelper.Dispose();
+                        _computeHelper = null;
+                    }
+                    _computeHelper = value;
+                }
+            }
+        }
+
         private volatile Process currentProcess;
 
         public LandformShell(LandformShellOptions options) : base(options)
@@ -304,6 +334,7 @@ namespace OPS.Landform
             }
 
             storageHelper = null;
+            computeHelper = null;
         }
 
         protected abstract string GetLogFilePrefix();

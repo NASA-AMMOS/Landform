@@ -83,10 +83,10 @@ namespace OPS.Landform
         [Option(Default = LandformService.DEF_MAX_RECEIVE_COUNT, HelpText = "Maximum message receive count, nonpositive for unlimited")]
         public int MaxReceiveCount { get; set; }
 
-        [Option(Default = -1, HelpText = "When running as EC2 instance, attempt shutdown after idle for at least this many seconds, non-positive disables idle shutdown")]
+        [Option(Default = -1, HelpText = "When running as EC2 instance, attempt shutdown after idle for at least this many seconds, non-positive disables")]
         public int IdleShutdownSec { get; set; }
 
-        [Option(Default = IdleShutdownMethod.None, HelpText = "When running as EC2 instance use this method to shutdown after idle time exceeded")]
+        [Option(Default = IdleShutdownMethod.StopInstanceOrShutdown, HelpText = "When running as EC2 instance use this method to shutdown after idle time exceeded")]
         public IdleShutdownMethod IdleShutdownMethod { get; set; }
     }
     
@@ -159,11 +159,10 @@ namespace OPS.Landform
         private volatile QueueMessage currentMessage;
         private volatile int messageStartSec;
 
+        protected string selfEC2InstanceID;
+
         private double idleStartSec = -1;
         private bool didIdleShutdown = false;
-
-        private string selfEC2InstanceID;
-        private ComputeHelper computeHelper;
 
         /// <summary>
         /// Simple JSON message for testing or in workflows not involving [SNS wrapped] S3 event messages.
@@ -288,7 +287,7 @@ namespace OPS.Landform
 
                 if (!string.IsNullOrEmpty(lvopts.ProjectName))
                 {
-                    throw new Exception("project name must be omitted with " + utils);
+                    throw new Exception("project name must be omitted for service");
                 }
 
                 if (string.IsNullOrEmpty(lvopts.QueueName))
@@ -310,7 +309,10 @@ namespace OPS.Landform
                                             "--retrymessages, --failmessages, --dropfailedmessages");
                     }
                 }
+            }
 
+            if (serviceMode)
+            {
                 selfEC2InstanceID = ComputeHelper.GetSelfInstanceID(pipeline);
 
                 if (lvopts.IdleShutdownSec > 0 && lvopts.IdleShutdownMethod != IdleShutdownMethod.None)
@@ -319,19 +321,6 @@ namespace OPS.Landform
                     {
                         pipeline.LogWarn("will attempt to shutdown after {0} idle, shutdown method {1}",
                                          Fmt.HMS(lvopts.IdleShutdownSec * 1e3), lvopts.IdleShutdownMethod);
-                        if (lvopts.IdleShutdownMethod == IdleShutdownMethod.StopInstance ||
-                            lvopts.IdleShutdownMethod == IdleShutdownMethod.StopInstanceOrShutdown)
-                        {
-                            try
-                            {
-                                computeHelper = new ComputeHelper(awsProfile, awsRegion, pipeline);
-                            }
-                            catch (Exception ex)
-                            {
-                               pipeline.LogException(ex, "failed to create EC2 client, " +
-                                                     $"AWS profile {awsProfile}, region {awsRegion}");
-                            }
-                        }
                     }
                     else
                     {
@@ -722,17 +711,17 @@ namespace OPS.Landform
             if (lvopts.IdleShutdownMethod == IdleShutdownMethod.StopInstance ||
                 lvopts.IdleShutdownMethod == IdleShutdownMethod.StopInstanceOrShutdown)
             {
-                if (computeHelper != null)
+                try
                 {
                     stopped = computeHelper.StopInstances(selfEC2InstanceID);
-                    if (!stopped)
-                    {
-                        pipeline.LogError("failed to stop EC2 instance {0} (self)", selfEC2InstanceID);
-                    }
                 }
-                else
+                catch (Exception ex)
                 {
-                    pipeline.LogError("failed to stop EC2 instance {0} (self), no EC2 client", selfEC2InstanceID);
+                    pipeline.LogException(ex, "error creating EC2 client or stopping instance");
+                }
+                if (!stopped)
+                {
+                    pipeline.LogError("failed to stop EC2 instance {0} (self)", selfEC2InstanceID);
                 }
             }
 
