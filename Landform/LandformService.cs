@@ -161,7 +161,7 @@ namespace OPS.Landform
 
         protected string selfEC2InstanceID;
 
-        private double idleStartSec = -1;
+        private double idleStartSec = -1, lastIdleShutdownWarnSec = -1;
         private bool didIdleShutdown, didIdleShutdownAnnounce;
 
         /// <summary>
@@ -872,13 +872,18 @@ namespace OPS.Landform
                                                      selfEC2InstanceID, Fmt.HMS(idleSec * 1e3),
                                                      Fmt.HMS(lvopts.IdleShutdownSec * 1e3), lvopts.IdleShutdownMethod);
                                     IdleShutdown();
+                                    lastIdleShutdownWarnSec = now;
                                 }
                                 else
                                 {
-                                    pipeline.LogWarn("EC2 instance {0} (self) idle for {1} >= {2}, " +
-                                                     "requested shutdown but still running",
-                                                     selfEC2InstanceID, Fmt.HMS(idleSec * 1e3),
-                                                     Fmt.HMS(lvopts.IdleShutdownSec * 1e3));
+                                    if (now - lastIdleShutdownWarnSec > 60)
+                                    {
+                                        lastIdleShutdownWarnSec = now;
+                                        pipeline.LogWarn("EC2 instance {0} (self) idle for {1} >= {2}, " +
+                                                         "requested shutdown but still running",
+                                                         selfEC2InstanceID, Fmt.HMS(idleSec * 1e3),
+                                                         Fmt.HMS(lvopts.IdleShutdownSec * 1e3));
+                                    }
                                 }
                             }
                             else if (!didIdleShutdownAnnounce && idleSec > 0.8 * lvopts.IdleShutdownSec)
