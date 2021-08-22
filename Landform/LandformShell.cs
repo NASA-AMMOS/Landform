@@ -123,6 +123,12 @@ namespace OPS.Landform
 
         [Option(HelpText = "Skirt up direction (X, Y, Z, None, Normal)", Default = TilingDefaults.SKIRT_MODE)]
         public virtual SkirtMode SkirtMode { get; set; }
+
+        [Option(HelpText = "Use default AWS profile (vs profile from credential refresh) for S3 client", Default = false)]
+        public bool UseDefaultAWSProfileForS3Client { get; set; }
+
+        [Option(HelpText = "Use default AWS profile (vs profile from credential refresh) for EC2 client", Default = false)]
+        public bool UseDefaultAWSProfileForEC2Client { get; set; }
     }
 
     public abstract class LandformShell : LandformCommand
@@ -161,6 +167,7 @@ namespace OPS.Landform
                 {
                     if (_storageHelper == null)
                     {
+                        string profile = lsopts.UseDefaultAWSProfileForS3Client ? null : awsProfile;
                         _storageHelper = new StorageHelper(awsProfile, awsRegion, pipeline.Logger);
                     }
                     return _storageHelper;
@@ -191,7 +198,8 @@ namespace OPS.Landform
                 {
                     if (_computeHelper == null)
                     {
-                        _computeHelper = new ComputeHelper(awsProfile, awsRegion, pipeline);
+                        string profile = lsopts.UseDefaultAWSProfileForEC2Client ? null : awsProfile;
+                        _computeHelper = new ComputeHelper(profile, awsRegion, pipeline);
                     }
                     return _computeHelper;
                 }
