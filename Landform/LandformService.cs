@@ -164,8 +164,8 @@ namespace OPS.Landform
 
         protected string selfEC2InstanceID;
 
+        protected volatile bool shuttingDown;
         private double idleStartSec = -1, lastIdleShutdownWarnSec = -1;
-        private bool didIdleShutdown, didIdleShutdownAnnounce;
 
         /// <summary>
         /// Simple JSON message for testing or in workflows not involving [SNS wrapped] S3 event messages.
@@ -711,7 +711,7 @@ namespace OPS.Landform
 
         private void IdleShutdown()
         {
-            if (lvopts.IdleShutdownMethod == IdleShutdownMethod.None || didIdleShutdown ||
+            if (lvopts.IdleShutdownMethod == IdleShutdownMethod.None || shuttingDown ||
                 string.IsNullOrEmpty(selfEC2InstanceID))
             {
                 return;
@@ -741,7 +741,7 @@ namespace OPS.Landform
                 ConsoleHelper.Shutdown();
             }
 
-            didIdleShutdown = true;
+            shuttingDown = true;
         }
 
         protected virtual void RunService()
@@ -757,7 +757,7 @@ namespace OPS.Landform
             int maxReceiveCount = GetMaxReceiveCount();
             pipeline.LogInfo("running service loop on queue {0}, throttle {1}ms", messageQueue.Name, throttleMS);
 
-            while (true)
+            while (!shuttingDown)
             {
                 try
                 {
@@ -880,7 +880,7 @@ namespace OPS.Landform
                             double idleSec = now - idleStartSec;
                             if (idleSec > lvopts.IdleShutdownSec)
                             {
-                                if (!didIdleShutdown)
+                                if (!shuttingDown)
                                 {
                                     pipeline.LogInfo("shutting down EC2 instance {0} (self), idle for {1} >= {2}, " +
                                                      "shutdown method {3}",
@@ -901,13 +901,6 @@ namespace OPS.Landform
                                     }
                                 }
                             }
-                            else if (!didIdleShutdownAnnounce && idleSec > 0.8 * lvopts.IdleShutdownSec)
-                            {
-                                didIdleShutdownAnnounce = true;
-                                pipeline.LogInfo("EC2 instance {0} (self) idle for {1}, shutting down after {2} idle",
-                                                 selfEC2InstanceID, Fmt.HMS(idleSec * 1e3),
-                                                 Fmt.HMS(lvopts.IdleShutdownSec * 1e3));
-                            }
                         }
                     }
 
@@ -921,6 +914,7 @@ namespace OPS.Landform
                     SleepSec(SERVICE_LOOP_THROTTLE_SEC);
                 }
             }
+            pipeline.LogInfo("shutting down, exiting service loop");
         }
 
         private void HeartbeatLoop()
@@ -943,7 +937,7 @@ namespace OPS.Landform
             double targetPeriod = GetHeartbeatRelPeriod() * timeoutSec;
             pipeline.LogInfo("running heartbeat, period {0:F3}s, message timeout {1}s, max handler {2}",
                              targetPeriod, timeoutSec, Fmt.HMS(maxHandlerSec * 1e3));
-            while (true)
+            while (!shuttingDown)
             {
                 if (currentMessage != null)
                 {
@@ -1005,6 +999,7 @@ namespace OPS.Landform
                     lastHeartbeatSec = -1;
                 }
             }
+            pipeline.LogInfo("shutting down, exiting heartbeat loop");
         }
     }
 }

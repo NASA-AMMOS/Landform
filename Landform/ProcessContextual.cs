@@ -2336,7 +2336,7 @@ namespace OPS.Landform
             }
             pipeline.LogInfo("running master loop, period {0}s, debounce {1}s", targetPeriodSec, debounceMS / 1000);
 
-            while (true)
+            while (!shuttingDown)
             {
                 if (lastStartSec >= 0)
                 {
@@ -2570,10 +2570,11 @@ namespace OPS.Landform
                 catch (Exception masterException)
                 {
                     pipeline.LogException(masterException, string.Format("error in master loop, throttling {0}",
-                                                                         Fmt.HMS(SERVICE_LOOP_THROTTLE_SEC * 1000)));
+                                                                         Fmt.HMS(SERVICE_LOOP_THROTTLE_SEC * 1e3)));
                     SleepSec(SERVICE_LOOP_THROTTLE_SEC);
                 }
             }
+            pipeline.LogInfo("shutting down, exiting master loop");
         }
     }
 }
