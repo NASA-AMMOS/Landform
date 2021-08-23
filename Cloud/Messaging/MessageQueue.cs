@@ -177,20 +177,20 @@ namespace OPS.Cloud
         }
 
         public QueueMessage DequeueOne(int waitSec = 0, int overrideVisibilityTimeout = -1,
-                                       Func<string, bool> altHandler = null)
+                                       Func<string, QueueMessage> altHandler = null)
         {
             return DequeueOne<QueueMessage>(waitSec, overrideVisibilityTimeout, altHandler);
         }
 
         public T DequeueOne<T>(int waitSec = 0, int overrideVisibilityTimeout = -1,
-                               Func<string, bool> altHandler = null) where T : class
+                               Func<string, QueueMessage> altHandler = null) where T : class
         {
             var msgs = Dequeue<T>(1, waitSec, overrideVisibilityTimeout, altHandler);
             return msgs.Length > 0 ? msgs[0] : null;
         }
 
         public T[] Dequeue<T>(int maxMessages = 1, int waitSec = 0, int overrideVisibilityTimeout = -1,
-                              Func<string, bool> altHandler = null) where T : class
+                              Func<string, QueueMessage> altHandler = null) where T : class
         {
             var req = new ReceiveMessageRequest
             {
@@ -227,14 +227,15 @@ namespace OPS.Cloud
             {
                 try
                 {
-                    if (altHandler != null && altHandler(msg.Body))
+                    QueueMessage qm = altHandler != null ? altHandler(msg.Body) : null;
+                    T m = null;
+                    if (qm == null)
                     {
-                        return null;
+                        m = JsonHelper.FromJson<T>(msg.Body, autoTypes: autoTypes);
+                        qm = m as QueueMessage;
                     }
-                    T m = JsonHelper.FromJson<T>(msg.Body, autoTypes: autoTypes);
-                    if (m is QueueMessage)
+                    if (qm != null)
                     {
-                        var qm = m as QueueMessage;
                         qm.MessageId = msg.MessageId;
                         qm.ReceiptHandle = msg.ReceiptHandle;
                         //https://docs.aws.amazon.com/sdkfornet/v3/apidocs/items/SQS/TMessage.html

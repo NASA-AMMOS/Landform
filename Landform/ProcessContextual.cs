@@ -409,6 +409,11 @@ namespace OPS.Landform
             }
         }
 
+        private class EOPMessage : QueueMessage
+        {
+            public string eop;
+        }
+
         //defines the job of building one contextual mesh
         //can be built from a ContextualMeshMessage (worker service mode) or command line arguments (batch mode)
         private class ContextualMeshParameters
@@ -460,7 +465,11 @@ namespace OPS.Landform
 
         protected override string DescribeMessage(QueueMessage msg, bool verbose = false)
         {
-            if (msg is ContextualMeshMessage)
+            if (msg is EOPMessage)
+            {
+                return "EOP message: " + ((EOPMessage)msg).eop;
+            }
+            else if (msg is ContextualMeshMessage)
             {
                 try
                 {
@@ -524,6 +533,10 @@ namespace OPS.Landform
             {
                 try
                 {
+                    if (msg is EOPMessage)
+                    {
+                        return true;
+                    }
                     string url = GetUrlFromMessage(msg); 
                     if (string.IsNullOrEmpty(url))
                     {
@@ -596,6 +609,16 @@ namespace OPS.Landform
         {
             if (options.Master)
             {
+                if (msg is EOPMessage)
+                {
+                    lock (changedURLs)
+                    {
+                        eopTimestamp = (long)UTCTime.NowMS();
+                    }
+                    pipeline.LogInfo("received EOP message \"{0}\" at {1}",
+                                     ((EOPMessage)msg).eop, Fmt.HMS(eopTimestamp));
+                    return true; //successfully processed, remove message from queue
+                }
                 string url = StringHelper.NormalizeUrl(GetUrlFromMessage(msg)); 
                 if (!FileExists(url))
                 {
@@ -649,18 +672,17 @@ namespace OPS.Landform
             else
             {
                 pipeline.LogWarn("unknown message type {0}, dropping message", msg.GetType().Name);
-                return true;
+                return true; //drop message
             }
         }
 
-        protected override bool AlternateMessageHandler(string msg)
+        protected override QueueMessage AlternateMessageHandler(string msg)
         {
-            if (eopRegex != null && eopRegex.IsMatch(msg))
+            if (options.Master && eopRegex != null && eopRegex.IsMatch(msg))
             {
-                eopTimestamp = (long)UTCTime.NowMS();
-                return true;
+                return new EOPMessage() { eop = msg };
             }
-            return false;
+            return null;
         }
 
         private Regex MakeURLRegex(string filenamePattern)

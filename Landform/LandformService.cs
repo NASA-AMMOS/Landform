@@ -157,7 +157,10 @@ namespace OPS.Landform
         private object deleteMessageLock = new Object();
 
         private volatile QueueMessage currentMessage;
-        private volatile int messageStartSec;
+
+        //in C# 64 bit fields can't  be volatile, so can't use double or long here
+        //uint max is about 4.2e9; 100y since epoch in sec is 100 * 365 * 24 * 60 * 60 ~= 3.1e6
+        private volatile uint messageStartSec;
 
         protected string selfEC2InstanceID;
 
@@ -373,19 +376,19 @@ namespace OPS.Landform
         protected virtual QueueMessage DequeueOneMessage(MessageQueue queue, int overrideVisibilityTimeout = -1)
         {
             int ovt = overrideVisibilityTimeout;
+            QueueMessage qm = null, aqm = null;
+            Func<string, QueueMessage> oh = msg => { aqm = AlternateMessageHandler(msg); return aqm; };
             switch (lvopts.MessageType)
             {
                 case MessageType.Generic:
-                    return queue.DequeueOne<GenericMessage>(overrideVisibilityTimeout: ovt,
-                                                            altHandler: AlternateMessageHandler);
+                    qm = queue.DequeueOne<GenericMessage>(overrideVisibilityTimeout: ovt, altHandler: oh); break;
                 case MessageType.S3Event:
-                    return queue.DequeueOne<S3EventMessage>(overrideVisibilityTimeout: ovt,
-                                                            altHandler: AlternateMessageHandler);
+                    qm = queue.DequeueOne<S3EventMessage>(overrideVisibilityTimeout: ovt, altHandler: oh); break;
                 case MessageType.SNSWrappedS3Event:
-                    return queue.DequeueOne<SNSMessageWrapper>(overrideVisibilityTimeout: ovt,
-                                                               altHandler: AlternateMessageHandler);
+                    qm = queue.DequeueOne<SNSMessageWrapper>(overrideVisibilityTimeout: ovt, altHandler: oh); break;
                 default: throw new ArgumentException("unhandled messsage type " + lvopts.MessageType);
             }
+            return qm ?? aqm;
         }
 
         /// <summary>
@@ -450,12 +453,11 @@ namespace OPS.Landform
 
         /// <summary>
         /// Optional hook to handle unusual messages.
-        /// Returns true if it handled the message, (the usual message handling codepath is then short-circuited).
         /// Can throw.  
         /// </summary>
-        protected virtual bool AlternateMessageHandler(string msg)
+        protected virtual QueueMessage AlternateMessageHandler(string msg)
         {
-            return false;
+            return null;
         }
 
         //Filter out some subfolders on S3.
@@ -789,7 +791,7 @@ namespace OPS.Landform
                             StartStopwatch();
                             
                             currentMessage = msg;
-                            messageStartSec = (int)UTCTime.Now();
+                            messageStartSec = (uint)UTCTime.Now();
                             
                             pipeline.LogInfo("processing {0} (age {1}, {2} since first receive, {3} receives)", desc,
                                              Fmt.HMS(totalAgeSec * 1e3), Fmt.HMS(ageSec * 1e3), receiveCount);
@@ -802,8 +804,24 @@ namespace OPS.Landform
                             {
                                 pipeline.LogException(msgException, "handling " + desc);
                             }
-                            
-                            currentMessage = null;
+
+                            try
+                            {
+                                lock (deleteMessageLock)
+                                {
+                                    //the reason we hold deleteMessageLock here is to make sure that
+                                    //the call to UpdateTimeout() in HeartbeatLoop() can't overlap with this
+                                    currentMessage = null;
+                                    if (handled)
+                                    {
+                                        messageQueue.DeleteMessage(msg);
+                                    }
+                                }
+                            }
+                            catch (Exception deleteException)
+                            {
+                                pipeline.LogException(deleteException, "deleting message");
+                            }
                             
                             StopStopwatch(brief: true);
                         }
@@ -822,15 +840,12 @@ namespace OPS.Landform
                             pipeline.LogVerbose("rejected message: {0}", rejectionReason);
                         }
 
-                        if (!accepted || handled || tooOld)
+                        if (!accepted || tooOld)
                         {
                             try
                             {
                                 lock (deleteMessageLock)
                                 {
-                                    //the reason we hold deleteMessageLock here is to make sure that
-                                    //the call to UpdateTimeout() in HeartbeatLoop() can't overlap with
-                                    //this call to DeleteMessage()
                                     messageQueue.DeleteMessage(msg);
                                 }
                             }
@@ -932,7 +947,7 @@ namespace OPS.Landform
             {
                 if (currentMessage != null)
                 {
-                    var totalSec = UTCTime.Now() - messageStartSec;
+                    double totalSec = UTCTime.Now() - messageStartSec;
                     if (totalSec > maxHandlerSec)
                     {
                         pipeline.LogError("handler has run for {0} > {1}, killing",
