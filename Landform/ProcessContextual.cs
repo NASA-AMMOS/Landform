@@ -294,10 +294,10 @@ namespace OPS.Landform
         [Option(Default = ProcessContextual.DEF_WORKER_WATCHDOG_SEC, HelpText = "Period in seconds of worker auto-start watchdog, non-positive to disable watchdog")]
         public int WorkerWatchdogSec { get; set; }
 
-        [Option(Default = "landform-contextual-mesh-worker-*", HelpText = "Comma separated list of contextual worker EC2 instance ids (starting with \"i-\"), names, or name wildcard patterns")]
+        [Option(Default = "landform-contextual-mesh-worker-*", HelpText = "Comma separated list of contextual worker EC2 instance ids (starting with \"i-\"), instance names, instance name wildcard patterns, or \"asg:<name>\" to use an auto scaling group")]
         public string WorkerInstances { get; set; }
 
-        [Option(Default = "landform-orbital-mesh-worker-*", HelpText = "Comma separated list of orbital worker EC2 instance ids (starting with \"i-\"), names, or name wildcard patterns")]
+        [Option(Default = "landform-orbital-mesh-worker-*", HelpText = "Comma separated list of orbital worker EC2 instance ids (starting with \"i-\"), instance names, or instance name wildcard patterns, or \"asg:<name>\" to use an auto scaling group")]
         public string OrbitalWorkerInstances { get; set; }
     }
 
@@ -366,7 +366,7 @@ namespace OPS.Landform
         //synchronization is by locking changedURLs
         private long eopTimestamp = -1;
 
-        private List<string> workerEC2InstanceIDs, orbitalWorkerEC2InstanceIDs;
+        private List<string> workerInstances, orbitalWorkerInstances;
 
         private double lastWorkerWatchdogSec = -1;
 
@@ -765,8 +765,8 @@ namespace OPS.Landform
                     {
                         pipeline.LogInfo("worker auto start enabled{0}", options.WorkerWatchdogSec > 0 ?
                                          (" watchdog period " + Fmt.HMS(options.WorkerWatchdogSec * 1e3)) : "");
-                        workerEC2InstanceIDs = GetEC2InstanceIDs(options.WorkerInstances);
-                        orbitalWorkerEC2InstanceIDs = GetEC2InstanceIDs(options.OrbitalWorkerInstances, "orbital");
+                        workerInstances = GetInstances(options.WorkerInstances);
+                        orbitalWorkerInstances = GetInstances(options.OrbitalWorkerInstances, "orbital");
                     }
                     else
                     {
@@ -807,38 +807,59 @@ namespace OPS.Landform
             return true;
         }
 
-        protected List<string> GetEC2InstanceIDs(string patterns, string what = "")
+        protected List<string> GetInstances(string opt, string what = "")
         {
+            var patterns = StringHelper.ParseList(opt);
+            what = (!string.IsNullOrEmpty(what) ? (what + " ") : "") + "worker instance IDs";
+
             var ret = new List<string>();
 
-            foreach (string pattern in StringHelper.ParseList(patterns))
+            if (patterns.Any(pattern => pattern.StartsWith("asg:")))
             {
-                if (pattern.StartsWith("i-"))
+                if (patterns.Length > 1)
                 {
-                    ret.Add(pattern);
+                    throw new Exception(string.Format("invalid option for {0}, \"asg:<name>\" must be alone: {1}",
+                                                      what, String.Join(", ", patterns)));
                 }
-                else
-                {
-                    var ids = computeHelper.InstanceNamePatternToIDs(pattern);
-                    if (ids.Count > 0)
-                    {
-                        ret.AddRange(ids);
-                    }
-                    else
-                    {
-                        pipeline.LogWarn("failed to find EC2 instances for name pattern \"{0}\"", pattern);
-                    }
-                }
-            }
-
-            what = !string.IsNullOrEmpty(what) ? what + " " : "";
-            if (ret.Count > 0)
-            {
-                pipeline.LogInfo("{0} {1}worker instance IDs: {2}", ret.Count, what, String.Join(", ", ret));
+                ret.Add(patterns[0]);
             }
             else
             {
-                pipeline.LogWarn("no {0}worker instance IDs", what);
+                foreach (string pattern in patterns)
+                {
+                    if (pattern.StartsWith("i-"))
+                    {
+                        ret.Add(pattern);
+                    }
+                    else
+                    {
+                        try
+                        {
+                            var ids = computeHelper.InstanceNamePatternToIDs(pattern);
+                            if (ids.Count > 0)
+                            {
+                                ret.AddRange(ids);
+                            }
+                            else
+                            {
+                                pipeline.LogWarn("failed to find {0} for name pattern \"{1}\"", what, pattern);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            pipeline.LogException(ex, "failed to create EC2 client");
+                        }
+                    }
+                }
+            }
+
+            if (ret.Count > 0)
+            {
+                pipeline.LogInfo("{0} {1}: {2}", ret.Count, what, String.Join(", ", ret));
+            }
+            else
+            {
+                pipeline.LogWarn("no {0}", what);
             }
 
             return ret.Count > 0 ? ret : null;
@@ -2237,19 +2258,34 @@ namespace OPS.Landform
             return null;
         }
 
-        private void StartWorkers(List<string> instanceIDs, string what = "")
+        private void StartWorkers(List<string> instances, string what = "")
         {
-            if (instanceIDs != null && instanceIDs.Count > 0)
+            if (instances != null && instances.Count > 0)
             {
                 what = (!string.IsNullOrEmpty(what) ? (what + " ") : "") + "EC2 worker instances";
-                pipeline.LogInfo("ensuring {0} are running: {1}", what, String.Join(", ", instanceIDs));
-
-                var toStart = new List<string>();
-                try
+                pipeline.LogInfo("ensuring {0} are running: {1}", what, String.Join(", ", instances));
+                if (instances.Count == 1 && instances[0].StartsWith("asg:"))
                 {
-                    var pending = new List<string>();
-                    var running = new List<string>();
-                    foreach (var id in instanceIDs)
+                    string asg = instances[0].Substring(4);
+                    try
+                    {
+                        if (!computeHelper.SetAutoScalingGroupSize(asg, 1))
+                        {
+                            pipeline.LogError("failed to scale up {0}", asg);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        pipeline.LogException(ex, $"creating auto scaling client or scaling up {asg}");
+                    }
+                    return;
+                }
+                var toStart = new List<string>();
+                var pending = new List<string>();
+                var running = new List<string>();
+                foreach (var id in instances)
+                {
+                    try
                     {
                         switch (computeHelper.GetInstanceState(id))
                         {
@@ -2258,23 +2294,22 @@ namespace OPS.Landform
                             default: toStart.Add(id); break;
                         }
                     }
-                    if (pending.Count > 0)
+                    catch (Exception ex)
                     {
-                        pipeline.LogInfo("{0} {1} already pending start: {2}",
-                                         pending.Count, what, String.Join(", ", pending));
-                    }
-                    if (running.Count > 0)
-                    {
-                        pipeline.LogInfo("{0} {1} already running: {2}",
-                                         running.Count, what, String.Join(", ", running));
+                        pipeline.LogException(ex, "creating EC2 client or getting instance state");
+                        toStart = instances;
                     }
                 }
-                catch (Exception ex)
+                if (pending.Count > 0)
                 {
-                    pipeline.LogException(ex, "creating EC2 client or getting instance state");
-                    toStart = instanceIDs;
+                    pipeline.LogInfo("{0} {1} already pending start: {2}",
+                                     pending.Count, what, String.Join(", ", pending));
                 }
-
+                if (running.Count > 0)
+                {
+                    pipeline.LogInfo("{0} {1} already running: {2}",
+                                     running.Count, what, String.Join(", ", running));
+                }
                 if (toStart.Count > 0)
                 {
                     try
@@ -2300,9 +2335,9 @@ namespace OPS.Landform
 
             try
             {
-                if (workerEC2InstanceIDs != null && workerQueue != null && workerQueue.GetNumMessages() > 0)
+                if (workerInstances != null && workerQueue != null && workerQueue.GetNumMessages() > 0)
                 {
-                    StartWorkers(workerEC2InstanceIDs);
+                    StartWorkers(workerInstances);
                 }
             }
             catch (Exception ex)
@@ -2312,10 +2347,10 @@ namespace OPS.Landform
 
             try
             {
-                if (orbitalWorkerEC2InstanceIDs != null && orbitalWorkerQueue != null &&
+                if (orbitalWorkerInstances != null && orbitalWorkerQueue != null &&
                     orbitalWorkerQueue.GetNumMessages() > 0)
                 {
-                    StartWorkers(orbitalWorkerEC2InstanceIDs);
+                    StartWorkers(orbitalWorkerInstances);
                 }
             }
             catch (Exception ex)
@@ -2551,11 +2586,11 @@ namespace OPS.Landform
                             }
                             if (startWorkers)
                             {
-                                StartWorkers(workerEC2InstanceIDs);
+                                StartWorkers(workerInstances);
                             }
                             if (startOrbitalWorkers)
                             {
-                                StartWorkers(orbitalWorkerEC2InstanceIDs, "orbital");
+                                StartWorkers(orbitalWorkerInstances, "orbital");
                             }
                         }
                     }

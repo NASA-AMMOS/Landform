@@ -19,7 +19,7 @@ namespace OPS.Landform
 {
     public enum MessageType { Generic, S3Event, SNSWrappedS3Event }
 
-    public enum IdleShutdownMethod { None, StopInstance, Shutdown, StopInstanceOrShutdown }
+    public enum IdleShutdownMethod { None, StopInstance, Shutdown, StopInstanceOrShutdown, ScaleToZero }
 
     public class LandformServiceOptions : LandformShellOptions
     {
@@ -86,8 +86,11 @@ namespace OPS.Landform
         [Option(Default = -1, HelpText = "When running as EC2 instance, attempt shutdown after idle for at least this many seconds, non-positive disables")]
         public int IdleShutdownSec { get; set; }
 
-        [Option(Default = IdleShutdownMethod.StopInstanceOrShutdown, HelpText = "When running as EC2 instance use this method to shutdown after idle time exceeded")]
+        [Option(Default = IdleShutdownMethod.None, HelpText = "When running as EC2 instance use this method to shutdown after idle time exceeded")]
         public IdleShutdownMethod IdleShutdownMethod { get; set; }
+
+        [Option(Default = null, HelpText = "EC2 auto scale group name, required with --idleshutdownmethod=ScaleToZero")]
+        public string AutoScaleGroup { get; set; }
     }
     
     public abstract class LandformService : LandformShell
@@ -330,6 +333,11 @@ namespace OPS.Landform
                 {
                     if (!string.IsNullOrEmpty(selfEC2InstanceID))
                     {
+                        if (lvopts.IdleShutdownMethod == IdleShutdownMethod.ScaleToZero &&
+                            string.IsNullOrEmpty(lvopts.AutoScaleGroup))
+                        {
+                            throw new Exception("--autoscalegroup required with --idleshutdownmethod=ScaleToZero");
+                        }
                         pipeline.LogWarn("will attempt to shutdown after {0} idle, shutdown method {1}",
                                          Fmt.HMS(lvopts.IdleShutdownSec * 1e3), lvopts.IdleShutdownMethod);
                     }
@@ -717,31 +725,49 @@ namespace OPS.Landform
                 return;
             }
 
-            bool stopped = false;
+            if (lvopts.IdleShutdownMethod == IdleShutdownMethod.ScaleToZero)
+            {
+                try
+                {
+                    pipeline.LogInfo("scaling ASG {0} to zero instances", lvopts.AutoScaleGroup);
+                    shuttingDown = computeHelper.SetAutoScalingGroupSize(lvopts.AutoScaleGroup, 0);
+                    if (!shuttingDown)
+                    {
+                        pipeline.LogError("failed to change ASG size");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    pipeline.LogException(ex, $"creating client or scaling ASG {lvopts.AutoScaleGroup} to zero");
+                }
+                return;
+            }
+
             if (lvopts.IdleShutdownMethod == IdleShutdownMethod.StopInstance ||
                 lvopts.IdleShutdownMethod == IdleShutdownMethod.StopInstanceOrShutdown)
             {
                 try
                 {
-                    stopped = computeHelper.StopInstances(selfEC2InstanceID);
+                    pipeline.LogInfo("stopping EC2 instance {0} (self)", selfEC2InstanceID);
+                    shuttingDown = computeHelper.StopInstances(selfEC2InstanceID);
+                    if (!shuttingDown)
+                    {
+                        pipeline.LogError("failed to stop EC2 instance {0} (self)", selfEC2InstanceID);
+                    }
                 }
                 catch (Exception ex)
                 {
-                    pipeline.LogException(ex, "creating EC2 client or stopping instance");
-                }
-                if (!stopped)
-                {
-                    pipeline.LogError("failed to stop EC2 instance {0} (self)", selfEC2InstanceID);
+                    pipeline.LogException(ex, $"creating client or stopping instance {selfEC2InstanceID}");
                 }
             }
 
-            if (lvopts.IdleShutdownMethod == IdleShutdownMethod.Shutdown || !stopped)
+            if (lvopts.IdleShutdownMethod == IdleShutdownMethod.Shutdown ||
+                (lvopts.IdleShutdownMethod == IdleShutdownMethod.StopInstanceOrShutdown && !shuttingDown))
             {
                 pipeline.LogInfo("requesting OS shutdown");
+                shuttingDown = true;
                 ConsoleHelper.Shutdown();
             }
-
-            shuttingDown = true;
         }
 
         protected virtual void RunService()

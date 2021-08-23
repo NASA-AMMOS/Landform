@@ -45,6 +45,10 @@ if not "%LANDFORM_IDLE_SHUTDOWN_METHOD%"=="" (
    set idleopts=%idleopts% --idleshutdownmethod=%LANDFORM_IDLE_SHUTDOWN_METHOD%
 )
 
+if not "%LANDFORM_AUTO_SCALE_GROUP%"=="" (
+    set idleopts=%idleopts% --autoscalegroup=%LANDFORM_AUTO_SCALE_GROUP%
+)
+
 rem --- end service boilerplate, begin service specific boilerplate ---
 
 set queue=

@@ -7,6 +7,8 @@ using Amazon;
 using Amazon.Runtime;
 using Amazon.EC2;
 using Amazon.EC2.Model;
+using Amazon.AutoScaling;
+using Amazon.AutoScaling.Model;
 using OPS.Util;
 
 namespace OPS.Cloud
@@ -15,7 +17,9 @@ namespace OPS.Cloud
     {
         public enum InstanceState { unknown, pending, running, shutting_down, terminated, stopping, stopped };
 
-        private AmazonEC2Client client;
+        private AmazonEC2Client ec2Client;
+        private AmazonAutoScalingClient asClient;
+
         private ILogger logger;
 
         public static string GetSelfInstanceID(ILogger logger = null)
@@ -25,11 +29,17 @@ namespace OPS.Cloud
             try
             {
                 var req = HttpWebRequest.Create("http://169.254.169.254/latest/meta-data/instance-id");
-                var resp = req.GetResponse();
-                id = new StreamReader(resp.GetResponseStream()).ReadToEnd();
-                if (logger != null)
+                using (var resp = req.GetResponse() as HttpWebResponse)
                 {
-                    logger.LogVerbose("self EC2 instance ID: {0}", id);
+                    if (resp.StatusCode != HttpStatusCode.OK)
+                    {
+                        throw new Exception($"HTTP {resp.StatusCode} {resp.StatusDescription}");
+                    }
+                    id = new StreamReader(resp.GetResponseStream()).ReadToEnd();
+                    if (logger != null)
+                    {
+                        logger.LogVerbose("self EC2 instance ID: {0}", id);
+                    }
                 }
             }
             catch (Exception ex)
@@ -61,7 +71,8 @@ namespace OPS.Cloud
                     logger.LogVerbose("creating AWS EC2 client for profile \"{0}\" in region \"{1}\"",
                                       awsProfileName, awsRegionName);
                 }
-                client = new AmazonEC2Client(awsCredentials, awsRegion);
+                ec2Client = new AmazonEC2Client(awsCredentials, awsRegion);
+                asClient = new AmazonAutoScalingClient(awsCredentials, awsRegion);
             }
             else if (awsCredentials != null)
             {
@@ -69,7 +80,8 @@ namespace OPS.Cloud
                 {
                     logger.LogVerbose("creating AWS EC2 client for profile \"{0}\" in default region", awsProfileName);
                 }
-                client = new AmazonEC2Client(awsCredentials);
+                ec2Client = new AmazonEC2Client(awsCredentials);
+                asClient = new AmazonAutoScalingClient(awsCredentials);
             }
             else if (awsRegion != null)
             {
@@ -77,7 +89,8 @@ namespace OPS.Cloud
                 {
                     logger.LogVerbose("creating AWS EC2 client for default profile in region \"{0}\"", awsRegion);
                 }
-                client = new AmazonEC2Client(awsRegion);
+                ec2Client = new AmazonEC2Client(awsRegion);
+                asClient = new AmazonAutoScalingClient(awsRegion);
             }
             else
             {
@@ -85,7 +98,8 @@ namespace OPS.Cloud
                 {
                     logger.LogVerbose("creating AWS EC2 client for default profile and region");
                 }
-                client = new AmazonEC2Client();
+                ec2Client = new AmazonEC2Client();
+                asClient = new AmazonAutoScalingClient();
             }
         }
 
@@ -97,15 +111,18 @@ namespace OPS.Cloud
             try
             {
                 var req = new DescribeInstancesRequest();
-                req.Filters = new List<Filter>();
-                req.Filters.Add(new Filter { Name = "tag:Name", Values = new List<string> { namePattern } });
+                req.Filters = new List<Amazon.EC2.Model.Filter>();
+                req.Filters.Add(new Amazon.EC2.Model.Filter() {
+                        Name = "tag:Name", Values = new List<string> { namePattern }
+                    });
 
                 string stateName = null;
                 if (state != InstanceState.unknown)
                 {
                     stateName = state.ToString().Replace('_', '-');
-                    req.Filters.Add(new Filter { Name = "instance-state-name",
-                                                 Values = new List<string> { stateName } });
+                    req.Filters.Add(new Amazon.EC2.Model.Filter {
+                            Name = "instance-state-name", Values = new List<string> { stateName }
+                        });
                 }
                 
                 if (logger != null)
@@ -115,7 +132,11 @@ namespace OPS.Cloud
 
                 do
                 {
-                    var resp = client.DescribeInstances(req);
+                    var resp = ec2Client.DescribeInstances(req);
+                    if (resp.HttpStatusCode != HttpStatusCode.OK)
+                    {
+                        throw new Exception($"HTTP {resp.HttpStatusCode}");
+                    }
                     if (resp.Reservations != null)
                     {
                         foreach (var reservation in resp.Reservations)
@@ -157,7 +178,11 @@ namespace OPS.Cloud
             try
             {
                 var req = new DescribeInstanceStatusRequest() { InstanceIds = new List<string> { instanceID } };
-                var resp = client.DescribeInstanceStatus(req);
+                var resp = ec2Client.DescribeInstanceStatus(req);
+                if (resp.HttpStatusCode != HttpStatusCode.OK)
+                {
+                    throw new Exception($"HTTP {resp.HttpStatusCode}");
+                }
                 if (resp.InstanceStatuses != null && resp.InstanceStatuses.Count == 1 &&
                     string.IsNullOrEmpty(resp.NextToken))
                 {
@@ -211,7 +236,11 @@ namespace OPS.Cloud
                         logger.LogVerbose("starting EC2 instances {0}", String.Join(", ", instanceIDs));
                     }
                     var req = new StartInstancesRequest() { InstanceIds = ids };
-                    var resp = client.StartInstances(req);
+                    var resp = ec2Client.StartInstances(req);
+                    if (resp.HttpStatusCode != HttpStatusCode.OK)
+                    {
+                        throw new Exception($"HTTP {resp.HttpStatusCode}");
+                    }
                     foreach (var change in resp.StartingInstances)
                     {
                         if (change != null && logger != null)
@@ -242,7 +271,11 @@ namespace OPS.Cloud
                         logger.LogVerbose("stopping EC2 instances {0}", String.Join(", ", instanceIDs));
                     }
                     var req = new StopInstancesRequest() { InstanceIds = ids };
-                    var resp = client.StopInstances(req);
+                    var resp = ec2Client.StopInstances(req);
+                    if (resp.HttpStatusCode != HttpStatusCode.OK)
+                    {
+                        throw new Exception($"HTTP {resp.HttpStatusCode}");
+                    }
                     foreach (var change in resp.StoppingInstances)
                     {
                         if (change != null && logger != null)
@@ -261,9 +294,63 @@ namespace OPS.Cloud
             return false;
         }
 
+        public bool SetAutoScalingGroupSize(string name, int min, int desired, int max)
+        {
+            string msg = $"setting size of auto scaling group {name}: min={min}, desired={desired}, max={max}";
+            try
+            {
+                var req = new UpdateAutoScalingGroupRequest();
+                req.AutoScalingGroupName = name;
+                if (min >= 0)
+                {
+                    req.MinSize = min;
+                }
+                if (desired >= 0)
+                {
+                    req.DesiredCapacity = desired;
+                }
+                if (max >= 0)
+                {
+                    req.MaxSize = max;
+                }
+                if (logger != null)
+                {
+                    logger.LogVerbose(msg);
+                }
+                var resp = asClient.UpdateAutoScalingGroup(req);
+                if (resp.HttpStatusCode != HttpStatusCode.OK)
+                {
+                    throw new Exception($"HTTP {resp.HttpStatusCode}");
+                }
+                return true;
+            }
+            catch (Exception ex)
+            {
+                if (logger != null)
+                {
+                    logger.LogException(ex, msg);
+                }
+            }
+            return false;
+        }
+
+        public bool SetAutoScalingGroupSize(string name, int size)
+        {
+            return SetAutoScalingGroupSize(name, size, size, size);
+        }
+
         public void Dispose()
         {
-            client.Dispose();
+            if (ec2Client != null)
+            {
+                ec2Client.Dispose();
+                ec2Client = null;
+            }
+            if (asClient != null)
+            {
+                asClient.Dispose();
+                asClient = null;
+            }
         }
     }
 }
