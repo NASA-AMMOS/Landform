@@ -19,7 +19,7 @@ namespace OPS.Landform
 {
     public enum MessageType { Generic, S3Event, SNSWrappedS3Event }
 
-    public enum IdleShutdownMethod { None, StopInstance, Shutdown, StopInstanceOrShutdown, ScaleToZero }
+    public enum IdleShutdownMethod { None, StopInstance, Shutdown, StopInstanceOrShutdown, ScaleToZero, LogIdle }
 
     public class LandformServiceOptions : LandformShellOptions
     {
@@ -725,6 +725,13 @@ namespace OPS.Landform
                 return;
             }
 
+            if (lvopts.IdleShutdownMethod == IdleShutdownMethod.LogIdle)
+            {
+                pipeline.LogInfo("service idle, shutdown requested"); // ASG scale down trigger may watch for this text
+                shuttingDown = true;
+                return;
+            }
+
             if (lvopts.IdleShutdownMethod == IdleShutdownMethod.ScaleToZero)
             {
                 try
@@ -921,7 +928,9 @@ namespace OPS.Landform
                                     {
                                         lastIdleShutdownWarnSec = now;
                                         pipeline.LogWarn("EC2 instance {0} (self) idle for {1} >= {2}, " +
-                                                         "requested shutdown but still running",
+                                                         //ASG scale down logic may watch for this text
+                                                         "service idle, shutdown requested" +
+                                                         " but still running",
                                                          selfEC2InstanceID, Fmt.HMS(idleSec * 1e3),
                                                          Fmt.HMS(lvopts.IdleShutdownSec * 1e3));
                                     }
