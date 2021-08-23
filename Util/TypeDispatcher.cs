@@ -9,7 +9,7 @@ namespace OPS.Util
     /// </summary>
     public class TypeDispatcher
     {
-        public Action<Type, object> Unhandled = (t, x) => throw new System.Exception("unhandled type: " + t);
+        public Action<Type, object> Unhandled = (t, x) => throw new Exception("unhandled type: " + t);
 
         private Dictionary<Type, Action<object>> handlers = new Dictionary<Type, Action<object>>();
 

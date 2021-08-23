@@ -34,7 +34,20 @@ set landform=%bindir%\Landform.exe
 if not "%LANDFORM_BIN%"=="" set landform=%LANDFORM_BIN%
 
 set credentialrefresh=
-if not "%LANDFORM_CREDENTIAL_REFRESH_SEC%"=="" set credentialrefresh=--credentialrefreshsec=%CREDENTIAL_REFRESH_SEC%
+if not "%LANDFORM_CREDENTIAL_REFRESH_SEC%"=="" (
+   set credentialrefresh=--credentialrefreshsec=%LANDFORM_CREDENTIAL_REFRESH_SEC%
+)
+
+set idleopts=
+if not "%LANDFORM_IDLE_SHUTDOWN_SEC%"=="" set idleopts=--idleshutdownsec=%LANDFORM_IDLE_SHUTDOWN_SEC%
+
+if not "%LANDFORM_IDLE_SHUTDOWN_METHOD%"=="" (
+   set idleopts=%idleopts% --idleshutdownmethod=%LANDFORM_IDLE_SHUTDOWN_METHOD%
+)
+
+if not "%LANDFORM_AUTO_SCALE_GROUP%"=="" (
+    set idleopts=%idleopts% --autoscalegroup=%LANDFORM_AUTO_SCALE_GROUP%
+)
 
 rem --- end service boilerplate, begin service specific boilerplate ---
 
@@ -123,16 +136,31 @@ if not "%LANDFORM_CONTEXTUAL_MAX_SOL_RANGE%"=="" (
    set masteropts=%masteropts% --maxsolrange=%LANDFORM_CONTEXTUAL_MAX_SOL_RANGE%
 )
 
-set solblacklist=
 if not "%LANDFORM_CONTEXTUAL_SOL_BLACKLIST%"=="" (
     set masteropts=%masteropts% --solblacklist=%LANDFORM_CONTEXTUAL_SOL_BLACKLIST%
+)
+
+if not "%LANDFORM_CONTEXTUAL_AUTO_START_WORKERS%"=="" (
+    set masteropts=%masteropts% --autostartworkers
+)
+
+if not "%LANDFORM_CONTEXTUAL_WORKER_WATCHDOG_SEC%"=="" (
+    set masteropts=%masteropts% --workerwatchdogsec=%LANDFORM_CONTEXTUAL_WORKER_WATCHDOG_SEC%
+)
+
+if not "%LANDFORM_CONTEXTUAL_WORKER_INSTANCES%"=="" (
+    set masteropts=%masteropts% --workerinstances=%LANDFORM_CONTEXTUAL_WORKER_INSTANCES%
+)
+
+if not "%LANDFORM_CONTEXTUAL_ORBITAL_WORKER_INSTANCES%"=="" (
+    set masteropts=%masteropts% --orbitalworkerinstances=%LANDFORM_CONTEXTUAL_ORBITAL_WORKER_INSTANCES%
 )
 
 set stdopts=--configdir=%cfgdir% --configfolder=%cfgfolder% --logdir=%logdir% --tempdir=%tmpdir%
 set cfgopts=%stdopts% --venue=%venue% --maxcores=0 --randomseed=-1 --storagedir=%storagedir%
 set svcopts=%stdopts% --stacktraces --master --mission=%mission% --queuename=%queue% --failqueuename=%failqueue%
 set svcopts=%svcopts% --awsprofile=%awsprofile% --awsregion=%awsregion% %credentialrefresh%
-set svcopts=%svcopts% %msgopts%
+set svcopts=%svcopts% %msgopts% %idleopts%
 
 set appsdir=%bindir%\ExternalApps
 if exist %appsdir%\opengl32-for-ivcat.dll (

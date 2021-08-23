@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Diagnostics;
 
 namespace OPS.Util
 {
@@ -75,6 +76,23 @@ namespace OPS.Util
         public static bool Prompt(string prompt, bool? fixedValue, string defaultValue, bool forceInteractive = false)
         {
             return Prompt(prompt, fixedValue, StringHelper.ParseBoolSafe(defaultValue), forceInteractive);
+        }
+
+        public static void Shutdown()
+        {
+            //https://stackoverflow.com/a/44614907
+            //https://stackoverflow.com/a/65347291
+            Process.Start(new ProcessStartInfo("shutdown", "/s /f /t 0")
+            { CreateNoWindow = true, UseShellExecute = false });
+        }
+
+        public static void Reboot()
+        {
+            //https://stackoverflow.com/a/44614907
+            //https://stackoverflow.com/a/102580
+            //https://stackoverflow.com/a/65347291
+            Process.Start(new ProcessStartInfo("shutdown", "/r /f /t 0")
+            { CreateNoWindow = true, UseShellExecute = false });
         }
     }
 }

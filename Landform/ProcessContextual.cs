@@ -282,11 +282,23 @@ namespace OPS.Landform
         [Option(Default = ProcessContextual.DEF_MAX_SITEDRIVES_PER_SOL_PER_PASS, HelpText = "If positive, cull messages for older sitedrives to limit the total number of new contextual messages per sol for each pass")]
         public int MaxSiteDrivesPerSolPerPass { get; set; }
 
-        [Option(HelpText = "Allow rover observations for which no suitable rover mask is available or could be generated", Default = false)]
-        public virtual bool AllowUnmaskedRoverObservations { get; set; }
+        [Option(Default = false, HelpText = "Allow rover observations for which no suitable rover mask is available or could be generated")]
+        public bool AllowUnmaskedRoverObservations { get; set; }
 
         [Option(Default = null, HelpText = "Sol blacklist, 1-5,8,6-10")]
         public string SolBlacklist { get; set; }
+
+        [Option(Default = false, HelpText = "Enable auto-starting workers when running on EC2")]
+        public bool AutoStartWorkers { get; set; }
+
+        [Option(Default = ProcessContextual.DEF_WORKER_WATCHDOG_SEC, HelpText = "Period in seconds of worker auto-start watchdog, non-positive to disable watchdog")]
+        public int WorkerWatchdogSec { get; set; }
+
+        [Option(Default = null, HelpText = "Comma separated list of contextual worker EC2 instance ids (starting with \"i-\"), instance names, instance name wildcard patterns, or \"asg:<name>\" to use an auto scaling group")]
+        public string WorkerInstances { get; set; }
+
+        [Option(Default = null, HelpText = "Comma separated list of orbital worker EC2 instance ids (starting with \"i-\"), instance names, or instance name wildcard patterns, or \"asg:<name>\" to use an auto scaling group")]
+        public string OrbitalWorkerInstances { get; set; }
     }
 
     public class ProcessContextual : LandformService
@@ -298,6 +310,8 @@ namespace OPS.Landform
 
         public const int DEF_MASTER_MAX_HANDLER_SEC = 10 * 60; //10 minutes
         public const int DEF_MASTER_MAX_MESSAGE_AGE_SEC = 1 * 60 * 60; //1 hour
+
+        public const int DEF_WORKER_WATCHDOG_SEC = 5 * 60; //5 minutes
 
         public const int MASTER_LOOP_PERIOD_SEC = 10;
 
@@ -351,7 +365,11 @@ namespace OPS.Landform
         //MasterLoop() will process all pending changedURLs when this becomes non-negative
         //synchronization is by locking changedURLs
         private long eopTimestamp = -1;
-            
+
+        private List<string> workerInstances, orbitalWorkerInstances;
+
+        private double lastWorkerWatchdogSec = -1;
+
         //message sent from master to worker
         //defines the job of building one contextual mesh
         //equality is based only on rdrDir, primarySol, primarySiteDrive
@@ -389,6 +407,11 @@ namespace OPS.Landform
             {
                 return (ContextualMeshMessage)MemberwiseClone();
             }
+        }
+
+        private class EOPMessage : QueueMessage
+        {
+            public string eop;
         }
 
         //defines the job of building one contextual mesh
@@ -442,7 +465,11 @@ namespace OPS.Landform
 
         protected override string DescribeMessage(QueueMessage msg, bool verbose = false)
         {
-            if (msg is ContextualMeshMessage)
+            if (msg is EOPMessage)
+            {
+                return "EOP message: " + ((EOPMessage)msg).eop;
+            }
+            else if (msg is ContextualMeshMessage)
             {
                 try
                 {
@@ -506,6 +533,10 @@ namespace OPS.Landform
             {
                 try
                 {
+                    if (msg is EOPMessage)
+                    {
+                        return true;
+                    }
                     string url = GetUrlFromMessage(msg); 
                     if (string.IsNullOrEmpty(url))
                     {
@@ -578,6 +609,16 @@ namespace OPS.Landform
         {
             if (options.Master)
             {
+                if (msg is EOPMessage)
+                {
+                    lock (changedURLs)
+                    {
+                        eopTimestamp = (long)UTCTime.NowMS();
+                    }
+                    pipeline.LogInfo("received EOP message \"{0}\" at {1}",
+                                     ((EOPMessage)msg).eop, Fmt.HMS(eopTimestamp));
+                    return true; //successfully processed, remove message from queue
+                }
                 string url = StringHelper.NormalizeUrl(GetUrlFromMessage(msg)); 
                 if (!FileExists(url))
                 {
@@ -631,18 +672,17 @@ namespace OPS.Landform
             else
             {
                 pipeline.LogWarn("unknown message type {0}, dropping message", msg.GetType().Name);
-                return true;
+                return true; //drop message
             }
         }
 
-        protected override bool AlternateMessageHandler(string msg)
+        protected override QueueMessage AlternateMessageHandler(string msg)
         {
-            if (eopRegex != null && eopRegex.IsMatch(msg))
+            if (options.Master && eopRegex != null && eopRegex.IsMatch(msg))
             {
-                eopTimestamp = (long)UTCTime.NowMS();
-                return true;
+                return new EOPMessage() { eop = msg };
             }
-            return false;
+            return null;
         }
 
         private Regex MakeURLRegex(string filenamePattern)
@@ -718,6 +758,21 @@ namespace OPS.Landform
                         orbitalWorkerQueue = GetOrbitalWorkerMessageQueue();
                     }
                 }
+
+                if (!serviceUtilMode)
+                {
+                    if (options.AutoStartWorkers)
+                    {
+                        pipeline.LogInfo("worker auto start enabled{0}", options.WorkerWatchdogSec > 0 ?
+                                         (" watchdog period " + Fmt.HMS(options.WorkerWatchdogSec * 1e3)) : "");
+                        workerInstances = GetInstances(options.WorkerInstances);
+                        orbitalWorkerInstances = GetInstances(options.OrbitalWorkerInstances, "orbital");
+                    }
+                    else
+                    {
+                        pipeline.LogInfo("worker auto start disabled");
+                    }
+                }
             }
 
             debounceMS = 1000 * (options.MasterDebounceSec >= 0 ? options.MasterDebounceSec : DEF_DEBOUNCE_SEC);
@@ -750,6 +805,64 @@ namespace OPS.Landform
             }
 
             return true;
+        }
+
+        protected List<string> GetInstances(string opt, string what = "")
+        {
+            var patterns = StringHelper.ParseList(opt);
+            what = (!string.IsNullOrEmpty(what) ? (what + " ") : "") + "worker instance IDs";
+
+            var ret = new List<string>();
+
+            if (patterns.Any(pattern => pattern.StartsWith("asg:")))
+            {
+                if (patterns.Length > 1)
+                {
+                    throw new Exception(string.Format("invalid option for {0}, \"asg:<name>\" must be alone: {1}",
+                                                      what, String.Join(", ", patterns)));
+                }
+                ret.Add(patterns[0]);
+            }
+            else
+            {
+                foreach (string pattern in patterns)
+                {
+                    if (pattern.StartsWith("i-"))
+                    {
+                        ret.Add(pattern);
+                    }
+                    else
+                    {
+                        try
+                        {
+                            var ids = computeHelper.InstanceNamePatternToIDs(pattern);
+                            if (ids.Count > 0)
+                            {
+                                ret.AddRange(ids);
+                            }
+                            else
+                            {
+                                pipeline.LogWarn("failed to find {0} for name pattern \"{1}\"", what, pattern);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            pipeline.LogException(ex, "failed to create EC2 client");
+                        }
+                    }
+                }
+            }
+
+            if (ret.Count > 0)
+            {
+                pipeline.LogInfo("{0} {1}: {2}", ret.Count, what, String.Join(", ", ret));
+            }
+            else
+            {
+                pipeline.LogWarn("no {0}", what);
+            }
+
+            return ret.Count > 0 ? ret : null;
         }
 
         protected override void RefreshCredentials()
@@ -2145,6 +2258,107 @@ namespace OPS.Landform
             return null;
         }
 
+        private void StartWorkers(List<string> instances, string what = "")
+        {
+            if (instances != null && instances.Count > 0)
+            {
+                what = (!string.IsNullOrEmpty(what) ? (what + " ") : "") + "EC2 worker instances";
+                pipeline.LogInfo("ensuring {0} are running: {1}", what, String.Join(", ", instances));
+                if (instances.Count == 1 && instances[0].StartsWith("asg:"))
+                {
+                    string asg = instances[0].Substring(4);
+                    try
+                    {
+                        if (!computeHelper.SetAutoScalingGroupSize(asg, 1))
+                        {
+                            pipeline.LogError("failed to scale up {0}", asg);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        pipeline.LogException(ex, $"creating auto scaling client or scaling up {asg}");
+                    }
+                    return;
+                }
+                var toStart = new List<string>();
+                var pending = new List<string>();
+                var running = new List<string>();
+                foreach (var id in instances)
+                {
+                    try
+                    {
+                        switch (computeHelper.GetInstanceState(id))
+                        {
+                            case ComputeHelper.InstanceState.pending: pending.Add(id); break;
+                            case ComputeHelper.InstanceState.running: running.Add(id); break;
+                            default: toStart.Add(id); break;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        pipeline.LogException(ex, "creating EC2 client or getting instance state");
+                        toStart = instances;
+                    }
+                }
+                if (pending.Count > 0)
+                {
+                    pipeline.LogInfo("{0} {1} already pending start: {2}",
+                                     pending.Count, what, String.Join(", ", pending));
+                }
+                if (running.Count > 0)
+                {
+                    pipeline.LogInfo("{0} {1} already running: {2}",
+                                     running.Count, what, String.Join(", ", running));
+                }
+                if (toStart.Count > 0)
+                {
+                    try
+                    {
+                        pipeline.LogInfo("requesting start of {0} {1}: {2}",
+                                         toStart.Count, what, String.Join(", ", toStart));
+                        if (!computeHelper.StartInstances(toStart.ToArray()))
+                        {
+                            pipeline.LogError("failed to start EC2 instances");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        pipeline.LogException(ex, "creating EC2 client or starting instances");
+                    }
+                }
+            }
+        }
+
+        private void WorkerWatchdog()
+        {
+            lastWorkerWatchdogSec = UTCTime.Now();
+
+            try
+            {
+                if (workerInstances != null && workerQueue != null && workerQueue.GetNumMessages() > 0)
+                {
+                    StartWorkers(workerInstances);
+                }
+            }
+            catch (Exception ex)
+            {
+                pipeline.LogException(ex, "in worker watchdog");
+            }
+
+            try
+            {
+                if (orbitalWorkerInstances != null && orbitalWorkerQueue != null &&
+                    orbitalWorkerQueue.GetNumMessages() > 0)
+                {
+                    StartWorkers(orbitalWorkerInstances);
+                }
+            }
+            catch (Exception ex)
+            {
+                pipeline.LogException(ex, "in orbital worker watchdog");
+            }
+        }
+
         private void MasterLoop()
         {
             double lastStartSec = -1;
@@ -2157,7 +2371,7 @@ namespace OPS.Landform
             }
             pipeline.LogInfo("running master loop, period {0}s, debounce {1}s", targetPeriodSec, debounceMS / 1000);
 
-            while (true)
+            while (!shuttingDown)
             {
                 if (lastStartSec >= 0)
                 {
@@ -2168,6 +2382,12 @@ namespace OPS.Landform
 
                 try
                 {
+                    if (options.AutoStartWorkers && options.WorkerWatchdogSec > 0 && lastWorkerWatchdogSec <= 0 ||
+                        (UTCTime.Now() - lastWorkerWatchdogSec) >= options.WorkerWatchdogSec)
+                    {
+                        WorkerWatchdog();
+                    }
+
                     long now = (long)UTCTime.NowMS();
 
                     //RDR directory -> sitedrive -> list or wedge URL -> last changed UTC milliseconds
@@ -2295,6 +2515,8 @@ namespace OPS.Landform
                         
                         if (msgs.Count > 0)
                         {
+                            bool startWorkers = false, startOrbitalWorkers = false;
+
                             try
                             {
                                 //this will remove duplicates and also order descending
@@ -2315,7 +2537,7 @@ namespace OPS.Landform
                             {
                                 pipeline.LogInfo("enqueueing {0} orbital only contextual mesh messages to {1} for {2}",
                                                  rawMsgs.Count, orbitalWorkerQueue.Name, rdrDir);
-                                
+
                                 foreach (var msg in rawMsgs)
                                 {
                                     var omsg = msg; //cannot modify foreach iteration variable
@@ -2329,6 +2551,7 @@ namespace OPS.Landform
                                         pipeline.LogInfo("enqueueing contextual mesh message to {0}: {1}",
                                                          orbitalWorkerQueue.Name, DescribeMessage(omsg, verbose: true));
                                         orbitalWorkerQueue.Enqueue(omsg);
+                                        startOrbitalWorkers = options.AutoStartWorkers;
                                     }
                                     catch (Exception ex)
                                     {
@@ -2349,11 +2572,25 @@ namespace OPS.Landform
                                     pipeline.LogInfo("enqueueing contextual mesh message to {0}: {1}",
                                                      workerQueue.Name, DescribeMessage(msg, verbose: true));
                                     workerQueue.Enqueue(msg);
+                                    startWorkers = options.AutoStartWorkers;
                                 }
                                 catch (Exception ex)
                                 {
                                     pipeline.LogException(ex, "adding message to " + workerQueue.Name);
                                 }
+                            }
+
+                            if (startWorkers || startOrbitalWorkers)
+                            {
+                                lastWorkerWatchdogSec = UTCTime.Now();
+                            }
+                            if (startWorkers)
+                            {
+                                StartWorkers(workerInstances);
+                            }
+                            if (startOrbitalWorkers)
+                            {
+                                StartWorkers(orbitalWorkerInstances, "orbital");
                             }
                         }
                     }
@@ -2368,10 +2605,11 @@ namespace OPS.Landform
                 catch (Exception masterException)
                 {
                     pipeline.LogException(masterException, string.Format("error in master loop, throttling {0}",
-                                                                         Fmt.HMS(SERVICE_LOOP_THROTTLE_SEC * 1000)));
+                                                                         Fmt.HMS(SERVICE_LOOP_THROTTLE_SEC * 1e3)));
                     SleepSec(SERVICE_LOOP_THROTTLE_SEC);
                 }
             }
+            pipeline.LogInfo("shutting down, exiting master loop");
         }
     }
 }

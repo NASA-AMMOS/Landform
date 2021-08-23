@@ -19,6 +19,8 @@ namespace OPS.Landform
 {
     public enum MessageType { Generic, S3Event, SNSWrappedS3Event }
 
+    public enum IdleShutdownMethod { None, StopInstance, Shutdown, StopInstanceOrShutdown, ScaleToZero, LogIdle }
+
     public class LandformServiceOptions : LandformShellOptions
     {
         [Value(0, Required = false, HelpText = "project name, must omit if running as service", Default = null)]
@@ -80,6 +82,15 @@ namespace OPS.Landform
 
         [Option(Default = LandformService.DEF_MAX_RECEIVE_COUNT, HelpText = "Maximum message receive count, nonpositive for unlimited")]
         public int MaxReceiveCount { get; set; }
+
+        [Option(Default = -1, HelpText = "When running as EC2 instance, attempt shutdown after idle for at least this many seconds, non-positive disables")]
+        public int IdleShutdownSec { get; set; }
+
+        [Option(Default = IdleShutdownMethod.None, HelpText = "When running as EC2 instance use this method to shutdown after idle time exceeded")]
+        public IdleShutdownMethod IdleShutdownMethod { get; set; }
+
+        [Option(Default = null, HelpText = "EC2 auto scale group name, required with --idleshutdownmethod=ScaleToZero")]
+        public string AutoScaleGroup { get; set; }
     }
     
     public abstract class LandformService : LandformShell
@@ -148,8 +159,16 @@ namespace OPS.Landform
         /// </summary>
         private object deleteMessageLock = new Object();
 
-        private QueueMessage currentMessage;
-        private double messageStartSec;
+        private volatile QueueMessage currentMessage;
+
+        //in C# 64 bit fields can't  be volatile, so can't use double or long here
+        //uint max is about 4.2e9; 100y since epoch in sec is 100 * 365 * 24 * 60 * 60 ~= 3.1e6
+        private volatile uint messageStartSec;
+
+        protected string selfEC2InstanceID;
+
+        protected volatile bool shuttingDown;
+        private double idleStartSec = -1, lastIdleShutdownWarnSec = -1;
 
         /// <summary>
         /// Simple JSON message for testing or in workflows not involving [SNS wrapped] S3 event messages.
@@ -274,7 +293,7 @@ namespace OPS.Landform
 
                 if (!string.IsNullOrEmpty(lvopts.ProjectName))
                 {
-                    throw new Exception("project name must be omitted with " + utils);
+                    throw new Exception("project name must be omitted for service");
                 }
 
                 if (string.IsNullOrEmpty(lvopts.QueueName))
@@ -298,10 +317,41 @@ namespace OPS.Landform
                 }
             }
 
+            if (serviceMode)
+            {
+                selfEC2InstanceID = ComputeHelper.GetSelfInstanceID(pipeline);
+                if (!string.IsNullOrEmpty(selfEC2InstanceID))
+                {
+                    pipeline.LogInfo("self EC2 instance ID: {0}", selfEC2InstanceID);
+                }
+                else
+                {
+                    pipeline.LogInfo("failed to get self EC2 instance ID");
+                }
+
+                if (lvopts.IdleShutdownSec > 0 && lvopts.IdleShutdownMethod != IdleShutdownMethod.None)
+                {
+                    if (!string.IsNullOrEmpty(selfEC2InstanceID))
+                    {
+                        if (lvopts.IdleShutdownMethod == IdleShutdownMethod.ScaleToZero &&
+                            string.IsNullOrEmpty(lvopts.AutoScaleGroup))
+                        {
+                            throw new Exception("--autoscalegroup required with --idleshutdownmethod=ScaleToZero");
+                        }
+                        pipeline.LogWarn("will attempt to shutdown after {0} idle, shutdown method {1}",
+                                         Fmt.HMS(lvopts.IdleShutdownSec * 1e3), lvopts.IdleShutdownMethod);
+                    }
+                    else
+                    {
+                        pipeline.LogWarn("idle shutdown disabled, failed to get EC2 instance ID");
+                    }
+                }
+            }
+
             int timeoutSec = messageQueue != null ? messageQueue.TimeoutSec : GetDefaultMessageTimeoutSec();
-            pipeline.LogInfo("message timeout: {0}", Fmt.HMS(timeoutSec * 1000));
-            pipeline.LogInfo("max handler time: {0}", Fmt.HMS(GetMaxHandlerSec() * 1000));
-            pipeline.LogInfo("max message age: {0}", Fmt.HMS(GetMaxMessageAgeSec() * 1000));
+            pipeline.LogInfo("message timeout: {0}", Fmt.HMS(timeoutSec * 1e3));
+            pipeline.LogInfo("max handler time: {0}", Fmt.HMS(GetMaxHandlerSec() * 1e3));
+            pipeline.LogInfo("max message age: {0}", Fmt.HMS(GetMaxMessageAgeSec() * 1e3));
 
             int mrc = GetMaxReceiveCount();
             pipeline.LogInfo("max receive count: {0}", mrc < int.MaxValue ? ("" + mrc) : "unlimited");
@@ -334,19 +384,19 @@ namespace OPS.Landform
         protected virtual QueueMessage DequeueOneMessage(MessageQueue queue, int overrideVisibilityTimeout = -1)
         {
             int ovt = overrideVisibilityTimeout;
+            QueueMessage qm = null, aqm = null;
+            Func<string, QueueMessage> oh = msg => { aqm = AlternateMessageHandler(msg); return aqm; };
             switch (lvopts.MessageType)
             {
                 case MessageType.Generic:
-                    return queue.DequeueOne<GenericMessage>(overrideVisibilityTimeout: ovt,
-                                                            altHandler: AlternateMessageHandler);
+                    qm = queue.DequeueOne<GenericMessage>(overrideVisibilityTimeout: ovt, altHandler: oh); break;
                 case MessageType.S3Event:
-                    return queue.DequeueOne<S3EventMessage>(overrideVisibilityTimeout: ovt,
-                                                            altHandler: AlternateMessageHandler);
+                    qm = queue.DequeueOne<S3EventMessage>(overrideVisibilityTimeout: ovt, altHandler: oh); break;
                 case MessageType.SNSWrappedS3Event:
-                    return queue.DequeueOne<SNSMessageWrapper>(overrideVisibilityTimeout: ovt,
-                                                               altHandler: AlternateMessageHandler);
+                    qm = queue.DequeueOne<SNSMessageWrapper>(overrideVisibilityTimeout: ovt, altHandler: oh); break;
                 default: throw new ArgumentException("unhandled messsage type " + lvopts.MessageType);
             }
+            return qm ?? aqm;
         }
 
         /// <summary>
@@ -411,12 +461,11 @@ namespace OPS.Landform
 
         /// <summary>
         /// Optional hook to handle unusual messages.
-        /// Returns true if it handled the message, (the usual message handling codepath is then short-circuited).
         /// Can throw.  
         /// </summary>
-        protected virtual bool AlternateMessageHandler(string msg)
+        protected virtual QueueMessage AlternateMessageHandler(string msg)
         {
-            return false;
+            return null;
         }
 
         //Filter out some subfolders on S3.
@@ -530,8 +579,8 @@ namespace OPS.Landform
                     {
                         return null;
                     }
-                    pipeline.LogException(ex, string.Format("error opening/creating {0} queue {1}, retrying in {2}",
-                                                            what, name, Fmt.HMS(SERVICE_LOOP_THROTTLE_SEC * 1000)));
+                    pipeline.LogException(ex, string.Format("opening/creating {0} queue {1}, retrying in {2}",
+                                                            what, name, Fmt.HMS(SERVICE_LOOP_THROTTLE_SEC * 1e3)));
                     SleepSec(SERVICE_LOOP_THROTTLE_SEC);
                 }
             }
@@ -668,6 +717,66 @@ namespace OPS.Landform
             DeleteQueue(failMessageQueue, "fail");
         }
 
+        private void IdleShutdown()
+        {
+            if (lvopts.IdleShutdownMethod == IdleShutdownMethod.None || shuttingDown ||
+                string.IsNullOrEmpty(selfEC2InstanceID))
+            {
+                return;
+            }
+
+            if (lvopts.IdleShutdownMethod == IdleShutdownMethod.LogIdle)
+            {
+                pipeline.LogInfo("service idle, shutdown requested"); // ASG scale down trigger may watch for this text
+                shuttingDown = true;
+                return;
+            }
+
+            if (lvopts.IdleShutdownMethod == IdleShutdownMethod.ScaleToZero)
+            {
+                try
+                {
+                    pipeline.LogInfo("scaling ASG {0} to zero instances", lvopts.AutoScaleGroup);
+                    shuttingDown = computeHelper.SetAutoScalingGroupSize(lvopts.AutoScaleGroup, 0);
+                    if (!shuttingDown)
+                    {
+                        pipeline.LogError("failed to change ASG size");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    pipeline.LogException(ex, $"creating client or scaling ASG {lvopts.AutoScaleGroup} to zero");
+                }
+                return;
+            }
+
+            if (lvopts.IdleShutdownMethod == IdleShutdownMethod.StopInstance ||
+                lvopts.IdleShutdownMethod == IdleShutdownMethod.StopInstanceOrShutdown)
+            {
+                try
+                {
+                    pipeline.LogInfo("stopping EC2 instance {0} (self)", selfEC2InstanceID);
+                    shuttingDown = computeHelper.StopInstances(selfEC2InstanceID);
+                    if (!shuttingDown)
+                    {
+                        pipeline.LogError("failed to stop EC2 instance {0} (self)", selfEC2InstanceID);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    pipeline.LogException(ex, $"creating client or stopping instance {selfEC2InstanceID}");
+                }
+            }
+
+            if (lvopts.IdleShutdownMethod == IdleShutdownMethod.Shutdown ||
+                (lvopts.IdleShutdownMethod == IdleShutdownMethod.StopInstanceOrShutdown && !shuttingDown))
+            {
+                pipeline.LogInfo("requesting OS shutdown");
+                shuttingDown = true;
+                ConsoleHelper.Shutdown();
+            }
+        }
+
         protected virtual void RunService()
         {
             Task.Run(() => HeartbeatLoop());
@@ -681,7 +790,7 @@ namespace OPS.Landform
             int maxReceiveCount = GetMaxReceiveCount();
             pipeline.LogInfo("running service loop on queue {0}, throttle {1}ms", messageQueue.Name, throttleMS);
 
-            while (true)
+            while (!shuttingDown)
             {
                 try
                 {
@@ -700,6 +809,8 @@ namespace OPS.Landform
 
                     if (msg != null)
                     {
+                        idleStartSec = -1;
+
                         string desc = DescribeMessage(msg);
                         int ageSec = (int)(0.001 * (msg.ApproxReceiveMS - msg.ApproxFirstReceiveMS));
                         int totalAgeSec = (int)(0.001 * (msg.ApproxReceiveMS - msg.SentMS));
@@ -713,10 +824,10 @@ namespace OPS.Landform
                             StartStopwatch();
                             
                             currentMessage = msg;
-                            messageStartSec = UTCTime.Now();
+                            messageStartSec = (uint)UTCTime.Now();
                             
                             pipeline.LogInfo("processing {0} (age {1}, {2} since first receive, {3} receives)", desc,
-                                             Fmt.HMS(1000 * totalAgeSec), Fmt.HMS(1000 * ageSec), receiveCount);
+                                             Fmt.HMS(totalAgeSec * 1e3), Fmt.HMS(ageSec * 1e3), receiveCount);
 
                             try
                             {
@@ -724,10 +835,26 @@ namespace OPS.Landform
                             }
                             catch (Exception msgException)
                             {
-                                pipeline.LogException(msgException, "error handling " + desc);
+                                pipeline.LogException(msgException, "handling " + desc);
                             }
-                            
-                            currentMessage = null;
+
+                            try
+                            {
+                                lock (deleteMessageLock)
+                                {
+                                    //the reason we hold deleteMessageLock here is to make sure that
+                                    //the call to UpdateTimeout() in HeartbeatLoop() can't overlap with this
+                                    currentMessage = null;
+                                    if (handled)
+                                    {
+                                        messageQueue.DeleteMessage(msg);
+                                    }
+                                }
+                            }
+                            catch (Exception deleteException)
+                            {
+                                pipeline.LogException(deleteException, "deleting message");
+                            }
                             
                             StopStopwatch(brief: true);
                         }
@@ -735,7 +862,7 @@ namespace OPS.Landform
                         if (accepted && tooOld)
                         {
                             string reason = ageSec > maxAgeSec ?
-                                string.Format("too old {0} > {1}", Fmt.HMS(1000 * ageSec), Fmt.HMS(1000 * maxAgeSec)) :
+                                string.Format("too old {0} > {1}", Fmt.HMS(ageSec * 1e3), Fmt.HMS(maxAgeSec * 1e3)) :
                                 string.Format("too many retries {0} > {1}", receiveCount, maxReceiveCount);
                             pipeline.LogError("{0} {1}, removing from queue, {2} fail queue", desc, reason,
                                               failMessageQueue != null ? "adding to" : "no");
@@ -746,21 +873,18 @@ namespace OPS.Landform
                             pipeline.LogVerbose("rejected message: {0}", rejectionReason);
                         }
 
-                        if (!accepted || handled || tooOld)
+                        if (!accepted || tooOld)
                         {
                             try
                             {
                                 lock (deleteMessageLock)
                                 {
-                                    //the reason we hold deleteMessageLock here is to make sure that
-                                    //the call to UpdateTimeout() in HeartbeatLoop() can't overlap with
-                                    //this call to DeleteMessage()
                                     messageQueue.DeleteMessage(msg);
                                 }
                             }
                             catch (Exception deleteException)
                             {
-                                pipeline.LogException(deleteException, "error deleting message");
+                                pipeline.LogException(deleteException, "deleting message");
                             }
                         }
 
@@ -776,6 +900,44 @@ namespace OPS.Landform
                             }
                         }
                     }
+                    else // no messages available
+                    {
+                        double now = UTCTime.Now();
+                        if (idleStartSec < 0)
+                        {
+                            idleStartSec = now;
+                        }
+                        else if (selfEC2InstanceID != null && lvopts.IdleShutdownSec > 0 &&
+                                 lvopts.IdleShutdownMethod != IdleShutdownMethod.None)
+                        {
+                            double idleSec = now - idleStartSec;
+                            if (idleSec > lvopts.IdleShutdownSec)
+                            {
+                                if (!shuttingDown)
+                                {
+                                    pipeline.LogInfo("shutting down EC2 instance {0} (self), idle for {1} >= {2}, " +
+                                                     "shutdown method {3}",
+                                                     selfEC2InstanceID, Fmt.HMS(idleSec * 1e3),
+                                                     Fmt.HMS(lvopts.IdleShutdownSec * 1e3), lvopts.IdleShutdownMethod);
+                                    IdleShutdown();
+                                    lastIdleShutdownWarnSec = now;
+                                }
+                                else
+                                {
+                                    if (now - lastIdleShutdownWarnSec > 60)
+                                    {
+                                        lastIdleShutdownWarnSec = now;
+                                        pipeline.LogWarn("EC2 instance {0} (self) idle for {1} >= {2}, " +
+                                                         //ASG scale down logic may watch for this text
+                                                         "service idle, shutdown requested" +
+                                                         " but still running",
+                                                         selfEC2InstanceID, Fmt.HMS(idleSec * 1e3),
+                                                         Fmt.HMS(lvopts.IdleShutdownSec * 1e3));
+                                    }
+                                }
+                            }
+                        }
+                    }
 
                     double elapsedSec = UTCTime.Now() - startSec;
                     SleepSec((0.001 * throttleMS) - elapsedSec);
@@ -783,10 +945,11 @@ namespace OPS.Landform
                 catch (Exception serviceException)
                 {
                     pipeline.LogException(serviceException, string.Format("service loop error, throttling {0}",
-                                                                          Fmt.HMS(SERVICE_LOOP_THROTTLE_SEC * 1000)));
+                                                                          Fmt.HMS(SERVICE_LOOP_THROTTLE_SEC * 1e3)));
                     SleepSec(SERVICE_LOOP_THROTTLE_SEC);
                 }
             }
+            pipeline.LogInfo("shutting down, exiting service loop");
         }
 
         private void HeartbeatLoop()
@@ -808,16 +971,16 @@ namespace OPS.Landform
             int timeoutSec = messageQueue.TimeoutSec;
             double targetPeriod = GetHeartbeatRelPeriod() * timeoutSec;
             pipeline.LogInfo("running heartbeat, period {0:F3}s, message timeout {1}s, max handler {2}",
-                             targetPeriod, timeoutSec, Fmt.HMS(1000 * maxHandlerSec));
-            while (true)
+                             targetPeriod, timeoutSec, Fmt.HMS(maxHandlerSec * 1e3));
+            while (!shuttingDown)
             {
                 if (currentMessage != null)
                 {
-                    var totalSec = UTCTime.Now() - messageStartSec;
+                    double totalSec = UTCTime.Now() - messageStartSec;
                     if (totalSec > maxHandlerSec)
                     {
                         pipeline.LogError("handler has run for {0} > {1}, killing",
-                                          Fmt.HMS(1000 * totalSec), Fmt.HMS(1000 * maxHandlerSec));
+                                          Fmt.HMS( totalSec * 1e3), Fmt.HMS(maxHandlerSec * 1e3));
                         KillCurrentCommand(); //swallows exceptions, but handler will throw exception if killed
                         SleepSec(targetPeriod);
                         lastHeartbeatSec = -1;
@@ -861,7 +1024,7 @@ namespace OPS.Landform
                         }
                         catch (Exception ex)
                         {
-                            pipeline.LogException(ex, "error updating message timeout");
+                            pipeline.LogException(ex, "updating message timeout");
                         }
                     }
                 }
@@ -871,6 +1034,7 @@ namespace OPS.Landform
                     lastHeartbeatSec = -1;
                 }
             }
+            pipeline.LogInfo("shutting down, exiting heartbeat loop");
         }
     }
 }

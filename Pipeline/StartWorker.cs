@@ -82,7 +82,7 @@ namespace OPS.Pipeline
                 ret.Case((MatchImagesMessage m) => new MatchImages(pipeline, m).Process());
             }
 
-            ret.Unhandled = (t, x) => pipeline.LogError("unknown worker message type: " + t);
+            ret.Unhandled = (t, x) => throw new Exception("unknown worker message type: " + t);
             return ret;
         }
 
