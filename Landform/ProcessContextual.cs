@@ -294,10 +294,10 @@ namespace OPS.Landform
         [Option(Default = ProcessContextual.DEF_WORKER_WATCHDOG_SEC, HelpText = "Period in seconds of worker auto-start watchdog, non-positive to disable watchdog")]
         public int WorkerWatchdogSec { get; set; }
 
-        [Option(Default = "landform-contextual-mesh-worker-*", HelpText = "Comma separated list of contextual worker EC2 instance ids (starting with \"i-\"), instance names, instance name wildcard patterns, or \"asg:<name>\" to use an auto scaling group")]
+        [Option(Default = null, HelpText = "Comma separated list of contextual worker EC2 instance ids (starting with \"i-\"), instance names, instance name wildcard patterns, or \"asg:<name>\" to use an auto scaling group")]
         public string WorkerInstances { get; set; }
 
-        [Option(Default = "landform-orbital-mesh-worker-*", HelpText = "Comma separated list of orbital worker EC2 instance ids (starting with \"i-\"), instance names, or instance name wildcard patterns, or \"asg:<name>\" to use an auto scaling group")]
+        [Option(Default = null, HelpText = "Comma separated list of orbital worker EC2 instance ids (starting with \"i-\"), instance names, or instance name wildcard patterns, or \"asg:<name>\" to use an auto scaling group")]
         public string OrbitalWorkerInstances { get; set; }
     }
 
