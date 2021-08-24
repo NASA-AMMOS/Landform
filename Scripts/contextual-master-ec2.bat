@@ -63,7 +63,7 @@ if not "%LANDFORM_CONTEXTUAL_MASTER_STORAGE_DIR%"=="" set storagedir=%LANDFORM_C
 set logdir=c:\log\landform-%service%
 if not "%LANDFORM_CONTEXTUAL_MASTER_LOG_DIR%"=="" set logdir=%LANDFORM_CONTEXTUAL_MASTER_LOG_DIR%
 
-set logfile=contextual:contextual-service
+set logfile=process-contextual:%service%-service
 if not "%LANDFORM_CONTEXTUAL_MASTER_LOG_FILE%"=="" set logfile=%LANDFORM_CONTEXTUAL_MASTER_LOG_FILE%
 
 set tmpdir=c:\temp\landform-%service%

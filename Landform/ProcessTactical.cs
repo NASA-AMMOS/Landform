@@ -407,9 +407,27 @@ namespace OPS.Landform
             return null;
         }
 
-        protected override string GetLogFilePrefix()
+        protected override string GetSubcommandLogFile()
         {
-            return "log-Landform-process-tactical";
+            string lf = Logging.GetLogFile();
+            string dir = Path.GetDirectoryName(lf);
+            string bn = Path.GetFileNameWithoutExtension(lf);
+            string ext = Path.GetExtension(lf);
+
+            if (bn.Contains("process-tactical"))
+            {
+                bn = bn.Replace("process-tactical", "process-tactical-subcommands");
+            }
+            else if (bn.Contains("tactical-service"))
+            {
+                bn = bn.Replace("tactical-service", "tactical-subcommands");
+            }
+            else
+            {
+                bn = bn + "-subcommands";
+            }
+
+            return StringHelper.NormalizeSlashes(Path.Combine(dir, bn, ext));
         }
 
         protected override string GetSubcommandConfigFolder()

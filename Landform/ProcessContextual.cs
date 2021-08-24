@@ -889,9 +889,31 @@ namespace OPS.Landform
             return null;
         }
 
-        protected override string GetLogFilePrefix()
+        protected override string GetSubcommandLogFile()
         {
-            return "log-Landform-process-contextual";
+            string lf = Logging.GetLogFile();
+            string dir = Path.GetDirectoryName(lf);
+            string bn = Path.GetFileNameWithoutExtension(lf);
+            string ext = Path.GetExtension(lf);
+
+            if (bn.Contains("process-contextual"))
+            {
+                bn = bn.Replace("process-contextual", "process-contextual-subcommands");
+            }
+            else if (bn.Contains("contextual-service"))
+            {
+                bn = bn.Replace("contextual-service", "contextual-subcommands");
+            }
+            else if (bn.Contains("contextual-master"))
+            {
+                bn = bn.Replace("contextual-master", "contextual-master-subcommands");
+            }
+            else
+            {
+                bn = bn + "-subcommands";
+            }
+
+            return StringHelper.NormalizeSlashes(Path.Combine(dir, bn, ext));
         }
 
         protected override string GetSubcommandConfigFolder()

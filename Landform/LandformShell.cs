@@ -293,28 +293,13 @@ namespace OPS.Landform
             pipeline.LogInfo("AWS credential refresh: {0}",
                              credentialRefreshSec > 0 ? Fmt.HMS(credentialRefreshSec * 1e3) : "disabled");
 
-            string logFile = Logging.GetLogFile();
-            string logPrefix = GetLogFilePrefix();
-            if (logFile.IndexOf(logPrefix) >= 0)
-            {
-                string svcPrefix = logPrefix + "-service";
-                subcommandLogFile = logFile.Replace(logFile.IndexOf(svcPrefix) >= 0 ? svcPrefix : logPrefix,
-                                                    logPrefix + "-subcommands");
-            }
-            else
-            {
-                subcommandLogFile = Path.Combine(Path.GetDirectoryName(logFile),
-                                                 Path.GetFileNameWithoutExtension(logFile) + "-subcommands" +
-                                                 Path.GetExtension(logFile));
-            }
-            subcommandLogFile = StringHelper.NormalizeSlashes(subcommandLogFile);
-            pipeline.LogInfo("subcommand log file: {0}", subcommandLogFile);
-
+            subcommandLogFile = GetSubcommandLogFile();
             subcommandConfigFolder = GetSubcommandConfigFolder();
             subcommandConfigFile = Path.Combine(Config.GetConfigDir(), subcommandConfigFolder,
                                                 pipeline.Config.ConfigFileName() + ".json");
             subcommandConfigFolder = StringHelper.NormalizeSlashes(subcommandConfigFolder);
             subcommandConfigFile = StringHelper.NormalizeSlashes(subcommandConfigFile);
+            pipeline.LogInfo("subcommand log file: {0}", subcommandLogFile);
             pipeline.LogInfo("subcommand config file: {0}", subcommandConfigFile);
 
             return true;
@@ -347,7 +332,7 @@ namespace OPS.Landform
             computeHelper = null;
         }
 
-        protected abstract string GetLogFilePrefix();
+        protected abstract string GetSubcommandLogFile();
 
         protected abstract string GetSubcommandConfigFolder();
         
