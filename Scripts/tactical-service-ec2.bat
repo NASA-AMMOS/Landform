@@ -63,7 +63,7 @@ if not "%LANDFORM_TACTICAL_STORAGE_DIR%"=="" set storagedir=%LANDFORM_TACTICAL_S
 set logdir=c:\log\landform-%service%
 if not "%LANDFORM_TACTICAL_LOG_DIR%"=="" set logdir=%LANDFORM_TACTICAL_LOG_DIR%
 
-set logfile=log-Landform-process-%service%-service
+set logfile=%service%:%service%-service
 if not "%LANDFORM_TACTICAL_LOG_FILE%"=="" set logfile=%LANDFORM_TACTICAL_LOG_FILE%
 
 set tmpdir=c:\temp\landform-%service%

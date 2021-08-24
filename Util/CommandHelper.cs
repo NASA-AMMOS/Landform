@@ -22,7 +22,7 @@ namespace OPS.Util
             [Option(Default = null, HelpText = "Override default config folder (defaults to .landform)")]
             public string ConfigFolder { get; set; }
             
-            [Option(Default = null, HelpText = "Override default log filename")]
+            [Option(Default = null, HelpText = "Override default log filename, or <orig>:<new> to override part(s) of it")]
             public string LogFile { get; set; }
             
             [Option(Default = null, HelpText = "Override default log directory")]

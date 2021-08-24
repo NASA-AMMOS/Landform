@@ -221,11 +221,22 @@ namespace OPS.Util
             //then one effect is that we can get get extra log files on disk
             //because each call can create a log file with a different timestamp in the filename
             //note that we want to configure from xml first to get the default log filename
-            //below we might change that entirely or we might only change the directory
+            //below we might change that entirely or we might only change the directory or prefix
             if (!didConfig)
             {
                 log4net.Config.XmlConfigurator.Configure();
                 didConfig = true;
+            }
+
+            if (logFilename != null && logFilename.Contains(":"))
+            {
+                string[] parts = StringHelper.ParseList(logFilename, ':');
+                if (parts.Length != 2)
+                {
+                    throw new Exception("custom log filename contains : but not in form <orig>:<new>");
+                }
+                string orig = Path.GetFileName(GetLogFile());
+                logFilename = orig.Replace(parts[0], parts[1]);
             }
 
             string logFile = null;
