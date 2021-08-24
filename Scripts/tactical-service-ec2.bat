@@ -63,6 +63,9 @@ if not "%LANDFORM_TACTICAL_STORAGE_DIR%"=="" set storagedir=%LANDFORM_TACTICAL_S
 set logdir=c:\log\landform-%service%
 if not "%LANDFORM_TACTICAL_LOG_DIR%"=="" set logdir=%LANDFORM_TACTICAL_LOG_DIR%
 
+set logfile=log-Landform-process-%service%-service
+if not "%LANDFORM_TACTICAL_LOG_FILE%"=="" set logfile=%LANDFORM_TACTICAL_LOG_FILE%
+
 set tmpdir=c:\temp\landform-%service%
 if not "%LANDFORM_TACTICAL_TEMP_DIR%"=="" set tmpdir=%LANDFORM_TACTICAL_TEMP_DIR%
 
@@ -202,7 +205,7 @@ if not "%LANDFORM_TACTICAL_EXPECT_OBJ_LOD_TAR%"=="" set objopts=%objopts% --expe
 
 rem --- end service specific ---
 
-set stdopts=--configdir=%cfgdir% --configfolder=%cfgfolder% --logdir=%logdir% --tempdir=%tmpdir%
+set stdopts=--configdir=%cfgdir% --configfolder=%cfgfolder% --logdir=%logdir% --logfile=%logfile% --tempdir=%tmpdir%
 set cfgopts=%stdopts% --venue=%venue% --maxcores=0 --randomseed=-1 --storagedir=%storagedir%
 set svcopts=%stdopts% --stacktraces --service --mission=%mission% --queuename=%queue% --failqueuename=%failqueue%
 set svcopts=%svcopts% --awsprofile=%awsprofile% --awsregion=%awsregion% %credentialrefresh%

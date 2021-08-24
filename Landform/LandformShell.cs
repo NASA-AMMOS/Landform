@@ -297,7 +297,9 @@ namespace OPS.Landform
             string logPrefix = GetLogFilePrefix();
             if (logFile.IndexOf(logPrefix) >= 0)
             {
-                subcommandLogFile = logFile.Replace(logPrefix, logPrefix + "-subcommands");
+                string svcPrefix = logPrefix + "-service";
+                subcommandLogFile = logFile.Replace(logFile.IndexOf(svcPrefix) >= 0 ? svcPrefix : logPrefix,
+                                                    logPrefix + "-subcommands");
             }
             else
             {

@@ -58,22 +58,25 @@ set failqueue=auto
 if not "%LANDFORM_CONTEXTUAL_MASTER_FAIL_QUEUE%"=="" set failqueue=%LANDFORM_CONTEXTUAL_MASTER_FAIL_QUEUE%
 
 set storagedir=c:\temp\landform-%service%-storage
-if not "%LANDFORM_CONTEXTUAL_STORAGE_DIR%"=="" set storagedir=%LANDFORM_CONTEXTUAL_STORAGE_DIR%
+if not "%LANDFORM_CONTEXTUAL_MASTER_STORAGE_DIR%"=="" set storagedir=%LANDFORM_CONTEXTUAL_MASTER_STORAGE_DIR%
 
 set logdir=c:\log\landform-%service%
-if not "%LANDFORM_CONTEXTUAL_LOG_DIR%"=="" set logdir=%LANDFORM_CONTEXTUAL_LOG_DIR%
+if not "%LANDFORM_CONTEXTUAL_MASTER_LOG_DIR%"=="" set logdir=%LANDFORM_CONTEXTUAL_MASTER_LOG_DIR%
+
+set logfile=log-Landform-process-contextual-service
+if not "%LANDFORM_CONTEXTUAL_MASTER_LOG_FILE%"=="" set logfile=%LANDFORM_CONTEXTUAL_MASTER_LOG_FILE%
 
 set tmpdir=c:\temp\landform-%service%
-if not "%LANDFORM_CONTEXTUAL_TEMP_DIR%"=="" set tmpdir=%LANDFORM_CONTEXTUAL_TEMP_DIR%
+if not "%LANDFORM_CONTEXTUAL_MASTER_TEMP_DIR%"=="" set tmpdir=%LANDFORM_CONTEXTUAL_MASTER_TEMP_DIR%
 
 set cfgdir=c:\cfg
-if not "%LANDFORM_CONTEXTUAL_CONFIG_DIR%"=="" set cfgdir=%LANDFORM_CONTEXTUAL_CONFIG_DIR%
+if not "%LANDFORM_CONTEXTUAL_MASTER_CONFIG_DIR%"=="" set cfgdir=%LANDFORM_CONTEXTUAL_MASTER_CONFIG_DIR%
 
 set cfgfolder=%service%
-if not "%LANDFORM_CONTEXTUAL_CONFIG_FOLDER%"=="" set cfgfolder=%LANDFORM_CONTEXTUAL_CONFIG_FOLDER%
+if not "%LANDFORM_CONTEXTUAL_MASTER_CONFIG_FOLDER%"=="" set cfgfolder=%LANDFORM_CONTEXTUAL_MASTER_CONFIG_FOLDER%
 
 set venue=%service%-service
-if not "%LANDFORM_CONTEXTUAL_VENUE%"=="" set venue=%LANDFORM_CONTEXTUAL_VENUE%
+if not "%LANDFORM_CONTEXTUAL_MASTER_VENUE%"=="" set venue=%LANDFORM_CONTEXTUAL_MASTER_VENUE%
 
 set msgopts=
 if not "%LANDFORM_CONTEXTUAL_MASTER_MAX_HANDLER_SEC%"=="" (
@@ -156,7 +159,7 @@ if not "%LANDFORM_CONTEXTUAL_ORBITAL_WORKER_INSTANCES%"=="" (
     set masteropts=%masteropts% --orbitalworkerinstances=%LANDFORM_CONTEXTUAL_ORBITAL_WORKER_INSTANCES%
 )
 
-set stdopts=--configdir=%cfgdir% --configfolder=%cfgfolder% --logdir=%logdir% --tempdir=%tmpdir%
+set stdopts=--configdir=%cfgdir% --configfolder=%cfgfolder% --logdir=%logdir% --logfile=%logfile% --tempdir=%tmpdir%
 set cfgopts=%stdopts% --venue=%venue% --maxcores=0 --randomseed=-1 --storagedir=%storagedir%
 set svcopts=%stdopts% --stacktraces --master --mission=%mission% --queuename=%queue% --failqueuename=%failqueue%
 set svcopts=%svcopts% --awsprofile=%awsprofile% --awsregion=%awsregion% %credentialrefresh%

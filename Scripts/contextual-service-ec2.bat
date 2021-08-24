@@ -63,6 +63,9 @@ if not "%LANDFORM_CONTEXTUAL_STORAGE_DIR%"=="" set storagedir=%LANDFORM_CONTEXTU
 set logdir=c:\log\landform-%service%
 if not "%LANDFORM_CONTEXTUAL_LOG_DIR%"=="" set logdir=%LANDFORM_CONTEXTUAL_LOG_DIR%
 
+set logfile=log-Landform-process-%service%-service
+if not "%LANDFORM_CONTEXTUAL_LOG_FILE%"=="" set logfile=%LANDFORM_CONTEXTUAL_LOG_FILE%
+
 set tmpdir=c:\temp\landform-%service%
 if not "%LANDFORM_CONTEXTUAL_TEMP_DIR%"=="" set tmpdir=%LANDFORM_CONTEXTUAL_TEMP_DIR%
 
@@ -257,7 +260,7 @@ if not "%LANDFORM_CONTEXTUAL_OPTS%"=="" set svcextra=%LANDFORM_CONTEXTUAL_OPTS%
 
 rem --- end service specific ---
 
-set stdopts=--configdir=%cfgdir% --configfolder=%cfgfolder% --logdir=%logdir% --tempdir=%tmpdir%
+set stdopts=--configdir=%cfgdir% --configfolder=%cfgfolder% --logdir=%logdir% --logfile=%logfile% --tempdir=%tmpdir%
 set cfgopts=%stdopts% --venue=%venue% --maxcores=0 --randomseed=-1 --storagedir=%storagedir%
 set svcopts=%stdopts% --stacktraces --service --mission=%mission% --queuename=%queue% --failqueuename=%failqueue%
 set svcopts=%svcopts% --awsprofile=%awsprofile% --awsregion=%awsregion% %credentialrefresh%
