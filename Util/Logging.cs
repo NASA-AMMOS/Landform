@@ -184,6 +184,21 @@ namespace OPS.Util
         public static void ConfigureLogging(string commandName = null, bool quiet = false, bool debug = false,
                                             string logFilename = null, string logDir = null)
         {
+            //we started sometimes getting 
+            //System.TypeInitializationException: The type initializer for 'Amazon.AWSConfigs' threw an exception.
+            //System.Runtime.InteropServices.COMException: Catastrophic failure
+            //at System.Security.Policy.PEFileEvidenceFactory.GetLocationEvidence(...)
+            //...
+            //at System.Configuration.ClientConfigPaths.GetEvidenceInfo(...)
+            //...
+            //at System.Configuration.ConfigurationManager.GetSection(String sectionName)
+            //at Amazon.AWSConfigs.GetSection[T](String sectionName)
+            //at Amazon.AWSConfigs..cctor()
+            //
+            //workaround from https://stackoverflow.com/a/15759103
+            System.Configuration.ConfigurationManager.GetSection("dummy");
+            //also see the end of this function for another workaround
+
             if (string.IsNullOrEmpty(commandName))
             {
                 var exe = PathHelper.GetExe();
@@ -314,6 +329,11 @@ namespace OPS.Util
                     }
                 }
             }
+
+            //see comments at top of function
+            //https://stackoverflow.com/a/49777426
+            System.Runtime.Remoting.Messaging.CallContext
+                .FreeNamedDataSlot("log4net.Util.LogicalThreadContextProperties");
         }
     }
 }
