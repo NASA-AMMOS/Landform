@@ -261,7 +261,7 @@ namespace OPS.Landform
             }
             if (!string.IsNullOrEmpty(lsopts.ReadonlyBuckets))
             {
-                pipeline.LogInfo("buckets that will be treated as readonly: {1}, alt dest {2}",
+                pipeline.LogInfo("buckets that will be treated as readonly: {0}, alt dest {1}",
                                  lsopts.ReadonlyBuckets, lsopts.ReadonlyBucketAltDest);
             }
 
