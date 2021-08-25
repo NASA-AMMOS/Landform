@@ -160,6 +160,9 @@ rem --- end service specific boilerplate, begin service specific ---
 set maxfetch=
 if not "%LANDFORM_CONTEXTUAL_MAX_FETCH%"=="" set maxfetch=--maxfetch=%LANDFORM_CONTEXTUAL_MAX_FETCH%
 
+set fetchdir=
+if not "%LANDFORM_CONTEXTUAL_FETCH_DIR%"=="" set fetchdir=--fetchdir=%LANDFORM_CONTEXTUAL_FETCH_DIR%
+
 set nocombinedmanifest=
 if not "%LANDFORM_CONTEXTUAL_NO_COMBINED_MANIFEST%"=="" set nocombinedmanifest=--nocombinedmanifest
 
@@ -271,7 +274,7 @@ set tilingopts=%tilingopts% %maxfacespertile% %maxtileresolution% %mintileextent
 set tilingopts=%tilingopts% %notexturesplitrespectmaxtexelspermeter% %maxtexelspermeter% %maxorbitaltexelspermeter%
 set tilingopts=%tilingopts% %maxtexturestretch% %poweroftwotextures% %colorize% %maxglancingangledegrees% %skirtmode%
 
-set contextualopts=%maxfetch% %nocombinedmanifest% %orbitalopts% %skyopts% %minmaxopts%
+set contextualopts=%maxfetch% %fetchdir% %nocombinedmanifest% %orbitalopts% %skyopts% %minmaxopts%
 set contextualopts=%contextualopts% %tilingopts% %allowunmasked% %solblacklist% %extentopts%
 
 set appsdir=%bindir%\ExternalApps
