@@ -259,6 +259,11 @@ namespace OPS.Landform
             {
                 throw new Exception("--readonlybuckets and --readonlybucketaltdest must be specified together");
             }
+            if (!string.IsNullOrEmpty(lsopts.ReadonlyBuckets))
+            {
+                pipeline.LogInfo("buckets that will be treated as readonly: {1}, alt dest {2}",
+                                 lsopts.ReadonlyBuckets, lsopts.ReadonlyBucketAltDest);
+            }
 
             project = GetProject();
             if (project != null)
