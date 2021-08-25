@@ -338,7 +338,7 @@ namespace OPS.Landform
                         {
                             throw new Exception("--autoscalegroup required with --idleshutdownmethod=ScaleToZero");
                         }
-                        pipeline.LogWarn("will attempt to shutdown after {0} idle, shutdown method {1}",
+                        pipeline.LogInfo("will attempt to shutdown after {0} idle, shutdown method {1}",
                                          Fmt.HMS(lvopts.IdleShutdownSec * 1e3), lvopts.IdleShutdownMethod);
                     }
                     else
