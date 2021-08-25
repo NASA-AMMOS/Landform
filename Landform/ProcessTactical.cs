@@ -427,7 +427,7 @@ namespace OPS.Landform
                 bn = bn + "-subcommands";
             }
 
-            return StringHelper.NormalizeSlashes(Path.Combine(dir, bn, ext));
+            return StringHelper.EnsureTrailingSlash(StringHelper.NormalizeSlashes(dir)) + bn + ext;
         }
 
         protected override string GetSubcommandConfigFolder()
