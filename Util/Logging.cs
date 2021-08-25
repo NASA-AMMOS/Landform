@@ -201,7 +201,14 @@ namespace OPS.Util
             //at Amazon.AWSConfigs..cctor()
             //
             //workaround from https://stackoverflow.com/a/15759103
-            System.Configuration.ConfigurationManager.GetSection("dummy");
+            try
+            {
+                System.Configuration.ConfigurationManager.GetSection("dummy");
+            }
+            catch (Exception)
+            {
+                //ignore
+            }
             //also see the end of this function for another workaround
 
             if (string.IsNullOrEmpty(commandName))
@@ -348,8 +355,15 @@ namespace OPS.Util
 
             //see comments at top of function
             //https://stackoverflow.com/a/49777426
-            System.Runtime.Remoting.Messaging.CallContext
-                .FreeNamedDataSlot("log4net.Util.LogicalThreadContextProperties");
+            try
+            {
+                System.Runtime.Remoting.Messaging.CallContext
+                    .FreeNamedDataSlot("log4net.Util.LogicalThreadContextProperties");
+            }
+            catch (Exception)
+            {
+                //ignore
+            }
         }
     }
 }
