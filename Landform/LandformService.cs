@@ -123,6 +123,9 @@ namespace OPS.Landform
         //making fewer than 10 total attempts, but always fail
         public const int DEF_MAX_RECEIVE_COUNT = 10;
 
+        //ASG scale down trigger may watch for this text
+        public const string LOG_IDLE_MSG = "service idle, shutdown requested";
+
         protected LandformServiceOptions lvopts;
 
         protected bool serviceMode, serviceUtilMode;
@@ -727,7 +730,7 @@ namespace OPS.Landform
 
             if (lvopts.IdleShutdownMethod == IdleShutdownMethod.LogIdle)
             {
-                pipeline.LogInfo("service idle, shutdown requested"); // ASG scale down trigger may watch for this text
+                pipeline.LogInfo(LOG_IDLE_MSG);
                 shuttingDown = true;
                 return;
             }
@@ -928,11 +931,9 @@ namespace OPS.Landform
                                     {
                                         lastIdleShutdownWarnSec = now;
                                         pipeline.LogWarn("EC2 instance {0} (self) idle for {1} >= {2}, " +
-                                                         //ASG scale down logic may watch for this text
-                                                         "service idle, shutdown requested" +
-                                                         " but still running",
+                                                         "{3} but still running",
                                                          selfEC2InstanceID, Fmt.HMS(idleSec * 1e3),
-                                                         Fmt.HMS(lvopts.IdleShutdownSec * 1e3));
+                                                         Fmt.HMS(lvopts.IdleShutdownSec * 1e3), LOG_IDLE_MSG);
                                     }
                                 }
                             }
