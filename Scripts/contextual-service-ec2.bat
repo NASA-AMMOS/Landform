@@ -50,10 +50,10 @@ if not "%LANDFORM_AUTO_SCALE_GROUP%"=="" (
 )
 
 set roopts=
-if not "%LANDFORM_READONLY_BUCKETS%"=="" set roopts=--landformreadonlybuckets=%LANDFORM_READONLY_BUCKETS%
+if not "%LANDFORM_READONLY_BUCKETS%"=="" set roopts=--readonlybuckets=%LANDFORM_READONLY_BUCKETS%
 
 if not "%LANDFORM_READONLY_BUCKET_ALT_DEST%"=="" (
-    set roopts=%roopts% --landformreadonlybucketaltdest=%LANDFORM_READONLY_BUCKET_ALT_DEST%
+    set roopts=%roopts% --readonlybucketaltdest=%LANDFORM_READONLY_BUCKET_ALT_DEST%
 )
 
 rem --- end service boilerplate, begin service specific boilerplate ---
