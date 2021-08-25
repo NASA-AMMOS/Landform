@@ -1,0 +1,6 @@
+{
+  "rdrDir" : "s3://m20-sops-ods-copy/ods/surface/sol/#####/ids/rdr",
+  "primarySol" : 84,
+  "primarySiteDrive" : "0040000",
+  "orbitalOnly": true
+}
