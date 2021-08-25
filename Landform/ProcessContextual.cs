@@ -892,7 +892,6 @@ namespace OPS.Landform
         protected override string GetSubcommandLogFile()
         {
             string lf = Logging.GetLogFile();
-            string dir = Path.GetDirectoryName(lf);
             string bn = Path.GetFileNameWithoutExtension(lf);
             string ext = Path.GetExtension(lf);
 
@@ -913,7 +912,7 @@ namespace OPS.Landform
                 bn = bn + "-subcommands";
             }
 
-            return StringHelper.EnsureTrailingSlash(StringHelper.NormalizeSlashes(dir)) + bn + ext;
+            return bn + ext;
         }
 
         protected override string GetSubcommandConfigFolder()

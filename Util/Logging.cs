@@ -184,6 +184,11 @@ namespace OPS.Util
         public static void ConfigureLogging(string commandName = null, bool quiet = false, bool debug = false,
                                             string logFilename = null, string logDir = null)
         {
+            if (!string.IsNullOrEmpty(logFilename) && StringHelper.NormalizeSlashes(logFilename).IndexOf('/') >= 0)
+            {
+                throw new Exception(string.Format("log filename must not contain directory, got \"{0}\"", logFilename));
+            }
+
             //we started sometimes getting 
             //System.TypeInitializationException: The type initializer for 'Amazon.AWSConfigs' threw an exception.
             //System.Runtime.InteropServices.COMException: Catastrophic failure

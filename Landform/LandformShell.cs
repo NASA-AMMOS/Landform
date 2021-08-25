@@ -541,7 +541,8 @@ namespace OPS.Landform
                     { "--configdir", StringHelper.NormalizeSlashes(Config.GetConfigDir()) },
                     { "--configfolder", subcommandConfigFolder },
                     { "--tempdir", StringHelper.NormalizeSlashes(lsopts.TempDir) },
-                    { "--logfile", subcommandLogFile }, //already handles --logdir
+                    { "--logdir", StringHelper.NormalizeSlashes(lsopts.LogDir) },
+                    { "--logfile", subcommandLogFile },
                     { "--usermasksdirectory", pipeline.UserMasksDirectory}
                 };
             foreach (var entry in stdArgs)

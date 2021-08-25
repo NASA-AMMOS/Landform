@@ -210,6 +210,9 @@ namespace OPS.Landform
         [Option(Default = false, HelpText = "Debug output")]
         public bool Debug { get; set; }
 
+        [Option(Default = null, HelpText = "Override log dir")]
+        public string LogDir { get; set; }
+
         [Option(Default = null, HelpText = "Override log file")]
         public string LogFile { get; set; }
 
@@ -301,7 +304,7 @@ namespace OPS.Landform
         private void ParseArguments()
         {
             Logging.ConfigureLogging(commandName: "fetch", quiet: options.Quiet, debug: options.Debug,
-                                     logFilename: options.LogFile);
+                                     logDir: options.LogDir, logFilename: options.LogFile);
 
             if (!string.IsNullOrEmpty(options.TempDir))
             {
