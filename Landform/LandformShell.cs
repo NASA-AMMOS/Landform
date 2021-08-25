@@ -129,6 +129,12 @@ namespace OPS.Landform
 
         [Option(HelpText = "Use default AWS profile (vs profile from credential refresh) for EC2 client", Default = false)]
         public bool UseDefaultAWSProfileForEC2Client { get; set; }
+
+        [Option(HelpText = "Comma separated list of input S3 buckets (or bucket/path) that should be treated as read-only, also requires --readonlybucketaltdest", Default = null)]
+        public string ReadonlyBuckets { get; set; }
+
+        [Option(HelpText = "S3 bucket or bucket/path that should be used for output when input came from a readonly bucket, also requires --readonlybuckets", Default = null)]
+        public string ReadonlyBucketAltDest { get; set; }
     }
 
     public abstract class LandformShell : LandformCommand
@@ -247,6 +253,11 @@ namespace OPS.Landform
                                                    embedIndexImages: lsopts.EmbedIndexImages))
             {
                 return false; //help or invalid
+            }
+
+            if (string.IsNullOrEmpty(lsopts.ReadonlyBuckets) != string.IsNullOrEmpty(lsopts.ReadonlyBucketAltDest))
+            {
+                throw new Exception("--readonlybuckets and --readonlybucketaltdest must be specified together");
             }
 
             project = GetProject();
@@ -661,7 +672,19 @@ namespace OPS.Landform
                     break;
                 }
             }
-            return (rdrIdx >= 0 ? inputFolder.Substring(0, rdrIdx + rdrSegLength) : inputFolder) + TILESET_SUBDIR;
+            string ret = (rdrIdx >= 0 ? inputFolder.Substring(0, rdrIdx + rdrSegLength) : inputFolder) + TILESET_SUBDIR;
+            foreach (string rb in StringHelper.ParseList(lsopts.ReadonlyBuckets))
+            {
+                if (ret.StartsWith("s3://" + StringHelper.EnsureTrailingSlash(StringHelper.NormalizeSlashes(rb))))
+                {
+                    ret = "s3://" +
+                        StringHelper.EnsureTrailingSlash(StringHelper.NormalizeSlashes(lsopts.ReadonlyBucketAltDest))
+                        + ret.Substring(5);
+                    pipeline.LogInfo("readonly bucket {0}, using output folder {1}", rb, ret);
+                    break;
+                }
+            }
+            return ret;
         }
 
         protected void AddTilingArgs(List<string> args)

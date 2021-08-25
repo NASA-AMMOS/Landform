@@ -49,6 +49,13 @@ if not "%LANDFORM_AUTO_SCALE_GROUP%"=="" (
     set idleopts=%idleopts% --autoscalegroup=%LANDFORM_AUTO_SCALE_GROUP%
 )
 
+set roopts=
+if not "%LANDFORM_READONLY_BUCKETS%"=="" set roopts=--landformreadonlybuckets=%LANDFORM_READONLY_BUCKETS%
+
+if not "%LANDFORM_READONLY_BUCKET_ALT_DEST%"=="" (
+    set roopts=%roopts% --landformreadonlybucketaltdest=%LANDFORM_READONLY_BUCKET_ALT_DEST%
+)
+
 rem --- end service boilerplate, begin service specific boilerplate ---
 
 set queue=
@@ -267,7 +274,7 @@ set stdopts=--configdir=%cfgdir% --configfolder=%cfgfolder% --logdir=%logdir% --
 set cfgopts=%stdopts% --venue=%venue% --maxcores=0 --randomseed=-1 --storagedir=%storagedir%
 set svcopts=%stdopts% --stacktraces --service --mission=%mission% --queuename=%queue% --failqueuename=%failqueue%
 set svcopts=%svcopts% --awsprofile=%awsprofile% --awsregion=%awsregion% %credentialrefresh%
-set svcopts=%svcopts% %msgopts% %idleopts%
+set svcopts=%svcopts% %msgopts% %idleopts% %roopts%
 
 set tilingopts=%tilesetimageformat% %tilesetindexformat% %noindices% %embedindices%
 set tilingopts=%tilingopts% %maxfacespertile% %maxtileresolution% %mintileextent% %maxleafarea% %maxorbitalleafarea%
