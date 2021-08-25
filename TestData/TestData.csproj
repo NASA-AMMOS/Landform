@@ -118,6 +118,9 @@
     <None Include="TestData\json\m2020-tactical-event-example3.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <None Include="TestData\json\m2020-tactical-event-example4.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
     <None Include="TestData\json\m2020-tactical-navcam-downsample0-event.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
