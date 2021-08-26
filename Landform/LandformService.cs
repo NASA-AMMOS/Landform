@@ -19,7 +19,8 @@ namespace OPS.Landform
 {
     public enum MessageType { Generic, S3Event, SNSWrappedS3Event }
 
-    public enum IdleShutdownMethod { None, StopInstance, Shutdown, StopInstanceOrShutdown, ScaleToZero, LogIdle }
+    public enum IdleShutdownMethod
+    { None, StopInstance, Shutdown, StopInstanceOrShutdown, ScaleToZero, LogIdle, LogIdleProtected }
 
     public class LandformServiceOptions : LandformShellOptions
     {
@@ -336,10 +337,12 @@ namespace OPS.Landform
                 {
                     if (!string.IsNullOrEmpty(selfEC2InstanceID))
                     {
-                        if (lvopts.IdleShutdownMethod == IdleShutdownMethod.ScaleToZero &&
+                        if ((lvopts.IdleShutdownMethod == IdleShutdownMethod.ScaleToZero ||
+                             lvopts.IdleShutdownMethod == IdleShutdownMethod.LogIdleProtected) &&
                             string.IsNullOrEmpty(lvopts.AutoScaleGroup))
                         {
-                            throw new Exception("--autoscalegroup required with --idleshutdownmethod=ScaleToZero");
+                            throw new Exception("--autoscalegroup required with --idleshutdownmethod=ScaleToZero " +
+                                                "or --idleshutdownmethod=LogIdleProtected");
                         }
                         pipeline.LogInfo("will attempt to shutdown after {0} idle, shutdown method {1}",
                                          Fmt.HMS(lvopts.IdleShutdownSec * 1e3), lvopts.IdleShutdownMethod);
@@ -722,8 +725,8 @@ namespace OPS.Landform
 
         private void IdleShutdown()
         {
-            if (lvopts.IdleShutdownMethod == IdleShutdownMethod.None || shuttingDown ||
-                string.IsNullOrEmpty(selfEC2InstanceID))
+            if (lvopts.IdleShutdownMethod == IdleShutdownMethod.None || lvopts.IdleShutdownSec <= 0 ||
+                string.IsNullOrEmpty(selfEC2InstanceID) || shuttingDown)
             {
                 return;
             }
@@ -732,6 +735,30 @@ namespace OPS.Landform
             {
                 pipeline.LogInfo(LOG_IDLE_MSG);
                 shuttingDown = true;
+                return;
+            }
+
+            if (lvopts.IdleShutdownMethod == IdleShutdownMethod.LogIdleProtected)
+            {
+                try
+                {
+                    pipeline.LogInfo("disabling scale-in protection for instance {0} (self) in ASG {1}",
+                                     selfEC2InstanceID, lvopts.AutoScaleGroup);
+                    shuttingDown = computeHelper.SetInstanceProtection(lvopts.AutoScaleGroup, selfEC2InstanceID, false);
+                    if (shuttingDown)
+                    {
+                        pipeline.LogInfo(LOG_IDLE_MSG);
+                    }
+                    else
+                    {
+                        pipeline.LogError("failed to change scale-in protection");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    pipeline.LogException(ex, "creating client or disabling scale-in protection " +
+                                          $"for instance {selfEC2InstanceID} in ASG {lvopts.AutoScaleGroup}");
+                }
                 return;
             }
 
@@ -792,6 +819,28 @@ namespace OPS.Landform
             int maxAgeSec = GetMaxMessageAgeSec();
             int maxReceiveCount = GetMaxReceiveCount();
             pipeline.LogInfo("running service loop on queue {0}, throttle {1}ms", messageQueue.Name, throttleMS);
+
+            if (!string.IsNullOrEmpty(selfEC2InstanceID) && lvopts.IdleShutdownSec > 0 &&
+                lvopts.IdleShutdownMethod == IdleShutdownMethod.LogIdleProtected)
+            {
+                try
+                {
+                    //the ASG should probably be configured to launch the instance with scale-in protection enabled
+                    //that would avoid a race condition where the instance could get scheduled for termination
+                    //sometime between when it was booted and now (which can be like 5 min)
+                    pipeline.LogInfo("enabling scale-in protection for instance {0} (self) in ASG {1}",
+                                     selfEC2InstanceID, lvopts.AutoScaleGroup);
+                    if (!computeHelper.SetInstanceProtection(lvopts.AutoScaleGroup, selfEC2InstanceID, true))
+                    {
+                        pipeline.LogError("failed to change scale-in protection");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    pipeline.LogException(ex, "creating client or enabling scale-in protection " +
+                                          $"for instance {selfEC2InstanceID} in ASG {lvopts.AutoScaleGroup}");
+                }
+            }
 
             while (!shuttingDown)
             {
@@ -910,7 +959,7 @@ namespace OPS.Landform
                         {
                             idleStartSec = now;
                         }
-                        else if (selfEC2InstanceID != null && lvopts.IdleShutdownSec > 0 &&
+                        else if (!string.IsNullOrEmpty(selfEC2InstanceID) && lvopts.IdleShutdownSec > 0 &&
                                  lvopts.IdleShutdownMethod != IdleShutdownMethod.None)
                         {
                             double idleSec = now - idleStartSec;

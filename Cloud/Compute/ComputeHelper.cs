@@ -339,6 +339,37 @@ namespace OPS.Cloud
             return SetAutoScalingGroupSize(name, -1, size, -1);
         }
 
+        public bool SetInstanceProtection(string asgName, string instanceID, bool enabled)
+        {
+            string msg = (enabled ? "enabling" : "disabling") +
+                $" instance protection for instance {instanceID} in auto scale group {asgName}";
+            try
+            {
+                var req = new SetInstanceProtectionRequest();
+                req.AutoScalingGroupName = asgName;
+                req.InstanceIds = new List<string>() { instanceID };
+                req.ProtectedFromScaleIn = enabled;
+                if (logger != null)
+                {
+                    logger.LogVerbose(msg);
+                }
+                var resp = asClient.SetInstanceProtection(req);
+                if (resp.HttpStatusCode != HttpStatusCode.OK)
+                {
+                    throw new Exception($"HTTP {resp.HttpStatusCode}");
+                }
+                return true;
+            }
+            catch (Exception ex)
+            {
+                if (logger != null)
+                {
+                    logger.LogException(ex, msg);
+                }
+            }
+            return false;
+        }
+                
         public void Dispose()
         {
             if (ec2Client != null)
