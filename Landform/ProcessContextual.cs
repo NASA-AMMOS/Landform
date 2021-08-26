@@ -109,24 +109,24 @@ using OPS.Pipeline.AlignmentServer;
 ///
 /// By default no management of worker instances is performed.  It is possible to externally manage workers, e.g. by
 /// permanently or manually instantiating them, or with an AWS auto scale group configured to launch workers when SQS
-/// messages are available in their queue.  There are separate queues and thus separate worker pools for orbital-only vs
-/// regular contextual meshes.  Master option --autostartworkers enables one of several forms of active worker
-/// management.  If --[orbital]workerinstances is a list of one or more EC2 instance IDs or name patterns, the
+/// messages are available in the worker queues.  There are separate queues and thus separate worker pools for
+/// orbital-only vs regular contextual meshes.  Master option --autostartworkers enables one of several forms of active
+/// worker management.  If --[orbital]workerinstances is a list of one or more EC2 instance IDs or name patterns, the
 /// corresponding workers are started (if not already running) when messages are added to the corresponding queue.  If
 /// --[orbital]workerinstances is a string of the form asg:<name>[:<size>] then the desired number of instances in that
-/// autoscale group is set to the given size (default 1).  If --workerwatchdogsec is positive then an additional a
-/// watchdog timer is activated that ensures the workers are running (in the same way as above) whenever messages are
+/// autoscale group is set to the given size (default 1).  If --workerwatchdogsec is positive then an additional 
+/// watchdog timer is activated that ensures the workers are running (in the same way as above) while messages are
 /// available in the corresponding worker queue.  All of these options require permissions to perform the requisite
 /// actions on AWS instances and/or auto scale groups.
 ///
-/// The master never terminates or stops workers.  However, workers option --idleshutdownsec can be specified to enable
-/// workers to go into a (permanent) idle state after a certain amount of inactivity (no messages available).
+/// The master never terminates or stops workers.  However, worker option --idleshutdownsec can be specified to enable
+/// workers to go into a (permanent) idle state after a certain amount of inactivity (no messages available).  Option
 /// --idleshutdownmethod then specifies what happens:
 /// * None - no action, idle shutdown disabled (default)
 /// * StopInstance - AWS EC2 StopInstance API is called to stop the worker
 /// * StopInstanceOrShutdown - AWS EC2 StopInstance API is called to stop the worker, but if that fails, the worker
 ///   requests its OS to shutdown
-/// * ScaleToZero - AWS auto scale API is called to set desired instances to 0 in the auto scale group named by
+/// * ScaleToZero - AWS auto scale API is called to set desired instances to 0 in the auto scale group named by option
 ///   --autoscalegroup
 /// * LogIdle - The message "service idle, shutdown requested" is printed to the log.  This may then be detected by a
 ///   custom AWS log metric, which may then trigger a CloudWatch alarm, which may then trigger a scale-in of an

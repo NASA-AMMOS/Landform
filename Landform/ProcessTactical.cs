@@ -57,12 +57,12 @@ using OPS.Pipeline.AlignmentServer;
 /// * a stats file PRODUCT_ID/PRODUCT_ID_stats.txt.
 ///
 /// See comments at the top of ProcessContextual.cs regarding idle shutdown of workers.  There is no built-in mechanism
-/// to start workers.  An auto scale group may be used to instantiate workers as SQS messages become available in the
-/// tactical mesh input queue.  The --idleshutdownsec and --idleshutdownmethod=LogIdleProtected options can be used to
-/// put workers into an idle state when no messages are available, and the autoscale group can be configured to scale
-/// down when seeing "service idle, shutdown requested" in the worker logs.  The ASG should be configured to launch
-/// workers with scale-in protection enabled to avoid a race condition between worker boot and start of Landform code,
-/// which can be about 5 minutes.
+/// to start workers, however, an auto scale group may be used to instantiate workers when SQS messages are available in
+/// the tactical mesh input queue.  The --idleshutdownsec and --idleshutdownmethod=LogIdleProtected options can be used
+/// to put workers into an idle state when no messages are available, and the autoscale group can be configured to scale
+/// down when seeing "service idle, shutdown requested" in the worker logs.  In that case the ASG should be configured
+/// to launch workers with scale-in protection enabled to avoid a race condition between worker boot and start of
+/// Landform code, which can be about 5 minutes.
 ///
 /// * Run as service:
 ///
