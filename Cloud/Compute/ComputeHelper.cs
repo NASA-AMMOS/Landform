@@ -336,7 +336,7 @@ namespace OPS.Cloud
 
         public bool SetAutoScalingGroupSize(string name, int size)
         {
-            return SetAutoScalingGroupSize(name, size, size, size);
+            return SetAutoScalingGroupSize(name, -1, size, -1);
         }
 
         public void Dispose()
