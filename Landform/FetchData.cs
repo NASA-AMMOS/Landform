@@ -1350,6 +1350,7 @@ namespace OPS.Landform
             var sw = Stopwatch.StartNew();
             var po = new ParallelOptions() { MaxDegreeOfParallelism = maxBatch };
             int np = 0, total = batch.Count, done = 0, failed = 0;
+            long batchStartBytes = downloadedBytes;
             CoreLimitedParallel.ForEach(batch, po, url =>
             {
                 Interlocked.Increment(ref np);
@@ -1367,9 +1368,9 @@ namespace OPS.Landform
                 }
                 if (!options.DryRun)
                 {
-                    long db = Interlocked.Read(ref downloadedBytes);
+                    long db = Interlocked.Read(ref downloadedBytes) - batchStartBytes;
                     double ts = 0.001 * sw.ElapsedMilliseconds;
-                    string msg = string.Format("{0:f2}% {1}/{2} {3}/s: ({4} active downloads) {5} {6}",
+                    string msg = string.Format("batch {0:f2}% {1}/{2} {3}/s: ({4} active downloads) {5} {6}",
                                                (done + failed) * 100.0 / total,
                                                Fmt.DiskBytes(db), Fmt.DiskBytes(batchBytes), Fmt.DiskBytes(db / ts),
                                                np, bytes >= 0 ? "downloaded" : "failed to download", url);
@@ -1385,9 +1386,10 @@ namespace OPS.Landform
             });
             sw.Stop();
 
-            logger.InfoFormat("downloaded {0} bytes, {1} files, {2} failed, total time {3}, {4}/s",
-                              Fmt.DiskBytes(downloadedBytes), done, failed, Fmt.HMS(sw),
-                              Fmt.DiskBytes(downloadedBytes / (0.001 * sw.ElapsedMilliseconds)));
+            long dbc = downloadedBytes - batchStartBytes;
+            logger.InfoFormat("batch complete, downloaded {0} bytes, {1} files, {2} failed, elapsed time {3}, {4}/s",
+                              Fmt.DiskBytes(dbc), done, failed, Fmt.HMS(sw),
+                              Fmt.DiskBytes(dbc / (0.001 * sw.ElapsedMilliseconds)));
 
             AccountDownloads(newLocalFiles.Values.Select(path => new FileInfo(path)));
         }
@@ -1536,7 +1538,7 @@ namespace OPS.Landform
                     RunSearch();
                 }
 
-                logger.InfoFormat("downloaded {0} files ({1} bytes), total time: {2}",
+                logger.InfoFormat("total downloaded {0} files ({1} bytes), total time: {2}",
                                   Fmt.DiskBytes(downloadedFiles), Fmt.DiskBytes(downloadedBytes), Fmt.HMS(stopwatch));
             }
             catch (Exception ex)
