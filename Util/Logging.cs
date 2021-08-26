@@ -184,6 +184,33 @@ namespace OPS.Util
         public static void ConfigureLogging(string commandName = null, bool quiet = false, bool debug = false,
                                             string logFilename = null, string logDir = null)
         {
+            if (!string.IsNullOrEmpty(logFilename) && StringHelper.NormalizeSlashes(logFilename).IndexOf('/') >= 0)
+            {
+                throw new Exception(string.Format("log filename must not contain directory, got \"{0}\"", logFilename));
+            }
+
+            //we started sometimes getting 
+            //System.TypeInitializationException: The type initializer for 'Amazon.AWSConfigs' threw an exception.
+            //System.Runtime.InteropServices.COMException: Catastrophic failure
+            //at System.Security.Policy.PEFileEvidenceFactory.GetLocationEvidence(...)
+            //...
+            //at System.Configuration.ClientConfigPaths.GetEvidenceInfo(...)
+            //...
+            //at System.Configuration.ConfigurationManager.GetSection(String sectionName)
+            //at Amazon.AWSConfigs.GetSection[T](String sectionName)
+            //at Amazon.AWSConfigs..cctor()
+            //
+            //workaround from https://stackoverflow.com/a/15759103
+            try
+            {
+                System.Configuration.ConfigurationManager.GetSection("dummy");
+            }
+            catch (Exception)
+            {
+                //ignore
+            }
+            //also see the end of this function for another workaround
+
             if (string.IsNullOrEmpty(commandName))
             {
                 var exe = PathHelper.GetExe();
@@ -206,11 +233,22 @@ namespace OPS.Util
             //then one effect is that we can get get extra log files on disk
             //because each call can create a log file with a different timestamp in the filename
             //note that we want to configure from xml first to get the default log filename
-            //below we might change that entirely or we might only change the directory
+            //below we might change that entirely or we might only change the directory or prefix
             if (!didConfig)
             {
                 log4net.Config.XmlConfigurator.Configure();
                 didConfig = true;
+            }
+
+            if (logFilename != null && logFilename.Contains(":"))
+            {
+                string[] parts = StringHelper.ParseList(logFilename, ':');
+                if (parts.Length != 2)
+                {
+                    throw new Exception("custom log filename contains : but not in form <orig>:<new>");
+                }
+                string orig = Path.GetFileName(GetLogFile());
+                logFilename = orig.Replace(parts[0], parts[1]);
             }
 
             string logFile = null;
@@ -313,6 +351,18 @@ namespace OPS.Util
                         ca.ActivateOptions();
                     }
                 }
+            }
+
+            //see comments at top of function
+            //https://stackoverflow.com/a/49777426
+            try
+            {
+                System.Runtime.Remoting.Messaging.CallContext
+                    .FreeNamedDataSlot("log4net.Util.LogicalThreadContextProperties");
+            }
+            catch (Exception)
+            {
+                //ignore
             }
         }
     }

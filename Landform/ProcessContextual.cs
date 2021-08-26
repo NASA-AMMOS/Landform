@@ -48,9 +48,15 @@ using OPS.Pipeline.AlignmentServer;
 ///
 /// Also see ProcessTactical.cs and process-tactical.sh which automate the tactical mesh tileset workflow.
 ///
+/// ProcessContextual only works with OPGS product IDs.  To work with e.g. MSSS product IDs for MSL, use
+/// process-contextual.sh or manually run the pipeline.
+///
 /// A contextual mesh is generated for a specific primary sol and primary sitedrive.  It combines data from a set of
-/// sols and sitedrives (which must contain the primary sol/sitedrive), as well as orbital assets if available.  (Note
-/// PlacesDB is also required to include orbital in contextual meshes.)
+/// sols and sitedrives (which must contain the primary sol/sitedrive), as well as orbital assets if available.
+/// PlacesDB is required to combine orbital and surface data.
+///
+/// Orbital-only contextual meshes, i.e. "orbital meshes", can be created by specifying --nosurface and/or by setting a
+/// corresponding flag in incoming messages when running as a service.
 ///
 /// When run as a command line tool the sols and sitedrives to use are given by the --sols and --sitedrives options,
 /// where the first listed sol and sitedrive are primary.  When run as a service they are included in the SQS messages.
@@ -74,7 +80,9 @@ using OPS.Pipeline.AlignmentServer;
 /// with rdr/tileset/TTTT_SSSDDDD.
 ///
 /// When run as a service the RDR directory is also given as part of each SQS message.  Thus, the service will write the
-/// tilesets back to the same RDR tree as the source RDRs, but under the rdr/tileset subdirectory.
+/// tilesets back to the same RDR tree as the source RDRs, but under the rdr/tileset subdirectory. (If the source bucket
+/// is in the list of --readonlybuckets then the generated tileset will be written to the alternate location given by
+/// --readonlybucketaltdest.)
 ///
 /// The tileset will contain
 /// * one .b3dm file per tile
@@ -96,10 +104,35 @@ using OPS.Pipeline.AlignmentServer;
 /// between sitedrives, it may then produce one or more contextual mesh messages based on various parameters which limit
 /// the minimum size of a sitedrive for which a contextual mesh is built, the maximum range of sols for which to include
 /// adjacent sitedrives, the maximum distance for adjacent sitedrives, and the maximum number of wedges to include in a
-/// contextual mesh.  If PlacesDB is not available then contextual meshes will only be built for single sitedrives.
+/// contextual mesh.  If PlacesDB is not available then contextual meshes will only be built for single sitedrives, and
+/// cannot combine both orbital and surface data.
 ///
-/// ProcessContextual only works with OPGS product IDs.  To work with e.g. MSSS product IDs for MSL, use
-/// process-contextual.sh or manually run the pipeline.
+/// By default no management of worker instances is performed.  It is possible to externally manage workers, e.g. by
+/// permanently or manually instantiating them, or with an AWS auto scale group configured to launch workers when SQS
+/// messages are available in the worker queues.  There are separate queues and thus separate worker pools for
+/// orbital-only vs regular contextual meshes.  Master option --autostartworkers enables one of several forms of active
+/// worker management.  If --[orbital]workerinstances is a list of one or more EC2 instance IDs or name patterns, the
+/// corresponding workers are started (if not already running) when messages are added to the corresponding queue.  If
+/// --[orbital]workerinstances is a string of the form asg:<name>[:<size>] then the desired number of instances in that
+/// autoscale group is set to the given size (default 1).  If --workerwatchdogsec is positive then an additional 
+/// watchdog timer is activated that ensures the workers are running (in the same way as above) while messages are
+/// available in the corresponding worker queue.  All of these options require permissions to perform the requisite
+/// actions on AWS instances and/or auto scale groups.
+///
+/// The master never terminates or stops workers.  However, worker option --idleshutdownsec can be specified to enable
+/// workers to go into a (permanent) idle state after a certain amount of inactivity (no messages available).  Option
+/// --idleshutdownmethod then specifies what happens:
+/// * None - no action, idle shutdown disabled (default)
+/// * StopInstance - AWS EC2 StopInstance API is called to stop the worker
+/// * StopInstanceOrShutdown - AWS EC2 StopInstance API is called to stop the worker, but if that fails, the worker
+///   requests its OS to shutdown
+/// * ScaleToZero - AWS auto scale API is called to set desired instances to 0 in the auto scale group named by option
+///   --autoscalegroup
+/// * LogIdle - The message "service idle, shutdown requested" is printed to the log.  This may then be detected by a
+///   custom AWS log metric, which may then trigger a CloudWatch alarm, which may then trigger a scale-in of an
+///   autoscale group.
+/// * LogIdleProtected - Same as LogIdle, but the AWS EC2 API is used to enable scale-in protection at worker start, and
+///   disable it when the worker becomes idle.
 ///
 /// * Run as service:
 ///
@@ -294,10 +327,10 @@ namespace OPS.Landform
         [Option(Default = ProcessContextual.DEF_WORKER_WATCHDOG_SEC, HelpText = "Period in seconds of worker auto-start watchdog, non-positive to disable watchdog")]
         public int WorkerWatchdogSec { get; set; }
 
-        [Option(Default = null, HelpText = "Comma separated list of contextual worker EC2 instance ids (starting with \"i-\"), instance names, instance name wildcard patterns, or \"asg:<name>\" to use an auto scaling group")]
+        [Option(Default = null, HelpText = "Comma separated list of contextual worker EC2 instance ids (starting with \"i-\"), instance names, instance name wildcard patterns, or \"asg:<name>[:<size>]\" to use an auto scaling group (size defaults to 1)")]
         public string WorkerInstances { get; set; }
 
-        [Option(Default = null, HelpText = "Comma separated list of orbital worker EC2 instance ids (starting with \"i-\"), instance names, or instance name wildcard patterns, or \"asg:<name>\" to use an auto scaling group")]
+        [Option(Default = null, HelpText = "Comma separated list of orbital worker EC2 instance ids (starting with \"i-\"), instance names, or instance name wildcard patterns, or \"asg:<name>[:<size>]\" to use an auto scaling group (size defaults to 1)")]
         public string OrbitalWorkerInstances { get; set; }
     }
 
@@ -615,8 +648,7 @@ namespace OPS.Landform
                     {
                         eopTimestamp = (long)UTCTime.NowMS();
                     }
-                    pipeline.LogInfo("received EOP message \"{0}\" at {1}",
-                                     ((EOPMessage)msg).eop, Fmt.HMS(eopTimestamp));
+                    pipeline.LogInfo("received EOP message \"{0}\"", ((EOPMessage)msg).eop.Trim());
                     return true; //successfully processed, remove message from queue
                 }
                 string url = StringHelper.NormalizeUrl(GetUrlFromMessage(msg)); 
@@ -818,7 +850,8 @@ namespace OPS.Landform
             {
                 if (patterns.Length > 1)
                 {
-                    throw new Exception(string.Format("invalid option for {0}, \"asg:<name>\" must be alone: {1}",
+                    throw new Exception(string.Format("invalid option for {0}, " +
+                                                      "\"asg:<name>[:<size>]\" must be alone: {1}",
                                                       what, String.Join(", ", patterns)));
                 }
                 ret.Add(patterns[0]);
@@ -889,9 +922,30 @@ namespace OPS.Landform
             return null;
         }
 
-        protected override string GetLogFilePrefix()
+        protected override string GetSubcommandLogFile()
         {
-            return "log-Landform-process-contextual";
+            string lf = Logging.GetLogFile();
+            string bn = Path.GetFileNameWithoutExtension(lf);
+            string ext = Path.GetExtension(lf);
+
+            if (bn.Contains("process-contextual"))
+            {
+                bn = bn.Replace("process-contextual", "process-contextual-subcommands");
+            }
+            else if (bn.Contains("contextual-service"))
+            {
+                bn = bn.Replace("contextual-service", "contextual-subcommands");
+            }
+            else if (bn.Contains("contextual-master"))
+            {
+                bn = bn.Replace("contextual-master", "contextual-master-subcommands");
+            }
+            else
+            {
+                bn = bn + "-subcommands";
+            }
+
+            return bn + ext;
         }
 
         protected override string GetSubcommandConfigFolder()
@@ -2269,7 +2323,22 @@ namespace OPS.Landform
                     string asg = instances[0].Substring(4);
                     try
                     {
-                        if (!computeHelper.SetAutoScalingGroupSize(asg, 1))
+                        int size = 1;
+                        if (asg.Contains(":"))
+                        {
+                            string[] split = StringHelper.ParseList(asg, ':');
+                            if (split.Length == 2)
+                            {
+                                asg = split[0];
+                                size = int.Parse(split[1]); //throws exception if not an int
+                            }
+                            else
+                            {
+                                throw new Exception($"invalid format, expected asg:<name>:<size>, got \"asg:{asg}\"");
+                            }
+                        }
+                        pipeline.LogInfo("setting auto scaling group {0} to {1} desired instances", asg, size);
+                        if (!computeHelper.SetAutoScalingGroupSize(asg, size))
                         {
                             pipeline.LogError("failed to scale up {0}", asg);
                         }

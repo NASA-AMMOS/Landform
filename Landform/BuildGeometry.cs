@@ -604,7 +604,11 @@ namespace OPS.Landform
                     
                 var pc = obs.BuildPointCloud(pipeline, frameCache, masker, mo);
 
-                if (pc != null)
+                //even though we required UVW products when we collected wedge observations
+                //there might still be no valid normals after masking & filtering
+                //and that shows up here as a pointcloud with no normals
+
+                if (pc != null && pc.HasNormals)
                 {
                     int nv = pc.Vertices.Count;
 
@@ -656,6 +660,12 @@ namespace OPS.Landform
                         pipeline.LogWarn("no points for observation {0}", ptsName);
                         Interlocked.Increment(ref nf);
                     }
+                }
+                else if (pc != null)
+                {
+                    pipeline.LogWarn("no valid normals in pointcloud for observation {0} ({1} points)",
+                                     ptsName, Fmt.KMG(pc.Vertices.Count));
+                    Interlocked.Increment(ref nf);
                 }
                 else
                 {

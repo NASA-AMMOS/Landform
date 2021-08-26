@@ -1,0 +1,104 @@
+{
+  "agent": {
+    "metrics_collection_interval": 60,
+      "logfile": "c:\\ProgramData\\Amazon\\AmazonCloudWatchAgent\\Logs\\amazon-cloudwatch-agent.log"
+    },
+  "logs": {          
+    "log_stream_name": "{instance_id}",   
+     "logs_collected": {
+      "files": {
+        "collect_list": [
+          {
+            "file_path": "c:\\ProgramData\\Amazon\\AmazonCloudWatchAgent\\Logs\\amazon-cloudwatch-agent.log",
+            "log_group_name": "landform-amazon-cloudwatch-agent-logs",
+            "timezone": "UTC"
+          },
+          {
+            "file_path": "c:\\log\\landform-contextual\\log-Landform-contextual-service*",
+            "log_group_name": "landform-contextual-worker-service-logs",
+            "timezone": "UTC"
+          },
+          {
+            "file_path": "c:\\log\\landform-contextual-master\\log-Landform-contextual-master*",
+            "log_group_name": "landform-contextual-master-service-logs",
+            "timezone": "UTC"
+          },
+          {
+            "file_path": "c:\\log\\landform-tactical\\log-Landform-tactical-service*",
+            "log_group_name": "landform-tactical-worker-service-logs",
+            "timezone": "UTC"
+          },
+          {
+            "file_path": "c:\\log\\landform-orbital\\log-Landform-contextual-service*",
+            "log_group_name": "landform-orbital-worker-service-logs",
+            "timezone": "UTC"
+          },
+          {
+            "file_path": "c:\\log\\landform-contextual\\log-Landform-contextual-subcommands*",
+            "log_group_name": "landform-contextual-worker-subcommands-logs",
+            "timezone": "UTC"
+          },
+          {
+            "file_path": "c:\\log\\landform-contextual-master\\log-Landform-contextual-master-subcommands*",
+            "log_group_name": "landform-contextual-master-subcommands-logs",
+            "timezone": "UTC"
+          },
+          {
+            "file_path": "c:\\log\\landform-tactical\\log-Landform-tactical-subcommands*",
+            "log_group_name": "landform-tactical-worker-subcommands-logs",
+            "timezone": "UTC"
+          },
+          {
+            "file_path": "c:\\log\\landform-orbital\\log-Landform-contextual-subcommands*",
+            "log_group_name": "landform-orbital-worker-subcommands-logs",
+            "timezone": "UTC"
+          },
+          {
+            "file_path": "c:\\log\\landform-contextual\\log-Landform-configure*",
+            "log_group_name": "landform-contextual-worker-configure-logs",
+            "timezone": "UTC"
+          },
+          {
+            "file_path": "c:\\log\\landform-contextual-master\\log-Landform-configure*",
+            "log_group_name": "landform-contextual-master-configure-logs",
+            "timezone": "UTC"
+          },
+          {
+            "file_path": "c:\\log\\landform-tactical\\log-Landform-configure*",
+            "log_group_name": "landform-tactical-worker-configure-logs",
+            "timezone": "UTC"
+          },
+          {
+            "file_path": "c:\\log\\landform-orbital\\log-Landform-configure*",
+            "log_group_name": "landform-orbital-worker-configure-logs",
+            "timezone": "UTC"
+          }          
+        ]
+      }
+  }
+},
+"metrics": {
+"namespace": "AWS/EC2",
+  "metrics_collected": {
+  "Memory": {
+    "metrics_collection_interval": 60,
+    "measurement": [
+      {"name": "Available MBytes", "unit": "Megabytes"},
+      "% Committed Bytes In Use"
+     ]
+   },
+  "LogicalDisk": {
+    "metrics_collection_interval": 60,
+    "measurement": [
+      {"name": "% Free Space", "unit": "Percent"}
+    ],
+    "resources": [
+      "C:"
+    ]
+  }
+ },   
+ "append_dimensions": {
+  "InstanceId": "${aws:InstanceId}"
+  }
+ }
+}

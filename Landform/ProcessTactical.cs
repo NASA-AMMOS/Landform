@@ -56,16 +56,24 @@ using OPS.Pipeline.AlignmentServer;
 /// * a manifest file PRODUCT_ID/PRODUCT_ID_scene.json with relative URLs
 /// * a stats file PRODUCT_ID/PRODUCT_ID_stats.txt.
 ///
-/// Run as service:
+/// See comments at the top of ProcessContextual.cs regarding idle shutdown of workers.  There is no built-in mechanism
+/// to start workers, however, an auto scale group may be used to instantiate workers when SQS messages are available in
+/// the tactical mesh input queue.  The --idleshutdownsec and --idleshutdownmethod=LogIdleProtected options can be used
+/// to put workers into an idle state when no messages are available, and the autoscale group can be configured to scale
+/// down when seeing "service idle, shutdown requested" in the worker logs.  In that case the ASG should be configured
+/// to launch workers with scale-in protection enabled to avoid a race condition between worker boot and start of
+/// Landform code, which can be about 5 minutes.
+///
+/// * Run as service:
 ///
 /// Landform.exe process-tactical --service --mission=M2020 \
 ///     --queuename=landform-tactical --failqueuename=landform-tactical-fail
 ///
-/// Run on all M2020 wedge mesh RDRs in the local tree ../rdrs, writing results to the current working directory:
+/// * Run on all M2020 wedge mesh RDRs in the local tree ../rdrs, writing results to the current working directory:
 ///
 /// Landform.exe process-tactical --mission=M2020 --inputpath=../rdrs --recursivesearch --outputfolder=.
 ///
-/// Manually process all tactical wedges under s3://m20-ids-g-data-g66bt/ods/dev/sol/, uploading results:
+/// * Manually process all tactical wedges under s3://m20-ids-g-data-g66bt/ods/dev/sol/, uploading results:
 ///
 /// Landform.exe process-tactical --mission=M2020 --inputpath=s3://m20-ids-g-data-g66bt/ods/dev/sol/ --recursivesearch
 ///
@@ -407,9 +415,26 @@ namespace OPS.Landform
             return null;
         }
 
-        protected override string GetLogFilePrefix()
+        protected override string GetSubcommandLogFile()
         {
-            return "log-Landform-process-tactical";
+            string lf = Logging.GetLogFile();
+            string bn = Path.GetFileNameWithoutExtension(lf);
+            string ext = Path.GetExtension(lf);
+
+            if (bn.Contains("process-tactical"))
+            {
+                bn = bn.Replace("process-tactical", "process-tactical-subcommands");
+            }
+            else if (bn.Contains("tactical-service"))
+            {
+                bn = bn.Replace("tactical-service", "tactical-subcommands");
+            }
+            else
+            {
+                bn = bn + "-subcommands";
+            }
+
+            return bn + ext;
         }
 
         protected override string GetSubcommandConfigFolder()

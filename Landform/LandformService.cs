@@ -19,7 +19,8 @@ namespace OPS.Landform
 {
     public enum MessageType { Generic, S3Event, SNSWrappedS3Event }
 
-    public enum IdleShutdownMethod { None, StopInstance, Shutdown, StopInstanceOrShutdown, ScaleToZero, LogIdle }
+    public enum IdleShutdownMethod
+    { None, StopInstance, Shutdown, StopInstanceOrShutdown, ScaleToZero, LogIdle, LogIdleProtected }
 
     public class LandformServiceOptions : LandformShellOptions
     {
@@ -89,7 +90,7 @@ namespace OPS.Landform
         [Option(Default = IdleShutdownMethod.None, HelpText = "When running as EC2 instance use this method to shutdown after idle time exceeded")]
         public IdleShutdownMethod IdleShutdownMethod { get; set; }
 
-        [Option(Default = null, HelpText = "EC2 auto scale group name, required with --idleshutdownmethod=ScaleToZero")]
+        [Option(Default = null, HelpText = "EC2 auto scale group name, required with --idleshutdownmethod=ScaleToZero or --idleshutdownmethod=LogIdleProtected")]
         public string AutoScaleGroup { get; set; }
     }
     
@@ -122,6 +123,9 @@ namespace OPS.Landform
         //one case is if workers actually spend more than an hour in aggegate trying to process the message,
         //making fewer than 10 total attempts, but always fail
         public const int DEF_MAX_RECEIVE_COUNT = 10;
+
+        //ASG scale down trigger may watch for this text
+        public const string LOG_IDLE_MSG = "service idle, shutdown requested";
 
         protected LandformServiceOptions lvopts;
 
@@ -333,12 +337,14 @@ namespace OPS.Landform
                 {
                     if (!string.IsNullOrEmpty(selfEC2InstanceID))
                     {
-                        if (lvopts.IdleShutdownMethod == IdleShutdownMethod.ScaleToZero &&
+                        if ((lvopts.IdleShutdownMethod == IdleShutdownMethod.ScaleToZero ||
+                             lvopts.IdleShutdownMethod == IdleShutdownMethod.LogIdleProtected) &&
                             string.IsNullOrEmpty(lvopts.AutoScaleGroup))
                         {
-                            throw new Exception("--autoscalegroup required with --idleshutdownmethod=ScaleToZero");
+                            throw new Exception("--autoscalegroup required with --idleshutdownmethod=ScaleToZero " +
+                                                "or --idleshutdownmethod=LogIdleProtected");
                         }
-                        pipeline.LogWarn("will attempt to shutdown after {0} idle, shutdown method {1}",
+                        pipeline.LogInfo("will attempt to shutdown after {0} idle, shutdown method {1}",
                                          Fmt.HMS(lvopts.IdleShutdownSec * 1e3), lvopts.IdleShutdownMethod);
                     }
                     else
@@ -719,16 +725,43 @@ namespace OPS.Landform
 
         private void IdleShutdown()
         {
-            if (lvopts.IdleShutdownMethod == IdleShutdownMethod.None || shuttingDown ||
-                string.IsNullOrEmpty(selfEC2InstanceID))
+            if (lvopts.IdleShutdownMethod == IdleShutdownMethod.None || lvopts.IdleShutdownSec <= 0 ||
+                string.IsNullOrEmpty(selfEC2InstanceID) || shuttingDown)
             {
                 return;
             }
 
             if (lvopts.IdleShutdownMethod == IdleShutdownMethod.LogIdle)
             {
-                pipeline.LogInfo("service idle, shutdown requested"); // ASG scale down trigger may watch for this text
+                pipeline.LogInfo("{0} for instance {1}{2}", LOG_IDLE_MSG, selfEC2InstanceID,
+                                 !string.IsNullOrEmpty(lvopts.AutoScaleGroup) ?
+                                 (" in ASG " + lvopts.AutoScaleGroup) : "");
                 shuttingDown = true;
+                return;
+            }
+
+            if (lvopts.IdleShutdownMethod == IdleShutdownMethod.LogIdleProtected)
+            {
+                try
+                {
+                    pipeline.LogInfo("disabling scale-in protection for instance {0} (self) in ASG {1}",
+                                     selfEC2InstanceID, lvopts.AutoScaleGroup);
+                    shuttingDown = computeHelper.SetInstanceProtection(lvopts.AutoScaleGroup, selfEC2InstanceID, false);
+                    if (shuttingDown)
+                    {
+                        pipeline.LogInfo("{0} for instance {1} in ASG {2}",
+                                         LOG_IDLE_MSG, selfEC2InstanceID, lvopts.AutoScaleGroup);
+                    }
+                    else
+                    {
+                        pipeline.LogError("failed to change scale-in protection");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    pipeline.LogException(ex, "creating client or disabling scale-in protection " +
+                                          $"for instance {selfEC2InstanceID} in ASG {lvopts.AutoScaleGroup}");
+                }
                 return;
             }
 
@@ -789,6 +822,28 @@ namespace OPS.Landform
             int maxAgeSec = GetMaxMessageAgeSec();
             int maxReceiveCount = GetMaxReceiveCount();
             pipeline.LogInfo("running service loop on queue {0}, throttle {1}ms", messageQueue.Name, throttleMS);
+
+            if (!string.IsNullOrEmpty(selfEC2InstanceID) && lvopts.IdleShutdownSec > 0 &&
+                lvopts.IdleShutdownMethod == IdleShutdownMethod.LogIdleProtected)
+            {
+                try
+                {
+                    //the ASG should probably be configured to launch the instance with scale-in protection enabled
+                    //that would avoid a race condition where the instance could get scheduled for termination
+                    //sometime between when it was booted and now (which can be like 5 min)
+                    pipeline.LogInfo("enabling scale-in protection for instance {0} (self) in ASG {1}",
+                                     selfEC2InstanceID, lvopts.AutoScaleGroup);
+                    if (!computeHelper.SetInstanceProtection(lvopts.AutoScaleGroup, selfEC2InstanceID, true))
+                    {
+                        pipeline.LogError("failed to change scale-in protection");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    pipeline.LogException(ex, "creating client or enabling scale-in protection " +
+                                          $"for instance {selfEC2InstanceID} in ASG {lvopts.AutoScaleGroup}");
+                }
+            }
 
             while (!shuttingDown)
             {
@@ -907,7 +962,7 @@ namespace OPS.Landform
                         {
                             idleStartSec = now;
                         }
-                        else if (selfEC2InstanceID != null && lvopts.IdleShutdownSec > 0 &&
+                        else if (!string.IsNullOrEmpty(selfEC2InstanceID) && lvopts.IdleShutdownSec > 0 &&
                                  lvopts.IdleShutdownMethod != IdleShutdownMethod.None)
                         {
                             double idleSec = now - idleStartSec;
@@ -927,12 +982,12 @@ namespace OPS.Landform
                                     if (now - lastIdleShutdownWarnSec > 60)
                                     {
                                         lastIdleShutdownWarnSec = now;
-                                        pipeline.LogWarn("EC2 instance {0} (self) idle for {1} >= {2}, " +
-                                                         //ASG scale down logic may watch for this text
-                                                         "service idle, shutdown requested" +
-                                                         " but still running",
-                                                         selfEC2InstanceID, Fmt.HMS(idleSec * 1e3),
-                                                         Fmt.HMS(lvopts.IdleShutdownSec * 1e3));
+                                        pipeline.LogWarn("{0} for instance {1}{2}, " +
+                                                         "idle for {3} >= {4} but still running",
+                                                         LOG_IDLE_MSG, selfEC2InstanceID,
+                                                         !string.IsNullOrEmpty(lvopts.AutoScaleGroup) ?
+                                                         (" in ASG " + lvopts.AutoScaleGroup) : "",
+                                                         Fmt.HMS(idleSec * 1e3), Fmt.HMS(lvopts.IdleShutdownSec * 1e3));
                                     }
                                 }
                             }

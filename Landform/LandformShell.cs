@@ -129,6 +129,12 @@ namespace OPS.Landform
 
         [Option(HelpText = "Use default AWS profile (vs profile from credential refresh) for EC2 client", Default = false)]
         public bool UseDefaultAWSProfileForEC2Client { get; set; }
+
+        [Option(HelpText = "Comma separated list of input S3 buckets (or bucket/path) that should be treated as read-only, also requires --readonlybucketaltdest", Default = null)]
+        public string ReadonlyBuckets { get; set; }
+
+        [Option(HelpText = "S3 bucket or bucket/path that should be used for output when input came from a readonly bucket, also requires --readonlybuckets", Default = null)]
+        public string ReadonlyBucketAltDest { get; set; }
     }
 
     public abstract class LandformShell : LandformCommand
@@ -249,6 +255,16 @@ namespace OPS.Landform
                 return false; //help or invalid
             }
 
+            if (string.IsNullOrEmpty(lsopts.ReadonlyBuckets) != string.IsNullOrEmpty(lsopts.ReadonlyBucketAltDest))
+            {
+                throw new Exception("--readonlybuckets and --readonlybucketaltdest must be specified together");
+            }
+            if (!string.IsNullOrEmpty(lsopts.ReadonlyBuckets))
+            {
+                pipeline.LogInfo("buckets that will be treated as readonly: {0}, alt dest {1}",
+                                 lsopts.ReadonlyBuckets, lsopts.ReadonlyBucketAltDest);
+            }
+
             project = GetProject();
             if (project != null)
             {
@@ -293,26 +309,13 @@ namespace OPS.Landform
             pipeline.LogInfo("AWS credential refresh: {0}",
                              credentialRefreshSec > 0 ? Fmt.HMS(credentialRefreshSec * 1e3) : "disabled");
 
-            string logFile = Logging.GetLogFile();
-            string logPrefix = GetLogFilePrefix();
-            if (logFile.IndexOf(logPrefix) >= 0)
-            {
-                subcommandLogFile = logFile.Replace(logPrefix, logPrefix + "-subcommands");
-            }
-            else
-            {
-                subcommandLogFile = Path.Combine(Path.GetDirectoryName(logFile),
-                                                 Path.GetFileNameWithoutExtension(logFile) + "-subcommands" +
-                                                 Path.GetExtension(logFile));
-            }
-            subcommandLogFile = StringHelper.NormalizeSlashes(subcommandLogFile);
-            pipeline.LogInfo("subcommand log file: {0}", subcommandLogFile);
-
+            subcommandLogFile = GetSubcommandLogFile();
             subcommandConfigFolder = GetSubcommandConfigFolder();
             subcommandConfigFile = Path.Combine(Config.GetConfigDir(), subcommandConfigFolder,
                                                 pipeline.Config.ConfigFileName() + ".json");
             subcommandConfigFolder = StringHelper.NormalizeSlashes(subcommandConfigFolder);
             subcommandConfigFile = StringHelper.NormalizeSlashes(subcommandConfigFile);
+            pipeline.LogInfo("subcommand log file: {0}", subcommandLogFile);
             pipeline.LogInfo("subcommand config file: {0}", subcommandConfigFile);
 
             return true;
@@ -345,7 +348,7 @@ namespace OPS.Landform
             computeHelper = null;
         }
 
-        protected abstract string GetLogFilePrefix();
+        protected abstract string GetSubcommandLogFile();
 
         protected abstract string GetSubcommandConfigFolder();
         
@@ -538,7 +541,8 @@ namespace OPS.Landform
                     { "--configdir", StringHelper.NormalizeSlashes(Config.GetConfigDir()) },
                     { "--configfolder", subcommandConfigFolder },
                     { "--tempdir", StringHelper.NormalizeSlashes(lsopts.TempDir) },
-                    { "--logfile", subcommandLogFile }, //already handles --logdir
+                    { "--logdir", StringHelper.NormalizeSlashes(lsopts.LogDir) },
+                    { "--logfile", subcommandLogFile },
                     { "--usermasksdirectory", pipeline.UserMasksDirectory}
                 };
             foreach (var entry in stdArgs)
@@ -674,7 +678,19 @@ namespace OPS.Landform
                     break;
                 }
             }
-            return (rdrIdx >= 0 ? inputFolder.Substring(0, rdrIdx + rdrSegLength) : inputFolder) + TILESET_SUBDIR;
+            string ret = (rdrIdx >= 0 ? inputFolder.Substring(0, rdrIdx + rdrSegLength) : inputFolder) + TILESET_SUBDIR;
+            foreach (string rb in StringHelper.ParseList(lsopts.ReadonlyBuckets))
+            {
+                if (ret.StartsWith("s3://" + StringHelper.EnsureTrailingSlash(StringHelper.NormalizeSlashes(rb))))
+                {
+                    ret = "s3://" +
+                        StringHelper.EnsureTrailingSlash(StringHelper.NormalizeSlashes(lsopts.ReadonlyBucketAltDest))
+                        + ret.Substring(5);
+                    pipeline.LogInfo("readonly bucket {0}, using output folder {1}", rb, ret);
+                    break;
+                }
+            }
+            return ret;
         }
 
         protected void AddTilingArgs(List<string> args)
