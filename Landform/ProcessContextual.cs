@@ -615,8 +615,7 @@ namespace OPS.Landform
                     {
                         eopTimestamp = (long)UTCTime.NowMS();
                     }
-                    pipeline.LogInfo("received EOP message \"{0}\" at {1}",
-                                     ((EOPMessage)msg).eop, Fmt.HMS(eopTimestamp));
+                    pipeline.LogInfo("received EOP message \"{0}\"", ((EOPMessage)msg).eop.Trim());
                     return true; //successfully processed, remove message from queue
                 }
                 string url = StringHelper.NormalizeUrl(GetUrlFromMessage(msg)); 
