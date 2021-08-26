@@ -733,7 +733,9 @@ namespace OPS.Landform
 
             if (lvopts.IdleShutdownMethod == IdleShutdownMethod.LogIdle)
             {
-                pipeline.LogInfo(LOG_IDLE_MSG);
+                pipeline.LogInfo("{0} for instance {1}{2}", LOG_IDLE_MSG, selfEC2InstanceID,
+                                 !string.IsNullOrEmpty(lvopts.AutoScaleGroup) ?
+                                 (" in ASG " + lvopts.AutoScaleGroup) : "");
                 shuttingDown = true;
                 return;
             }
@@ -747,7 +749,8 @@ namespace OPS.Landform
                     shuttingDown = computeHelper.SetInstanceProtection(lvopts.AutoScaleGroup, selfEC2InstanceID, false);
                     if (shuttingDown)
                     {
-                        pipeline.LogInfo(LOG_IDLE_MSG);
+                        pipeline.LogInfo("{0} for instance {1} in ASG {2}",
+                                         LOG_IDLE_MSG, selfEC2InstanceID, lvopts.AutoScaleGroup);
                     }
                     else
                     {
@@ -979,10 +982,12 @@ namespace OPS.Landform
                                     if (now - lastIdleShutdownWarnSec > 60)
                                     {
                                         lastIdleShutdownWarnSec = now;
-                                        pipeline.LogWarn("EC2 instance {0} (self) idle for {1} >= {2}, " +
-                                                         "{3} but still running",
-                                                         selfEC2InstanceID, Fmt.HMS(idleSec * 1e3),
-                                                         Fmt.HMS(lvopts.IdleShutdownSec * 1e3), LOG_IDLE_MSG);
+                                        pipeline.LogWarn("{0} for instance {1}{2}, " +
+                                                         "idle for {3} >= {4} but still running",
+                                                         LOG_IDLE_MSG, selfEC2InstanceID,
+                                                         !string.IsNullOrEmpty(lvopts.AutoScaleGroup) ?
+                                                         (" in ASG " + lvopts.AutoScaleGroup) : "",
+                                                         Fmt.HMS(idleSec * 1e3), Fmt.HMS(lvopts.IdleShutdownSec * 1e3));
                                     }
                                 }
                             }
