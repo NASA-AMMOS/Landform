@@ -90,7 +90,7 @@ namespace OPS.Landform
         [Option(Default = IdleShutdownMethod.None, HelpText = "When running as EC2 instance use this method to shutdown after idle time exceeded")]
         public IdleShutdownMethod IdleShutdownMethod { get; set; }
 
-        [Option(Default = null, HelpText = "EC2 auto scale group name, required with --idleshutdownmethod=ScaleToZero")]
+        [Option(Default = null, HelpText = "EC2 auto scale group name, required with --idleshutdownmethod=ScaleToZero or --idleshutdownmethod=LogIdleProtected")]
         public string AutoScaleGroup { get; set; }
     }
     
