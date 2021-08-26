@@ -294,10 +294,10 @@ namespace OPS.Landform
         [Option(Default = ProcessContextual.DEF_WORKER_WATCHDOG_SEC, HelpText = "Period in seconds of worker auto-start watchdog, non-positive to disable watchdog")]
         public int WorkerWatchdogSec { get; set; }
 
-        [Option(Default = null, HelpText = "Comma separated list of contextual worker EC2 instance ids (starting with \"i-\"), instance names, instance name wildcard patterns, or \"asg:<name>\" to use an auto scaling group")]
+        [Option(Default = null, HelpText = "Comma separated list of contextual worker EC2 instance ids (starting with \"i-\"), instance names, instance name wildcard patterns, or \"asg:<name>[:<size>]\" to use an auto scaling group (size defaults to 1)")]
         public string WorkerInstances { get; set; }
 
-        [Option(Default = null, HelpText = "Comma separated list of orbital worker EC2 instance ids (starting with \"i-\"), instance names, or instance name wildcard patterns, or \"asg:<name>\" to use an auto scaling group")]
+        [Option(Default = null, HelpText = "Comma separated list of orbital worker EC2 instance ids (starting with \"i-\"), instance names, or instance name wildcard patterns, or \"asg:<name>[:<size>]\" to use an auto scaling group (size defaults to 1)")]
         public string OrbitalWorkerInstances { get; set; }
     }
 
@@ -817,7 +817,8 @@ namespace OPS.Landform
             {
                 if (patterns.Length > 1)
                 {
-                    throw new Exception(string.Format("invalid option for {0}, \"asg:<name>\" must be alone: {1}",
+                    throw new Exception(string.Format("invalid option for {0}, " +
+                                                      "\"asg:<name>[:<size>]\" must be alone: {1}",
                                                       what, String.Join(", ", patterns)));
                 }
                 ret.Add(patterns[0]);
@@ -2289,7 +2290,22 @@ namespace OPS.Landform
                     string asg = instances[0].Substring(4);
                     try
                     {
-                        if (!computeHelper.SetAutoScalingGroupSize(asg, 1))
+                        int size = 1;
+                        if (asg.Contains(":"))
+                        {
+                            string[] split = StringHelper.ParseList(asg, ':');
+                            if (split.Length == 2)
+                            {
+                                asg = split[0];
+                                size = int.Parse(split[1]); //throws exception if not an int
+                            }
+                            else
+                            {
+                                throw new Exception($"invalid format, expected asg:<name>:<size>, got \"asg:{asg}\"");
+                            }
+                        }
+                        pipeline.LogInfo("setting auto scaling group {0} to {1} desired instances", asg, size);
+                        if (!computeHelper.SetAutoScalingGroupSize(asg, size))
                         {
                             pipeline.LogError("failed to scale up {0}", asg);
                         }
