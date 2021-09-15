@@ -36,6 +36,9 @@ namespace OPS.Landform
 
         [Option(Required = false, Default = null, HelpText = "Just sample one pixel, format ROW,COL")]
         public string Sample { get; set; }
+
+        [Option(Required = false, Default = false, HelpText = "Disable RGB -> sRGB (gamma) conversion (conversion is never performed for single pixel samples)")]
+        public bool NoConvertLinearRGBTosRGB { get; set; }
     }
 
     public class ConvertPDS
@@ -117,7 +120,12 @@ namespace OPS.Landform
                         else
                         {
                             logger.InfoFormat("converting {0} to {1} in {2}", files[i], ext, destDir);
-                            Image.Load(files[i]).Save<byte>(Path.Combine(destDir, bn + ext)); //destDir="" ok
+                            Image img = Image.Load(files[i]);
+                            if (!options.NoConvertLinearRGBTosRGB)
+                            {
+                                img = img.LinearRGBToSRGB();
+                            }
+                            img.Save<byte>(Path.Combine(destDir, bn + ext)); //destDir="" ok
                         }
                     }          
                 }

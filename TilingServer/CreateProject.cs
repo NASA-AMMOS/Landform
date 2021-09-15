@@ -55,7 +55,7 @@ namespace OPS.TilingServer
         [Option(HelpText = "Require power of two textures", Default = TilingDefaults.POWER_OF_TWO_TEXTURES)]
         public bool PowerOfTwoTextures { get; set; }
 
-        [Option(HelpText = "Don't convert tileset images from linear RGB to sRGB", Default = !TilingDefaults.CONVERT_LINEAR_RGB_TO_SRGB)]
+        [Option(HelpText = "Don't convert tileset images from linear RGB to sRGB", Default = false)]
         public bool NoConvertLinerRGBToSRGB { get; set; }
 
         [Option(HelpText = "Write out index images as seperate files", Default = TilingDefaults.EMBED_INDEX_IMAGES)]

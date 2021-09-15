@@ -48,8 +48,6 @@ namespace OPS.Pipeline
 
         public const bool POWER_OF_TWO_TEXTURES = false; //requires refactoring comand line options
 
-        public const bool CONVERT_LINEAR_RGB_TO_SRGB = true; //requires refactoring command line options
-
         public const string EXPORT_DIR = "www";
         public const string TILESET_DIR = "www";
         public const string INTERNAL_TILE_DIR = "tiles";

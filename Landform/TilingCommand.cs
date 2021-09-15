@@ -63,9 +63,6 @@ namespace OPS.Landform
         [Option(HelpText = "Parent mesh reconstruction method (FSSR, Poisson)", Default = TilingDefaults.PARENT_RECONSTRUCTION_METHOD)]
         public MeshReconstructionMethod ParentReconstructionMethod { get; set; }
 
-        [Option(HelpText = "Don't convert tileset images from linear RGB to sRGB", Default = !TilingDefaults.CONVERT_LINEAR_RGB_TO_SRGB)]
-        public bool NoConvertLinearRGBToSRGB { get; set; }
-
         [Option(HelpText = "Tile mesh format, e.g. .b3dm.  Empty or \"default\" to use default (" + TilingDefaults.TILESET_MESH_FORMAT + ")", Default = null)]
         public string TilesetMeshFormat { get; set; }
 
@@ -448,7 +445,7 @@ namespace OPS.Landform
 
             Tile3DBuilder.ConvertTiles(pipeline, tileTree, tileFolder, tilesetFolder, tilesetName, withTextures,
                                        withIdx, embedIdx, inMeshExt, inImgExt, inIdxExt, tsMeshExt, tsImgExt, tsIdxExt,
-                                       !tilingOpts.NoConvertLinearRGBToSRGB);
+                                       !tilingOpts.NoConvertLinearRGBTosRGB);
 
             Tile3DBuilder.BuildAndSaveTileset(pipeline, tileTree, tilesetFolder, tilesetName,
                                               nodeToUrl = nodeToUrl ?? (node => node.Name + tsMeshExt),
@@ -553,7 +550,7 @@ namespace OPS.Landform
                 tilingProject.MaxOrbitalTexelsPerMeter = tilingOpts.MaxOrbitalTexelsPerMeter;
                 tilingProject.MaxTextureStretch = tilingOpts.MaxTextureStretch;
                 tilingProject.PowerOfTwoTextures = tilingOpts.PowerOfTwoTextures;
-                tilingProject.ConvertLinearRGBToSRGB = !tilingOpts.NoConvertLinearRGBToSRGB;
+                tilingProject.ConvertLinearRGBToSRGB = !tilingOpts.NoConvertLinearRGBTosRGB;
 
                 tilingProject.ExportMeshFormat = tilingOpts.ExportMeshFormat;
                 tilingProject.ExportImageFormat = tilingOpts.ExportImageFormat;

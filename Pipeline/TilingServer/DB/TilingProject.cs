@@ -68,7 +68,7 @@ namespace OPS.Pipeline.TilingServer
 
         public string NodeIdsUrl;
 
-        public bool ConvertLinearRGBToSRGB = TilingDefaults.CONVERT_LINEAR_RGB_TO_SRGB; //not applied to internal images
+        public bool ConvertLinearRGBToSRGB = true; //not applied to internal images
 
         public string ExportDir = TilingDefaults.EXPORT_DIR; //disable exporting meshes and images if null or empty
 
