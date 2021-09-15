@@ -102,6 +102,8 @@ namespace OPS.Landform
 
         public const int SERVICE_LOOP_THROTTLE_SEC = 60;
 
+        public const int IDLE_EVENT_THROTTLE_SEC = 60 * 60;
+
         public const int DEF_MAX_HANDLER_SEC = 10 * 60; //10 minutes
         public const int DEF_MAX_MESSAGE_AGE_SEC = 60 * 60; //1 hour
 
@@ -172,7 +174,7 @@ namespace OPS.Landform
         protected string selfEC2InstanceID;
 
         protected volatile bool shuttingDown;
-        private double idleStartSec = -1, lastIdleShutdownWarnSec = -1;
+        private double idleStartTime = -1, lastIdleEventTime = -1;
 
         /// <summary>
         /// Simple JSON message for testing or in workflows not involving [SNS wrapped] S3 event messages.
@@ -864,7 +866,7 @@ namespace OPS.Landform
 
                     if (msg != null)
                     {
-                        idleStartSec = -1;
+                        idleStartTime = -1;
 
                         string desc = DescribeMessage(msg);
                         int ageSec = (int)(0.001 * (msg.ApproxReceiveMS - msg.ApproxFirstReceiveMS));
@@ -958,15 +960,17 @@ namespace OPS.Landform
                     else // no messages available
                     {
                         double now = UTCTime.Now();
-                        if (idleStartSec < 0)
+                        if (idleStartTime < 0)
                         {
-                            idleStartSec = now;
+                            idleStartTime = now;
+                            lastIdleEventTime = -1;
                         }
                         else if (!string.IsNullOrEmpty(selfEC2InstanceID) && lvopts.IdleShutdownSec > 0 &&
                                  lvopts.IdleShutdownMethod != IdleShutdownMethod.None)
                         {
-                            double idleSec = now - idleStartSec;
-                            if (idleSec > lvopts.IdleShutdownSec)
+                            double idleSec = now - idleStartTime;
+                            if (idleSec > lvopts.IdleShutdownSec &&
+                                (lastIdleEventTime < 0 || (now - lastIdleEventTime > IDLE_EVENT_THROTTLE_SEC)))
                             {
                                 if (!shuttingDown)
                                 {
@@ -975,21 +979,17 @@ namespace OPS.Landform
                                                      selfEC2InstanceID, Fmt.HMS(idleSec * 1e3),
                                                      Fmt.HMS(lvopts.IdleShutdownSec * 1e3), lvopts.IdleShutdownMethod);
                                     IdleShutdown();
-                                    lastIdleShutdownWarnSec = now;
                                 }
                                 else
                                 {
-                                    if (now - lastIdleShutdownWarnSec > 60)
-                                    {
-                                        lastIdleShutdownWarnSec = now;
-                                        pipeline.LogWarn("{0} for instance {1}{2}, " +
-                                                         "idle for {3} >= {4} but still running",
-                                                         LOG_IDLE_MSG, selfEC2InstanceID,
-                                                         !string.IsNullOrEmpty(lvopts.AutoScaleGroup) ?
-                                                         (" in ASG " + lvopts.AutoScaleGroup) : "",
-                                                         Fmt.HMS(idleSec * 1e3), Fmt.HMS(lvopts.IdleShutdownSec * 1e3));
-                                    }
+                                    pipeline.LogWarn("{0} for instance {1}{2}, " +
+                                                     "idle for {3} >= {4} but still running",
+                                                     LOG_IDLE_MSG, selfEC2InstanceID,
+                                                     !string.IsNullOrEmpty(lvopts.AutoScaleGroup) ?
+                                                     (" in ASG " + lvopts.AutoScaleGroup) : "",
+                                                     Fmt.HMS(idleSec * 1e3), Fmt.HMS(lvopts.IdleShutdownSec * 1e3));
                                 }
+                                lastIdleEventTime = now;
                             }
                         }
                     }
