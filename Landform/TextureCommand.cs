@@ -102,7 +102,7 @@ namespace OPS.Landform
         public bool NoTextureProjection { get; set; }
 
         [Option(HelpText = "Don't convert tileset images from linear RGB to sRGB", Default = false)]
-        public bool NoConvertLinearRGBTosRGB { get; set; }
+        public bool NoConvertLinearRGBToSRGB { get; set; }
 
     }
 
@@ -1244,7 +1244,7 @@ namespace OPS.Landform
 
             if (texture != null)
             {
-                if (!tcopts.NoConvertLinearRGBTosRGB)
+                if (!tcopts.NoConvertLinearRGBToSRGB)
                 {
                     pipeline.LogInfo("converting scene texture {0} from linear RGB to sRGB", imgURL);
                     texture = texture.LinearRGBToSRGB();

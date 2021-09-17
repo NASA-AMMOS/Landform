@@ -445,7 +445,7 @@ namespace OPS.Landform
 
             Tile3DBuilder.ConvertTiles(pipeline, tileTree, tileFolder, tilesetFolder, tilesetName, withTextures,
                                        withIdx, embedIdx, inMeshExt, inImgExt, inIdxExt, tsMeshExt, tsImgExt, tsIdxExt,
-                                       !tilingOpts.NoConvertLinearRGBTosRGB);
+                                       !tilingOpts.NoConvertLinearRGBToSRGB);
 
             Tile3DBuilder.BuildAndSaveTileset(pipeline, tileTree, tilesetFolder, tilesetName,
                                               nodeToUrl = nodeToUrl ?? (node => node.Name + tsMeshExt),
@@ -550,7 +550,7 @@ namespace OPS.Landform
                 tilingProject.MaxOrbitalTexelsPerMeter = tilingOpts.MaxOrbitalTexelsPerMeter;
                 tilingProject.MaxTextureStretch = tilingOpts.MaxTextureStretch;
                 tilingProject.PowerOfTwoTextures = tilingOpts.PowerOfTwoTextures;
-                tilingProject.ConvertLinearRGBToSRGB = !tilingOpts.NoConvertLinearRGBTosRGB;
+                tilingProject.ConvertLinearRGBToSRGB = !tilingOpts.NoConvertLinearRGBToSRGB;
 
                 tilingProject.ExportMeshFormat = tilingOpts.ExportMeshFormat;
                 tilingProject.ExportImageFormat = tilingOpts.ExportImageFormat;
