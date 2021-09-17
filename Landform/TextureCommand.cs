@@ -100,6 +100,10 @@ namespace OPS.Landform
 
         [Option(HelpText = "Disable generating UVs by texture projection", Default = false)]
         public bool NoTextureProjection { get; set; }
+
+        [Option(HelpText = "Don't convert tileset images from linear RGB to sRGB", Default = false)]
+        public bool NoConvertLinearRGBToSRGB { get; set; }
+
     }
 
     public class TextureCommand : GeometryCommand
@@ -1240,6 +1244,16 @@ namespace OPS.Landform
 
             if (texture != null)
             {
+                if (!tcopts.NoConvertLinearRGBToSRGB)
+                {
+                    pipeline.LogInfo("converting scene texture {0} from linear RGB to sRGB", imgURL);
+                    texture = texture.LinearRGBToSRGB();
+                }
+                else
+                {
+                    pipeline.LogWarn("not converting scene texture {0} from linear RGB to sRGB ",
+                                     "(many image formats assume sRGB)", imgURL);
+                }
                 pipeline.LogInfo("saving {0}x{1} scene texture {2}", texture.Width, texture.Height, imgURL);
                 TemporaryFile.GetAndDelete(imageExt, tmpFile =>
                 {

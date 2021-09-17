@@ -63,9 +63,6 @@ namespace OPS.Landform
         [Option(HelpText = "Parent mesh reconstruction method (FSSR, Poisson)", Default = TilingDefaults.PARENT_RECONSTRUCTION_METHOD)]
         public MeshReconstructionMethod ParentReconstructionMethod { get; set; }
 
-        [Option(HelpText = "Don't convert tileset images from linear RGB to sRGB", Default = !TilingDefaults.CONVERT_LINEAR_RGB_TO_SRGB)]
-        public bool NoConvertLinearRGBToSRGB { get; set; }
-
         [Option(HelpText = "Tile mesh format, e.g. .b3dm.  Empty or \"default\" to use default (" + TilingDefaults.TILESET_MESH_FORMAT + ")", Default = null)]
         public string TilesetMeshFormat { get; set; }
 

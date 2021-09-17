@@ -146,6 +146,9 @@ namespace OPS.Landform
         public readonly string[] RDR_SUBDIRS = new string[] { "rdr", "fdr" };
         public const string TILESET_SUBDIR = "tileset";
 
+        public static readonly string[] VERBOSE_SAVE_EXTS =
+            { ".png", ".jpg", ".jpeg", ".tif", ".tiff", ".b3dm", ".gltf" };
+
         protected LandformShellOptions lsopts;
 
         protected string landformExe;
@@ -483,7 +486,15 @@ namespace OPS.Landform
         public static void SaveFile(PipelineCore pipeline, Func<StorageHelper> storageHelper, string file, string url,
                                     bool dryRun = false)
         {
-            pipeline.LogInfo("{0}saving {1}", dryRun ? "dry " : "", url);
+            string ext = StringHelper.GetUrlExtension(url);
+            if (VERBOSE_SAVE_EXTS.Any(vse => String.Equals(vse, ext, StringComparison.OrdinalIgnoreCase)))
+            {
+                pipeline.LogVerbose("{0}saving {1}", dryRun ? "dry " : "", url);
+            }
+            else
+            {
+                pipeline.LogInfo("{0}saving {1}", dryRun ? "dry " : "", url);
+            }
             if (!dryRun)
             {
                 if (url.StartsWith("s3://") && !(pipeline is CloudPipeline))
