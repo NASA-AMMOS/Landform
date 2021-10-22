@@ -189,7 +189,6 @@ namespace OPS.Pipeline
             if (options.ClearCache)
             {
                 InitPhase("delete download cache", DeleteDownloadCache);
-                PathHelper.EnsureExists(Path.GetFullPath(DownloadCache));
             }
 
             imageCache = new LRUCache<string, Image>(lruImageCache ?? DEF_IMAGE_MEM_CACHE);

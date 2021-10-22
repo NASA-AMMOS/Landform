@@ -661,8 +661,6 @@ namespace OPS.Landform
                     pipeline.LogInfo("deleting download cache {0}", pipeline.DownloadCache);
                     pipeline.DeleteDownloadCache();
                 }
-
-                PathHelper.EnsureExists(Path.GetFullPath(pipeline.DownloadCache));
                 else
                 {
                     pipeline.LogInfo("not deleting download cache {0}", pipeline.DownloadCache);
