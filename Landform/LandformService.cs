@@ -92,6 +92,10 @@ namespace OPS.Landform
 
         [Option(Default = null, HelpText = "EC2 auto scale group name, required with --idleshutdownmethod=ScaleToZero or --idleshutdownmethod=LogIdleProtected")]
         public string AutoScaleGroup { get; set; }
+
+        [Option(HelpText = "Use default AWS profile (vs profile from credential refresh) for SQS client", Default = false)]
+        public bool UseDefaultAWSProfileForSQSClient { get; set; }
+
     }
     
     public abstract class LandformService : LandformShell
@@ -574,8 +578,9 @@ namespace OPS.Landform
             {
                 try
                 {
+                    string profile = lvopts.UseDefaultAWSProfileForSQSClient ? null : awsProfile;
                     bool autoTypes = false;
-                    queue = new MessageQueue(name, awsProfile, awsRegion, defTimeoutSec, pipeline, lvopts.Quiet,
+                    queue = new MessageQueue(name, profile, awsRegion, defTimeoutSec, pipeline, lvopts.Quiet,
                                              landformOwned, autoTypes, autoCreateIfLandformOwned);
                     pipeline.LogInfo("{0} queue {1}: default timeout {2}s, actual timeout {3}s",
                                      what, name, defTimeoutSec, queue.TimeoutSec);
