@@ -621,10 +621,11 @@ namespace OPS.Landform
             }
         }
 
-        protected void Cleanup(string venueDir, bool deleteDownloadCache = true)
+        protected void Cleanup(string venueDir, bool deleteDownloadCache = true, bool cleanupTempDir = true)
         {
             if (lsopts.NoCleanup || lsopts.DryRun)
             {
+                pipeline.LogInfo("not cleaning up {0}", venueDir);
                 return;
             }
 
@@ -632,7 +633,12 @@ namespace OPS.Landform
             {
                 if (Directory.Exists(venueDir))
                 {
+                    pipeline.LogInfo("cleaning up {0}", venueDir);
                     Directory.Delete(venueDir, recursive: true);
+                }
+                else
+                {
+                    pipeline.LogInfo("not cleaning up {0}: directory not found", venueDir);
                 }
                 
                 if (File.Exists(subcommandConfigFile))
@@ -640,12 +646,27 @@ namespace OPS.Landform
                     File.Delete(subcommandConfigFile);
                 }
 
+                if (cleanupTempDir)
+                {
+                    pipeline.LogInfo("cleaning up temp dir {0}", TemporaryFile.TemporaryDirectory);
+                    pipeline.CleanupTempDir();
+                }
+                else
+                {
+                    pipeline.LogInfo("not cleaning up temp dir {0}",  TemporaryFile.TemporaryDirectory);
+                }
+
                 if (deleteDownloadCache)
                 {
+                    pipeline.LogInfo("deleting download cache {0}", pipeline.DownloadCache);
                     pipeline.DeleteDownloadCache();
                 }
 
                 PathHelper.EnsureExists(Path.GetFullPath(pipeline.DownloadCache));
+                else
+                {
+                    pipeline.LogInfo("not deleting download cache {0}", pipeline.DownloadCache);
+                }
             }
             catch (Exception ex)
             {
