@@ -177,7 +177,7 @@ namespace OPS.Landform
                     if (_storageHelper == null)
                     {
                         string profile = lsopts.UseDefaultAWSProfileForS3Client ? null : awsProfile;
-                        _storageHelper = new StorageHelper(awsProfile, awsRegion, pipeline.Logger);
+                        _storageHelper = new StorageHelper(profile, awsRegion, pipeline.Logger);
                     }
                     return _storageHelper;
                 }
