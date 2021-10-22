@@ -38,17 +38,6 @@ if not "%LANDFORM_CREDENTIAL_REFRESH_SEC%"=="" (
    set credentialrefresh=--credentialrefreshsec=%LANDFORM_CREDENTIAL_REFRESH_SEC%
 )
 
-set idleopts=
-if not "%LANDFORM_IDLE_SHUTDOWN_SEC%"=="" set idleopts=--idleshutdownsec=%LANDFORM_IDLE_SHUTDOWN_SEC%
-
-if not "%LANDFORM_IDLE_SHUTDOWN_METHOD%"=="" (
-   set idleopts=%idleopts% --idleshutdownmethod=%LANDFORM_IDLE_SHUTDOWN_METHOD%
-)
-
-if not "%LANDFORM_AUTO_SCALE_GROUP%"=="" (
-    set idleopts=%idleopts% --autoscalegroup=%LANDFORM_AUTO_SCALE_GROUP%
-)
-
 set roopts=
 if not "%LANDFORM_READONLY_BUCKETS%"=="" set roopts=--readonlybuckets=%LANDFORM_READONLY_BUCKETS%
 
@@ -209,6 +198,19 @@ if not "%LANDFORM_TACTICAL_NO_REQUIRE_PDS_TEXTURE%"=="" set requirepds=--norequi
 set objopts=
 if not "%LANDFORM_TACTICAL_NO_EXPECT_NON_LOD_OBJ%"=="" set objopts=--noexpectnonlodobj
 if not "%LANDFORM_TACTICAL_EXPECT_OBJ_LOD_TAR%"=="" set objopts=%objopts% --expectobjlodtar
+
+set idleopts=
+if not "%LANDFORM_TACTICAL_IDLE_SHUTDOWN_SEC%"=="" (
+   set idleopts=--idleshutdownsec=%LANDFORM_TACTICAL_IDLE_SHUTDOWN_SEC%
+)
+
+if not "%LANDFORM_TACTICAL_IDLE_SHUTDOWN_METHOD%"=="" (
+   set idleopts=%idleopts% --idleshutdownmethod=%LANDFORM_TACTICAL_IDLE_SHUTDOWN_METHOD%
+)
+
+if not "%LANDFORM_TACTICAL_AUTO_SCALE_GROUP%"=="" (
+    set idleopts=%idleopts% --autoscalegroup=%LANDFORM_TACTICAL_AUTO_SCALE_GROUP%
+)
 
 rem --- end service specific ---
 

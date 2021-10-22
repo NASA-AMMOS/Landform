@@ -38,17 +38,6 @@ if not "%LANDFORM_CREDENTIAL_REFRESH_SEC%"=="" (
    set credentialrefresh=--credentialrefreshsec=%LANDFORM_CREDENTIAL_REFRESH_SEC%
 )
 
-set idleopts=
-if not "%LANDFORM_IDLE_SHUTDOWN_SEC%"=="" set idleopts=--idleshutdownsec=%LANDFORM_IDLE_SHUTDOWN_SEC%
-
-if not "%LANDFORM_IDLE_SHUTDOWN_METHOD%"=="" (
-   set idleopts=%idleopts% --idleshutdownmethod=%LANDFORM_IDLE_SHUTDOWN_METHOD%
-)
-
-if not "%LANDFORM_AUTO_SCALE_GROUP%"=="" (
-    set idleopts=%idleopts% --autoscalegroup=%LANDFORM_AUTO_SCALE_GROUP%
-)
-
 set roopts=
 if not "%LANDFORM_READONLY_BUCKETS%"=="" set roopts=--readonlybuckets=%LANDFORM_READONLY_BUCKETS%
 
@@ -263,6 +252,19 @@ if not "%LANDFORM_CONTEXTUAL_MAX_RECEIVE_COUNT%"=="" (
 
 if not "%LANDFORM_CONTEXTUAL_EOP_PATTERN%"=="" (
     set msgopts=%msgopts% --eoppattern=%LANDFORM_CONTEXTUAL_EOP_PATTERN%
+)
+
+set idleopts=
+if not "%LANDFORM_CONTEXTUAL_IDLE_SHUTDOWN_SEC%"=="" (
+   set idleopts=--idleshutdownsec=%LANDFORM_CONTEXTUAL_IDLE_SHUTDOWN_SEC%
+)
+
+if not "%LANDFORM_CONTEXTUAL_IDLE_SHUTDOWN_METHOD%"=="" (
+   set idleopts=%idleopts% --idleshutdownmethod=%LANDFORM_CONTEXTUAL_IDLE_SHUTDOWN_METHOD%
+)
+
+if not "%LANDFORM_CONTEXTUAL_AUTO_SCALE_GROUP%"=="" (
+    set idleopts=%idleopts% --autoscalegroup=%LANDFORM_CONTEXTUAL_AUTO_SCALE_GROUP%
 )
 
 set svcextra=
