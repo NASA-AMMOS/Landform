@@ -1080,6 +1080,7 @@ namespace OPS.Landform
                         catch (Exception ex)
                         {
                             pipeline.LogException(ex, "updating message timeout");
+                            SleepSec(targetPeriod);
                         }
                     }
                 }
