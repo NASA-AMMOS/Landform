@@ -436,7 +436,10 @@ namespace OPS.Landform
             if (!string.IsNullOrEmpty(options.MaxDownload))
             {
                 var str = options.MaxDownload.ToLower();
-                double mult = str.EndsWith("k") ? 1e3 : str.EndsWith("m") ? 1e6 : str.EndsWith("g") ? 1e9 : 1;
+                double mult = str.EndsWith("k") ? 1024
+                    : str.EndsWith("m") ? (1024 * 1024)
+                    : str.EndsWith("g") ? (1024 * 1024 * 1024)
+                    : 1;
                 if (mult > 1)
                 {
                     str = str.Substring(0, str.Length - 1);
