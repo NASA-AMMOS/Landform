@@ -1026,7 +1026,7 @@ namespace OPS.Landform
 
             try
             {
-                Cleanup(venueDir, deleteDownloadCache: false);
+                Cleanup(venueDir, deleteDownloadCache: false, cleanupTempDir: false);
 
                 Configure(venue);
 
