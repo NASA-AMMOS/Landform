@@ -293,6 +293,8 @@ namespace OPS.Landform
             landformExe = PathHelper.GetExe();
             pipeline.LogInfo("landform exe: {0}", landformExe);
 
+            PathHelper.DumpFilesystemStats(pipeline.Logger);
+
             var cp = pipeline as CloudPipeline;
 
             awsProfile = !string.IsNullOrEmpty(lsopts.AWSProfile) ? lsopts.AWSProfile :

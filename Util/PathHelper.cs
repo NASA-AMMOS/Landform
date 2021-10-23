@@ -248,5 +248,40 @@ namespace OPS.Util
                 }
             }
         }
+
+        public static void DumpFilesystemStats(ILog logger, String driveLetter = null) {
+            try {
+                Action<DriveInfo> dump = (DriveInfo d) =>
+                {
+                    if (d.IsReady)
+                    {
+                        logger.InfoFormat("drive {0} ({1}) ready, label \"{2}\", format {3}, {4} accessible, " +
+                                          "{5} free, {6} total", d.Name, d.DriveType, d.VolumeLabel, d.DriveFormat,
+                                          Fmt.DiskBytes(d.AvailableFreeSpace), Fmt.DiskBytes(d.TotalFreeSpace),
+                                          Fmt.DiskBytes(d.TotalSize));
+                    }
+                    else
+                    {
+                        logger.InfoFormat("drive {0} ({1}) not ready", d.Name, d.DriveType);
+                    }
+                };
+                if (!string.IsNullOrEmpty(driveLetter))
+                {
+                    dump(new DriveInfo(driveLetter));
+                }
+                else
+                {
+                    foreach (var d in DriveInfo.GetDrives())
+                    {
+                        dump(d);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.ErrorFormat("error getting drive{0} stats: {1}",
+                                   !string.IsNullOrEmpty(driveLetter) ? (" " + driveLetter) : "", ex.Message);
+            }
+        }
     }
 }
