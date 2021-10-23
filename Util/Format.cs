@@ -50,7 +50,7 @@ namespace OPS.Util
 
         public static string DiskBytes(double b)
         {
-            return KMG(b, 1e3);
+            return KMG(b, 1024);
         }
     }
 }
