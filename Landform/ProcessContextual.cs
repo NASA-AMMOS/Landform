@@ -299,7 +299,7 @@ namespace OPS.Landform
         [Option(Default = ProcessContextual.DEF_MIN_PRIMARY_SITEDRIVE_WEDGES, HelpText = "Minimum number of wedges for primary site drive in a contextual mesh, non-positive for no limit, does not apply to highest-numbered sitedrive per sol per pass")]
         public int MinPrimarySiteDriveWedges { get; set; }
 
-        [Option(Default = ProcessContextual.DEF_MAX_SITEDRIVES, HelpText = "Max number of site drives to include in contextual mesh, non-positive for no limit")]
+        [Option(Default = ProcessContextual.DEF_MAX_SITEDRIVES, HelpText = "Max number of site drives to include in contextual mesh, non-positive for no limit.  See MissionSpecific for finer grained limits on the number of products per instrument per sitedrive.")]
         public int MaxSiteDrives{ get; set; }
 
         //https://github.jpl.nasa.gov/OnSight/Landform/issues/1105
@@ -418,6 +418,7 @@ namespace OPS.Landform
             public int numWedges = -1; //used only for information and sorting, negative if unknown
             public bool orbitalOnly;
             public long timestamp; //UTC milliseconds since epoch when message was created
+            public int numFailedAttempts;
 #pragma warning restore 0649
 
             public override int GetHashCode()
@@ -494,6 +495,42 @@ namespace OPS.Landform
         protected override void RunBatch()
         {
             RunPhase("build contextual tileset ", BuildContextualTileset);
+        }
+
+        protected override bool CanDeprioritizeRetries()
+        {
+            return !options.Master;
+        }
+
+        protected override QueueMessage MakeRecycledMessage(QueueMessage msg)
+        {
+            if (!options.Master)
+            {
+                var cmm = msg as ContextualMeshMessage;
+                if (cmm != null)
+                {
+                    cmm.numFailedAttempts++;
+                    return cmm;
+                }
+                else
+                {
+                    throw new NotImplementedException("cannot make recycled message, not a contextual mesh message");
+                }
+            }
+            else
+            {
+                throw new NotImplementedException("cannot make recycled messages in master mode");
+            }
+        }
+
+        protected override int GetNumReceives(QueueMessage msg)
+        {
+            int nr = msg.ApproxReceiveCount;
+            if (msg is ContextualMeshMessage)
+            {
+                nr += (msg as ContextualMeshMessage).numFailedAttempts;
+            }
+            return nr;
         }
 
         protected override string DescribeMessage(QueueMessage msg, bool verbose = false)
@@ -2262,11 +2299,14 @@ namespace OPS.Landform
             //yes, OrderByDescending() is stable
             //https://stackoverflow.com/questions/1209935/orderby-and-orderbydescending-are-stable
             var coalesced = keepers
-                .OrderByDescending(msg => msg.numWedges) //lowest priority
-                .OrderByDescending(msg => msg.primarySiteDrive) //medium priority
-                .OrderByDescending(msg => msg.primarySol) //highest priority
+                .OrderByDescending(msg => msg.numWedges) //more wedges -> process sooner (lowest priority)
+                .OrderByDescending(msg => msg.primarySiteDrive) //higher sitedrive -> process sooner
+                .OrderByDescending(msg => msg.primarySol) //higher sol -> process sooner
+                .OrderBy(msg => msg.numFailedAttempts) //more failed attempts -> process later (highest priority)
                 .ToList();
 
+            //note message ordering will only be precisely respected if an SQS FIFO queue is used
+            
             return coalesced;
         }
 

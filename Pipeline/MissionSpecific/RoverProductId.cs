@@ -8,6 +8,12 @@ namespace OPS.Pipeline
 {
     public class RoverProductIdTemporalComparer : IComparer<RoverProductId>
     {
+        private readonly int flip;
+
+        public RoverProductIdTemporalComparer(bool reverse) {
+            flip = reverse ? -1 : 1;
+        }
+
         //-1 if a is earlier in time than b
         //+1 if a is later in time than b
         //0 if a and b are at the same time or are incommensurate in time
@@ -15,11 +21,11 @@ namespace OPS.Pipeline
         {
             if (a.HasSclk() && b.HasSclk())
             {
-                return Math.Sign(a.GetSclk() - b.GetSclk());
+                return flip * Math.Sign(a.GetSclk() - b.GetSclk());
             }
             else if (a.HasSol() && b.HasSol())
             {
-                return Math.Sign(a.GetSol() - b.GetSol());
+                return flip * Math.Sign(a.GetSol() - b.GetSol());
             }
             return 0;
         }

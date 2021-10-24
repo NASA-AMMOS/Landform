@@ -45,7 +45,7 @@ if not "%LANDFORM_READONLY_BUCKET_ALT_DEST%"=="" (
     set roopts=%roopts% --readonlybucketaltdest=%LANDFORM_READONLY_BUCKET_ALT_DEST%
 )
 
-rem --- end service boilerplate, begin service specific boilerplate ---
+rem --- end service boilerplate, begin service specific ---
 
 set queue=
 if not "%LANDFORM_CONTEXTUAL_WORKER_QUEUE%"=="" set queue=%LANDFORM_CONTEXTUAL_WORKER_QUEUE%
@@ -248,6 +248,14 @@ if not "%LANDFORM_CONTEXTUAL_MAX_MESSAGE_AGE_SEC%"=="" (
 )
 if not "%LANDFORM_CONTEXTUAL_MAX_RECEIVE_COUNT%"=="" (
     set msgopts=%msgopts% --maxreceivecount=%LANDFORM_CONTEXTUAL_MAX_RECEIVE_COUNT%
+)
+
+if not "%LANDFORM_CONTEXTUAL_DROP_POISON_MESSAGES%"=="" (
+    set msgopts=%msgopts% --droppoisonmessages
+)
+
+if not "%LANDFORM_CONTEXTUAL_DEPRIORITIZE_RETRIES%"=="" (
+    set msgopts=%msgopts% --deprioritizeretries
 )
 
 if not "%LANDFORM_CONTEXTUAL_EOP_PATTERN%"=="" (

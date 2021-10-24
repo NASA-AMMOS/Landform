@@ -136,6 +136,9 @@ namespace OPS.Pipeline
         [ConfigEnvironmentVariable("LANDFORM_ALLOWED_PRODUCERS")]
         public string AllowedProducers { get; set; } = "OPGS"; 
 
+        [ConfigEnvironmentVariable("LANDFORM_MAX_CONTEXTUAL_MESH_PREFER_OLDER_PRODUCTS")]
+        public bool MaxContextualMeshPreferOlderProducts{ get; set; } = true;
+
         [ConfigEnvironmentVariable("LANDFORM_MAX_CONTEXTUAL_MESH_WEDGES")]
         public int MaxContextualMeshWedges { get; set; } = 2000; 
 
@@ -1080,6 +1083,11 @@ namespace OPS.Pipeline
                 dirs.AddRange(GetArmcamRDRSubdirs());
             }
             return dirs.ToArray();
+        }
+
+        public virtual bool GetMaxContextualMeshPreferOlderProducts()
+        {
+            return MissionConfig.Instance.MaxContextualMeshPreferOlderProducts;
         }
 
         public virtual int GetMaxContextualMeshWedges()
