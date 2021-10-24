@@ -859,13 +859,15 @@ namespace OPS.Landform
                              "unlimited");
 
             pipeline.LogInfo("max wedges {0}, max textures {1}",
-                             mission.GetMaxContextualMeshWedges(), mission.GetMaxContextualMeshTextures());
+                             mission.GetContextualMeshMaxWedges(), mission.GetContextualMeshMaxTextures());
             pipeline.LogInfo("max navcam wedges {0} per sitedrive, max navcam textures {1} per sitedrive",
-                             mission.GetMaxContextualMeshNavcamWedgesPerSiteDrive(),
-                             mission.GetMaxContextualMeshNavcamTexturesPerSiteDrive());
+                             mission.GetContextualMeshMaxNavcamWedgesPerSiteDrive(),
+                             mission.GetContextualMeshMaxNavcamTexturesPerSiteDrive());
             pipeline.LogInfo("max mastcam wedges {0} per sitedrive, max mastcam textures {1} per sitedrive",
-                             mission.GetMaxContextualMeshMastcamWedgesPerSiteDrive(),
-                             mission.GetMaxContextualMeshMastcamTexturesPerSiteDrive());
+                             mission.GetContextualMeshMaxMastcamWedgesPerSiteDrive(),
+                             mission.GetContextualMeshMaxMastcamTexturesPerSiteDrive());
+            pipeline.LogInfo("when limits are exceeded prefer {0} products",
+                             mission.GetContextualMeshPreferOlderProducts() ? "older" : "newer");
 
             solBlacklist = IngestAlignmentInputs.ExpandSolSpecifier(options.SolBlacklist);
             if (solBlacklist.Length > 0)
@@ -2015,21 +2017,23 @@ namespace OPS.Landform
                 return ret;
             }
 
-            int maxWedges = mission.GetMaxContextualMeshWedges();
-            int maxTextures = mission.GetMaxContextualMeshTextures();
+            int maxWedges = mission.GetContextualMeshMaxWedges();
+            int maxTextures = mission.GetContextualMeshMaxTextures();
             double maxDistance = options.MaxSiteDriveDistance;
 
             pipeline.LogInfo("filtering sitedrives for contextual mesh{0}{1}" +
                              ", max wedges {2} ({3} navcam/sitedrive, {4} mastcam/sitedrive)" +
-                             ", max textures {5} ({6} navcam/sitedrive, {7} mastcam/sitedrive)",
+                             ", max textures {5} ({6} navcam/sitedrive, {7} mastcam/sitedrive)" +
+                             ", prefer {8}",
                              maxDistance > 0 ? $", max distance {maxDistance}" : "",
                              maxSDs < int.MaxValue ? $", max sitedrives {maxSDs}" : "",
                              maxWedges,
-                             mission.GetMaxContextualMeshNavcamWedgesPerSiteDrive(),
-                             mission.GetMaxContextualMeshMastcamWedgesPerSiteDrive(),
+                             mission.GetContextualMeshMaxNavcamWedgesPerSiteDrive(),
+                             mission.GetContextualMeshMaxMastcamWedgesPerSiteDrive(),
                              maxTextures,
-                             mission.GetMaxContextualMeshNavcamTexturesPerSiteDrive(),
-                             mission.GetMaxContextualMeshMastcamTexturesPerSiteDrive());
+                             mission.GetContextualMeshMaxNavcamTexturesPerSiteDrive(),
+                             mission.GetContextualMeshMaxMastcamTexturesPerSiteDrive(),
+                             mission.GetContextualMeshPreferOlderProducts() ? "older" : "newer");
 
             var keepers = new Dictionary<SiteDrive, SiteDriveList>();
             keepers[primarySD] = primarySDList;

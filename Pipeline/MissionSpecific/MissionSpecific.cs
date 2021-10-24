@@ -136,26 +136,26 @@ namespace OPS.Pipeline
         [ConfigEnvironmentVariable("LANDFORM_ALLOWED_PRODUCERS")]
         public string AllowedProducers { get; set; } = "OPGS"; 
 
-        [ConfigEnvironmentVariable("LANDFORM_MAX_CONTEXTUAL_MESH_PREFER_OLDER_PRODUCTS")]
-        public bool MaxContextualMeshPreferOlderProducts{ get; set; } = true;
+        [ConfigEnvironmentVariable("LANDFORM_CONTEXTUAL_MESH_PREFER_OLDER_PRODUCTS")]
+        public bool ContextualMeshPreferOlderProducts{ get; set; } = true;
 
-        [ConfigEnvironmentVariable("LANDFORM_MAX_CONTEXTUAL_MESH_WEDGES")]
-        public int MaxContextualMeshWedges { get; set; } = 2000; 
+        [ConfigEnvironmentVariable("LANDFORM_CONTEXTUAL_MESH_MAX_WEDGES")]
+        public int ContextualMeshMaxWedges { get; set; } = 2000; 
 
-        [ConfigEnvironmentVariable("LANDFORM_MAX_CONTEXTUAL_MESH_TEXTURES")]
-        public int MaxContextualMeshTextures { get; set; } = 4000; 
+        [ConfigEnvironmentVariable("LANDFORM_CONTEXTUAL_MESH_MAX_TEXTURES")]
+        public int ContextualMeshMaxTextures { get; set; } = 4000; 
 
-        [ConfigEnvironmentVariable("LANDFORM_MAX_CONTEXTUAL_MESH_NAVCAM_WEDGES_PER_SITEDRIVE")]
-        public int MaxContextualMeshNavcamWedgesPerSiteDrive { get; set; } = 500; 
+        [ConfigEnvironmentVariable("LANDFORM_CONTEXTUAL_MESH_MAX_NAVCAM_WEDGES_PER_SITEDRIVE")]
+        public int ContextualMeshMaxNavcamWedgesPerSiteDrive { get; set; } = 500; 
 
-        [ConfigEnvironmentVariable("LANDFORM_MAX_CONTEXTUAL_MESH_NAVCAM_TEXTURES_PER_SITEDRIVE")]
-        public int MaxContextualMeshNavcamTexturesPerSiteDrive { get; set; } = 1000; 
+        [ConfigEnvironmentVariable("LANDFORM_CONTEXTUAL_MESH_MAX_NAVCAM_TEXTURES_PER_SITEDRIVE")]
+        public int ContextualMeshMaxNavcamTexturesPerSiteDrive { get; set; } = 1000; 
 
-        [ConfigEnvironmentVariable("LANDFORM_MAX_CONTEXTUAL_MESH_MASTCAM_WEDGES_PER_SITEDRIVE")]
-        public int MaxContextualMeshMastcamWedgesPerSiteDrive { get; set; } = 1500; 
+        [ConfigEnvironmentVariable("LANDFORM_CONTEXTUAL_MESH_MAX_MASTCAM_WEDGES_PER_SITEDRIVE")]
+        public int ContextualMeshMaxMastcamWedgesPerSiteDrive { get; set; } = 1500; 
 
-        [ConfigEnvironmentVariable("LANDFORM_MAX_CONTEXTUAL_MESH_MASTCAM_TEXTURES_PER_SITEDRIVE")]
-        public int MaxContextualMeshMastcamTexturesPerSiteDrive { get; set; } = 3000; 
+        [ConfigEnvironmentVariable("LANDFORM_CONTEXTUAL_MESH_MAX_MASTCAM_TEXTURES_PER_SITEDRIVE")]
+        public int ContextualMeshMaxMastcamTexturesPerSiteDrive { get; set; } = 3000; 
     }
 
     public abstract class MissionSpecific : ConfigDefaultsProvider
@@ -1085,39 +1085,39 @@ namespace OPS.Pipeline
             return dirs.ToArray();
         }
 
-        public virtual bool GetMaxContextualMeshPreferOlderProducts()
+        public virtual bool GetContextualMeshPreferOlderProducts()
         {
-            return MissionConfig.Instance.MaxContextualMeshPreferOlderProducts;
+            return MissionConfig.Instance.ContextualMeshPreferOlderProducts;
         }
 
-        public virtual int GetMaxContextualMeshWedges()
+        public virtual int GetContextualMeshMaxWedges()
         {
-            return MissionConfig.Instance.MaxContextualMeshWedges;
+            return MissionConfig.Instance.ContextualMeshMaxWedges;
         }
 
-        public virtual int GetMaxContextualMeshTextures()
+        public virtual int GetContextualMeshMaxTextures()
         {
-            return MissionConfig.Instance.MaxContextualMeshTextures;
+            return MissionConfig.Instance.ContextualMeshMaxTextures;
         }
 
-        public virtual int GetMaxContextualMeshNavcamWedgesPerSiteDrive()
+        public virtual int GetContextualMeshMaxNavcamWedgesPerSiteDrive()
         {
-            return MissionConfig.Instance.MaxContextualMeshNavcamWedgesPerSiteDrive;
+            return MissionConfig.Instance.ContextualMeshMaxNavcamWedgesPerSiteDrive;
         }
 
-        public virtual int GetMaxContextualMeshNavcamTexturesPerSiteDrive()
+        public virtual int GetContextualMeshMaxNavcamTexturesPerSiteDrive()
         {
-            return MissionConfig.Instance.MaxContextualMeshNavcamTexturesPerSiteDrive;
+            return MissionConfig.Instance.ContextualMeshMaxNavcamTexturesPerSiteDrive;
         }
 
-        public virtual int GetMaxContextualMeshMastcamWedgesPerSiteDrive()
+        public virtual int GetContextualMeshMaxMastcamWedgesPerSiteDrive()
         {
-            return MissionConfig.Instance.MaxContextualMeshMastcamWedgesPerSiteDrive;
+            return MissionConfig.Instance.ContextualMeshMaxMastcamWedgesPerSiteDrive;
         }
 
-        public virtual int GetMaxContextualMeshMastcamTexturesPerSiteDrive()
+        public virtual int GetContextualMeshMaxMastcamTexturesPerSiteDrive()
         {
-            return MissionConfig.Instance.MaxContextualMeshMastcamTexturesPerSiteDrive;
+            return MissionConfig.Instance.ContextualMeshMaxMastcamTexturesPerSiteDrive;
         }
 
         public virtual string FilterContextualMeshWedge(RoverProductId id, string url)
