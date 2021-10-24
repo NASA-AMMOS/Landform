@@ -375,7 +375,7 @@ namespace OPS.Pipeline
 
         //****************** Storage API *****************
 
-        protected void CheckStorageUrl(string url, bool withVenue = true)
+        protected virtual void CheckStorageUrl(string url, bool withVenue = true)
         {
             string prefix = withVenue ? StorageUrlWithVenue : StorageUrl;
             if (string.IsNullOrEmpty(url) || !url.StartsWith(prefix, ignoreCase: true, culture: null))

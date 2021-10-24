@@ -283,5 +283,26 @@ namespace OPS.Util
                                    !string.IsNullOrEmpty(driveLetter) ? (" " + driveLetter) : "", ex.Message);
             }
         }
+
+        //https://stackoverflow.com/a/21058121/4970315
+        public static String NormalizePath(String pathOrUrl, bool ignoreCase = true)
+        {
+            if (pathOrUrl.StartsWith("file://", StringComparison.OrdinalIgnoreCase))
+            {
+                //this would handle URL escapes, but doesn't work if path is relative
+                //pathOrUrl = (new Uri(pathOrUrl)).LocalPath;
+                pathOrUrl = pathOrUrl.Substring(7);
+            }
+            try
+            {
+                pathOrUrl = Path.GetFullPath(pathOrUrl);
+            }
+            catch (Exception)
+            {
+                //ignore
+            }
+            pathOrUrl = pathOrUrl.TrimEnd('/', '\\');
+            return ignoreCase ? pathOrUrl.ToLowerInvariant() : pathOrUrl;
+        }
     }
 }
