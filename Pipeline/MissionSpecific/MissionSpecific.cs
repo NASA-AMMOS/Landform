@@ -146,16 +146,16 @@ namespace OPS.Pipeline
         public int ContextualMeshMaxTextures { get; set; } = 4000; 
 
         [ConfigEnvironmentVariable("LANDFORM_CONTEXTUAL_MESH_MAX_NAVCAM_WEDGES_PER_SITEDRIVE")]
-        public int ContextualMeshMaxNavcamWedgesPerSiteDrive { get; set; } = 500; 
+        public int ContextualMeshMaxNavcamWedgesPerSiteDrive { get; set; } = 200; 
 
         [ConfigEnvironmentVariable("LANDFORM_CONTEXTUAL_MESH_MAX_NAVCAM_TEXTURES_PER_SITEDRIVE")]
-        public int ContextualMeshMaxNavcamTexturesPerSiteDrive { get; set; } = 1000; 
+        public int ContextualMeshMaxNavcamTexturesPerSiteDrive { get; set; } = 400; 
 
         [ConfigEnvironmentVariable("LANDFORM_CONTEXTUAL_MESH_MAX_MASTCAM_WEDGES_PER_SITEDRIVE")]
-        public int ContextualMeshMaxMastcamWedgesPerSiteDrive { get; set; } = 1500; 
+        public int ContextualMeshMaxMastcamWedgesPerSiteDrive { get; set; } = 200; 
 
         [ConfigEnvironmentVariable("LANDFORM_CONTEXTUAL_MESH_MAX_MASTCAM_TEXTURES_PER_SITEDRIVE")]
-        public int ContextualMeshMaxMastcamTexturesPerSiteDrive { get; set; } = 3000; 
+        public int ContextualMeshMaxMastcamTexturesPerSiteDrive { get; set; } = 400; 
     }
 
     public abstract class MissionSpecific : ConfigDefaultsProvider
