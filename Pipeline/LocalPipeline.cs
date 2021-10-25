@@ -27,7 +27,7 @@ namespace OPS.Pipeline
                              bool initQueues = true, bool initAlignmentTables = true, bool initTilingTables = true,
                              int? maxCores = null)
             : base(options, config,
-                   StringHelper.NormalizeUrl(config.StorageDir, "file://"),
+                   StringHelper.NormalizeUrl(PathHelper.NormalizePath(config.StorageDir), "file://"),
                    config.Venue, logger, quietInit,
                    lruImageCache.HasValue ? lruImageCache : config.ImageMemCache,
                    lruDataProductCache.HasValue ? lruDataProductCache : config.DataProductMemCache,
@@ -59,6 +59,11 @@ namespace OPS.Pipeline
             : this(options, LocalPipelineConfig.Instance, logger, quietInit, lruImageCache, lruDataProductCache,
                    initQueues, initAlignmentTables, initTilingTables, maxCores)
         {}
+
+        protected override void CheckStorageUrl(string url, bool withVenue = true)
+        {
+            base.CheckStorageUrl(StringHelper.NormalizeUrl(PathHelper.NormalizePath(url), "file://"), withVenue);
+        }
 
         /// <summary>
         /// prepends file:// if it's missing

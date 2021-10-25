@@ -132,12 +132,16 @@ namespace OPS.Pipeline
                 return this;
             }
             var ret = new SiteDriveList(mission, logger, filterWedge, filterTexture);
-            int maxWedges = mission.GetMaxContextualMeshWedges();
-            int maxNavcamWedges = mission.GetMaxContextualMeshNavcamWedgesPerSiteDrive();
-            int maxMastcamWedges = mission.GetMaxContextualMeshMastcamWedgesPerSiteDrive();
+            int maxWedges = mission.GetContextualMeshMaxWedges();
+            int maxNavcamWedges = mission.GetContextualMeshMaxNavcamWedgesPerSiteDrive();
+            int maxMastcamWedges = mission.GetContextualMeshMaxMastcamWedgesPerSiteDrive();
             int numWedges = 0, numNavcamWedges = 0, numMastcamWedges = 0;
             int numDroppedWedges = 0, numDroppedNavcamWedges = 0, numDroppedMastcamWedges = 0;
-            foreach (var id in WedgeIDs.OrderByDescending(id => id, new RoverProductIdTemporalComparer()))
+            bool preferOlder = mission.GetContextualMeshPreferOlderProducts();
+            var comparer = new RoverProductIdTemporalComparer(preferOlder);
+            String whyDropped = preferOlder ? "newer" : "older";
+            String whyKept = preferOlder ? "older" : "newer";
+            foreach (var id in WedgeIDs.OrderByDescending(id => id, comparer))
             {
                 bool drop = false;
                 if (mission.IsNavcam(id.Camera))
@@ -172,7 +176,7 @@ namespace OPS.Pipeline
                 {
                     if (logger != null)
                     {
-                        logger.LogVerbose("dropped wedge {0} from sitedrive {1}", id, SiteDrive);
+                        logger.LogVerbose("dropped {0} wedge {1} from sitedrive {2}", whyDropped, id, SiteDrive);
                     }
                     numDroppedWedges++;
                     if (droppedWedge != null)
@@ -184,7 +188,7 @@ namespace OPS.Pipeline
                 {
                     if (logger != null)
                     {
-                        logger.LogVerbose("kept wedge {0} in sitedrive {1}", id, SiteDrive);
+                        logger.LogVerbose("kept {0} wedge {1} in sitedrive {2}", whyKept, id, SiteDrive);
                     }
                     numWedges++;
                     ret.Add(IDToURL[id]);
@@ -192,18 +196,18 @@ namespace OPS.Pipeline
             }
             if (numDroppedWedges > 0 && logger != null)
             {
-                logger.LogInfo("dropped {0}/{1} wedges from sitedrive {2} ({3}/{4} navcam, {5}/{6} mastcam)",
-                               numDroppedWedges, (numWedges + numDroppedWedges), SiteDrive,
+                logger.LogInfo("dropped {0}/{1} {2} wedges from sitedrive {3} ({4}/{5} navcam, {6}/{7} mastcam)",
+                               numDroppedWedges, (numWedges + numDroppedWedges), whyDropped, SiteDrive,
                                numDroppedNavcamWedges, (numDroppedNavcamWedges + numNavcamWedges),
                                numDroppedMastcamWedges, (numDroppedMastcamWedges + numMastcamWedges));
             }
 
-            int maxTextures = mission.GetMaxContextualMeshTextures();
-            int maxNavcamTextures = mission.GetMaxContextualMeshNavcamTexturesPerSiteDrive();
-            int maxMastcamTextures = mission.GetMaxContextualMeshMastcamTexturesPerSiteDrive();
+            int maxTextures = mission.GetContextualMeshMaxTextures();
+            int maxNavcamTextures = mission.GetContextualMeshMaxNavcamTexturesPerSiteDrive();
+            int maxMastcamTextures = mission.GetContextualMeshMaxMastcamTexturesPerSiteDrive();
             int numTextures = 0, numNavcamTextures = 0, numMastcamTextures = 0;
             int numDroppedTextures = 0, numDroppedNavcamTextures = 0, numDroppedMastcamTextures = 0;
-            foreach (var id in TextureIDs.OrderByDescending(id => id, new RoverProductIdTemporalComparer()))
+            foreach (var id in TextureIDs.OrderByDescending(id => id, comparer))
             {
                 bool drop = false;
                 if (mission.IsNavcam(id.Camera))
@@ -238,7 +242,7 @@ namespace OPS.Pipeline
                 {
                     if (logger != null)
                     {
-                        logger.LogVerbose("dropped texture {0} from sitedrive {1}", id, SiteDrive);
+                        logger.LogVerbose("dropped {0} texture {1} from sitedrive {2}", whyDropped, id, SiteDrive);
                     }
                     numDroppedTextures++;
                     if (droppedTexture != null)
@@ -250,7 +254,7 @@ namespace OPS.Pipeline
                 {
                     if (logger != null)
                     {
-                        logger.LogVerbose("kept texture {0} in sitedrive {1}", id, SiteDrive);
+                        logger.LogVerbose("kept {0} texture {1} in sitedrive {2}", whyKept, id, SiteDrive);
                     }
                     numTextures++;
                     ret.Add(IDToURL[id]);
@@ -258,8 +262,8 @@ namespace OPS.Pipeline
             }
             if (numDroppedTextures > 0 && logger != null)
             {
-                logger.LogInfo("dropped {0}/{1} textures from sitedrive {2} ({3}/{4} navcam, {5}/{6} mastcam)",
-                               numDroppedTextures, (numTextures + numDroppedTextures), SiteDrive,
+                logger.LogInfo("dropped {0}/{1} {2} textures from sitedrive {3} ({4}/{5} navcam, {6}/{7} mastcam)",
+                               numDroppedTextures, (numTextures + numDroppedTextures), whyDropped, SiteDrive,
                                numDroppedNavcamTextures, (numDroppedNavcamTextures + numNavcamTextures),
                                numDroppedMastcamTextures, (numDroppedMastcamTextures + numMastcamTextures));
             }
@@ -312,8 +316,8 @@ namespace OPS.Pipeline
                 sdLists[sd] = sdLists[sd].ApplyMissionLimits(dw, dt);
             }
 
-            int maxWedges = mission.GetMaxContextualMeshWedges();
-            int maxTextures = mission.GetMaxContextualMeshTextures();
+            int maxWedges = mission.GetContextualMeshMaxWedges();
+            int maxTextures = mission.GetContextualMeshMaxTextures();
             int totalWedges = 0, totalTextures = 0;
             var deadSDs = new HashSet<SiteDrive>();
             foreach (var sd in sdLists.Keys.OrderByDescending(sd => sd).ToList())

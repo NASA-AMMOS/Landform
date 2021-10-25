@@ -189,7 +189,6 @@ namespace OPS.Pipeline
             if (options.ClearCache)
             {
                 InitPhase("delete download cache", DeleteDownloadCache);
-                PathHelper.EnsureExists(Path.GetFullPath(DownloadCache));
             }
 
             imageCache = new LRUCache<string, Image>(lruImageCache ?? DEF_IMAGE_MEM_CACHE);
@@ -376,7 +375,7 @@ namespace OPS.Pipeline
 
         //****************** Storage API *****************
 
-        protected void CheckStorageUrl(string url, bool withVenue = true)
+        protected virtual void CheckStorageUrl(string url, bool withVenue = true)
         {
             string prefix = withVenue ? StorageUrlWithVenue : StorageUrl;
             if (string.IsNullOrEmpty(url) || !url.StartsWith(prefix, ignoreCase: true, culture: null))

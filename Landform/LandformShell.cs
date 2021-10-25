@@ -177,7 +177,7 @@ namespace OPS.Landform
                     if (_storageHelper == null)
                     {
                         string profile = lsopts.UseDefaultAWSProfileForS3Client ? null : awsProfile;
-                        _storageHelper = new StorageHelper(awsProfile, awsRegion, pipeline.Logger);
+                        _storageHelper = new StorageHelper(profile, awsRegion, pipeline.Logger);
                     }
                     return _storageHelper;
                 }
@@ -292,6 +292,8 @@ namespace OPS.Landform
 
             landformExe = PathHelper.GetExe();
             pipeline.LogInfo("landform exe: {0}", landformExe);
+
+            PathHelper.DumpFilesystemStats(pipeline.Logger);
 
             var cp = pipeline as CloudPipeline;
 
@@ -621,10 +623,11 @@ namespace OPS.Landform
             }
         }
 
-        protected void Cleanup(string venueDir, bool deleteDownloadCache = true)
+        protected void Cleanup(string venueDir, bool deleteDownloadCache = true, bool cleanupTempDir = true)
         {
             if (lsopts.NoCleanup || lsopts.DryRun)
             {
+                pipeline.LogInfo("not cleaning up {0}", venueDir);
                 return;
             }
 
@@ -632,7 +635,12 @@ namespace OPS.Landform
             {
                 if (Directory.Exists(venueDir))
                 {
+                    pipeline.LogInfo("cleaning up {0}", venueDir);
                     Directory.Delete(venueDir, recursive: true);
+                }
+                else
+                {
+                    pipeline.LogInfo("not cleaning up {0}: directory not found", venueDir);
                 }
                 
                 if (File.Exists(subcommandConfigFile))
@@ -640,12 +648,25 @@ namespace OPS.Landform
                     File.Delete(subcommandConfigFile);
                 }
 
-                if (deleteDownloadCache)
+                if (cleanupTempDir)
                 {
-                    pipeline.DeleteDownloadCache();
+                    pipeline.LogInfo("cleaning up temp dir {0}", TemporaryFile.TemporaryDirectory);
+                    pipeline.CleanupTempDir();
+                }
+                else
+                {
+                    pipeline.LogInfo("not cleaning up temp dir {0}",  TemporaryFile.TemporaryDirectory);
                 }
 
-                PathHelper.EnsureExists(Path.GetFullPath(pipeline.DownloadCache));
+                if (deleteDownloadCache)
+                {
+                    pipeline.LogInfo("deleting download cache {0}", pipeline.DownloadCache);
+                    pipeline.DeleteDownloadCache();
+                }
+                else
+                {
+                    pipeline.LogInfo("not deleting download cache {0}", pipeline.DownloadCache);
+                }
             }
             catch (Exception ex)
             {

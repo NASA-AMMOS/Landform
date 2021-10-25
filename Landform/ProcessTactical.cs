@@ -809,7 +809,7 @@ namespace OPS.Landform
                             }
                             else
                             {
-                                warn($"ignoring {nonLOD} {Fmt.KMG(sz)} > {Fmt.KMG(options.MaxOBJBytes)} bytes", nonLOD);
+                                warn($"ignoring {nonLOD} {Fmt.DiskBytes(sz)} > {Fmt.DiskBytes(options.MaxOBJBytes)} bytes", nonLOD);
                             }
                         }
                     }
@@ -833,7 +833,7 @@ namespace OPS.Landform
                                 {
                                     if (sz > options.MaxOBJBytes)
                                     {
-                                        warn($"{lodUrls[i]} {Fmt.KMG(sz)} > {Fmt.KMG(options.MaxOBJBytes)} bytes",
+                                        warn($"{lodUrls[i]} {Fmt.DiskBytes(sz)} > {Fmt.DiskBytes(options.MaxOBJBytes)} bytes",
                                              lodUrls[i]);
                                     }
                                     else
@@ -1026,7 +1026,7 @@ namespace OPS.Landform
 
             try
             {
-                Cleanup(venueDir, deleteDownloadCache: false);
+                Cleanup(venueDir, deleteDownloadCache: false, cleanupTempDir: false);
 
                 Configure(venue);
 

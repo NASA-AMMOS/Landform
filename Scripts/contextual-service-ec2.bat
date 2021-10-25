@@ -38,17 +38,6 @@ if not "%LANDFORM_CREDENTIAL_REFRESH_SEC%"=="" (
    set credentialrefresh=--credentialrefreshsec=%LANDFORM_CREDENTIAL_REFRESH_SEC%
 )
 
-set idleopts=
-if not "%LANDFORM_IDLE_SHUTDOWN_SEC%"=="" set idleopts=--idleshutdownsec=%LANDFORM_IDLE_SHUTDOWN_SEC%
-
-if not "%LANDFORM_IDLE_SHUTDOWN_METHOD%"=="" (
-   set idleopts=%idleopts% --idleshutdownmethod=%LANDFORM_IDLE_SHUTDOWN_METHOD%
-)
-
-if not "%LANDFORM_AUTO_SCALE_GROUP%"=="" (
-    set idleopts=%idleopts% --autoscalegroup=%LANDFORM_AUTO_SCALE_GROUP%
-)
-
 set roopts=
 if not "%LANDFORM_READONLY_BUCKETS%"=="" set roopts=--readonlybuckets=%LANDFORM_READONLY_BUCKETS%
 
@@ -56,7 +45,7 @@ if not "%LANDFORM_READONLY_BUCKET_ALT_DEST%"=="" (
     set roopts=%roopts% --readonlybucketaltdest=%LANDFORM_READONLY_BUCKET_ALT_DEST%
 )
 
-rem --- end service boilerplate, begin service specific boilerplate ---
+rem --- end service boilerplate, begin service specific ---
 
 set queue=
 if not "%LANDFORM_CONTEXTUAL_WORKER_QUEUE%"=="" set queue=%LANDFORM_CONTEXTUAL_WORKER_QUEUE%
@@ -261,8 +250,29 @@ if not "%LANDFORM_CONTEXTUAL_MAX_RECEIVE_COUNT%"=="" (
     set msgopts=%msgopts% --maxreceivecount=%LANDFORM_CONTEXTUAL_MAX_RECEIVE_COUNT%
 )
 
+if not "%LANDFORM_CONTEXTUAL_DROP_POISON_MESSAGES%"=="" (
+    set msgopts=%msgopts% --droppoisonmessages
+)
+
+if not "%LANDFORM_CONTEXTUAL_DEPRIORITIZE_RETRIES%"=="" (
+    set msgopts=%msgopts% --deprioritizeretries
+)
+
 if not "%LANDFORM_CONTEXTUAL_EOP_PATTERN%"=="" (
     set msgopts=%msgopts% --eoppattern=%LANDFORM_CONTEXTUAL_EOP_PATTERN%
+)
+
+set idleopts=
+if not "%LANDFORM_CONTEXTUAL_IDLE_SHUTDOWN_SEC%"=="" (
+   set idleopts=--idleshutdownsec=%LANDFORM_CONTEXTUAL_IDLE_SHUTDOWN_SEC%
+)
+
+if not "%LANDFORM_CONTEXTUAL_IDLE_SHUTDOWN_METHOD%"=="" (
+   set idleopts=%idleopts% --idleshutdownmethod=%LANDFORM_CONTEXTUAL_IDLE_SHUTDOWN_METHOD%
+)
+
+if not "%LANDFORM_CONTEXTUAL_AUTO_SCALE_GROUP%"=="" (
+    set idleopts=%idleopts% --autoscalegroup=%LANDFORM_CONTEXTUAL_AUTO_SCALE_GROUP%
 )
 
 set svcextra=

@@ -126,7 +126,7 @@ namespace OPS.Landform
             sw.Stop();
             Console.WriteLine("found {0} folders in {1}s, {2:F3} folders/s",
                               folders.Count, sw.ElapsedMilliseconds * 1e-3,
-                              Fmt.KMG(folders.Count / (sw.ElapsedMilliseconds * 1e-3)));
+                              Fmt.DiskBytes(folders.Count / (sw.ElapsedMilliseconds * 1e-3)));
             var di = new DownloadInfo("listed {0} subfolders in {1:F3}s, {2:F3}/s", folders.Count, sw);
             ret.Add(di);
             Console.WriteLine(di.Format());
@@ -212,8 +212,8 @@ namespace OPS.Landform
                 ret.Add(new DownloadInfo(files[i], bytes, sw));
                 totalBytes += bytes;
                 Console.WriteLine("tested file {0}/{1}, {2:F3} bytes/s, {3:F3} bytes/s cumulative", i + 1, files.Count,
-                                  Fmt.KMG(bytes / (sw.ElapsedMilliseconds * 1e-3)),
-                                  Fmt.KMG(totalBytes / (tsw.ElapsedMilliseconds * 1e-3)));
+                                  Fmt.DiskBytes(bytes / (sw.ElapsedMilliseconds * 1e-3)),
+                                  Fmt.DiskBytes(totalBytes / (tsw.ElapsedMilliseconds * 1e-3)));
             }
             return ret;
         }
@@ -238,8 +238,8 @@ namespace OPS.Landform
                 ret.Add(new DownloadInfo(files[i], bytes, sw));
                 totalBytes += bytes;
                 Console.WriteLine("tested file {0}/{1}, {2:F3} bytes/s, {3:F3} bytes/s cumulative", i + 1, files.Count,
-                                  Fmt.KMG(bytes / (sw.ElapsedMilliseconds * 1e-3)),
-                                  Fmt.KMG(totalBytes / (tsw.ElapsedMilliseconds * 1e-3)));
+                                  Fmt.DiskBytes(bytes / (sw.ElapsedMilliseconds * 1e-3)),
+                                  Fmt.DiskBytes(totalBytes / (tsw.ElapsedMilliseconds * 1e-3)));
             }
             return ret;
         }
@@ -277,8 +277,8 @@ namespace OPS.Landform
                 sw.Stop();
                 totalBytes += bytes;
                 Console.WriteLine("tested file {0}/{1}, {2:F3} bytes/s, {3:F3} bytes/s cumulative", i + 1, files.Count,
-                                  Fmt.KMG(bytes / (sw.ElapsedMilliseconds * 1e-3)),
-                                  Fmt.KMG(totalBytes / (tsw.ElapsedMilliseconds * 1e-3)));
+                                  Fmt.DiskBytes(bytes / (sw.ElapsedMilliseconds * 1e-3)),
+                                  Fmt.DiskBytes(totalBytes / (tsw.ElapsedMilliseconds * 1e-3)));
             }
             return ret;
         }
@@ -307,7 +307,7 @@ namespace OPS.Landform
                 double sec = info[i].Sum(di => di.ms * 1e-3);
                 long bytes = info[i].Sum(di => di.count);
                 Console.WriteLine("{0} {1} reads in {2:F3} s, {3:F3} reads/s, {4:F3} bytes/s",
-                                  info[i].Count, what[i], sec, info[i].Count / sec, Fmt.KMG(bytes / sec));
+                                  info[i].Count, what[i], sec, info[i].Count / sec, Fmt.DiskBytes(bytes / sec));
             }
 
             return 0;

@@ -84,6 +84,12 @@ namespace OPS.Landform
         [Option(Default = LandformService.DEF_MAX_RECEIVE_COUNT, HelpText = "Maximum message receive count, nonpositive for unlimited")]
         public int MaxReceiveCount { get; set; }
 
+        [Option(HelpText = "Drop messages that may be poison without retry, e.g. because a handler exceeded --maxhandlersec", Default = false)]
+        public bool DropPoisonMessages { get; set; }
+
+        [Option(HelpText = "Deprioritize message retries by moving messages to the back of the queue.  May not be supported by all service types because the retry count needs to be kept in the message.", Default = false)]
+        public bool DeprioritizeRetries { get; set; }
+
         [Option(Default = -1, HelpText = "When running as EC2 instance, attempt shutdown after idle for at least this many seconds, non-positive disables")]
         public int IdleShutdownSec { get; set; }
 
@@ -92,6 +98,9 @@ namespace OPS.Landform
 
         [Option(Default = null, HelpText = "EC2 auto scale group name, required with --idleshutdownmethod=ScaleToZero or --idleshutdownmethod=LogIdleProtected")]
         public string AutoScaleGroup { get; set; }
+
+        [Option(HelpText = "Use default AWS profile (vs profile from credential refresh) for SQS client", Default = false)]
+        public bool UseDefaultAWSProfileForSQSClient { get; set; }
     }
     
     public abstract class LandformService : LandformShell
@@ -166,6 +175,7 @@ namespace OPS.Landform
         private object deleteMessageLock = new Object();
 
         private volatile QueueMessage currentMessage;
+        private volatile bool killedCurrentHandler;
 
         //in C# 64 bit fields can't  be volatile, so can't use double or long here
         //uint max is about 4.2e9; 100y since epoch in sec is 100 * 365 * 24 * 60 * 60 ~= 3.1e6
@@ -354,15 +364,32 @@ namespace OPS.Landform
                         pipeline.LogWarn("idle shutdown disabled, failed to get EC2 instance ID");
                     }
                 }
+
+                int timeoutSec = messageQueue != null ? messageQueue.TimeoutSec : GetDefaultMessageTimeoutSec();
+                pipeline.LogInfo("message timeout: {0}", Fmt.HMS(timeoutSec * 1e3));
+                pipeline.LogInfo("max handler time: {0}", Fmt.HMS(GetMaxHandlerSec() * 1e3));
+                pipeline.LogInfo("max message age: {0}", Fmt.HMS(GetMaxMessageAgeSec() * 1e3));
+                
+                int mrc = GetMaxReceiveCount();
+                pipeline.LogInfo("max receive count: {0}", mrc < int.MaxValue ? ("" + mrc) : "unlimited");
+                
+                if (lvopts.DeprioritizeRetries)
+                {
+                    if (!CanDeprioritizeRetries())
+                    {
+                        throw new Exception("--deprioritizeretries not supported");
+                    }
+                    else
+                    {
+                        pipeline.LogInfo("deprioritizing retries by moving failed messages to the back of the queue");
+                    }
+                }
+
+                if (lvopts.DropPoisonMessages)
+                {
+                    pipeline.LogInfo("dropping poison messages without retry");
+                }
             }
-
-            int timeoutSec = messageQueue != null ? messageQueue.TimeoutSec : GetDefaultMessageTimeoutSec();
-            pipeline.LogInfo("message timeout: {0}", Fmt.HMS(timeoutSec * 1e3));
-            pipeline.LogInfo("max handler time: {0}", Fmt.HMS(GetMaxHandlerSec() * 1e3));
-            pipeline.LogInfo("max message age: {0}", Fmt.HMS(GetMaxMessageAgeSec() * 1e3));
-
-            int mrc = GetMaxReceiveCount();
-            pipeline.LogInfo("max receive count: {0}", mrc < int.MaxValue ? ("" + mrc) : "unlimited");
 
             return true;
         }
@@ -529,6 +556,26 @@ namespace OPS.Landform
             return lvopts.MaxReceiveCount > 0 ? lvopts.MaxReceiveCount : int.MaxValue;
         }
 
+        protected virtual bool CanDeprioritizeRetries()
+        {
+            return false;
+        }
+
+        protected virtual QueueMessage MakeRecycledMessage(QueueMessage msg)
+        {
+            throw new NotImplementedException("cannot make recycled messages");
+        }
+
+        protected virtual double GetFirstReceiveMS(QueueMessage msg)
+        {
+            return msg.ApproxFirstReceiveMS;
+        }
+
+        protected virtual int GetNumReceives(QueueMessage msg)
+        {
+            return msg.ApproxReceiveCount;
+        }
+
         protected virtual int GetDequeueThrottleMS()
         {
             return DEF_DEQUEUE_THROTTLE_MS;
@@ -574,8 +621,9 @@ namespace OPS.Landform
             {
                 try
                 {
+                    string profile = lvopts.UseDefaultAWSProfileForSQSClient ? null : awsProfile;
                     bool autoTypes = false;
-                    queue = new MessageQueue(name, awsProfile, awsRegion, defTimeoutSec, pipeline, lvopts.Quiet,
+                    queue = new MessageQueue(name, profile, awsRegion, defTimeoutSec, pipeline, lvopts.Quiet,
                                              landformOwned, autoTypes, autoCreateIfLandformOwned);
                     pipeline.LogInfo("{0} queue {1}: default timeout {2}s, actual timeout {3}s",
                                      what, name, defTimeoutSec, queue.TimeoutSec);
@@ -869,12 +917,15 @@ namespace OPS.Landform
                         idleStartTime = -1;
 
                         string desc = DescribeMessage(msg);
-                        int ageSec = (int)(0.001 * (msg.ApproxReceiveMS - msg.ApproxFirstReceiveMS));
+                        int ageSec = (int)(0.001 * (msg.ApproxReceiveMS - GetFirstReceiveMS(msg)));
                         int totalAgeSec = (int)(0.001 * (msg.ApproxReceiveMS - msg.SentMS));
-                        int receiveCount = msg.ApproxReceiveCount;
+                        int receiveCount = GetNumReceives(msg);
                         bool tooOld = ageSec > maxAgeSec || receiveCount > maxReceiveCount;
                         bool accepted = AcceptMessage(msg, out string rejectionReason);
                         bool handled = false;
+                        bool recycle = false;
+                        bool drop = false;
+                        bool deleted = false;
 
                         if (accepted && !tooOld)
                         {
@@ -892,28 +943,53 @@ namespace OPS.Landform
                             }
                             catch (Exception msgException)
                             {
+                                drop = killedCurrentHandler && lvopts.DropPoisonMessages;
+                                recycle = !drop && lvopts.DeprioritizeRetries;
                                 pipeline.LogException(msgException, "handling " + desc);
                             }
 
+                            killedCurrentHandler = false;
+
+                            lock (deleteMessageLock)
+                            {
+                                //the reason we hold deleteMessageLock here is to make sure that
+                                //the call to UpdateTimeout() in HeartbeatLoop() can't overlap with this
+                                currentMessage = null;
+                                if (handled || drop || recycle)
+                                {
+                                    try
+                                    {
+                                        messageQueue.DeleteMessage(msg);
+                                        deleted = true;
+                                    }
+                                    catch (Exception deleteException)
+                                    {
+                                        pipeline.LogException(deleteException, "deleting message");
+                                    }
+                                }
+                            }
+
+                            StopStopwatch(brief: true);
+                        }
+                        else //not accepted or too old
+                        {
                             try
                             {
                                 lock (deleteMessageLock)
                                 {
-                                    //the reason we hold deleteMessageLock here is to make sure that
-                                    //the call to UpdateTimeout() in HeartbeatLoop() can't overlap with this
-                                    currentMessage = null;
-                                    if (handled)
-                                    {
-                                        messageQueue.DeleteMessage(msg);
-                                    }
+                                    messageQueue.DeleteMessage(msg);
+                                    deleted = true;
                                 }
                             }
                             catch (Exception deleteException)
                             {
                                 pipeline.LogException(deleteException, "deleting message");
                             }
-                            
-                            StopStopwatch(brief: true);
+                        }
+
+                        if (drop)
+                        {
+                            pipeline.LogError("dropping poison message {0}", desc);
                         }
 
                         if (accepted && tooOld)
@@ -930,22 +1006,18 @@ namespace OPS.Landform
                             pipeline.LogVerbose("rejected message: {0}", rejectionReason);
                         }
 
-                        if (!accepted || tooOld)
+                        if (recycle && deleted)
                         {
                             try
                             {
-                                lock (deleteMessageLock)
-                                {
-                                    messageQueue.DeleteMessage(msg);
-                                }
+                                messageQueue.Enqueue(MakeRecycledMessage(msg));
                             }
-                            catch (Exception deleteException)
+                            catch (Exception recycleException)
                             {
-                                pipeline.LogException(deleteException, "deleting message");
+                                pipeline.LogException(recycleException, "recycling message to end of queue");
                             }
                         }
-
-                        if (accepted && tooOld && failMessageQueue != null)
+                        else if (!handled && deleted && (failMessageQueue != null))
                         {
                             try
                             {
@@ -1036,6 +1108,7 @@ namespace OPS.Landform
                     {
                         pipeline.LogError("handler has run for {0} > {1}, killing",
                                           Fmt.HMS( totalSec * 1e3), Fmt.HMS(maxHandlerSec * 1e3));
+                        killedCurrentHandler = true;
                         KillCurrentCommand(); //swallows exceptions, but handler will throw exception if killed
                         SleepSec(targetPeriod);
                         lastHeartbeatSec = -1;
@@ -1080,6 +1153,7 @@ namespace OPS.Landform
                         catch (Exception ex)
                         {
                             pipeline.LogException(ex, "updating message timeout");
+                            SleepSec(targetPeriod);
                         }
                     }
                 }

@@ -436,7 +436,10 @@ namespace OPS.Landform
             if (!string.IsNullOrEmpty(options.MaxDownload))
             {
                 var str = options.MaxDownload.ToLower();
-                double mult = str.EndsWith("k") ? 1e3 : str.EndsWith("m") ? 1e6 : str.EndsWith("g") ? 1e9 : 1;
+                double mult = str.EndsWith("k") ? 1024
+                    : str.EndsWith("m") ? (1024 * 1024)
+                    : str.EndsWith("g") ? (1024 * 1024 * 1024)
+                    : 1;
                 if (mult > 1)
                 {
                     str = str.Substring(0, str.Length - 1);
@@ -1046,7 +1049,6 @@ namespace OPS.Landform
             //enforce mission specific wedge and texture count limits
             if (mission != null)
             {
-                var idToURL = new Dictionary<RoverProductId, string>();
                 foreach (var url in filtered)
                 {
                     var id = RoverProductId.Parse(GetProductIDString(url), mission); //all ids should parse now
@@ -1060,7 +1062,6 @@ namespace OPS.Landform
                                 sdLists[sd] = new SiteDriveList(mission, new ThunkLogger(logger));
                             }
                             sdLists[sd].Add(id, url);
-                            idToURL[id] = url;
                         }
                         else if (ShouldTrace(url))
                         {
@@ -1068,9 +1069,13 @@ namespace OPS.Landform
                                               "previously dropped sitedrive exceeded wedge or texture limits", url);
                         }
                     }
-                    else
+                }
+                var idToURL = new Dictionary<RoverProductId, string>();
+                foreach (var sdl in sdLists.Values)
+                {
+                    foreach (var id in sdl.IDToURL.Keys)
                     {
-                        idToURL[id] = url;
+                        idToURL[id] = sdl.IDToURL[id];
                     }
                 }
                 void droppedProduct(RoverProductId id)
