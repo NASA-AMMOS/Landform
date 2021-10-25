@@ -419,6 +419,7 @@ namespace OPS.Landform
             public bool orbitalOnly;
             public long timestamp; //UTC milliseconds since epoch when message was created
             public int numFailedAttempts;
+            public long recycledFirstReceiveMS; //UTC ms since epoch when recycled message was originally first received
 #pragma warning restore 0649
 
             public override int GetHashCode()
@@ -509,6 +510,8 @@ namespace OPS.Landform
                 var cmm = msg as ContextualMeshMessage;
                 if (cmm != null)
                 {
+                    cmm.recycledFirstReceiveMS = cmm.numFailedAttempts > 0 && cmm.recycledFirstReceiveMS > 0 ?
+                        cmm.recycledFirstReceiveMS : (long)(msg.ApproxFirstReceiveMS);
                     cmm.numFailedAttempts++;
                     return cmm;
                 }
@@ -520,6 +523,19 @@ namespace OPS.Landform
             else
             {
                 throw new NotImplementedException("cannot make recycled messages in master mode");
+            }
+        }
+
+        protected override double GetFirstReceiveMS(QueueMessage msg)
+        {
+            var cmm = msg as ContextualMeshMessage;
+            if (cmm != null && cmm.recycledFirstReceiveMS > 0)
+            {
+                return (double)(cmm.recycledFirstReceiveMS);
+            }
+            else
+            {
+                return base.GetFirstReceiveMS(msg);
             }
         }
 

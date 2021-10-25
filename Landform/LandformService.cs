@@ -566,6 +566,11 @@ namespace OPS.Landform
             throw new NotImplementedException("cannot make recycled messages");
         }
 
+        protected virtual double GetFirstReceiveMS(QueueMessage msg)
+        {
+            return msg.ApproxFirstReceiveMS;
+        }
+
         protected virtual int GetNumReceives(QueueMessage msg)
         {
             return msg.ApproxReceiveCount;
@@ -912,7 +917,7 @@ namespace OPS.Landform
                         idleStartTime = -1;
 
                         string desc = DescribeMessage(msg);
-                        int ageSec = (int)(0.001 * (msg.ApproxReceiveMS - msg.ApproxFirstReceiveMS));
+                        int ageSec = (int)(0.001 * (msg.ApproxReceiveMS - GetFirstReceiveMS(msg)));
                         int totalAgeSec = (int)(0.001 * (msg.ApproxReceiveMS - msg.SentMS));
                         int receiveCount = GetNumReceives(msg);
                         bool tooOld = ageSec > maxAgeSec || receiveCount > maxReceiveCount;
