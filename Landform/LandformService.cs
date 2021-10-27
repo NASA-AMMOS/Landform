@@ -895,7 +895,8 @@ namespace OPS.Landform
                 }
             }
 
-            while (!shuttingDown)
+            //while (!shuttingDown) //don't do this, just let the loop run until the instance is killed
+            while (true)
             {
                 try
                 {
@@ -910,7 +911,7 @@ namespace OPS.Landform
                     }
                     
                     double startSec = UTCTime.Now();
-                    QueueMessage msg = DequeueOneMessage(messageQueue);
+                    QueueMessage msg = !shuttingDown ? DequeueOneMessage(messageQueue) : null;
 
                     if (msg != null)
                     {
@@ -1029,7 +1030,7 @@ namespace OPS.Landform
                             }
                         }
                     }
-                    else // no messages available
+                    else // no messages available or shutting down
                     {
                         double now = UTCTime.Now();
                         if (idleStartTime < 0)
@@ -1054,6 +1055,8 @@ namespace OPS.Landform
                                 }
                                 else
                                 {
+                                    //important to prevent zombie instances that prevent other instances from spawning
+                                    //repeat LOG_IDLE_MSG so ASG scale down is retriggered until instance terminated
                                     pipeline.LogWarn("{0} for instance {1}{2}, " +
                                                      "idle for {3} >= {4} but still running",
                                                      LOG_IDLE_MSG, selfEC2InstanceID,
@@ -1076,7 +1079,6 @@ namespace OPS.Landform
                     SleepSec(SERVICE_LOOP_THROTTLE_SEC);
                 }
             }
-            pipeline.LogInfo("shutting down, exiting service loop");
         }
 
         private void HeartbeatLoop()
@@ -1099,7 +1101,8 @@ namespace OPS.Landform
             double targetPeriod = GetHeartbeatRelPeriod() * timeoutSec;
             pipeline.LogInfo("running heartbeat, period {0:F3}s, message timeout {1}s, max handler {2}",
                              targetPeriod, timeoutSec, Fmt.HMS(maxHandlerSec * 1e3));
-            while (!shuttingDown)
+            //while (!shuttingDown) //don't do this, just let the loop run until the instance is killed
+            while (true)
             {
                 if (currentMessage != null)
                 {
@@ -1163,7 +1166,6 @@ namespace OPS.Landform
                     lastHeartbeatSec = -1;
                 }
             }
-            pipeline.LogInfo("shutting down, exiting heartbeat loop");
         }
     }
 }
