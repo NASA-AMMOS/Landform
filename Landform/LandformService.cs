@@ -1018,7 +1018,7 @@ namespace OPS.Landform
                                 pipeline.LogException(recycleException, "recycling message to end of queue");
                             }
                         }
-                        else if (!handled && deleted && (failMessageQueue != null))
+                        else if (accepted && !handled && deleted && (failMessageQueue != null))
                         {
                             try
                             {
