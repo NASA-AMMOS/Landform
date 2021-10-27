@@ -111,7 +111,7 @@ namespace OPS.Landform
 
         public const int SERVICE_LOOP_THROTTLE_SEC = 60;
 
-        public const int IDLE_EVENT_THROTTLE_SEC = 60 * 60;
+        public const int IDLE_EVENT_THROTTLE_SEC = 60;
 
         public const int DEF_MAX_HANDLER_SEC = 10 * 60; //10 minutes
         public const int DEF_MAX_MESSAGE_AGE_SEC = 60 * 60; //1 hour
