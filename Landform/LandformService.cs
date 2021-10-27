@@ -601,7 +601,12 @@ namespace OPS.Landform
             }
             if (name.ToLower() == "auto")
             {
-                name = lvopts.QueueName + "-fail";
+                name = lvopts.QueueName;
+                if (name.EndsWith(".fifo"))
+                {
+                    name = name.Substring(0, name.Length - 5);
+                }
+                name += "-fail";
             }
             return GetMessageQueue(name, GetDefaultMessageTimeoutSec(), lvopts.LandformOwnedFailQueue, "fail message");
         }
