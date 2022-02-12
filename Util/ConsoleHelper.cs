@@ -94,5 +94,20 @@ namespace OPS.Util
             Process.Start(new ProcessStartInfo("shutdown", "/r /f /t 0")
             { CreateNoWindow = true, UseShellExecute = false });
         }
+
+        public static int GetPID()
+        {
+            try
+            {
+                using (var proc = Process.GetCurrentProcess())
+                {
+                    return proc.Id;
+                }
+            }
+            catch (Exception)
+            {
+                return -1;
+            }
+        }
     }
 }

@@ -118,7 +118,8 @@ namespace OPS.Util
                     : LogManager.GetLogger("Landform");
                 string appVersion = Config.AppVersion ?? "(unknown)";
                 string pipelineVersion = Config.PipelineVersion ?? "(unknown)";
-                logger.InfoFormat("command: {0} {1}", PathHelper.GetExe(), string.Join(" ", args));
+                logger.InfoFormat("process ID {0}, command: {1} {2}",
+                                  ConsoleHelper.GetPID(), PathHelper.GetExe(), string.Join(" ", args));
                 logger.InfoFormat("{0} {1}{2}", Config.BaseCommand ?? "Landform", appVersion,
                                   appVersion != pipelineVersion ? (", " + pipelineVersion) : "");
                 logger.InfoFormat("temp dir: {0}", StringHelper.NormalizeSlashes(TemporaryFile.TemporaryDirectory));
