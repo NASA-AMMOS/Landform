@@ -126,7 +126,8 @@ namespace OPS.Pipeline
         /// </summary>
         public Image Load(PipelineCore pipeline, string maskUrl)
         {
-            var mask = new Image(pipeline.LoadImage(maskUrl));
+            //see comments in ImageMasker.GetOrCreateMask() regarding noCache
+            var mask = new Image(pipeline.LoadImage(maskUrl, noCache: true));
             mask.ApplyInPlace(v => v == 0 ? 1.0f : 0.0f);
             return mask;
         } 

@@ -307,7 +307,9 @@ namespace OPS.Landform
                 GenerateNormals = !bcopts.NoGenerateNormals,
                 MeshDecimator = bcopts.MeshDecimator,
                 AlwaysReconstruct = !useMeshRDRs,
-                ReconstructionMethod = bcopts.ReconstructionMethod
+                ReconstructionMethod = bcopts.ReconstructionMethod,
+                NoCacheTextureImages = !applyTexture,
+                NoCacheGeometryImages = true
             };
         }
 
@@ -431,7 +433,7 @@ namespace OPS.Landform
                         Image img = null;
                         if (bcopts.BEVColoring == BirdsEyeView.ColorMode.Texture && obs.Texture != null)
                         {
-                            img = pipeline.LoadImage(obs.Texture.Url);
+                            img = pipeline.LoadImage(obs.Texture.Url, noCache: true);
                             int ibs = WedgeObservations.AutoDecimate(obs.Texture, bcopts.DecimateWedgeImages,
                                                                      bcopts.TargetWedgeImageResolution);
                             if (ibs > 1)

@@ -208,8 +208,19 @@ namespace OPS.Landform
                     return 0;
                 }
                  
-                RunPhase("checking/generating observation image masks", BuildObservationImageMasks);
-                RunPhase("build observation frustum hulls", BuildObsHulls);
+                RunPhase("check or generate observation image masks", BuildObservationImageMasks);
+                RunPhase("check or generate observation frustum hulls", () => BuildObservationImageHulls(noSave: true));
+                if (!options.NoBlend)
+                {
+                    if (options.PreadjustLuminance > 0 || options.Colorize)
+                    {
+                        RunPhase("check or generate observation image stats", BuildObservationImageStats);
+                    }
+                    RunPhase("check or generate blurred observation images", BuildBlurredObservationImages);
+                }
+
+                //conserve memory: we will (probably) want the textures later, but we can reload them at that point
+                RunPhase("clear LRU image cache", ClearImageCache);
 
                 RunPhase("build sky sphere tile geometry", BuildTileTree);
 
@@ -223,11 +234,6 @@ namespace OPS.Landform
 
                 if (!options.NoBlend)
                 {
-                    if (options.PreadjustLuminance > 0 || options.Colorize)
-                    {
-                        RunPhase("checking/computing observation image stats", BuildObservationImageStats);
-                    }
-                    RunPhase("build blurred observations", BuildBlurredObservationImages);
                     RunPhase("blending sky sphere tile textures", BlendTileTextures);
                 }
 
@@ -883,7 +889,8 @@ namespace OPS.Landform
             {
                 string indexName = leafName + TilingDefaults.INDEX_FILE_SUFFIX + TilingDefaults.INDEX_FILE_EXT;
                 string indexUrl = pipeline.GetStorageUrl(outputFolder, project.Name, indexName);
-                var leafIndex = MaskBackprojectIndex(pipeline.LoadImage(indexUrl));
+                var leafIndex = pipeline.LoadImage(indexUrl); //LRU cache for later use in BuildBlendedLeafTextures()
+                leafIndex = MaskBackprojectIndex(leafIndex);
 
                 if (tileDecimation > 1)
                 {
@@ -929,7 +936,8 @@ namespace OPS.Landform
                                           TextureVariant.Blurred, options.BackprojectInpaintMissing,
                                           options.BackprojectInpaintGutter, missingColor: skyColor,
                                           preadjustLuminance: options.PreadjustLuminance,
-                                          colorizeHue: options.Colorize ? medianHue : -1);
+                                          colorizeHue: options.Colorize ? medianHue : -1,
+                                          reverseAccessOrder: ReverseNextRoverImagesIteration());
 
             if (options.WriteDebug)
             {

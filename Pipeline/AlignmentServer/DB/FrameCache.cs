@@ -396,6 +396,8 @@ namespace OPS.Pipeline.AlignmentServer
                     pipeline.LogWarn("no transform from observation frame {0} to parent sitedrive", fromObs.FrameName);
                 }
                 //row major transforms compose left to right
+                //let the image stay in the LRU cache if it's enabled
+                //in practice this case should only occur in tactical mesh procesing, not contextual
                 return ret * PDSImage.GetSiteDriveToSiteTransformFromPDS(pipeline.LoadImage(fromObs.Url));
             }
 

@@ -205,26 +205,28 @@ namespace OPS.Landform
                     bool canUseTextureSplit = CanUseTextureSplit();
                     if (roverImages != null && (textureMode == TextureMode.Backproject || canUseTextureSplit))
                     {
-                        RunPhase("checking/generating observation image masks", BuildObservationImageMasks);
-                        RunPhase("build observation frustum hulls", BuildObsHulls);
+                        RunPhase("check or generate observation image masks", BuildObservationImageMasks);
+                        RunPhase("check or generate observation frustum hulls", BuildObservationImageHulls);
+                    }
+                    if (roverImages != null && textureMode == TextureMode.Backproject && options.Colorize)
+                    {
+                        RunPhase("check or generate observation image stats", BuildObservationImageStats);
                     }
                     if (canUseTextureSplit)
                     {
                         RunPhase("configure texture split criteria", ConfigureTextureSplitCriteria);
                     }
                 }
-                    
+
+                //conserve memory: we will (probably) want the textures later, but we can reload them at that point
+                RunPhase("clear LRU image cache", ClearImageCache);
+
                 RunPhase("build tile tree", BuildTileTree);
 
                 RunPhase("build tile meshes", BuildTileMeshes);
 
                 if (withTextures && textureMode == TextureMode.Backproject)
                 {
-                    if (options.Colorize)
-                    {
-                        RunPhase("checking/computing observation image stats", BuildObservationImageStats);
-                    }
-
                     RunPhase("build backproject strategy", InitBackprojectStrategy);
                 }
 
@@ -582,13 +584,15 @@ namespace OPS.Landform
                 pipeline.LogInfo("cannot project texture, --inputtexture not PDS and has no PDS sibling");
                 return;
             }
-            if (inputTexturePDS != options.InputTexture)
+
+            bool usingAltPDS = inputTexturePDS != options.InputTexture;
+            if (usingAltPDS) 
             {
                 pipeline.LogInfo("using PDS headers from {0} for input texture {1}",
                                  inputTexturePDS, options.InputTexture);
             }
 
-            var texImg = pipeline.LoadImage(inputTexturePDS);
+            var texImg = pipeline.LoadImage(inputTexturePDS, noCache: !NeedSceneTexture() || usingAltPDS);
             if (!(texImg.Metadata is PDSMetadata))
             {
                 pipeline.LogInfo("cannot project texture, --inputtexture does not have PDS metadata");
@@ -676,7 +680,7 @@ namespace OPS.Landform
             {
                 string texPath = TextureProjectionEnabled() ? inputTexturePDS : options.InputTexture;
                 pipeline.LogInfo("loading input texture from {0}", texPath);
-                sceneTexture = pipeline.LoadImage(texPath);
+                sceneTexture = pipeline.LoadImage(texPath, noCache: true);
             }
             else if (project != null && sceneMesh != null)
             {

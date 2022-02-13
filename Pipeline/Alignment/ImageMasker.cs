@@ -167,7 +167,17 @@ namespace OPS.Pipeline
             {
                 if (img == null)
                 {
-                    img = pipeline.LoadImage(imageObs.Url);
+                    //disable LRU image cache for mask images
+                    //if GetOrCreateMask() gets called again it should return the cached mask product
+                    //other codepaths may call RoverMasker.LoadOrBuild() directly
+                    //but that would typically be to make a mask for a geometry image (XYZ, RNG, UVW)
+                    //which is somewhat different (e.g. does not include the mask borders)
+                    //than the feature detection mask we create and cache here
+                    //most executions only use one or the other kind of masks
+                    //so the possible speed improvement of caching them both here and in RoverMasker
+                    //is probably not worth the memory consumption of caching the masks
+                    //(also best cache coherence would require reversing order of second access)
+                    img = pipeline.LoadImage(imageObs.Url, noCache: true);
                 }
                 Image mask = MakeMask(pipeline, masker, roverMaskUrl, img);
                 var maskProd = new PngDataProduct(mask);

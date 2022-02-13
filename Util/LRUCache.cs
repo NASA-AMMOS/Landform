@@ -144,8 +144,11 @@ namespace OPS.Util
 
         public void Clear()
         {
-            keyToNode.Clear();
-            values.Clear();
+            lock (values)
+            {
+                values.Clear();
+                keyToNode.Clear();
+            }
         }
 
         public TValue this[TKey key]
@@ -185,7 +188,7 @@ namespace OPS.Util
                         values.Remove(node);
                         values.AddFirst(node);
                     }
-                    else
+                    else if (capacity > 0)
                     {
                         node = values.AddFirst(new Entry(key, value));
                         keyToNode.AddOrUpdate(key, _ => node, (_, __) => node);

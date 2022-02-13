@@ -822,7 +822,7 @@ namespace OPS.Landform
                         {
                             string indexName = leaf + TilingDefaults.INDEX_FILE_SUFFIX + TilingDefaults.INDEX_FILE_EXT;
                             string indexUrl = pipeline.GetStorageUrl(leafFolder, project.Name, indexName);
-                            var leafIndex = pipeline.LoadImage(indexUrl);
+                            var leafIndex = pipeline.LoadImage(indexUrl, noCache: true);
                             for (int r = 0; r < leafIndex.Height; r++)
                             {
                                 for (int c = 0; c < leafIndex.Width; c++)
@@ -870,8 +870,13 @@ namespace OPS.Landform
                     
                     pipeline.LogInfo("testing {0} image frusta for intersection with {1} scene mesh hull",
                                      images.Count, meshVariant);
+
+                    //use same FarClip here as in TextureCommand.BuildObservationImageHulls()
                     var obsToHull = Backproject.BuildFrustumHulls(pipeline, frameCache, options.SiteDrive,
-                                                                  options.UsePriors, options.OnlyAligned, images);
+                                                                  options.UsePriors, options.OnlyAligned, images,
+                                                                  project, options.Redo, options.NoSave,
+                                                                  farClip: options.TextureFarClip);
+
                     var tmp = new ConcurrentBag<string>();
                     CoreLimitedParallel.ForEach(images, obs =>
                     {

@@ -77,6 +77,9 @@ namespace OPS.Landform
         [Option(HelpText = "Redo observation image stats", Default = false)]
         public bool RedoObservationStats { get; set; }
 
+        [Option(HelpText = "Redo observation image hulls", Default = false)]
+        public bool RedoObservationHulls { get; set; }
+
         [Option(HelpText = "Number of inpaint missing pixels for backproject, 0 to disable inpaint, negative for unlimited", Default = TexturingDefaults.BACKPROJECT_INPAINT_MISSING)]
         public int BackprojectInpaintMissing { get; set; }
 
@@ -85,9 +88,6 @@ namespace OPS.Landform
 
         [Option(HelpText = "Just show list of image observations selected for texturing", Default = false)]
         public bool ListImageObservations { get; set; }
-
-        [Option(HelpText = "Length of the convex hull to use when finding observations to texture width (meters)", Default = TexturingDefaults.TEXTURE_FAR_CLIP)]
-        public virtual double TextureFarClip { get; set; }
 
         [Option(HelpText = "Prefer color images (Never, Always, EquivalentScores)", Default = TexturingDefaults.OBS_SEL_PREFER_COLOR)]
         public virtual PreferColorMode PreferColor { get; set; }
@@ -104,6 +104,8 @@ namespace OPS.Landform
         [Option(HelpText = "Don't convert tileset images from linear RGB to sRGB", Default = false)]
         public bool NoConvertLinearRGBToSRGB { get; set; }
 
+        [Option(HelpText = "Disable LRU image cache (longer runtime but lower memory footprint)", Default = false)]
+        public bool DisableImageCache { get; set;}
     }
 
     public class TextureCommand : GeometryCommand
@@ -126,6 +128,7 @@ namespace OPS.Landform
         protected List<Observation> imageObservations;
         protected List<Observation> orbitalImages;
         protected List<RoverObservation> roverImages;
+        protected static bool reverseNextRoverImagesIteration;
         protected Dictionary<int, Observation> indexedImages;
 
         protected SceneMesh sceneMesh;
@@ -147,14 +150,21 @@ namespace OPS.Landform
             this.tcopts = tcopts;
             if (tcopts.Redo)
             {
-                tcopts.RedoBlurredObservationTextures = true;
                 tcopts.RedoObservationMasks = true;
+                tcopts.RedoObservationHulls = true;
                 tcopts.RedoObservationStats = true;
+                tcopts.RedoBlurredObservationTextures = true;
             }
         }
 
         protected override bool ParseArgumentsAndLoadCaches(string outDir)
         {
+            if (tcopts.DisableImageCache)
+            {
+                pipeline.LogInfo("disabling LRU image cache");
+                pipeline.SetImageCacheCapacity(0);
+            }
+
             if (tcopts.TextureFarClip > 0)
             {
                 PDSImage.farLimit = tcopts.TextureFarClip;
@@ -243,6 +253,7 @@ namespace OPS.Landform
             roverImages = comparator
                 .KeepBestRoverObservations(roverImages, RoverObservationComparator.LinearVariants.Best,
                                            RoverProductType.Image)
+                .OrderBy(obs => obs.Name)
                 .ToList();
         }
 
@@ -286,11 +297,153 @@ namespace OPS.Landform
             return " texturing images and masks";
         }
 
+        protected static bool ReverseNextRoverImagesIteration()
+        {
+            bool ret = reverseNextRoverImagesIteration;
+            reverseNextRoverImagesIteration = !ret;
+            return ret;
+        }
+
+        protected List<RoverObservation> GetRoverImagesInNextIterationOrder()
+        {
+            return ReverseNextRoverImagesIteration() ?
+                roverImages.OrderByDescending(obs => obs.Name).ToList() : roverImages;
+        }
+
+        protected void BuildObservationImageMasks()
+        {
+            int no = roverImages.Count;
+            int np = 0, nc = 0, nl = 0, nf = 0;
+            CoreLimitedParallel.ForEach(GetRoverImagesInNextIterationOrder(), obs =>
+            {
+                if (!tcopts.RedoObservationMasks && obs.MaskGuid != Guid.Empty)
+                {
+                    Interlocked.Increment(ref nc);
+                    Interlocked.Increment(ref nl);
+                    return;
+                }
+                
+                Interlocked.Increment(ref np);
+                
+                pipeline.LogVerbose("creating mask for observation {0}, processing {1} in parallel, " +
+                                    "completed {2}/{3}", obs.Name, np, nc, no);
+
+                try
+                {
+                    Image img = pipeline.LoadImage(obs.Url);
+
+                    var maskObs = GetBestMaskObservation(obs);
+                    
+                    Image maskImage = ImageMasker.MakeMask(pipeline, masker, maskObs != null ? maskObs.Url : null, img);
+                    
+                    if (!tcopts.NoSave)
+                    {
+                        var maskProd = new PngDataProduct(maskImage);
+                        pipeline.SaveDataProduct(project, maskProd);
+                        obs.MaskGuid = maskProd.Guid;
+                        obs.Save(pipeline);
+                    }
+
+                    Interlocked.Increment(ref nc);
+                }
+                catch (Exception ex)
+                {
+                    Interlocked.Increment(ref nf);
+                    pipeline.LogException(ex, $"error creating mask for observation {obs.Name}");
+                }
+
+                Interlocked.Decrement(ref np);
+            });
+            pipeline.LogInfo("built masks for {0} observations, {1} cached, {2} failed", nc - nl, nl, nf);
+        }
+
+        protected void BuildObservationImageHulls()
+        {
+            BuildObservationImageHulls(false, false);
+        }
+
+        protected void BuildObservationImageHulls(bool forceRedo = false, bool noSave = false)
+        {
+            obsToHull = Backproject.BuildFrustumHulls(pipeline, frameCache, meshFrame, tcopts.UsePriors,
+                                                      tcopts.OnlyAligned, GetRoverImagesInNextIterationOrder(), project,
+                                                      tcopts.RedoObservationHulls || forceRedo, tcopts.NoSave || noSave,
+                                                      farClip: tcopts.TextureFarClip);
+#if DBG_FRUSTA
+            if (tcopts.WriteDebug)
+            {
+                foreach (var entry in obsToHull)
+                {
+                    SaveMesh(entry.Value.Mesh, "Frusta/" + entry.Key);
+                }
+            }
+#endif
+        }
+
+        protected void BuildObservationImageStats()
+        {
+            int no = roverImages.Count;
+            int np = 0, nc = 0, nl = 0, nf = 0;
+            CoreLimitedParallel.ForEach(GetRoverImagesInNextIterationOrder(), obs =>
+            {
+                if (!tcopts.RedoObservationStats && obs.StatsGuid != Guid.Empty)
+                {
+                    Interlocked.Increment(ref nc);
+                    Interlocked.Increment(ref nl);
+                    return;
+                }
+                
+                Interlocked.Increment(ref np);
+                
+                pipeline.LogVerbose("computing stats for observation {0}, processing {1} in parallel, " +
+                                    "completed {2}/{3}", obs.Name, np, nc, no);
+
+                try
+                {
+                    var img = pipeline.LoadImage(obs.Url);
+                    if (obs.MaskGuid != Guid.Empty)
+                    {
+                        var mask = pipeline.GetDataProduct<PngDataProduct>(project, obs.MaskGuid).Image;
+                        img = new Image(img); //don't mutate cached image
+                        img.UnionMask(mask, new float[] { 0 }); //0 means bad, 1 means good
+                    }
+                    if (!tcopts.NoSave)
+                    {
+                        var statsProd = new ImageStats(img);
+                        pipeline.SaveDataProduct(project, statsProd);
+                        obs.StatsGuid = statsProd.Guid;
+                        obs.Save(pipeline);
+                    }
+                    Interlocked.Increment(ref nc);
+                }
+                catch (Exception ex)
+                {
+                    Interlocked.Increment(ref nf);
+                    pipeline.LogException(ex, $"error computing stats for observation {obs.Name}");
+                }
+
+                Interlocked.Decrement(ref np);
+            });
+
+            pipeline.LogInfo("built image stats for {0} observations, {1} cached, {2} failed", nc - nl, nl, nf);
+
+            int numColor = Backproject.GetImageStats(pipeline, project,
+                                                     roverImages, //doesn't load images, don't toggle order
+                                                     out double lumaMed, out double lumaMAD, out double hueMed);
+
+            if (numColor > 0 && tcopts.OverrideMedianHue < 0)
+            {
+                medianHue = hueMed;
+            }
+
+            pipeline.LogInfo("global luminance median {0:f3}, MAD {1:f3}, hue median {2:f3}, {3}/{4} images color",
+                             lumaMed, lumaMAD, hueMed, numColor, roverImages.Count);
+        }
+
         protected void BuildBlurredObservationImages()
         {
             int no = roverImages.Count;
-            int np = 0, nc = 0;
-            CoreLimitedParallel.ForEach(roverImages, obs =>
+            int np = 0, nc = 0, nl = 0, nf = 0;
+            CoreLimitedParallel.ForEach(GetRoverImagesInNextIterationOrder(), obs =>
             {
                 if (!tcopts.RedoBlurredObservationTextures && obs.BlurredGuid != Guid.Empty)
                 {
@@ -303,6 +456,7 @@ namespace OPS.Landform
 
 #endif
                     Interlocked.Increment(ref nc);
+                    Interlocked.Increment(ref nl);
                     return;
                 }
                 
@@ -346,110 +500,13 @@ namespace OPS.Landform
                 }
                 catch (Exception ex)
                 {
+                    Interlocked.Increment(ref nf);
                     pipeline.LogException(ex, $"error creating blurred image for observation {obs.Name}");
                 }
 
                 Interlocked.Decrement(ref np);
             });
-        }
-
-        protected void BuildObservationImageMasks()
-        {
-            int no = roverImages.Count;
-            int np = 0, nc = 0;
-            CoreLimitedParallel.ForEach(roverImages, obs =>
-            {
-                if (!tcopts.RedoObservationMasks && obs.MaskGuid != Guid.Empty)
-                {
-                    Interlocked.Increment(ref nc);
-                    return;
-                }
-                
-                Interlocked.Increment(ref np);
-                
-                pipeline.LogVerbose("creating mask for observation {0}, processing {1} in parallel, " +
-                                    "completed {2}/{3}", obs.Name, np, nc, no);
-
-                try
-                {
-                    Image img = pipeline.LoadImage(obs.Url);
-
-                    var maskObs = GetBestMaskObservation(obs);
-                    
-                    Image maskImage = ImageMasker.MakeMask(pipeline, masker, maskObs != null ? maskObs.Url : null, img);
-                    
-                    if (!tcopts.NoSave)
-                    {
-                        var maskProd = new PngDataProduct(maskImage);
-                        pipeline.SaveDataProduct(project, maskProd);
-                        obs.MaskGuid = maskProd.Guid;
-                        obs.Save(pipeline);
-                    }
-
-                    Interlocked.Increment(ref nc);
-                }
-                catch (Exception ex)
-                {
-                    pipeline.LogException(ex, $"error creating mask for observation {obs.Name}");
-                }
-
-                Interlocked.Decrement(ref np);
-            });
-        }
-
-        protected void BuildObservationImageStats()
-        {
-            int no = roverImages.Count;
-            int np = 0, nc = 0;
-            CoreLimitedParallel.ForEach(roverImages, obs =>
-            {
-                if (!tcopts.RedoObservationStats && obs.StatsGuid != Guid.Empty)
-                {
-                    Interlocked.Increment(ref nc);
-                    return;
-                }
-                
-                Interlocked.Increment(ref np);
-                
-                pipeline.LogVerbose("computing stats for observation {0}, processing {1} in parallel, " +
-                                    "completed {2}/{3}", obs.Name, np, nc, no);
-
-                try
-                {
-                    var img = pipeline.LoadImage(obs.Url);
-                    if (obs.MaskGuid != Guid.Empty)
-                    {
-                        var mask = pipeline.GetDataProduct<PngDataProduct>(project, obs.MaskGuid).Image;
-                        img = new Image(img); //don't mutate cached image
-                        img.UnionMask(mask, new float[] { 0 }); //0 means bad, 1 means good
-                    }
-                    var statsProd = new ImageStats(img);
-                    if (!tcopts.NoSave)
-                    {
-                        pipeline.SaveDataProduct(project, statsProd);
-                        obs.StatsGuid = statsProd.Guid;
-                        obs.Save(pipeline);
-                    }
-                    Interlocked.Increment(ref nc);
-                }
-                catch (Exception ex)
-                {
-                    pipeline.LogException(ex, $"error computing stats for observation {obs.Name}");
-                }
-
-                Interlocked.Decrement(ref np);
-            });
-
-            int numColor = Backproject.GetImageStats(pipeline, project, roverImages, out double lumaMed,
-                                                     out double lumaMAD, out double hueMed);
-
-            if (numColor > 0 && tcopts.OverrideMedianHue < 0)
-            {
-                medianHue = hueMed;
-            }
-
-            pipeline.LogInfo("global luminance median {0:f3}, MAD {1:f3}, hue median {2:f3}, {3}/{4} images color",
-                             lumaMed, lumaMAD, hueMed, numColor, roverImages.Count);
+            pipeline.LogInfo("built blurred images for {0} observations, {1} cached, {2} failed", nc - nl, nl, nf);
         }
 
         protected virtual void LoadInputMesh(bool requireUVs = false, bool requireNormals = false)
@@ -849,21 +906,6 @@ namespace OPS.Landform
             meshOp = meshOpForLOD.First();
         }
 
-        protected void BuildObsHulls()
-        {
-            obsToHull = Backproject.BuildFrustumHulls(pipeline, frameCache, meshFrame, tcopts.UsePriors,
-                                                      tcopts.OnlyAligned, roverImages, farClip: tcopts.TextureFarClip );
-#if DBG_FRUSTA
-            if (tcopts.WriteDebug)
-            {
-                foreach (var entry in obsToHull)
-                {
-                    SaveMesh(entry.Value.Mesh, "Frusta/" + entry.Key);
-                }
-            }
-#endif
-        }
-
         protected virtual void InitBackprojectStrategy()
         {
             InitBackprojectStrategy(mesh, meshOp, sceneCaster, sceneCaster);
@@ -909,8 +951,8 @@ namespace OPS.Landform
             pipeline.LogInfo("initializing observation selection strategy {0} for {1} rover observations, {2} orbital",
                              tcopts.ObsSelectionStrategy, roverImages.Count, numOrbital);
 
-            var contexts = Backproject.BuildContexts(obsToHull, roverImages, mission, frameCache,
-                                                     observationCache, meshFrame, tcopts.UsePriors,
+            var contexts = Backproject.BuildContexts(obsToHull, roverImages, //doesn't load images, don't toggle order
+                                                     mission, frameCache, observationCache, meshFrame, tcopts.UsePriors,
                                                      tcopts.OnlyAligned, msg => pipeline.LogWarn(msg));
 
             backprojectStrategy.Initialize(mesh, meshOp, meshCaster, occlusionScene, contexts);
@@ -1107,7 +1149,8 @@ namespace OPS.Landform
                                                       tcopts.BackprojectInpaintMissing, tcopts.BackprojectInpaintGutter,
                                                       orbitalTexture: orbitalTexture,
                                                       preadjustLuminance: preadjustLuminance,
-                                                      colorizeHue: tcopts.Colorize ? medianHue : -1);
+                                                      colorizeHue: tcopts.Colorize ? medianHue : -1,
+                                                      reverseAccessOrder: ReverseNextRoverImagesIteration());
 
             pipeline.LogInfo("filled {0} pixels from {1} surface observations, {2} from orbital, {3} failed, " +
                              "{4} fallbacks to original texture",

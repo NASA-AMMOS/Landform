@@ -703,7 +703,7 @@ namespace OPS.Pipeline.TilingServer
                 if (input.ImageWidth < ChunkInput.SPARSE_IMAGE_CHUNK_RES &&
                     input.ImageHeight < ChunkInput.SPARSE_IMAGE_CHUNK_RES)
                 {
-                    image = pipeline.LoadImage(input.ImageUrl);
+                    image = pipeline.LoadImage(input.ImageUrl, noCache: true);
                 }
                 else
                 {

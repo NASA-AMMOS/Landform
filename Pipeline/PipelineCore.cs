@@ -241,10 +241,16 @@ namespace OPS.Pipeline
                               dataProductCache.Capacity, dataProductCache.GetStats());
         }
 
-        public virtual void ClearCaches()
+        public virtual void ClearCaches(bool clearImageCache = true, bool clearDataProductCache = true)
         {
-            imageCache.Clear();
-            dataProductCache.Clear();
+            if (clearImageCache)
+            {
+                imageCache.Clear();
+            }
+            if (clearDataProductCache)
+            {
+                dataProductCache.Clear();
+            }
         }
 
         //****************** Image Fetch API *****************
@@ -255,7 +261,22 @@ namespace OPS.Pipeline
         private ConcurrentDictionary<string, Object> imageLoadLocks =
             new ConcurrentDictionary<string, Object>();
 
+        public void SetImageCacheCapacity(int capacity)
+        {
+            imageCache.Capacity = capacity;
+        }
+
         public Image LoadImage(string url, IImageConverter converter = null)
+        {
+            return LoadImage(url, converter, false);
+        }
+
+        public Image LoadImage(string url, bool noCache)
+        {
+            return LoadImage(url, null, noCache);
+        }
+
+        public Image LoadImage(string url, IImageConverter converter, bool noCache)
         {
             Image image = imageCache[url];
             if (image != null)
@@ -273,7 +294,10 @@ namespace OPS.Pipeline
                         string f = GetImageFile(url);
                         image = converter != null ? Image.Load(f, converter) : Image.Load(f);
                         AddAnyUserMask(url, image);
-                        imageCache[url] = image;
+                        if (!noCache)
+                        {
+                            imageCache[url] = image;
+                        }
                     }
                     catch (Exception ex)
                     {

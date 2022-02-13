@@ -231,16 +231,25 @@ namespace OPS.Landform
                     }
                 }
 
-                RunPhase("check/build observation image masks", BuildObservationImageMasks);
-                RunPhase("check/generate blurred observation images", BuildBlurredObservationImages);
-
+                RunPhase("check or generate observation image masks", BuildObservationImageMasks);
+                if ((options.RedoBlurredTexture || sceneMesh.BlurredTextureGuid == Guid.Empty) &&
+                    !useExistingIndex && !useExistingLeaves)
+                {
+                    RunPhase("check or generate observation frustum hulls", BuildObservationImageHulls);
+                }
                 if (options.PreadjustLuminance > 0 || options.Colorize)
                 {
-                    RunPhase("check/build observation image stats", BuildObservationImageStats);
+                    RunPhase("check or generate observation image stats", BuildObservationImageStats);
                 }
+
+                RunPhase("check or genererate blurred observation images", BuildBlurredObservationImages);
+
+                //conserve memory: we will (probably) want the textures later, but we can reload them at that point
+                RunPhase("clear LRU image cache", ClearImageCache);
 
                 RunPhase("load or generate blurred texture", LoadOrBuildBlurredTexture);
                 RunPhase("load or generate blended texture", LoadOrBuildBlendedTexture);
+
                 RunPhase("generate blended observation images", BuildBlendedObservationImages);
 
                 if (!options.NoSave)
@@ -504,6 +513,7 @@ namespace OPS.Landform
                 {
                     SaveBackprojectTextureDebug(blurredTexture, TextureVariant.Blurred);
                 }
+                return;
             }
 
             if (useExistingIndex)
@@ -530,8 +540,6 @@ namespace OPS.Landform
             else
             {
                 pipeline.LogInfo("backprojecting blurred texture from shrinkwrap mesh");
-                BuildObservationImageMasks();
-                BuildObsHulls();
                 BuildSceneCaster();
                 BuildMeshOperator();
                 InitBackprojectStrategy();
@@ -783,7 +791,7 @@ namespace OPS.Landform
                 
                 if (!options.RedoBlendedObservationTextures && obs.GetTextureVariantGuid(textureVariant) != Guid.Empty)
                 {
-                    writeDebug(pipeline.LoadImage(obs.Url), obs, "");
+                    writeDebug(pipeline.LoadImage(obs.Url, noCache: true), obs, "");
                     var guid = obs.GetTextureVariantGuid(textureVariant);
                     writeDebug(pipeline.GetDataProduct<PngDataProduct>(project, guid).Image, obs, "_blended");
                     Interlocked.Increment(ref nc);
@@ -822,7 +830,7 @@ namespace OPS.Landform
                 pipeline.LogInfo("blending image for observation {0}, processing {1} in parallel, " +
                                  "completed {2}/{3}", obs.Name, np, nc, no);
 
-                Image img = pipeline.LoadImage(obs.Url);
+                Image img = pipeline.LoadImage(obs.Url, noCache: true);
                 writeDebug(img, obs, "");
 
                 Image blr = pipeline.GetDataProduct<PngDataProduct>(project, obs.BlurredGuid).Image;
@@ -1062,7 +1070,7 @@ namespace OPS.Landform
 
                 string indexName = leaf + TilingDefaults.INDEX_FILE_SUFFIX + TilingDefaults.INDEX_FILE_EXT;
                 string indexUrl = pipeline.GetStorageUrl(leafFolder, project.Name, indexName);
-                var leafIndex = pipeline.LoadImage(indexUrl);
+                var leafIndex = pipeline.LoadImage(indexUrl); //LRU cache for later use in BuildBlendedLeafTextures()
 
                 //only rasterize winning pixels from the leaf
                 //any pixels in backprojectIndex that didn't get rasterized then remain masked
@@ -1143,19 +1151,21 @@ namespace OPS.Landform
                              pipeline.GetStorageUrl(leafFolder, project.Name), textureVariant);
             int curLeafNum = 0, leafCount = tileList.LeafNames.Count;
             int numSurfacePixels = 0, numOrbitalPixels = 0, numMissingPixels = 0, numFallbacks = 0;
-            CoreLimitedParallel.ForEach(tileList.LeafNames, leaf =>
+            //reverse access order to improve cache coherence
+            CoreLimitedParallel.ForEach(tileList.LeafNames.OrderByDescending(name => name), leaf =>
             {
                 Interlocked.Increment(ref curLeafNum);
                 pipeline.LogInfo("building {0} leaf texture {1}/{2} ({3:F2}%): {4}",
                                  textureVariant, curLeafNum, leafCount, 100 * curLeafNum / (float)leafCount, leaf);
                 string indexName = leaf + TilingDefaults.INDEX_FILE_SUFFIX + TilingDefaults.INDEX_FILE_EXT;
                 string indexUrl = pipeline.GetStorageUrl(leafFolder, project.Name, indexName);
-                var index = pipeline.LoadImage(indexUrl);
+                var index = pipeline.LoadImage(indexUrl, noCache: true);
                 var results = Backproject.BuildResultsFromIndex(index, indexedImages, msg => pipeline.LogWarn(msg));
                 var texture = new Image(3, index.Width, index.Height);
                 var stats = Backproject.FillOutputTexture(pipeline, project, results, texture, textureVariant,
                                                           inpaintMissing, inpaintGutter, fallbackToOriginal: true,
-                                                          orbitalTexture: orbitalTexture, colorizeHue: colorizeHue);
+                                                          orbitalTexture: orbitalTexture, colorizeHue: colorizeHue,
+                                                          reverseAccessOrder: ReverseNextRoverImagesIteration());
                 Interlocked.Add(ref numSurfacePixels, stats.BackprojectedSurfacePixels);
                 Interlocked.Add(ref numOrbitalPixels, stats.BackprojectedOrbitalPixels);
                 Interlocked.Add(ref numMissingPixels, stats.BackprojectMissingPixels);

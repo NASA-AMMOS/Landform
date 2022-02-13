@@ -301,6 +301,7 @@ namespace OPS.Landform
                 if (!options.NoSurface)
                 {
                     RunPhase("build observation point clouds", BuildObservationPointClouds);
+                    RunPhase("clear LRU image cache", ClearImageCache);
                     RunPhase("build surface hull", MakeSurfaceHull);
                     RunPhase("merge point clouds", MergePointClouds);
                     RunPhase("reconstruct mesh", ReconstructMesh);
@@ -527,7 +528,9 @@ namespace OPS.Landform
             wedgeMeshOpts = new WedgeObservations.MeshOptions()
             {
                 Frame = meshFrame,
-                NormalFilter = options.NormalFilter
+                NormalFilter = options.NormalFilter,
+                NoCacheTextureImages = true,
+                NoCacheGeometryImages = true
             };
 
             if ((options.ReconstructionMethod == MeshReconstructionMethod.Poisson) &&
@@ -725,9 +728,6 @@ namespace OPS.Landform
                     }
                 }
             }
-
-            pipeline.LogInfo("clearing pipeline caches");
-            pipeline.ClearCaches(); //reduce memory usage
 
             int sz = observationPointClouds.Values.Sum(c => c.Vertices.Count);
             if (sz == 0)
@@ -1594,8 +1594,10 @@ namespace OPS.Landform
             pipeline.LogInfo("only keeping triangles visible in observations: {0}",
                              string.Join(", ", onlyForObs.Select(obs => obs.Name)));
 
-            var hulls = Backproject.BuildFrustumHulls(pipeline, frameCache, meshFrame, options.UsePriors,
-                                                      options.OnlyAligned, onlyForObs).Values;
+            var hulls = Backproject
+                .BuildFrustumHulls(pipeline, frameCache, meshFrame, options.UsePriors, options.OnlyAligned, onlyForObs,
+                                   project, options.Redo, options.NoSave)
+                .Values;
 
             Mesh filtered = new Mesh();
             filtered.SetProperties(mesh);

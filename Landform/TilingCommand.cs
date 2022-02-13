@@ -478,7 +478,7 @@ namespace OPS.Landform
                 var mip = new MeshImagePair(leafMesh);
                 if (pipeline.FileExists(imgUrl))
                 {
-                    mip.Image = pipeline.LoadImage(imgUrl);
+                    mip.Image = pipeline.LoadImage(imgUrl, noCache: true);
                 }
                 var mipStats = new MeshImagePairStats(mip);
                 mipStats.HasIndex = tileList.HasIndexImages && pipeline.FileExists(idxUrl);
@@ -747,7 +747,8 @@ namespace OPS.Landform
                 Backproject.FillOutputTexture(pipeline, project, results, mip.Image, tilingOpts.TextureVariant,
                                               tilingOpts.BackprojectInpaintMissing, tilingOpts.BackprojectInpaintGutter,
                                               fallbackToOriginal: true, orbitalTexture: orbitalTexture,
-                                              colorizeHue: tilingOpts.Colorize ? medianHue : -1);
+                                              colorizeHue: tilingOpts.Colorize ? medianHue : -1,
+                                              reverseAccessOrder: ReverseNextRoverImagesIteration());
 
                 if (!tilingOpts.NoIndexImages)
                 {
