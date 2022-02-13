@@ -215,6 +215,12 @@ namespace OPS.Landform
         [Option(Default = false, HelpText = "Don't generate sky sphere tileset")]
         public bool NoSky { get; set; }
 
+        [Option(Default = ProcessContextual.Phase.begin, HelpText = "(Re)Start at phase: begin, fetch, ingest, align, geometry, leaves, blend, tileset, manifest, save, sky, combinedManifest (combine with --redo to ignore cached products)")]
+        public ProcessContextual.Phase StartPhase { get; set; }
+
+        [Option(Default = ProcessContextual.Phase.end, HelpText = "Stop at phase: fetch, ingest, align, geometry, leaves, blend, tileset, manifest, save, sky, combinedManifest, end (combine with --redo to ignore cached products)")]
+        public ProcessContextual.Phase EndPhase { get; set; }
+
         [Option(HelpText = "Sky mode (Box, Sphere, TopoSphere, Auto)", Default = BuildSkySphere.DEF_SKY_MODE)]
         public SkyMode SkyMode { get; set; }
 
@@ -336,6 +342,9 @@ namespace OPS.Landform
 
     public class ProcessContextual : LandformService
     {
+        public enum Phase
+        { begin, fetch, ingest, align, geometry, leaves, blend, tileset, manifest, save, sky, combinedManifest, end };
+
         public const string FETCH_DIR = "fetched";
 
         new public const int DEF_MAX_HANDLER_SEC = 6 * 60 * 60; //6 hours
@@ -1337,7 +1346,8 @@ namespace OPS.Landform
 
                 Configure(venue);
 
-                if (!options.NoFetch && !orbitalOnly && rdrDir.StartsWith("s3://") && !(pipeline is CloudPipeline))
+                if (!options.NoFetch && !orbitalOnly && rdrDir.StartsWith("s3://") && !(pipeline is CloudPipeline) &&
+                    options.StartPhase <= Phase.fetch && options.EndPhase >= Phase.fetch)
                 {
                     string searchLocations = rdrDir + "/";
                     string[] rdrSubdirs = mission.GetContextualMeshRDRSubdirs();
@@ -1349,7 +1359,8 @@ namespace OPS.Landform
                           "--onlyforsitedrives", sdsStr, "--nomeshes", "--summary");
                 }
 
-                if (!options.NoFetch && !options.NoOrbital)
+                if (!options.NoFetch && !options.NoOrbital &&
+                    options.StartPhase <= Phase.fetch && options.EndPhase >= Phase.fetch)
                 {
                     Action<string, string> fetchOrbitalAsset = (url, file) =>
                     {
@@ -1392,7 +1403,7 @@ namespace OPS.Landform
                     fetchOrbitalAsset(orbitalDEMUrl, orbitalDEMFile);
                 }
 
-                if (!options.NoIngest)
+                if (!options.NoIngest && options.StartPhase <= Phase.ingest && options.EndPhase >= Phase.ingest)
                 {
                     if (sols.Count > 1 && ingestDir.StartsWith("s3://") && ingestDir == solDir && ingestDir != rdrDir)
                     {
@@ -1404,13 +1415,14 @@ namespace OPS.Landform
                                noOrbital, orbitalDEMFileOpt, orbitalImageFileOpt, camerasOpt);
                 }
 
-                if (!options.NoAlign && !orbitalOnly)
+                if (!options.NoAlign && !orbitalOnly &&
+                    options.StartPhase <= Phase.align && options.EndPhase >= Phase.align)
                 {
                     RunCommand("bev-align", options.AbortOnAlignmentError, project, allowUnmasked);
                     RunCommand("heightmap-align", options.AbortOnAlignmentError, project, allowUnmasked);
                 }
 
-                if (!options.NoGeometry)
+                if (!options.NoGeometry && options.StartPhase <= Phase.geometry && options.EndPhase >= Phase.geometry)
                 {
                     RunCommand("build-geometry", project, "--extent", options.Extent.ToString(),
                                "--surfaceextent", options.SurfaceExtent.ToString(), allowUnmasked);
@@ -1418,22 +1430,35 @@ namespace OPS.Landform
                 
                 if (!options.NoTileset)
                 {
-                    BuildTilingInput(project, allowUnmasked);
+                    if (options.StartPhase <= Phase.leaves && options.EndPhase >= Phase.leaves)
+                    {
+                        BuildTilingInput(project, allowUnmasked);
+                    }
 
-                    if (!orbitalOnly)
+                    if (!orbitalOnly && options.StartPhase <= Phase.blend && options.EndPhase >= Phase.blend)
                     {
                         RunCommand("blend-images", project, allowUnmasked, colorize);
                     }
-                    
-                    BuildTileset(project, allowUnmasked);
-                    
-                    RunCommand("update-scene-manifest", project, "--notactical", "--nourls", "--nosky", allowUnmasked,
-                               "--sol", solStr, "--sitedrive", sdStr, "--sols", solRanges, "--sitedrives", sdsStr,
-                               "--manifestfile", tilesetDir + "/" + SCENE_JSON);
 
-                    SaveTileset(tilesetDir, project, destDir);
+                    if (options.StartPhase <= Phase.tileset && options.EndPhase >= Phase.tileset)
+                    {
+                        BuildTileset(project, allowUnmasked);
+                    }
+                    
+                    if (options.StartPhase <= Phase.manifest && options.EndPhase >= Phase.manifest)
+                    {
+                        RunCommand("update-scene-manifest", project, "--notactical", "--nourls", "--nosky",
+                                   allowUnmasked, "--sol", solStr, "--sitedrive", sdStr, "--sols", solRanges,
+                                   "--sitedrives", sdsStr, "--manifestfile", tilesetDir + "/" + SCENE_JSON);
+                    }
+                        
+                    if (options.StartPhase <= Phase.save && options.EndPhase >= Phase.save)
+                    {
+                        SaveTileset(tilesetDir, project, destDir);
+                    }
 
-                    if (!options.NoSky && !orbitalOnly)
+                    if (!options.NoSky && !orbitalOnly &&
+                        options.StartPhase <= Phase.sky && options.EndPhase >= Phase.sky)
                     {
                         RunCommand("build-sky-sphere", project, "--skymode", options.SkyMode.ToString(), allowUnmasked,
                                    "--sphereradius", options.SkySphereRadius,
@@ -1443,7 +1468,8 @@ namespace OPS.Landform
                     }
                 }
 
-                if (!options.NoCombinedManifest && !orbitalOnly)
+                if (!options.NoCombinedManifest && !orbitalOnly &&
+                    options.StartPhase <= Phase.combinedManifest && options.EndPhase >= Phase.combinedManifest)
                 {
                     RunCommand("update-scene-manifest", project, allowUnmasked, "--tilesetdir", destDir,
                                "--rdrdir", rdrDir, "--sol", solStr, "--sitedrive", sdStr,
