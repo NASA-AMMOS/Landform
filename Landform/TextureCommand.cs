@@ -980,7 +980,7 @@ namespace OPS.Landform
 
             try
             {
-                opts.meshHull = ConvexHull.CreateWithFallback(mesh);
+                opts.meshHull = ConvexHull.Create(mesh);
             }
             catch (Exception ex)
             {

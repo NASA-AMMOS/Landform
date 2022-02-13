@@ -79,7 +79,7 @@ namespace OPS.Pipeline
                 var posedRover = rover.BuildMesh(articulation, !mission.IsHazcam(mission.GetCamera(parser)));
 
                 //coarse test to see if rover is in frame at all (raycasts are expensive)
-                ConvexHull roverHull = ConvexHull.CreateWithFallback(posedRover);
+                ConvexHull roverHull = ConvexHull.Create(posedRover);
                 ConvexHull obsHull = ConvexHull.FromParams(metadata.CameraModel, metadata.Width, metadata.Height);
                 if (!obsHull.Intersects(roverHull))
                 {

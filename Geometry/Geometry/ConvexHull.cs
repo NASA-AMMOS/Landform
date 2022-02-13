@@ -12,25 +12,22 @@ namespace OPS.Geometry
 {
     public class ConvexHull
     {
-        public readonly Mesh Mesh;
+        public Mesh Mesh { get; private set; }
 
-        public readonly List<Plane> Planes;
+        public List<Plane> Planes { get; private set; }
 
-        public List<Vertex> Vertices
-        {
-            get { return Mesh.Vertices; }
-        }
+        public List<Vertex> Vertices { get { return Mesh.Vertices; } }
 
-        public bool IsEmpty
-        {
-            get { return Mesh.Vertices.Count == 0; }
-        }
+        public bool IsEmpty { get { return Mesh.Vertices.Count == 0; } }
 
         /// <summary>
         /// Construct from a list of 3D points.
         /// </summary>
-        public ConvexHull(IList<double[]> points)
+        private ConvexHull(IList<double[]> points)
         {
+            //only keep unique points
+            points = new HashSet<Vector3>(points.Select(p => new Vector3(p))).Select(p => p.ToDoubleArray()).ToList();
+
             if (points.Count == 0)
             {
                 //empty
@@ -39,7 +36,9 @@ namespace OPS.Geometry
             }
             else if (points.Count < 3)
             {
-                throw new ArgumentException("must provide 0 or at least 3 points");
+                var fallback = Fallback(points.Select(p => new Vector3(p)));
+                Planes = fallback.Planes;
+                Mesh = fallback.Mesh;
             }
             else if (points.Count == 3)
             {
@@ -62,34 +61,59 @@ namespace OPS.Geometry
                     throw new Exception($"MIConvexHull failed ({result.Outcome}): {result.ErrorMessage}");
                 }
                 var faces = result.Result.Faces.ToArray();
-                Mesh = new Mesh(true, false, false, faces.Length * 3);
+                Mesh = new Mesh(hasNormals: true);
                 Planes = new List<Plane>(faces.Length);
+                Mesh.Vertices.Capacity = faces.Sum(f => f.Vertices.Length);
+                Mesh.Faces.Capacity = faces.Sum(f => (f.Vertices.Length - 2));
                 for (int i = 0; i < faces.Length; i++)
                 {
                     var f = faces[i];
-                    var normal = Vector3.Normalize(new Vector3(f.Normal));
-                    var pt0 = new Vector3(f.Vertices[0].Position);
-                    Planes.Add(new Plane(normal, -normal.Dot(pt0)));
+                    var n = Vector3.Normalize(new Vector3(f.Normal));
 
-                    int baseIdx = Mesh.Vertices.Count;
+                    Planes.Add(new Plane(n, -n.Dot(new Vector3(f.Vertices[0].Position))));
+
+                    int k = Mesh.Vertices.Count;
                     for (int j = 0; j < f.Vertices.Length; j++)
                     {
-                        int idx = Mesh.Vertices.Count;
-                        Mesh.Vertices.Add(new Vertex(
-                            new Vector3(f.Vertices[j].Position),
-                            normal,
-                            Vector4.Zero,
-                            Vector2.Zero
-                            ));
+                        Mesh.Vertices.Add(new Vertex(new Vector3(f.Vertices[j].Position), n));
                     }
-                    Mesh.Faces.Add(new Face(Enumerable.Range(baseIdx, f.Vertices.Length).ToArray()));
+
+                    //create single triangle for 3 vertex face
+                    //or triangle fan for face with more than 3 vertices
+                    for (int t = 0; t < f.Vertices.Length - 2; t++)
+                    {
+                        int a = k;
+                        int b = k + 1 + t;
+                        int c = k + 2 + t;
+                        if (!Triangle.ComputeNormal(Mesh.Vertices[a].Position,
+                                                    Mesh.Vertices[b].Position,
+                                                    Mesh.Vertices[c].Position, out Vector3 fn) ||
+                            n.Dot(fn) >= 0)
+                        {
+                            Mesh.Faces.Add(new Face(a, b, c));
+                        }
+                        else
+                        {
+                            Mesh.Faces.Add(new Face(c, b, a));
+                        }
+                    }
                 }
+
+                Mesh.Clean();
+
+                Planes = new HashSet<Plane>(Planes).ToList(); //only keep unique planes
             }
         }
 
-        public ConvexHull(IEnumerable<Vector3> points) : this(points.Select(pt => pt.ToDoubleArray()).ToList()) { }
+        private ConvexHull(IEnumerable<Vector3> points) : this(points.Select(pt => pt.ToDoubleArray()).ToList()) { }
 
-        public ConvexHull(Mesh mesh) : this(mesh.Vertices.Select(vert => vert.Position)) { }
+        private ConvexHull(Mesh mesh) : this(mesh.Vertices.Select(vert => vert.Position)) { }
+
+        private ConvexHull(Mesh mesh, List<Plane> planes)
+        {
+            this.Mesh = mesh;
+            this.Planes = planes;
+        }
 
         public ConvexHull(ConvexHull other)
         {
@@ -97,17 +121,15 @@ namespace OPS.Geometry
             Planes = new List<Plane>(other.Planes);
         }
 
-        //empty
         public ConvexHull()
         {
             Mesh = new Mesh();
             Planes = new List<Plane>();
         }
 
-        public ConvexHull(BoundingBox box)
+        public static ConvexHull Create(BoundingBox box)
         {
-            Mesh = box.ToMesh();
-            Planes = box.FacePlanes();
+            return new ConvexHull(box.ToMesh(), box.FacePlanes());
         }
 
         /// <summary>
@@ -122,7 +144,7 @@ namespace OPS.Geometry
         /// That's conservative and probably good enough for what we're doing right now.
         /// https://github.jpl.nasa.gov/OnSight/Landform/issues/559
         /// </summary>
-        public static ConvexHull CreateWithFallback(Mesh mesh)
+        public static ConvexHull Create(Mesh mesh)
         {
             try
             {
@@ -130,12 +152,11 @@ namespace OPS.Geometry
             }
             catch
             {
-                return new ConvexHull(BoundingBoxExtensions.CreateFromPoints(mesh.Vertices.Select(v => v.Position),
-                                                                             minSize: 1e-6));
+                return Fallback(mesh.Vertices.Select(v => v.Position));
             }
         }
 
-        public static ConvexHull CreateWithFallback(IEnumerable<Vector3> pts)
+        public static ConvexHull Create(IEnumerable<Vector3> pts)
         {
             try
             {
@@ -143,13 +164,18 @@ namespace OPS.Geometry
             }
             catch
             {
-                return new ConvexHull(BoundingBoxExtensions.CreateFromPoints(pts, minSize: 1e-6));
+                return Fallback(pts);
             }
+        }
+
+        private static ConvexHull Fallback(IEnumerable<Vector3> pts)
+        {
+            return Create(BoundingBoxExtensions.CreateFromPoints(pts, minSize: 1e-6));
         }
 
         public static ConvexHull Union(params ConvexHull[] hulls)
         {
-            return ConvexHull.CreateWithFallback(hulls.SelectMany(h => h.Vertices.Select(vtx => vtx.Position)));
+            return ConvexHull.Create(hulls.SelectMany(h => h.Vertices.Select(vtx => vtx.Position)));
         }
 
         public static ConvexHull FromImage(Image image, double nearClip = 0.1, double farClip = 20)
@@ -181,7 +207,24 @@ namespace OPS.Geometry
                 }
             }
 
-            return ConvexHull.CreateWithFallback(pts);
+            return ConvexHull.Create(pts);
+        }
+
+        public static ConvexHull FromConvexMesh(Mesh mesh)
+        {
+            var planes = new HashSet<Plane>();
+            foreach (var f in mesh.Faces)
+            {
+                var n = mesh.HasNormals ? mesh.Vertices[f.P0].Normal : Vector3.Zero;
+                if ((mesh.HasNormals && n == mesh.Vertices[f.P1].Normal && n == mesh.Vertices[f.P2].Normal) ||
+                    Triangle.ComputeNormal(mesh.Vertices[f.P0].Position,
+                                           mesh.Vertices[f.P1].Position,
+                                           mesh.Vertices[f.P2].Position, out n)) //not degenerate, always normalized
+                {
+                    planes.Add(new Plane(n, -(n.Dot(mesh.Vertices[f.P0].Position))));
+                }
+            }
+            return new ConvexHull(mesh, planes.ToList());
         }
 
         /// <summary>

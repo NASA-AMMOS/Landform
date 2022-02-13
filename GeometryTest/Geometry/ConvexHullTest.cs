@@ -1,15 +1,19 @@
-﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
-using Microsoft.Xna.Framework;
-using OPS.Geometry;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.IO;
 using System.Threading.Tasks;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Microsoft.Xna.Framework;
+using OPS.Geometry;
+using OPS.Imaging;
 
 namespace GeometryTest
 {
     [TestClass()]
+    [DeploymentItem("TestData", "TestData")]
+    [DeploymentItem("gdal", "gdal")]
     public class ConvexHullTest
     {
         [TestMethod()]
@@ -38,14 +42,91 @@ namespace GeometryTest
             k = 1.0;
             rayDist = MathHelper.Lerp(rayDistNear, rayDistFar, k / (double)(subdiv - 1));
             Assert.IsTrue(ray.Position + rayDist * ray.Direction == new Vector3(0, 0, 3));
-
         }
+
+        [TestMethod()]
+        public void ConvexHullFromImage()
+        {
+            string filename = Path.Combine("TestData", "img", "NLB_451649560RNGLF0311330NCAM12813M1.IMG");
+            var image = Image.Load(filename);
+            var hull = ConvexHull.FromImage(image);
+            var mesh = hull.Mesh;
+            var bounds = mesh.Bounds();
+            Assert.AreEqual(12, hull.Planes.Count);
+            Assert.AreEqual(12, mesh.Faces.Count);
+            Assert.AreEqual(36, mesh.Vertices.Count);
+            Assert.IsTrue(Math.Abs(741.616 - mesh.SurfaceArea()) < 1e-3);
+            Assert.IsTrue(Math.Abs(3791.147 - bounds.Volume()) < 1e-3);
+        }
+
+        [TestMethod()]
+        public void ConvexHullFromBox()
+        {
+            var box = new BoundingBox(-0.5 * Vector3.One, 0.5 * Vector3.One);
+            var hull = ConvexHull.Create(box); //uses BoundingBoxExtensions.FacePlanes() and ToMesh()
+            var mesh = hull.Mesh;
+            Assert.AreEqual(6, hull.Planes.Count);
+            Assert.AreEqual(12, mesh.Faces.Count);
+            Assert.AreEqual(24, mesh.Vertices.Count);
+            Assert.AreEqual(6, mesh.SurfaceArea());
+            Assert.IsTrue(hull.Contains(Vector3.Zero));
+            Assert.IsTrue(!hull.Contains(Vector3.One));
+
+            hull = ConvexHull.Create(box.GetCorners());
+            mesh = hull.Mesh;
+            Assert.AreEqual(6, hull.Planes.Count);
+            Assert.AreEqual(12, mesh.Faces.Count);
+            Assert.AreEqual(24, mesh.Vertices.Count);
+            Assert.AreEqual(6, mesh.SurfaceArea());
+            Assert.IsTrue(hull.Contains(Vector3.Zero));
+            Assert.IsTrue(!hull.Contains(Vector3.One));
+        }
+
+        [TestMethod()]
+        public void ConvexHullFromConvexMesh()
+        {
+            var box = new BoundingBox(-0.5 * Vector3.One, 0.5 * Vector3.One);
+            var boxHull = ConvexHull.Create(box.GetCorners());
+            var boxMesh = boxHull.Mesh;
+
+            var boxMeshHull = ConvexHull.FromConvexMesh(boxMesh);
+            var boxMeshHullMesh = boxMeshHull.Mesh;
+            Assert.AreEqual(6, boxMeshHull.Planes.Count);
+            Assert.AreEqual(12, boxMeshHullMesh.Faces.Count);
+            Assert.AreEqual(24, boxMeshHullMesh.Vertices.Count);
+            Assert.AreEqual(6, boxMeshHullMesh.SurfaceArea());
+            Assert.IsTrue(boxMeshHull.Contains(Vector3.Zero));
+            Assert.IsTrue(!boxMeshHull.Contains(Vector3.One));
+
+            string filename = Path.Combine("TestData", "img", "NLB_451649560RNGLF0311330NCAM12813M1.IMG");
+            var image = Image.Load(filename);
+            var imageHull = ConvexHull.FromImage(image);
+            var imageHullMesh = imageHull.Mesh;
+
+            var imageHullMeshHull = ConvexHull.FromConvexMesh(imageHullMesh);
+            Assert.AreEqual(12, imageHullMeshHull.Planes.Count);
+
+            var ihp = new HashSet<Plane>(imageHull.Planes);
+            var ihmhp = new HashSet<Plane>(imageHullMeshHull.Planes);
+            //Assert.AreEqual(ihp, ihmhp);
+
+            double eps = 1e-9;
+            foreach (var p in ihp)
+            {
+                Assert.IsTrue(ihmhp.Any(q => q.Normal.AlmostEqual(p.Normal, eps) && Math.Abs(q.D - p.D) < eps));
+            }
+
+            foreach (var p in ihmhp)
+            {
+                Assert.IsTrue(ihp.Any(q => q.Normal.AlmostEqual(p.Normal, eps) && Math.Abs(q.D - p.D) < eps));
+            }
+       }
 
         [TestMethod()]
         public void SimpleConvexHullIntersect()
         {
             BoundingBox bounds = new BoundingBox(-Vector3.One, Vector3.One);
-            ConvexHull hull = new ConvexHull(bounds.GetCorners());
+            ConvexHull hull = ConvexHull.Create(bounds.GetCorners());
 
             Ray hitRay = new Ray(new Vector3(0, 0, -2), Vector3.UnitZ);
             Ray missRay = new Ray(new Vector3(2, 0, -2), Vector3.UnitZ);
@@ -59,16 +140,16 @@ namespace GeometryTest
         {
             Triangle tri = new Triangle(new Vector3(1, 0, 3), new Vector3(2, 1, 3), new Vector3(3, 0, 3));
             Mesh m = new Mesh(new List<Triangle> { tri });
-            ConvexHull hull = new ConvexHull(m);
+            ConvexHull hull = ConvexHull.Create(m);
 
             BoundingBox bbox = new BoundingBox(new Vector3(2, -1, 2), new Vector3(4, 3, 4));
-            ConvexHull bbHull = new ConvexHull(bbox.GetCorners());
+            ConvexHull bbHull = ConvexHull.Create(bbox.GetCorners());
 
             Assert.IsTrue(hull.Intersects(bbHull));
             Assert.IsTrue(bbHull.Intersects(hull));
 
             BoundingBox missBbox = new BoundingBox(new Vector3(0, -1, 2), new Vector3(0.5, 3, 4));
-            ConvexHull missBBHull = new ConvexHull(missBbox.GetCorners());
+            ConvexHull missBBHull = ConvexHull.Create(missBbox.GetCorners());
 
             Assert.IsFalse(hull.Intersects(missBBHull));
             Assert.IsFalse(missBBHull.Intersects(hull));
@@ -78,7 +159,6 @@ namespace GeometryTest
 
             Assert.IsFalse(hull.Intersects(new Ray(new Vector3(0, 1.5, 2), Vector3.UnitZ)));
             Assert.IsFalse(hull.Intersects(new Ray(new Vector3(0, 4.5, 4), -Vector3.UnitZ)));
-
         }
     }
 }

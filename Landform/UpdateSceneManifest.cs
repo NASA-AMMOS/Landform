@@ -866,7 +866,7 @@ namespace OPS.Landform
                 {
                     pipeline.LogInfo("loading {0} scene mesh from database to filter images", meshVariant);
                     var mesh = pipeline.GetDataProduct<PlyGZDataProduct>(project, sceneMesh.MeshGuid).Mesh;
-                    var meshHull = ConvexHull.CreateWithFallback(mesh);
+                    var meshHull = ConvexHull.Create(mesh);
                     
                     pipeline.LogInfo("testing {0} image frusta for intersection with {1} scene mesh hull",
                                      images.Count, meshVariant);
