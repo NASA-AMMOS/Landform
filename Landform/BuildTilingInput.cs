@@ -678,7 +678,7 @@ namespace OPS.Landform
         {
             if (!string.IsNullOrEmpty(options.InputTexture))
             {
-                string texPath = TextureProjectionEnabled() ? inputTexturePDS : options.InputTexture;
+                string texPath = !string.IsNullOrEmpty(inputTexturePDS) ? inputTexturePDS : options.InputTexture;
                 pipeline.LogInfo("loading input texture from {0}", texPath);
                 sceneTexture = pipeline.LoadImage(texPath, noCache: true);
             }
