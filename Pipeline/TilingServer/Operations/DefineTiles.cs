@@ -518,9 +518,8 @@ namespace OPS.Pipeline.TilingServer
             info = info ?? (msg => { });
 
             var meshOps = pairs
-                .Where(p => p.Mesh != null)
-                .Select(p => new MeshOperator(p.Mesh, buildFaceTree: true, buildUVFaceTree: false,
-                                              buildVertexTree: !p.Mesh.HasFaces))
+                .Where(p => p.Mesh != null || p.MeshOp != null)
+                .Select(p => p.EnsureMeshOperator())
                 .ToArray();
 
             info($"building tile tree from {meshOps.Length} inputs, " +

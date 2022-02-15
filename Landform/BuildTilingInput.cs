@@ -869,7 +869,7 @@ namespace OPS.Landform
             else
             {
                 tileTree = DefineTiles
-                    .BuildTileTreeFromInputs(new List<MeshImagePair>() { new MeshImagePair(mesh) },
+                    .BuildTileTreeFromInputs(new List<MeshImagePair>() { new MeshImagePair(meshOp: meshOp) },
                                              options.TilingScheme, options.MaxFacesPerTile, minTileExtent,
                                              options.MaxLeafArea, options.MaxOrbitalLeafArea, surfaceExtent,
                                              textureSplitOptions, !options.NoApproxTileSplit, maxTreeHeight,
