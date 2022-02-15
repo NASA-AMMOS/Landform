@@ -111,7 +111,7 @@ namespace OPS.Landform
 
         public const int SERVICE_LOOP_THROTTLE_SEC = 60;
 
-        public const int IDLE_EVENT_THROTTLE_SEC = 60 * 60;
+        public const int IDLE_EVENT_THROTTLE_SEC = 60;
 
         public const int DEF_MAX_HANDLER_SEC = 10 * 60; //10 minutes
         public const int DEF_MAX_MESSAGE_AGE_SEC = 60 * 60; //1 hour
@@ -601,7 +601,12 @@ namespace OPS.Landform
             }
             if (name.ToLower() == "auto")
             {
-                name = lvopts.QueueName + "-fail";
+                name = lvopts.QueueName;
+                if (name.EndsWith(".fifo"))
+                {
+                    name = name.Substring(0, name.Length - 5);
+                }
+                name += "-fail";
             }
             return GetMessageQueue(name, GetDefaultMessageTimeoutSec(), lvopts.LandformOwnedFailQueue, "fail message");
         }
@@ -1018,7 +1023,7 @@ namespace OPS.Landform
                                 pipeline.LogException(recycleException, "recycling message to end of queue");
                             }
                         }
-                        else if (!handled && deleted && (failMessageQueue != null))
+                        else if (accepted && !handled && deleted && (failMessageQueue != null))
                         {
                             try
                             {

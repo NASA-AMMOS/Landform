@@ -46,15 +46,20 @@ namespace OPS.Cloud
     public class MessageQueue
     {
         public const int DEF_TIMEOUT_SEC = 30;
+        public const String DEF_FIFO_QUEUE_MESSAGE_GROUP_ID = "the_group_id";
 
         public string Name { get; private set; }
         public int TimeoutSec { get; private set; }
         public bool LandformOwned { get; private set; }
 
+        public string FIFOQueueMessageGroupID = DEF_FIFO_QUEUE_MESSAGE_GROUP_ID;
+
         private ILogger logger;
         private string url;
         private bool autoTypes;
         private AmazonSQSClient client;
+
+        private bool isFIFO;
 
         public MessageQueue(string name, string awsProfileName = null, string awsRegionName = null,
                             int timeoutSec = DEF_TIMEOUT_SEC, ILogger logger = null, bool quiet = false,
@@ -77,6 +82,7 @@ namespace OPS.Cloud
             }
 
             Name = name;
+            isFIFO = name.EndsWith(".fifo");
 
             TimeoutSec = timeoutSec;
 
@@ -159,7 +165,12 @@ namespace OPS.Cloud
 
         public void Enqueue(string message)
         {
-            client.SendMessage(new SendMessageRequest(url, message));
+            var req = new SendMessageRequest(url, message);
+            if (isFIFO)
+            {
+                req.MessageGroupId = FIFOQueueMessageGroupID;
+            }
+            client.SendMessage(req);
         }
 
         public void UpdateTimeout(QueueMessage m, int timeoutSec)
