@@ -1203,7 +1203,8 @@ namespace OPS.Landform
                 changedSDsBySol[primarySol].Add(primarySD.Value);
 
                 var placesDB = !orbitalOnly ? InitPlacesDB() : null;
-                var msg = MakeContextualMeshMessage(primarySD.Value, changedSDsBySol, allSDs, placesDB, orbitalOnly);
+                var msg = orbitalOnly ? MakeOrbitalMeshMessage(allSDs[primarySD.Value]) :
+                    MakeContextualMeshMessage(primarySD.Value, changedSDsBySol, allSDs, placesDB);
 
                 if (msg == null)
                 {
@@ -1997,6 +1998,26 @@ namespace OPS.Landform
             return ret;
         }
 
+        private ContextualMeshMessage MakeOrbitalMeshMessage(SiteDriveList primarySDList)
+        {
+            return MakeOrbitalMeshMessage(primarySDList.RDRDir, primarySDList.MaxSol, primarySDList.SiteDrive);
+        }
+
+        private ContextualMeshMessage MakeOrbitalMeshMessage(string rdrDir, int primarySol, SiteDrive primarySD)
+        {
+            return new ContextualMeshMessage()
+            {
+                rdrDir = rdrDir,
+                primarySol = primarySol,
+                primarySiteDrive = primarySD.ToString(),
+                sols = primarySol.ToString(), 
+                siteDrives = primarySD.ToString(),
+                numWedges = 0,
+                orbitalOnly = true,
+                timestamp = (long)UTCTime.NowMS()
+            };
+        }
+
         /// <summary>
         /// Applys heruistics to possibly make a ContextualMesh for primarySD.
         /// Returns null if it decided not to make one, or if there was a problem.
@@ -2008,55 +2029,36 @@ namespace OPS.Landform
         private ContextualMeshMessage MakeContextualMeshMessage(SiteDrive primarySD,
                                                                 Dictionary<int, List<SiteDrive>> changedSDsBySol,
                                                                 Dictionary<SiteDrive, SiteDriveList> allSDs,
-                                                                PlacesDB placesDB = null, bool orbitalOnly = false)
+                                                                PlacesDB placesDB = null)
         {
             SiteDriveList primarySDList = allSDs[primarySD];
 
             string rdrDir = primarySDList.RDRDir;
             int primarySol = primarySDList.MaxSol;
 
-            ContextualMeshMessage orbitalOnlyMsg()
-            {
-                pipeline.LogInfo("making orbital only contextual mesh");
-                return new ContextualMeshMessage()
-                {
-                    rdrDir = rdrDir,
-                    primarySol = primarySol,
-                    primarySiteDrive = primarySD.ToString(),
-                    sols = primarySol.ToString(), 
-                    siteDrives = primarySD.ToString(),
-                    numWedges = 0,
-                    orbitalOnly = true,
-                    timestamp = (long)UTCTime.NowMS()
-                };
-            }
-
-            if (orbitalOnly)
-            {
-                return orbitalOnlyMsg();
-            }
+            string name = string.Format("{0}_{1}", SolToString(primarySol), primarySD.ToString());
 
             int minSol = primarySol - solRange;
             int maxSol = primarySol + solRange;
             primarySDList = primarySDList.FilterToSolRange(minSol, maxSol);
-
-            string name = string.Format("{0}_{1}", SolToString(primarySol), primarySD.ToString());
 
             //primary site drive must have at least this many wedges
             //unless it's the highest numbered sitedrive in its sol
             if ((!changedSDsBySol.ContainsKey(primarySol) || primarySD < changedSDsBySol[primarySol].Max()) &&
                 options.MinPrimarySiteDriveWedges > 0 && primarySDList.NumWedges < options.MinPrimarySiteDriveWedges)
             {
-                string msg = "not producing";
-                ContextualMeshMessage ret = null;
-                if (orbitalWorkerQueue != null)
+                if (orbitalWorkerQueue == null)
                 {
-                    msg = "producing orbital only";
-                    ret = orbitalOnlyMsg();
+                    pipeline.LogInfo("making orbital only contextual mesh {0} in {1}, {2} < {3} wedges",
+                                     name, rdrDir, primarySDList.NumWedges, options.MinPrimarySiteDriveWedges);
+                    return MakeOrbitalMeshMessage(primarySDList);
                 }
-                pipeline.LogInfo("{0} contextual mesh {1} in {2}, {3} < {4} wedges",
-                                 msg, name, rdrDir, primarySDList.NumWedges, options.MinPrimarySiteDriveWedges);
-                return ret;
+                else
+                {
+                    pipeline.LogInfo("skipping contextual mesh {0} in {1}, {2} < {3} wedges",
+                                     name, rdrDir, primarySDList.NumWedges, options.MinPrimarySiteDriveWedges);
+                    return null;
+                }
             }
 
             int maxWedges = mission.GetContextualMeshMaxWedges();
@@ -2356,6 +2358,46 @@ namespace OPS.Landform
             return coalesced;
         }
 
+        private bool EnqueueMessages(List<Stamped<ContextualMeshMessage>> msgs, string what, MessageQueue queue,
+                                     string rdrDir)
+        {
+            //default order messages by when the corresponding sitedrive list changed (oldest to newest)
+            var coalesced = msgs.OrderBy(sm => sm.Timestamp).Select(sm => sm.Value).ToList();
+            try
+            {
+                //remove duplicates and order descending by sol, then sitedrive, then num wedges
+                coalesced = CoalesceMessages(coalesced);
+            }
+            catch (Exception ex)
+            {
+                pipeline.LogException(ex, $"error coalescing {what} mesh messages, proceeding with un-coaleseced");
+            }
+            
+            //TODO right about here we should try to determine if any workers
+            //are processing meshes for which there are new messages and if so, ask them to abort
+            //https://github.jpl.nasa.gov/OnSight/Landform/issues/1026
+            
+            pipeline.LogInfo("enqueueing {0} {1} mesh messages to {2} for {3}",
+                             coalesced.Count, what, queue.Name, rdrDir);
+            
+            bool startWorkers = false;
+            foreach (var msg in coalesced)
+            {
+                try
+                {
+                    pipeline.LogInfo("enqueueing {0} mesh message to {1}: {2}",
+                                     what, queue.Name, DescribeMessage(msg, verbose: true));
+                    queue.Enqueue(msg);
+                    startWorkers = options.AutoStartWorkers;
+                }
+                catch (Exception ex)
+                {
+                    pipeline.LogException(ex, $"adding {what} message to {queue.Name}");
+                }
+            }
+            return startWorkers;
+        }
+
         private MessageQueue GetWorkerMessageQueue()
         {
             return GetMessageQueue(options.WorkerQueueName, GetDefaultMessageTimeoutSec(),
@@ -2576,6 +2618,47 @@ namespace OPS.Landform
                     
                     foreach (var rdrDir in urlsToProcess.Keys)
                     {
+                        //don't delay orbital meshes while we collect adjacent sitedrives for contextual meshes
+                        //in practice that can take like ~30min
+                        //https://github.jpl.nasa.gov/OnSight/Landform/issues/1224
+                        if (orbitalWorkerQueue != null)
+                        {
+                            var omsgs = new List<Stamped<ContextualMeshMessage>>();
+                            foreach (var sd in urlsToProcess[rdrDir].Keys.OrderByDescending(sd => sd).ToList())
+                            {
+                                var urls = urlsToProcess[rdrDir][sd];
+                                if (urls.Count > 0)
+                                {
+                                    int sol = urls
+                                        .Max(entry => SiteDriveList.GetSol(entry.Key,
+                                                                           RoverProductId.Parse(entry.Key, mission,
+                                                                                                throwOnFail: false)));
+                                    if (sol >= 0)
+                                    {
+                                        long stamp = urls.Max(entry => entry.Value);
+                                        var msg = MakeOrbitalMeshMessage(rdrDir, sol, sd);
+                                        omsgs.Add(new Stamped<ContextualMeshMessage>(msg, stamp));
+                                    }
+                                    else
+                                    {
+                                        pipeline.LogWarn("error getting sol for orbital mesh {0} in {1}, first url {2}",
+                                                         sd, rdrDir, urls.First().Key);
+                                    }
+                                }
+                            }
+                            if (EnqueueMessages(omsgs, "orbital", orbitalWorkerQueue, rdrDir))
+                            {
+                                lastWorkerWatchdogSec = UTCTime.Now();
+                                StartWorkers(orbitalWorkerInstances, "orbital");
+                            }
+                        }
+
+                        if (workerQueue == null)
+                        {
+                            pipeline.LogWarn("not enqueing contextual mesh messages for {0}, no worker queue", rdrDir);
+                            continue;
+                        }
+
                         var sdLists = LoadSiteDriveLists(rdrDir, urlsToProcess[rdrDir]);
 
                         var changedSDs = urlsToProcess[rdrDir].Keys
@@ -2636,13 +2719,12 @@ namespace OPS.Landform
                                 .ToList();
                         }
 
-                        var msgs = new List<Stamped<ContextualMeshMessage>>();
-
                         //try to connect to PlacesDB just for this pass
-                        //we do that for a couple of reasons rather than having a single long-lived PlacesDB connection
+                        //rather than having a single long-lived PlacesDB connection
                         //for one thing our PlacesDB interface caches results, and the cache could become stale
                         //also, particularly in certain dev scenarios, PlacesDB availability may be iffy
                         //better to try on each pass rather than once ever
+                        var msgs = new List<Stamped<ContextualMeshMessage>>();
                         bool usePlaces = !options.NoSurface && UsePlacesDB();
                         lock (usePlaces ? credentialRefreshLock : new Object())
                         {
@@ -2651,8 +2733,9 @@ namespace OPS.Landform
                             {
                                 try
                                 {
-                                    var msg = MakeContextualMeshMessage(changedSD, changedSDsBySol, allSDs, placesDB,
-                                                                        options.NoSurface);
+                                    var msg = options.NoSurface ?
+                                        MakeOrbitalMeshMessage(allSDs[changedSD]) :
+                                        MakeContextualMeshMessage(changedSD, changedSDsBySol, allSDs, placesDB);
                                     if (msg != null)
                                     {
                                         msgs.Add(new Stamped<ContextualMeshMessage>(msg, sdLists[changedSD].Timestamp));
@@ -2664,89 +2747,10 @@ namespace OPS.Landform
                                 }
                             }
                         }
-
-                        //order messages according to when the corresponding sitedrive list changed (oldest to newest)
-                        var rawMsgs = msgs.OrderBy(sm => sm.Timestamp).Select(sm => sm.Value).ToList();
-                        
-                        if (msgs.Count > 0)
+                        if (EnqueueMessages(msgs, "contextual", workerQueue, rdrDir))
                         {
-                            bool startWorkers = false, startOrbitalWorkers = false;
-
-                            try
-                            {
-                                //this will remove duplicates and also order descending
-                                //by sol, then sitedrive, then num wedges
-                                rawMsgs = CoalesceMessages(rawMsgs);
-                            }
-                            catch (Exception ex)
-                            {
-                                pipeline.LogException(ex, "error coalescing messages, proceeding with un-coaleseced");
-                            }
-                            
-                            //TODO right about here we should try to determine if any workers
-                            //are processing contextual meshes for which there are new messages
-                            //and if so, ask them to abort
-                            //https://github.jpl.nasa.gov/OnSight/Landform/issues/1026
-
-                            if (orbitalWorkerQueue != null)
-                            {
-                                pipeline.LogInfo("enqueueing {0} orbital only contextual mesh messages to {1} for {2}",
-                                                 rawMsgs.Count, orbitalWorkerQueue.Name, rdrDir);
-
-                                foreach (var msg in rawMsgs)
-                                {
-                                    var omsg = msg; //cannot modify foreach iteration variable
-                                    if (!omsg.orbitalOnly)
-                                    {
-                                        omsg = omsg.Clone();
-                                        omsg.orbitalOnly = true;
-                                    }
-                                    try
-                                    {
-                                        pipeline.LogInfo("enqueueing contextual mesh message to {0}: {1}",
-                                                         orbitalWorkerQueue.Name, DescribeMessage(omsg, verbose: true));
-                                        orbitalWorkerQueue.Enqueue(omsg);
-                                        startOrbitalWorkers = options.AutoStartWorkers;
-                                    }
-                                    catch (Exception ex)
-                                    {
-                                        pipeline.LogException(ex, "adding message to " + orbitalWorkerQueue.Name);
-                                    }
-                                }
-
-                                rawMsgs = rawMsgs.Where(msg => !msg.orbitalOnly).ToList();
-                            }
-                                
-                            pipeline.LogInfo("enqueueing {0} contextual mesh messages to {1} for {2}",
-                                             rawMsgs.Count, workerQueue.Name, rdrDir);
-                            
-                            foreach (var msg in rawMsgs)
-                            {
-                                try
-                                {
-                                    pipeline.LogInfo("enqueueing contextual mesh message to {0}: {1}",
-                                                     workerQueue.Name, DescribeMessage(msg, verbose: true));
-                                    workerQueue.Enqueue(msg);
-                                    startWorkers = options.AutoStartWorkers;
-                                }
-                                catch (Exception ex)
-                                {
-                                    pipeline.LogException(ex, "adding message to " + workerQueue.Name);
-                                }
-                            }
-
-                            if (startWorkers || startOrbitalWorkers)
-                            {
-                                lastWorkerWatchdogSec = UTCTime.Now();
-                            }
-                            if (startWorkers)
-                            {
-                                StartWorkers(workerInstances);
-                            }
-                            if (startOrbitalWorkers)
-                            {
-                                StartWorkers(orbitalWorkerInstances, "orbital");
-                            }
+                            lastWorkerWatchdogSec = UTCTime.Now();
+                            StartWorkers(workerInstances);
                         }
                     }
 
