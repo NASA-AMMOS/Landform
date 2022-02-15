@@ -192,44 +192,55 @@ namespace OPS.Landform
 
                 if (NeedSceneTexture())
                 {
-                    RunPhase("load input image", LoadInputTexture);
+                    RunPhase("load input image", LoadInputTexture); //needed for CanUseTextureSplit()
                 }
 
-                RunPhase("load input mesh", () => LoadInputMesh(requireUVs: sceneTexture != null));
-
-                RunPhase("build acceleration datastructures", BuildMeshOperator);
-
-                if (withTextures)
+                bool canUseTextureSplit = withTextures && CanUseTextureSplit();
+                if (withTextures && roverImages != null)
                 {
-                    RunPhase("build occlusion datastructures", BuildSceneCaster);
-                    bool canUseTextureSplit = CanUseTextureSplit();
-                    if (roverImages != null && (textureMode == TextureMode.Backproject || canUseTextureSplit))
+                    if (canUseTextureSplit || textureMode == TextureMode.Backproject)
                     {
                         RunPhase("check or generate observation image masks", BuildObservationImageMasks);
                         RunPhase("check or generate observation frustum hulls", BuildObservationImageHulls);
                     }
-                    if (roverImages != null && textureMode == TextureMode.Backproject && options.Colorize)
+                    if (textureMode == TextureMode.Backproject && options.Colorize)
                     {
                         RunPhase("check or generate observation image stats", BuildObservationImageStats);
-                    }
-                    if (canUseTextureSplit)
-                    {
-                        RunPhase("configure texture split criteria", ConfigureTextureSplitCriteria);
                     }
                 }
 
                 //conserve memory: we will (probably) want the textures later, but we can reload them at that point
                 RunPhase("clear LRU image cache", ClearImageCache);
 
-                RunPhase("build tile tree", BuildTileTree);
+                RunPhase("load input mesh", () => LoadInputMesh(requireUVs: sceneTexture != null));
 
-                RunPhase("build tile meshes", BuildTileMeshes);
+                if (withTextures)
+                {
+                    if (canUseTextureSplit || textureMode == TextureMode.Backproject)
+                    {
+                        RunPhase("build occlusion datastructures", BuildSceneCaster);
+                    }
+                    if (canUseTextureSplit)
+                    {
+                        RunPhase("configure texture split criteria", ConfigureTextureSplitCriteria); //needs sceneCaster
+                    }
+                }
+
+                RunPhase("build acceleration datastructures", BuildMeshOperator);
 
                 if (withTextures && textureMode == TextureMode.Backproject)
                 {
-                    RunPhase("build backproject strategy", InitBackprojectStrategy);
+                    RunPhase("build backproject strategy", InitBackprojectStrategy); //needs mesh, meshOp, sceneCaster
                 }
 
+                RunPhase("build tile tree", BuildTileTree); //needs meshOp, sceneCaster
+
+                RunPhase("build tile meshes", BuildTileMeshes); //needs mesh, meshOp
+
+                RunPhase("free acceleration datastructures", () => { meshOp = null; meshOpForLOD = null; });
+                RunPhase("free scene mesh", () => { mesh = null; meshLOD = null; });
+
+                //needs sceneCaster
                 RunPhase((withTextures ? "build textures and " : "") + "save tiles", BuildTileTexturesAndSaveTiles);
             }
             catch (Exception ex)
