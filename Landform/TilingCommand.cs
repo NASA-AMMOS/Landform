@@ -376,7 +376,7 @@ namespace OPS.Landform
 
                 TemporaryFile.GetAndDelete(meshExt, tmpFile =>
                 {
-                    mesh.Save(tmpFile, imgName);
+                    mip.Mesh.Save(tmpFile, imgName);
                     string meshName = tileName + meshExt;
                     string meshUrl = pipeline.GetStorageUrl(outputFolder, project.Name, meshName);
                     pipeline.SaveFile(tmpFile, meshUrl);
