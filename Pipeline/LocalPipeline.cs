@@ -442,6 +442,7 @@ namespace OPS.Pipeline
         private void InitializeDatabase(bool quiet, bool alignment, bool tiling)
         {
             double startSec = UTCTime.Now();
+            double lastSpew = startSec;
             int nt = 0, ni = 0;
             foreach (var t in InitTableTypes(quiet, alignment, tiling))
             {
@@ -449,7 +450,8 @@ namespace OPS.Pipeline
                 var ti = GetTableInfo(t, expectExists: false);
                 var baseUrl = GetDatabaseTableUrl(ti);
                 int nti = 0;
-                foreach (var url in SearchFiles(baseUrl, recursive: true, constrainToStorage: true))
+                var urls = SearchFiles(baseUrl, recursive: true, constrainToStorage: true).ToList();
+                foreach (var url in urls) 
                 {
                     if (url.ToLower().EndsWith(".json"))
                     {
@@ -472,6 +474,15 @@ namespace OPS.Pipeline
                                      StringHelper.CollapseWhitespace(json));
                         }
                         dbCache.AddOrUpdate(key, _ => json, (_, __) => json);
+                        double now = UTCTime.Now();
+                        if ((now - lastSpew) > 10)
+                        {
+                            LogInfo("initialized {0} database tables ({1} items), " +
+                                    "loading {2} table ({3}/{4} items, {5:f2}%)",
+                                    nt - 1, Fmt.KMG(ni), t.Name, Fmt.KMG(nti), Fmt.KMG(urls.Count),
+                                    100 * ((double)nti) / urls.Count);
+                            lastSpew = now;
+                        }
                     }
                 }
                 if (!quiet)

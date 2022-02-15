@@ -314,6 +314,7 @@ namespace OPS.Landform
         {
             int no = roverImages.Count;
             int np = 0, nc = 0, nl = 0, nf = 0;
+            double lastSpew = UTCTime.Now();
             CoreLimitedParallel.ForEach(GetRoverImagesInNextIterationOrder(), obs =>
             {
                 if (!tcopts.RedoObservationMasks && obs.MaskGuid != Guid.Empty)
@@ -324,10 +325,15 @@ namespace OPS.Landform
                 }
                 
                 Interlocked.Increment(ref np);
-                
-                pipeline.LogVerbose("creating mask for observation {0}, processing {1} in parallel, " +
-                                    "completed {2}/{3}", obs.Name, np, nc, no);
 
+                double now = UTCTime.Now();
+                if (!tcopts.NoProgress && (pipeline.Verbose || ((now - lastSpew) > 10)))
+                {
+                    pipeline.LogInfo("creating mask for observation {0}, processing {1} in parallel, " +
+                                     "completed {2}/{3}, {4} cached, {5} failed", obs.Name, np, nc, no, nl, nf);
+                    lastSpew = now;
+                }
+                    
                 try
                 {
                     Image img = pipeline.LoadImage(obs.Url);
@@ -354,6 +360,7 @@ namespace OPS.Landform
 
                 Interlocked.Decrement(ref np);
             });
+
             pipeline.LogInfo("built masks for {0} observations, {1} cached, {2} failed", nc - nl, nl, nf);
         }
 
@@ -383,6 +390,7 @@ namespace OPS.Landform
         {
             int no = roverImages.Count;
             int np = 0, nc = 0, nl = 0, nf = 0;
+            double lastSpew = UTCTime.Now();
             CoreLimitedParallel.ForEach(GetRoverImagesInNextIterationOrder(), obs =>
             {
                 if (!tcopts.RedoObservationStats && obs.StatsGuid != Guid.Empty)
@@ -394,8 +402,13 @@ namespace OPS.Landform
                 
                 Interlocked.Increment(ref np);
                 
-                pipeline.LogVerbose("computing stats for observation {0}, processing {1} in parallel, " +
-                                    "completed {2}/{3}", obs.Name, np, nc, no);
+                double now = UTCTime.Now();
+                if (!tcopts.NoProgress && (pipeline.Verbose || ((now - lastSpew) > 10)))
+                {
+                    pipeline.LogInfo("computing stats for observation {0}, processing {1} in parallel, " +
+                                     "completed {2}/{3}, {4} cached, {5} failed", obs.Name, np, nc, no, nl, nf);
+                    lastSpew = now;
+                }
 
                 try
                 {
@@ -443,6 +456,7 @@ namespace OPS.Landform
         {
             int no = roverImages.Count;
             int np = 0, nc = 0, nl = 0, nf = 0;
+            double lastSpew = UTCTime.Now();
             CoreLimitedParallel.ForEach(GetRoverImagesInNextIterationOrder(), obs =>
             {
                 if (!tcopts.RedoBlurredObservationTextures && obs.BlurredGuid != Guid.Empty)
@@ -462,8 +476,13 @@ namespace OPS.Landform
                 
                 Interlocked.Increment(ref np);
 
-                pipeline.LogVerbose("creating blurred image for observation {0}, processing {1} in parallel, " +
-                                    "completed {2}/{3}", obs.Name, np, nc, no);
+                double now = UTCTime.Now();
+                if (!tcopts.NoProgress && (pipeline.Verbose || ((now - lastSpew) > 10)))
+                {
+                    pipeline.LogInfo("computing blurred image for observation {0}, processing {1} in parallel, " +
+                                     "completed {2}/{3}, {4} cached, {5} failed", obs.Name, np, nc, no, nl, nf);
+                    lastSpew = now;
+                }
 
                 try
                 {

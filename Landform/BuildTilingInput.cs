@@ -967,6 +967,7 @@ namespace OPS.Landform
             pipeline.LogInfo("using {0}/{1} LODs", rootLOD + 1, meshLOD.Count);
 
             int numFailed = 0, curNode = 0, numNodes = nodes.Count, np = 0;
+            double lastSpew = UTCTime.Now();
             CoreLimitedParallel.ForEach(nodes, node =>
             {
                 Interlocked.Increment(ref curNode);
@@ -980,9 +981,14 @@ namespace OPS.Landform
 
                 int lod = nearestAvailableLOD(node.GetComponent<NodeLOD>().Lod);
                 
-                pipeline.LogVerbose("building tile mesh {0}/{1} ({2:F2}%){3}: tile {4}, clipping from LOD {5}",
-                                    curNode, numNodes, 100 * curNode / (float)numNodes,
-                                    np > 1 ? ", processing " + np + " in parallel" : "", node.Name, lod);
+                double now = UTCTime.Now();
+                if (!options.NoProgress && (pipeline.Verbose || ((now - lastSpew) > 10)))
+                {
+                    pipeline.LogInfo("building tile mesh {0}/{1} ({2:F2}%){3}: tile {4}, clipping from LOD {5}",
+                                     curNode, numNodes, 100 * curNode / (float)numNodes,
+                                     np > 1 ? ", processing " + np + " in parallel" : "", node.Name, lod);
+                    lastSpew = now;
+                }
 
                 Mesh tileMesh = MakeTileMesh(node, meshOpForLOD[lod]);
 
@@ -1100,6 +1106,7 @@ namespace OPS.Landform
         private void BuildLeafMeshes()
         {
             int curNode = 0, numFailed = 0, numNodes = tileTree.Leaves().Count(), np = 0;
+            double lastSpew = UTCTime.Now();
             CoreLimitedParallel.ForEach(tileTree.Leaves(), leaf =>
             {
                 Interlocked.Increment(ref curNode);
@@ -1111,9 +1118,14 @@ namespace OPS.Landform
 
                 Interlocked.Increment(ref np);
 
-                pipeline.LogVerbose("building leaf mesh {0}/{1} ({2:F2}%){3}: {4}",
-                                    curNode, numNodes, 100 * curNode / (float)numNodes,
-                                    np > 1 ? ", processing " + np + " in parallel" : "", leaf.Name);
+                double now = UTCTime.Now();
+                if (!options.NoProgress && (pipeline.Verbose || (now - lastSpew) > 10))
+                {
+                    pipeline.LogInfo("building leaf mesh {0}/{1} ({2:F2}%){3}: {4}",
+                                     curNode, numNodes, 100 * curNode / (float)numNodes,
+                                     np > 1 ? ", processing " + np + " in parallel" : "", leaf.Name);
+                    lastSpew = now;
+                }
 
                 Mesh tileMesh = MakeTileMesh(leaf, meshOpForLOD.First());
 

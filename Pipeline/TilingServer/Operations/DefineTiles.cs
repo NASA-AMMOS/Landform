@@ -609,6 +609,7 @@ namespace OPS.Pipeline.TilingServer
                     break;
                 }
                 var currentLevelNodes = new ConcurrentBag<SceneNode>();
+                double lastSpew = UTCTime.Now();
                 CoreLimitedParallel.ForEach(previousLevelNodes, node =>
                 {
                     string name = node == root ? "root" : node.Name;
@@ -625,6 +626,13 @@ namespace OPS.Pipeline.TilingServer
                     else
                     {
                         Interlocked.Increment(ref surfaceTiles);
+                    }
+                    double now = UTCTime.Now();
+                    if ((now - lastSpew) > 10)
+                    {
+                        info($"tile tree height {height}, " +
+                             $"{Fmt.KMG(surfaceTiles)} surface tiles, {Fmt.KMG(orbitalTiles)} orbital");
+                        lastSpew = now;
                     }
                     var fsc = sc.FirstOrDefault(c => c is FaceSplitCriteria);
                     maxFaces = fsc != null ? ((FaceSplitCriteria)fsc).maxFaces : -1;
