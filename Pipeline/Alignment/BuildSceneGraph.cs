@@ -166,8 +166,9 @@ namespace OPS.Pipeline
                     {
                         pipeline.LogDebug("adding detected features for image obseration {0} to node {1}",
                                           obs.Url, node.Name);
-                        var feat = pipeline.GetDataProduct<DetectedFeatures>(project.ProductPath, obs.FeaturesGuid,
-                                                                             projectName);
+                        var feat = pipeline
+                            .GetDataProduct<DetectedFeatures>(project.ProductPath, obs.FeaturesGuid, projectName,
+                                                              noCache: true);
                         scene.DetectedFeatures[obs.Url] = feat.Features;
                         numFeatures++;
                     }
@@ -405,9 +406,9 @@ namespace OPS.Pipeline
                         if (options.LoadCorrespondences && ValidGuid(overlap.MatchGuid) &&
                             !scene.Correspondences.ContainsKey(pair))
                         {
-                            var match = pipeline.GetDataProduct<ComputedCorrespondence>(project.ProductPath,
-                                                                                        overlap.MatchGuid,
-                                                                                        projectName);
+                            var match = pipeline
+                                .GetDataProduct<ComputedCorrespondence>(project.ProductPath, overlap.MatchGuid,
+                                                                        projectName, noCache: true);
                             if (match != null)
                             {
                                 scene.Correspondences[pair] = match.Correspondence;

@@ -55,7 +55,7 @@ namespace OPS.Pipeline.AlignmentServer
                                             string modelName, string dataName, SpatialMatch[] matches)
         {
             var matchesProd = new SpatialMatchesDataProduct(matches);
-            pipeline.SaveDataProduct(project, matchesProd);
+            pipeline.SaveDataProduct(project, matchesProd, noCache: true);
             var ret = new SpatialMatches(project.Name, name, modelName, dataName, matchesProd.Guid);
             ret.Save(pipeline);
             return ret;

@@ -828,14 +828,18 @@ namespace OPS.Landform
 
                         Image mask = null;
                         if (includeBEVs || includeDEMs) {
-                            mask = pipeline.GetDataProduct<TiffDataProduct>(project, rec.MaskGuid).Image;
+                            mask = pipeline
+                                .GetDataProduct<TiffDataProduct>(project, rec.MaskGuid, noCache: true)
+                                .Image;
                             pipeline.LogInfo("loaded {0}x{1} BEV/DEM mask for site drive {2}",
                                              mask.Width, mask.Height, siteDrive);
                         }
 
                         if (includeBEVs)
                         {
-                            var bev = pipeline.GetDataProduct<TiffDataProduct>(project, rec.BEVGuid).Image;
+                            var bev = pipeline
+                                .GetDataProduct<TiffDataProduct>(project, rec.BEVGuid, noCache: true)
+                                .Image;
                             bev.UnionMask(mask, new float[] { 1 });
                             bevs[siteDrive] = bev;
                             pipeline.LogInfo("loaded {0}x{1} BEV for site drive {2}", bev.Width, bev.Height, siteDrive);
@@ -843,7 +847,9 @@ namespace OPS.Landform
 
                         if (includeDEMs)
                         {
-                            var dem = pipeline.GetDataProduct<TiffDataProduct>(project, rec.DEMGuid).Image;
+                            var dem = pipeline
+                                .GetDataProduct<TiffDataProduct>(project, rec.DEMGuid, noCache: true)
+                                .Image;
                             dem.UnionMask(mask, new float[] { 1 });
                             dems[siteDrive] = dem;
                             pipeline.LogInfo("loaded {0}x{1} DEM for site drive {2}", dem.Width, dem.Height, siteDrive);

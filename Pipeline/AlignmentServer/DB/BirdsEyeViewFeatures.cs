@@ -72,7 +72,7 @@ namespace OPS.Pipeline.AlignmentServer
                                                   int fastThreshold)
         {
             var featProd = new FeaturesDataProduct(features);
-            pipeline.SaveDataProduct(project, featProd);
+            pipeline.SaveDataProduct(project, featProd, noCache: true);
             var ret = new BirdsEyeViewFeatures(project.Name, name, featProd.Guid, detectorType, minFeatureResponse,
                                                maxFeatures, extraInvalidRadius, fastThreshold);
             ret.Save(pipeline);

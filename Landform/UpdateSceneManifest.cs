@@ -803,7 +803,8 @@ namespace OPS.Landform
                 {
                     try
                     {
-                        var tileList = pipeline.GetDataProduct<TileList>(project, sceneMesh.TileListGuid);
+                        var tileList =
+                            pipeline.GetDataProduct<TileList>(project, sceneMesh.TileListGuid, noCache: true);
                         
                         if (tileList.LeafNames == null || tileList.LeafNames.Count == 0)
                         {
@@ -865,7 +866,9 @@ namespace OPS.Landform
                 if (!options.NoFilterImagesToMeshHull)
                 {
                     pipeline.LogInfo("loading {0} scene mesh from database to filter images", meshVariant);
-                    var mesh = pipeline.GetDataProduct<PlyGZDataProduct>(project, sceneMesh.MeshGuid).Mesh;
+                    var mesh = pipeline
+                        .GetDataProduct<PlyGZDataProduct>(project, sceneMesh.MeshGuid, noCache: true)
+                        .Mesh;
                     var meshHull = ConvexHull.Create(mesh);
                     
                     pipeline.LogInfo("testing {0} image frusta for intersection with {1} scene mesh hull",

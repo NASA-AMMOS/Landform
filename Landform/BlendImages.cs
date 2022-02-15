@@ -387,7 +387,7 @@ namespace OPS.Landform
             if (sceneMesh.MeshGuid != Guid.Empty && !options.RedoShrinkwrapMesh)
             {
                 pipeline.LogInfo("loading existing shrinkwrap mesh from database");
-                mesh = pipeline.GetDataProduct<PlyGZDataProduct>(project, sceneMesh.MeshGuid).Mesh;
+                mesh = pipeline.GetDataProduct<PlyGZDataProduct>(project, sceneMesh.MeshGuid, noCache: true).Mesh;
             }
             else
             {
@@ -404,7 +404,8 @@ namespace OPS.Landform
                     if (dsm != null && dsm.MeshGuid != Guid.Empty)
                     {
                         pipeline.LogInfo("loading scene mesh from database");
-                        inputMesh = pipeline.GetDataProduct<PlyGZDataProduct>(project, dsm.MeshGuid).Mesh;
+                        inputMesh =
+                            pipeline.GetDataProduct<PlyGZDataProduct>(project, dsm.MeshGuid, noCache: true).Mesh;
                         surfaceExtent = dsm.SurfaceExtent;
                     }
                     else
@@ -473,7 +474,7 @@ namespace OPS.Landform
                     pipeline.LogInfo("saving shrinkwrap mesh");
                     sceneMesh.SetBounds(mesh.Bounds());
                     var meshProd = new PlyGZDataProduct(mesh);
-                    pipeline.SaveDataProduct(project, meshProd);
+                    pipeline.SaveDataProduct(project, meshProd, noCache: true);
                     sceneMesh.MeshGuid = meshProd.Guid;
                     sceneMesh.Save(pipeline);
                 }
@@ -503,7 +504,7 @@ namespace OPS.Landform
             {
                 pipeline.LogInfo("loading blurred texture from database");
                 var texGuid = sceneMesh.BlurredTextureGuid;
-                blurredTexture = pipeline.GetDataProduct<PngDataProduct>(project, texGuid).Image;
+                blurredTexture = pipeline.GetDataProduct<PngDataProduct>(project, texGuid, noCache: true).Image;
                 if (blurredTexture.Width != sceneTextureResolution || blurredTexture.Height != sceneTextureResolution)
                 {
                     throw new Exception(string.Format("existing blurred texture or index not {0}x{0}, " +
@@ -519,7 +520,7 @@ namespace OPS.Landform
             if (useExistingIndex)
             {
                 var indexGuid = sceneMesh.BackprojectIndexGuid;
-                backprojectIndex = pipeline.GetDataProduct<TiffDataProduct>(project, indexGuid).Image;
+                backprojectIndex = pipeline.GetDataProduct<TiffDataProduct>(project, indexGuid, noCache: true).Image;
                 if (sceneMesh.Variant != MeshVariant.Shrinkwrap)
                 {
                     pipeline.LogInfo("creating blurred texture from reprojected existing backproject index");
@@ -572,7 +573,7 @@ namespace OPS.Landform
             {
                 pipeline.LogInfo("loading blended texture from database");
                 var texGuid = sceneMesh.BlendedTextureGuid;
-                blendedTexture = pipeline.GetDataProduct<PngDataProduct>(project, texGuid).Image;
+                blendedTexture = pipeline.GetDataProduct<PngDataProduct>(project, texGuid, noCache: true).Image;
                 writeDebug();
                 return;
             }
@@ -584,7 +585,7 @@ namespace OPS.Landform
             if (!options.NoSave)
             {
                 var texProd = new PngDataProduct(blendedTexture);
-                pipeline.SaveDataProduct(project, texProd);
+                pipeline.SaveDataProduct(project, texProd, noCache: true);
                 sceneMesh.BlendedTextureGuid = texProd.Guid;
                 sceneMesh.Save(pipeline);
             }
@@ -793,7 +794,8 @@ namespace OPS.Landform
                 {
                     writeDebug(pipeline.LoadImage(obs.Url, noCache: true), obs, "");
                     var guid = obs.GetTextureVariantGuid(textureVariant);
-                    writeDebug(pipeline.GetDataProduct<PngDataProduct>(project, guid).Image, obs, "_blended");
+                    writeDebug(pipeline.GetDataProduct<PngDataProduct>(project, guid, noCache: true).Image,
+                               obs, "_blended");
                     Interlocked.Increment(ref nc);
                     return;
                 }
@@ -833,7 +835,7 @@ namespace OPS.Landform
                 Image img = pipeline.LoadImage(obs.Url, noCache: true);
                 writeDebug(img, obs, "");
 
-                Image blr = pipeline.GetDataProduct<PngDataProduct>(project, obs.BlurredGuid).Image;
+                Image blr = pipeline.GetDataProduct<PngDataProduct>(project, obs.BlurredGuid, noCache: true).Image;
 
                 if (colorizeHue >= 0 && img.Bands == 1)
                 {
@@ -965,7 +967,7 @@ namespace OPS.Landform
                     if (!options.NoSave)
                     {
                         var imgProd = new PngDataProduct(blendedImage);
-                        pipeline.SaveDataProduct(project, imgProd);
+                        pipeline.SaveDataProduct(project, imgProd); //leave cache enabled
                         obs.SetTextureVariantGuid(textureVariant, imgProd.Guid);
                         obs.Save(pipeline);
                     }
@@ -1165,7 +1167,7 @@ namespace OPS.Landform
                 var stats = Backproject.FillOutputTexture(pipeline, project, results, texture, textureVariant,
                                                           inpaintMissing, inpaintGutter, fallbackToOriginal: true,
                                                           orbitalTexture: orbitalTexture, colorizeHue: colorizeHue,
-                                                          reverseAccessOrder: ReverseNextRoverImagesIteration());
+                                                          disableCaches: true);
                 Interlocked.Add(ref numSurfacePixels, stats.BackprojectedSurfacePixels);
                 Interlocked.Add(ref numOrbitalPixels, stats.BackprojectedOrbitalPixels);
                 Interlocked.Add(ref numMissingPixels, stats.BackprojectMissingPixels);

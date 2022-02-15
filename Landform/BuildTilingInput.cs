@@ -695,7 +695,7 @@ namespace OPS.Landform
                 if (texGuid != Guid.Empty)
                 {
                     pipeline.LogInfo("loading {0} scene texture from database", options.TextureVariant);
-                    sceneTexture = pipeline.GetDataProduct<PngDataProduct>(project, texGuid).Image;
+                    sceneTexture = pipeline.GetDataProduct<PngDataProduct>(project, texGuid, noCache: true).Image;
                 }
                 else
                 {
@@ -1368,7 +1368,7 @@ namespace OPS.Landform
                 }
 
                 pipeline.LogInfo("saving tile list");
-                pipeline.SaveDataProduct(project, tileList);
+                pipeline.SaveDataProduct(project, tileList, noCache: true);
                 sceneMesh.TileListGuid = tileList.Guid;
 
                 if (TextureProjectionEnabled())
@@ -1379,10 +1379,10 @@ namespace OPS.Landform
                     {
                         pipeline.LogInfo("saving input image for clipping parent textures");
                         var textureProd = new PngDataProduct(sceneTexture);
-                        pipeline.SaveDataProduct(project, textureProd);
+                        pipeline.SaveDataProduct(project, textureProd, noCache: true);
                         textureProjector.TextureGuid = textureProd.Guid;
                     }
-                    pipeline.SaveDataProduct(project, textureProjector);
+                    pipeline.SaveDataProduct(project, textureProjector, noCache: true);
                     sceneMesh.TextureProjectorGuid = textureProjector.Guid;
                 }
                 else

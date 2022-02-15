@@ -64,7 +64,7 @@ namespace OPS.Pipeline.AlignmentServer
                 LogLess("matched features for {0} in project {1}", pairName, projectName);
 
                 var project = Project.Find(pipeline, projectName);
-                pipeline.SaveDataProduct(project.ProductPath, result, projectName);
+                pipeline.SaveDataProduct(project.ProductPath, result, projectName, noCache: true);
 
                 //matcher could have swapped model and data images
                 modelUrl = result.Correspondence.ModelImageUrl;

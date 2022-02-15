@@ -167,7 +167,7 @@ namespace OPS.Pipeline.AlignmentServer
             if (bev != null)
             {
                 var bevProd = new TiffDataProduct(bev);
-                pipeline.SaveDataProduct(project, bevProd);
+                pipeline.SaveDataProduct(project, bevProd, noCache: true);
                 bevGuid = bevProd.Guid;
             }
 
@@ -175,12 +175,12 @@ namespace OPS.Pipeline.AlignmentServer
             if (dem != null)
             {
                 var demProd = new TiffDataProduct(dem);
-                pipeline.SaveDataProduct(project, demProd);
+                pipeline.SaveDataProduct(project, demProd, noCache: true);
                 demGuid = demProd.Guid;
             }
 
             var maskProd = new TiffDataProduct(mask);
-            pipeline.SaveDataProduct(project, maskProd);
+            pipeline.SaveDataProduct(project, maskProd, noCache: true);
             Guid maskGuid = maskProd.Guid;
 
             var ret = new BirdsEyeView(project.Name, siteDrive, opts, bevGuid, demGuid, maskGuid, rootOriginPixels,

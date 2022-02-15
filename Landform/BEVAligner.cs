@@ -438,8 +438,9 @@ namespace OPS.Landform
                         rec.ExtraInvalidRadius == options.FeatureExtraInvalidRadius &&
                         rec.FASTThreshold == options.FASTThreshold)
                     {
-                        features[siteDrive] =
-                            pipeline.GetDataProduct<FeaturesDataProduct>(project, rec.FeaturesGuid).Features;
+                        features[siteDrive] = pipeline
+                            .GetDataProduct<FeaturesDataProduct>(project, rec.FeaturesGuid, noCache: true)
+                            .Features;
                     }
                 });
             pipeline.LogInfo("loaded {0} birds eye view features ({1:F3}s)", features.Count, UTCTime.Now() - startSec);
@@ -1148,18 +1149,21 @@ namespace OPS.Landform
                     var fm = FeatureMatches.Find(pipeline, project.Name, pairName);
                     if (fm != null)
                     {
-                        matches[pairName] =
-                            pipeline.GetDataProduct<FeatureMatchesDataProduct>(project, fm.MatchesGuid).Matches;
+                        matches[pairName] = pipeline
+                            .GetDataProduct<FeatureMatchesDataProduct>(project, fm.MatchesGuid, noCache: true)
+                            .Matches;
                         var rm = FeatureMatches.Find(pipeline, project.Name, pairName + "_RANSAC");
                         if (rm != null)
                         {
-                            ransacMatches[pairName] =
-                                pipeline.GetDataProduct<FeatureMatchesDataProduct>(project, rm.MatchesGuid).Matches;
+                            ransacMatches[pairName] = pipeline
+                                .GetDataProduct<FeatureMatchesDataProduct>(project, rm.MatchesGuid, noCache: true)
+                                .Matches;
                             var sm = SpatialMatches.Find(pipeline, project.Name, pairName);
                             if (sm != null)
                             {
-                                spatialMatches[pairName] =
-                                    pipeline.GetDataProduct<SpatialMatchesDataProduct>(project, sm.MatchesGuid).Matches;
+                                spatialMatches[pairName] = pipeline
+                                    .GetDataProduct<SpatialMatchesDataProduct>(project, sm.MatchesGuid, noCache: true)
+                                    .Matches;
                             }
                         }
                     } 

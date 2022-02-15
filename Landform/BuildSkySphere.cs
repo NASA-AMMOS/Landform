@@ -855,7 +855,7 @@ namespace OPS.Landform
             {
                 pipeline.LogInfo("saving sky tile list");
                 var skySceneMesh = SceneMesh.Create(pipeline, project, MeshVariant.Sky, mesh);
-                pipeline.SaveDataProduct(project, tileList);
+                pipeline.SaveDataProduct(project, tileList, noCache: true);
                 skySceneMesh.TileListGuid = tileList.Guid;
                 skySceneMesh.Save(pipeline);
             }
@@ -937,7 +937,7 @@ namespace OPS.Landform
                                           options.BackprojectInpaintGutter, missingColor: skyColor,
                                           preadjustLuminance: options.PreadjustLuminance,
                                           colorizeHue: options.Colorize ? medianHue : -1,
-                                          reverseAccessOrder: ReverseNextRoverImagesIteration());
+                                          disableCaches: true);
 
             if (options.WriteDebug)
             {

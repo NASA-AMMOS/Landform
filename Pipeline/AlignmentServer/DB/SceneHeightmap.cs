@@ -70,7 +70,7 @@ namespace OPS.Pipeline.AlignmentServer
                                 Image dem, Vector2 origin, double metersPerPixel)
         {
             var demProd = new TiffDataProduct(dem);
-            pipeline.SaveDataProduct(project, demProd);
+            pipeline.SaveDataProduct(project, demProd, noCache: true);
             var ret = new SceneHeightmap(project.Name, name, demProd.Guid, origin,
                                        dem.Width, dem.Height, metersPerPixel);
             ret.Save(pipeline);

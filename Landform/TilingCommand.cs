@@ -524,7 +524,9 @@ namespace OPS.Landform
                 {
                     parentTileTextureMode = TextureMode.Bake;
                     if (tileList.TextureMode == TextureMode.Clip && canProjectUVs &&
-                        pipeline.GetDataProduct<TextureProjector>(project, sceneMesh.TextureProjectorGuid).TextureGuid
+                        pipeline
+                        .GetDataProduct<TextureProjector>(project, sceneMesh.TextureProjectorGuid, noCache: true)
+                        .TextureGuid
                         != Guid.Empty)
                     {
                         parentTileTextureMode = TextureMode.Clip;
@@ -748,7 +750,7 @@ namespace OPS.Landform
                                               tilingOpts.BackprojectInpaintMissing, tilingOpts.BackprojectInpaintGutter,
                                               fallbackToOriginal: true, orbitalTexture: orbitalTexture,
                                               colorizeHue: tilingOpts.Colorize ? medianHue : -1,
-                                              reverseAccessOrder: ReverseNextRoverImagesIteration());
+                                              disableCaches: true);
 
                 if (!tilingOpts.NoIndexImages)
                 {

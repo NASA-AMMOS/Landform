@@ -1771,7 +1771,7 @@ namespace OPS.Landform
                     tmp.HasColors = false;
                 }
                 var meshProd = new PlyGZDataProduct(tmp);
-                pipeline.SaveDataProduct(project, meshProd);
+                pipeline.SaveDataProduct(project, meshProd, noCache: true);
                 sceneMesh.MeshGuid = meshProd.Guid;
                 sceneMesh.SurfaceExtent = surfaceExtent;
                 sceneMesh.Save(pipeline);

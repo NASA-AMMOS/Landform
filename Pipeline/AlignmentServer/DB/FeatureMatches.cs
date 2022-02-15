@@ -55,7 +55,7 @@ namespace OPS.Pipeline.AlignmentServer
                                             string modelName, string dataName, FeatureMatch[] matches)
         {
             var matchesProd = new FeatureMatchesDataProduct(matches);
-            pipeline.SaveDataProduct(project, matchesProd);
+            pipeline.SaveDataProduct(project, matchesProd, noCache: true);
             var ret = new FeatureMatches(project.Name, name, modelName, dataName, matchesProd.Guid);
             ret.Save(pipeline);
             return ret;

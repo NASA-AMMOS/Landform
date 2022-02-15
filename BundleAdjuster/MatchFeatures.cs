@@ -165,8 +165,9 @@ namespace OPS.Landform
                         if ((options.WriteMatchImages || options.WriteMatchMeshes || options.TallyExisting) &&
                             overlap.MatchGuid != Guid.Empty)
                         {
-                            var product =
-                                pipeline.GetDataProduct<ComputedCorrespondence>(project.ProductPath, overlap.MatchGuid);
+                            var product = pipeline
+                                .GetDataProduct<ComputedCorrespondence>(project.ProductPath, overlap.MatchGuid,
+                                                                        noCache: true);
 
                             if (options.WriteMatchImages)
                             {
@@ -228,7 +229,7 @@ namespace OPS.Landform
                     Interlocked.Increment(ref nr);
                     if (!options.NoSave)
                     {
-                        pipeline.SaveDataProduct(project.ProductPath, result, project.Name);
+                        pipeline.SaveDataProduct(project.ProductPath, result, project.Name, noCache: true);
                         guid = result.Guid;
                     }
                     Tally(result);

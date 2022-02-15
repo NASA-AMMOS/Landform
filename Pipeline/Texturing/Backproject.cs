@@ -174,7 +174,7 @@ namespace OPS.Pipeline
 
             foreach (var obs in observations.Where(obs => obs.StatsGuid != Guid.Empty))
             {
-                var stats = pipeline.GetDataProduct<ImageStats>(project, obs.StatsGuid);
+                var stats = pipeline.GetDataProduct<ImageStats>(project, obs.StatsGuid, noCache: true);
                 lumaMeds.Add(stats.LuminanceMedian);
                 lumaMADs.Add(stats.LuminanceMedianAbsoluteDeviation);
                 if (stats.Bands > 2)
@@ -219,7 +219,7 @@ namespace OPS.Pipeline
                                               bool fallbackToOriginal = true, Image orbitalTexture = null,
                                               float[] missingColor = null, double preadjustLuminance = 0,
                                               double colorizeHue = -1, bool reverseAccessOrder = false,
-                                              bool disableImageCache = false)
+                                              bool disableCaches = false)
         {
             missingColor = missingColor ?? TexturingDefaults.BACKPROJECT_NO_OBSERVATION_COLOR;
 
@@ -301,18 +301,21 @@ namespace OPS.Pipeline
                     {
                         Interlocked.Increment(ref stats.NumFallbacks);
                     }
-                    img = pipeline.LoadImage(obs.Url, noCache: disableImageCache);
+                    img = pipeline.LoadImage(obs.Url, noCache: disableCaches);
                 }
                 else
                 {
                     checkProject(obs);
-                    img = pipeline.GetDataProduct<PngDataProduct>(project, obs.GetTextureVariantGuid(variant)).Image;
+                    img = pipeline
+                        .GetDataProduct<PngDataProduct>(project, obs.GetTextureVariantGuid(variant),
+                                                        noCache: disableCaches)
+                        .Image;
                 }
 
                 if (preadjustLuminance > 0 && lumaMed >= 0 && obs.StatsGuid != Guid.Empty)
                 {
                     checkProject(obs);
-                    var st = pipeline.GetDataProduct<ImageStats>(project, obs.StatsGuid);
+                    var st = pipeline.GetDataProduct<ImageStats>(project, obs.StatsGuid, noCache: disableCaches);
                     img = new Image(img); //don't mutate cached image
                     img.AdjustLuminanceDistribution(st.LuminanceMedian, st.LuminanceMedianAbsoluteDeviation,
                                                     lumaMed, lumaMAD, preadjustLuminance);
@@ -1297,7 +1300,7 @@ namespace OPS.Pipeline
             {
                 if (!rebuild && obs.HullGuid != Guid.Empty && obs.HullFarClip == farClip)
                 {
-                    var meshProd = pipeline.GetDataProduct<PlyGZDataProduct>(project, obs.HullGuid);
+                    var meshProd = pipeline.GetDataProduct<PlyGZDataProduct>(project, obs.HullGuid, noCache: true);
                     var loadedHull = ConvexHull.FromConvexMesh(meshProd.Mesh);
                     obsToHull.AddOrUpdate(obs.Name, _ => loadedHull, (_, __) => loadedHull);
                     Interlocked.Increment(ref nc);
@@ -1321,7 +1324,7 @@ namespace OPS.Pipeline
                     if (!noSave)
                     {
                         var hullProd = new PlyGZDataProduct(hull.Mesh);
-                        pipeline.SaveDataProduct(project, hullProd);
+                        pipeline.SaveDataProduct(project, hullProd, noCache: true);
                         obs.HullGuid = hullProd.Guid;
                         obs.HullFarClip = farClip;
                         obs.Save(pipeline);

@@ -640,7 +640,8 @@ namespace OPS.Landform
             {
                 if (options.UseBlendedTextures && obs.Texture.BlendedGuid != Guid.Empty)
                 {
-                    img = pipeline.GetDataProduct<PngDataProduct>(project, obs.Texture.BlendedGuid).Image;
+                    img =
+                        pipeline.GetDataProduct<PngDataProduct>(project, obs.Texture.BlendedGuid, noCache: true).Image;
                 }
                 else
                 {

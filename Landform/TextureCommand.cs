@@ -345,7 +345,7 @@ namespace OPS.Landform
                     if (!tcopts.NoSave)
                     {
                         var maskProd = new PngDataProduct(maskImage);
-                        pipeline.SaveDataProduct(project, maskProd);
+                        pipeline.SaveDataProduct(project, maskProd); //leave cache enabled
                         obs.MaskGuid = maskProd.Guid;
                         obs.Save(pipeline);
                     }
@@ -415,6 +415,9 @@ namespace OPS.Landform
                     var img = pipeline.LoadImage(obs.Url);
                     if (obs.MaskGuid != Guid.Empty)
                     {
+                        //let the masks stay in the LRU cache here
+                        //they might be used in BuildBlurredObservationImages()
+                        //and most commands clear the image cache entirely after all Build*() phases are done
                         var mask = pipeline.GetDataProduct<PngDataProduct>(project, obs.MaskGuid).Image;
                         img = new Image(img); //don't mutate cached image
                         img.UnionMask(mask, new float[] { 0 }); //0 means bad, 1 means good
@@ -422,7 +425,7 @@ namespace OPS.Landform
                     if (!tcopts.NoSave)
                     {
                         var statsProd = new ImageStats(img);
-                        pipeline.SaveDataProduct(project, statsProd);
+                        pipeline.SaveDataProduct(project, statsProd, noCache: true);
                         obs.StatsGuid = statsProd.Guid;
                         obs.Save(pipeline);
                     }
@@ -464,8 +467,9 @@ namespace OPS.Landform
 #if DBG_BLURRED
                     if (tcopts.WriteDebug)
                     {
-                        SaveDebugWedgeImage(pipeline.GetDataProduct<PngDataProduct>(project, obs.BlurredGuid).Image,
-                                            obs, "_blurred");
+                        SaveDebugWedgeImage
+                            (pipeline.GetDataProduct<PngDataProduct>(project, obs.BlurredGuid, noCache: true).Image,
+                             obs, "_blurred");
                     }
 
 #endif
@@ -490,7 +494,7 @@ namespace OPS.Landform
                     
                     if (obs.MaskGuid != Guid.Empty)
                     {
-                        var mask = pipeline.GetDataProduct<PngDataProduct>(project, obs.MaskGuid).Image;
+                        var mask = pipeline.GetDataProduct<PngDataProduct>(project, obs.MaskGuid, noCache: true).Image;
                         img = new Image(img); //don't mutate cached image
                         img.UnionMask(mask, new float[] { 0 }); //0 means bad, 1 means good
                     }
@@ -510,7 +514,7 @@ namespace OPS.Landform
                     if (!tcopts.NoSave)
                     {
                         var imgProd = new PngDataProduct(blurredImage);
-                        pipeline.SaveDataProduct(project, imgProd);
+                        pipeline.SaveDataProduct(project, imgProd, noCache: true);
                         obs.BlurredGuid = imgProd.Guid;
                         obs.Save(pipeline);
                     }
@@ -554,7 +558,7 @@ namespace OPS.Landform
                 if (sceneMesh.MeshGuid != Guid.Empty)
                 {
                     pipeline.LogInfo("loading scene mesh in frame {0} from database", meshFrame);
-                    mesh = pipeline.GetDataProduct<PlyGZDataProduct>(project, sceneMesh.MeshGuid).Mesh;
+                    mesh = pipeline.GetDataProduct<PlyGZDataProduct>(project, sceneMesh.MeshGuid, noCache: true).Mesh;
                 }
                 else
                 {
@@ -883,7 +887,7 @@ namespace OPS.Landform
                 throw new Exception(string.Format("scene mesh has no tile list"));
             }
 
-            tileList = pipeline.GetDataProduct<TileList>(project, sceneMesh.TileListGuid);
+            tileList = pipeline.GetDataProduct<TileList>(project, sceneMesh.TileListGuid, noCache: true);
 
             if (tileList.LeafNames == null || tileList.LeafNames.Count == 0)
             {
@@ -1098,7 +1102,7 @@ namespace OPS.Landform
             {
                 pipeline.LogInfo("saving backproject index");
                 var indexProd = new TiffDataProduct(backprojectIndex);
-                pipeline.SaveDataProduct(project, indexProd);
+                pipeline.SaveDataProduct(project, indexProd, noCache: true);
                 sceneMesh.BackprojectIndexGuid = indexProd.Guid;
                 sceneMesh.Save(pipeline);
             }
@@ -1136,7 +1140,7 @@ namespace OPS.Landform
             if (backprojectIndex == null)
             {
                 var indexGuid = sceneMesh.BackprojectIndexGuid;
-                backprojectIndex = pipeline.GetDataProduct<TiffDataProduct>(project, indexGuid).Image;
+                backprojectIndex = pipeline.GetDataProduct<TiffDataProduct>(project, indexGuid, noCache: true).Image;
             }
             backprojectResults =
                 Backproject.BuildResultsFromIndex(backprojectIndex, indexedImages, msg => pipeline.LogWarn(msg));
@@ -1169,7 +1173,7 @@ namespace OPS.Landform
                                                       orbitalTexture: orbitalTexture,
                                                       preadjustLuminance: preadjustLuminance,
                                                       colorizeHue: tcopts.Colorize ? medianHue : -1,
-                                                      reverseAccessOrder: ReverseNextRoverImagesIteration());
+                                                      disableCaches: true);
 
             pipeline.LogInfo("filled {0} pixels from {1} surface observations, {2} from orbital, {3} failed, " +
                              "{4} fallbacks to original texture",
@@ -1194,7 +1198,7 @@ namespace OPS.Landform
             {
                 pipeline.LogInfo("saving {0} backproject texture", dstTextureVariant.Value);
                 var texProd = new PngDataProduct(texture);
-                pipeline.SaveDataProduct(project, texProd);
+                pipeline.SaveDataProduct(project, texProd, noCache: true);
                 switch (dstTextureVariant.Value)
                 {
                     case TextureVariant.Original: sceneMesh.TextureGuid = texProd.Guid; break;
@@ -1269,7 +1273,9 @@ namespace OPS.Landform
                 var index = backprojectIndex;
                 if (index == null && sceneMesh.BackprojectIndexGuid != Guid.Empty)
                 {
-                    index = pipeline.GetDataProduct<TiffDataProduct>(project, sceneMesh.BackprojectIndexGuid).Image;
+                    index = pipeline
+                        .GetDataProduct<TiffDataProduct>(project, sceneMesh.BackprojectIndexGuid, noCache: true)
+                        .Image;
                 }
                 if (index != null)
                 {
@@ -1300,7 +1306,7 @@ namespace OPS.Landform
                 }
                 if (texGuid != Guid.Empty)
                 {
-                    texture = pipeline.GetDataProduct<PngDataProduct>(project, texGuid).Image;
+                    texture = pipeline.GetDataProduct<PngDataProduct>(project, texGuid, noCache: true).Image;
                 }
             }
 
@@ -1327,7 +1333,7 @@ namespace OPS.Landform
             var mesh = this.mesh;
             if (mesh == null && sceneMesh.MeshGuid != Guid.Empty)
             {
-                mesh = pipeline.GetDataProduct<PlyGZDataProduct>(project, sceneMesh.MeshGuid).Mesh;
+                mesh = pipeline.GetDataProduct<PlyGZDataProduct>(project, sceneMesh.MeshGuid, noCache: true).Mesh;
             }
 
             if (mesh != null)
