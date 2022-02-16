@@ -1005,12 +1005,12 @@ namespace OPS.Landform
 
                 if (tileMesh != null && tileMesh.Faces.Count > 0 && (!withTextures || tileMesh.HasUVs))
                 {
-                    node.AddComponent(new MeshImagePair(tileMesh));
+                    SaveTileMesh(node.Name, tileMesh);
                 }
                 else if (node.IsRoot && node.IsLeaf)
                 {
                     pipeline.LogWarn("adding empty mesh to root node of empty tileset");
-                    node.AddComponent(new MeshImagePair(new Mesh(hasNormals: true, hasUVs: withTextures)));
+                    SaveTileMesh(node.Name, new Mesh(hasNormals: true, hasUVs: withTextures));
                 }
                 else
                 {
@@ -1142,12 +1142,12 @@ namespace OPS.Landform
 
                 if (tileMesh != null && tileMesh.Faces.Count > 0 && (!withTextures || tileMesh.HasUVs))
                 {
-                    leaf.AddComponent<MeshImagePair>(new MeshImagePair(tileMesh));
+                    SaveTileMesh(leaf.Name, tileMesh);
                 }
                 else if (leaf.IsRoot)
                 {
                     pipeline.LogWarn("adding empty mesh to root node of empty tileset");
-                    leaf.AddComponent(new MeshImagePair(new Mesh(hasNormals: true, hasUVs: withTextures)));
+                    SaveTileMesh(leaf.Name, new Mesh(hasNormals: true, hasUVs: withTextures));
                 }
                 else
                 {
@@ -1188,9 +1188,7 @@ namespace OPS.Landform
 
             tileList.RootTransform = meshTransform.HasValue ? Matrix.Invert(meshTransform.Value) : Matrix.Identity;
 
-            var tilesToTexture = tileTree.DepthFirstTraverse()
-                .Where(l => l.HasComponent<MeshImagePair>() && l.GetComponent<MeshImagePair>().Mesh != null)
-                .ToList();
+            var tilesToTexture = tileTree.DepthFirstTraverse().Where(t => TileMeshExists(t.Name)).ToList();
             int tileCount = tilesToTexture.Count;
 
             string texMsg = textureMode == TextureMode.Bake ? "baking" :
@@ -1267,7 +1265,8 @@ namespace OPS.Landform
                                      np > 1 ? ", processing " + np + " in parallel" : "", tile.Name);
                 }
 
-                var mip = tile.GetComponent<MeshImagePair>();
+                var mip = new MeshImagePair();
+                mip.Mesh = LoadTileMesh(tile.Name);
 
                 int resolution = GetTileResolution(mip.Mesh, tile.GetComponent<NodeBounds>().Bounds, tile.Name);
 
@@ -1317,6 +1316,10 @@ namespace OPS.Landform
                 {
                     SaveImage(mip.Image, tile.Name + "_rawTexture");
                     SaveMesh(mip.Mesh, tile.Name + "_rawTexture", tile.Name + "_rawTexture");
+                    if (mip.Index != null)
+                    {
+                        SaveImage(Backproject.GenerateIndexPreviewImage(mip.Index), tile.Name + "_indexPreview");
+                    }
                 }
 
                 if (mip.Mesh != null && mip.Mesh.HasFaces && mip.Image != null && maxTextureStretch < 1 &&
@@ -1333,7 +1336,8 @@ namespace OPS.Landform
 
                 if (mip.Mesh != null && (!withTextures || mip.Image != null))
                 {
-                    SaveTile(mip, tile.Name, localSave, cloudSave, tile.IsLeaf);
+                    //need to re-save the mesh here just to add the image name (e.g. PLY embeds the image name)
+                    SaveTileContent(tile.Name, mip, tile.IsLeaf);
                     Interlocked.Increment(ref numSucceded);
                 }
                 else
@@ -1342,8 +1346,8 @@ namespace OPS.Landform
                 }
 
                 //conserve memory
+                //tile.AddComponent(mip);
                 tile.AddComponent(new MeshImagePairStats(mip));
-                tile.RemoveComponent<MeshImagePair>();
 
                 Interlocked.Decrement(ref np);
             }

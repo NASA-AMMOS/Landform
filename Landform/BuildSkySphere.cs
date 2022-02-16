@@ -822,7 +822,7 @@ namespace OPS.Landform
                 {
                     if (!options.NoSave)
                     {
-                        SaveTile(mip, tile.Name, localSave, cloudSave, tile.IsLeaf);
+                        SaveTileContent(tile.Name, mip, tile.IsLeaf);
                     }
                     Interlocked.Increment(ref numSucceded);
                 }

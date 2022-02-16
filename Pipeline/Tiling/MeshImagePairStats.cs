@@ -31,36 +31,53 @@ namespace OPS.Pipeline
 
         public MeshImagePairStats(MeshImagePair mip)
         {
-            if (mip != null)
+            Update(mip);
+        }
+
+        public void Update(MeshImagePair mip)
+        {
+            Update(mip.Mesh, mip.Image, mip.Index);
+        }
+
+        public void Update(Mesh mesh, Image image, Image index)
+        {
+            if (mesh != null)
             {
-                if (mip.Mesh != null)
+                NumVerts = mesh.Vertices.Count;
+                NumTris = mesh.Faces.Count;
+                if (NumTris > 0)
                 {
-                    NumVerts = mip.Mesh.Vertices.Count;
-                    NumTris = mip.Mesh.Faces.Count;
-                    if (NumTris > 0)
+                    MinTriArea = double.PositiveInfinity;
+                    MaxTriArea = double.NegativeInfinity;
+                    foreach (var tri in mesh.Triangles())
                     {
-                        MinTriArea = double.PositiveInfinity;
-                        MaxTriArea = double.NegativeInfinity;
-                        foreach (var tri in mip.Mesh.Triangles())
-                        {
-                            double a = tri.Area();
-                            MeshArea += a;
-                            MinTriArea = Math.Min(MinTriArea, a);
-                            MaxTriArea = Math.Max(MaxTriArea, a);
-                        }
-                    }
-                    if (mip.Mesh.HasUVs)
-                    {
-                        UVArea = mip.Mesh.ComputeUVArea();
+                        double a = tri.Area();
+                        MeshArea += a;
+                        MinTriArea = Math.Min(MinTriArea, a);
+                        MaxTriArea = Math.Max(MaxTriArea, a);
                     }
                 }
-                if (mip.Image != null)
+                if (mesh.HasUVs)
                 {
-                    ImageWidth = mip.Image.Width;
-                    ImageHeight = mip.Image.Height;
+                    UVArea = mesh.ComputeUVArea();
                 }
-                HasIndex = mip.Index != null;
             }
+
+            if (image != null)
+            {
+                ImageWidth = image.Width;
+                ImageHeight = image.Height;
+            }
+
+            HasIndex = index != null;
+        }
+
+        public void Clear()
+        {
+            NumVerts = NumTris = 0;
+            MeshArea = UVArea = MinTriArea = MaxTriArea = 0;
+            ImageWidth = ImageHeight = 0;
+            HasIndex = false;
         }
 
         private static string[] noSerialize = new string[] { "NodeComponent.Node", "MeshImagePairStats.NumPixels" };
