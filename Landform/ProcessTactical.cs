@@ -447,6 +447,7 @@ namespace OPS.Landform
             return "tactical";
         }
 
+        //uses S3 but called only by RunBatch() so no credentialRefreshLock needed
         private void IndexMeshes()
         {
             bool addMesh(string url)
@@ -598,6 +599,10 @@ namespace OPS.Landform
         //
         //* PRODUCTID.obj, PRODUCTID.mtl, PRODUCTID2.png, PRODUCTID_LOD.tar
         //  - similar to above, but PRODUCTID_LODnn[_mm].{obj[,mtl]} expected in tar
+        //
+        //uses S3, called by
+        //RunBatch() -> IndexMeshes() (no credentialRefreshLock needed)
+        //ServiceLoop() -> HandleMessage() (no credentialRefreshLock needed)
         private MeshImagePair GetMeshImagePair(string url, bool throwOnUnrecoverableError = true)
         {
             url = StringHelper.NormalizeSlashes(url);
@@ -809,7 +814,8 @@ namespace OPS.Landform
                             }
                             else
                             {
-                                warn($"ignoring {nonLOD} {Fmt.Bytes(sz)} > {Fmt.Bytes(options.MaxOBJBytes)} bytes", nonLOD);
+                                warn($"ignoring {nonLOD} {Fmt.Bytes(sz)} > {Fmt.Bytes(options.MaxOBJBytes)} bytes",
+                                     nonLOD);
                             }
                         }
                     }

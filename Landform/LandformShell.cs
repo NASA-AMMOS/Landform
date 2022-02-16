@@ -182,19 +182,6 @@ namespace OPS.Landform
                     return _storageHelper;
                 }
             }
-
-            set
-            {
-                lock (storageHelperLock)
-                {
-                    if (_storageHelper != null)
-                    {
-                        _storageHelper.Dispose();
-                        _storageHelper = null;
-                    }
-                    _storageHelper = value;
-                }
-            }
         }
 
         private Object computeHelperLock = new Object();
@@ -211,19 +198,6 @@ namespace OPS.Landform
                         _computeHelper = new ComputeHelper(profile, awsRegion, pipeline);
                     }
                     return _computeHelper;
-                }
-            }
-
-            set
-            {
-                lock (computeHelperLock)
-                {
-                    if (_computeHelper != null)
-                    {
-                        _computeHelper.Dispose();
-                        _computeHelper = null;
-                    }
-                    _computeHelper = value;
                 }
             }
         }
@@ -342,8 +316,6 @@ namespace OPS.Landform
         {
             pipeline.LogInfo("refreshing credentials");
 
-            lastCredentialRefreshSecUTC = UTCTime.Now();
-
             if (mission != null)
             {
                 var newProfile = mission.RefreshCredentials(originalAWSProfile, awsRegion, !pipeline.Verbose,
@@ -351,8 +323,26 @@ namespace OPS.Landform
                 awsProfile = newProfile ?? originalAWSProfile;
             }
 
-            storageHelper = null;
-            computeHelper = null;
+            lock (storageHelperLock)
+            {
+                if (_storageHelper != null)
+                {
+                    _storageHelper.Dispose();
+                    _storageHelper = null;
+                }
+            }
+
+            lock (computeHelperLock)
+            {
+                if (_computeHelper != null)
+                {
+                    _computeHelper.Dispose();
+                    _computeHelper = null;
+                }
+            }
+
+            //not conservative timing but do here to ensure that we only set the timestamp if we didn't error out
+            lastCredentialRefreshSecUTC = UTCTime.Now();
         }
 
         protected abstract string GetSubcommandLogFile();
@@ -684,14 +674,19 @@ namespace OPS.Landform
             RunCommand("configure-local", allowedFlags, "--venue", venue, "--storagedir", storageDir, mco, rso);
         }
 
+        //noop if sec <= 0
+        //otherwise sleeps at least 1ms
         protected void SleepSec(double sec)
         {
-            int ms = (int)(1000 * sec);
-            while (ms > 0 && !abort)
+            if (sec > 0)
             {
-                int chunk = Math.Min(ms, 500);
-                ms -= chunk;
-                Thread.Sleep(chunk);
+                int ms = (int)Math.Ceiling(1000 * sec);
+                while (ms > 0 && !abort)
+                {
+                    int chunk = Math.Min(ms, 500);
+                    ms -= chunk;
+                    Thread.Sleep(chunk);
+                }
             }
         }
 

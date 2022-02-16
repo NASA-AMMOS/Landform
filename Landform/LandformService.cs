@@ -6,6 +6,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Reflection;
+using System.Threading;
 using System.Threading.Tasks;
 using CommandLine;
 using Amazon.SQS.Model;
@@ -198,24 +199,27 @@ namespace OPS.Landform
         /// implementations of HandleMessage(), are not locked because they cannot overlap with the call to
         /// RefreshCredentials() which is in the same thread.
         ///
-        /// Other threads which require credentials should hold credentialRefreshLock (only) while needed.  Not to avoid
-        /// concurrent use of credentials, which is totally fine (and even necessary e.g. for HeartbeatLoop()), but to
-        /// prevent RefreshCredentials() from being called while the credentials may be in use.
+        /// To prevent RefreshCredentials() from being called while the credentials may be in use, other threads which
+        /// require credentials should hold credentialRefreshLock only while needed.  Potentially long running
+        /// operations should use longRunningCredentialRefereshLock instead.  The only place that both locks should be
+        /// qcquired simultaneously is in ServiceLoop() before calling RefreshCredentials().  To prevent any chance of
+        /// deadlock acquisition order should always be:
+        /// credentialRefreshLock[, longRunningCredentialRefereshLock], deleteMessageLock.
         ///
         /// For example
         /// * HeartbeatLoop() acquires credentials when it needs to update SQS message timeouts.
-        /// * ProcessContextual.MasterLoop() acquires credentials while it may use PLACES.
+        /// * ProcessContextual.MasterLoop() acquires credentials while it may use PLACES or S3.
         /// </summary>
-        protected object credentialRefreshLock = new Object();
+        protected object credentialRefreshLock = new Object(), longRunningCredentialRefereshLock = new Object();
 
         /// <summary>
         /// ServiceLoop() acquires deleteMessageLock while deleting messages from the SQS queue.
         /// HeartbeatLoop() also acquires it while updating the message timeout.
         /// This avoids overlaps between deleting the message and updating its timeout.
         /// HeartbeatLoop() actually needs both credentialRefreshLock and deleteMessageLock while updating the timeout,
-        /// but that's OK.  It's the only thing that should acquire both at the same time.  Should anything else also
-        /// ever need to acquire both at the same time, the order must be 1) credentialRefreshLock; 2) deleteMessageLock
-        /// else deadlock can occur.
+        /// but that's OK.  It's the only thing that should acquire both at the same time.
+        /// To prevent any chance of deadlock acquisition order should always be:
+        /// credentialRefreshLock[, longRunningCredentialRefereshLock], deleteMessageLock.
         /// </summary>
         private object deleteMessageLock = new Object();
 
@@ -476,11 +480,13 @@ namespace OPS.Landform
 
             if (messageQueue != null)
             {
+                messageQueue.Dispose();
                 messageQueue = GetMessageQueue();
             }
 
             if (failMessageQueue != null)
             {
+                failMessageQueue.Dispose();
                 failMessageQueue = GetFailMessageQueue();
             }
         }
@@ -724,6 +730,7 @@ namespace OPS.Landform
             return queue;
         }
 
+        //uses SQS, called only in service util mode so does not need to hold credentialRefreshLock
         protected virtual void SendMessage()
         {
             pipeline.LogInfo("{0}sending message to queue {1}", lvopts.DryRun ? "dry " : "", messageQueue.Name);
@@ -734,6 +741,7 @@ namespace OPS.Landform
             }
         }
 
+        //uses SQS, called only in service util mode so does not need to hold credentialRefreshLock
         private void PeekMessagesImpl(MessageQueue queue, int max)
         {
             pipeline.LogInfo("peeking up to {0} messages from {1}", max, queue.Name);
@@ -755,16 +763,19 @@ namespace OPS.Landform
             }
         }
 
+        //uses SQS, called only in service util mode so does not need to hold credentialRefreshLock
         private void PeekMessages()
         {
             PeekMessagesImpl(messageQueue, max: lvopts.PeekMessages);
         }
 
+        //uses SQS, called only in service util mode so does not need to hold credentialRefreshLock
         private void PeekFailedMessages()
         {
             PeekMessagesImpl(failMessageQueue, max: lvopts.PeekFailedMessages);
         }
 
+        //uses SQS, called only in service util mode so does not need to hold credentialRefreshLock
         private void MoveOrDropMessages(MessageQueue fromQueue, MessageQueue toQueue, int max)
         {
             if (toQueue != null)
@@ -809,26 +820,31 @@ namespace OPS.Landform
             }
         }
 
+        //uses SQS, called only in service util mode so does not need to hold credentialRefreshLock
         private void RetryMessages()
         {
             MoveOrDropMessages(fromQueue: failMessageQueue, toQueue: messageQueue, max: lvopts.RetryMessages);
         }
 
+        //uses SQS, called only in service util mode so does not need to hold credentialRefreshLock
         private void FailMessages()
         {
             MoveOrDropMessages(fromQueue: messageQueue, toQueue: failMessageQueue, max: lvopts.FailMessages);
         }
 
+        //uses SQS, called only in service util mode so does not need to hold credentialRefreshLock
         private void DropMessages()
         {
             MoveOrDropMessages(fromQueue: messageQueue, toQueue: null, max: lvopts.DropMessages);
         }
             
+        //uses SQS, called only in service util mode so does not need to hold credentialRefreshLock
         private void DropFailedMessages()
         {
             MoveOrDropMessages(fromQueue: failMessageQueue, toQueue: null, max: lvopts.DropFailedMessages);
         }
 
+        //uses SQS, called only in service util mode so does not need to hold credentialRefreshLock
         protected void DeleteQueue(MessageQueue queue, string what)
         {
             if (queue != null)
@@ -848,12 +864,14 @@ namespace OPS.Landform
             }
         }
 
+        //uses SQS, called only in service util mode so does not need to hold credentialRefreshLock
         protected virtual void DeleteQueues()
         {
             DeleteQueue(messageQueue, "message");
             DeleteQueue(failMessageQueue, "fail");
         }
 
+        //uses EC2, called only by ServiceLoop() so does not need to hold credentialRefreshLock
         private void IdleShutdown()
         {
             if (lvopts.IdleShutdownMethod == IdleShutdownMethod.None || lvopts.IdleShutdownSec <= 0 ||
@@ -948,6 +966,56 @@ namespace OPS.Landform
             ServiceLoop();
         }
 
+        private void CheckCredentials()
+        {
+            if (credentialRefreshSec <= 0)
+            {
+                return;
+            }
+
+            double overdueSec = 0;
+            if (lastCredentialRefreshSecUTC >= 0)
+            {
+                double deadline = lastCredentialRefreshSecUTC + credentialRefreshSec;
+                overdueSec = UTCTime.Now() - deadline;
+            }
+
+            if (overdueSec >= 0)
+            {
+                if (Monitor.TryEnter(credentialRefreshLock, 5000))
+                {
+                    try
+                    {
+                        if (Monitor.TryEnter(longRunningCredentialRefereshLock, 5000))
+                        {
+                            try
+                            {
+                                RefreshCredentials(); //let exception propagate
+                            }
+                            finally
+                            {
+                                Monitor.Exit(longRunningCredentialRefereshLock);
+                            }
+                        }
+                        else
+                        {
+                            pipeline.LogWarn("cannot acquire long-running lock to refresh credentials, {0} overdue",
+                                             Fmt.HMS(overdueSec * 1e3));
+                        }
+                    }
+                    finally
+                    {
+                        Monitor.Exit(credentialRefreshLock);
+                    }
+                }
+                else
+                {
+                    pipeline.LogWarn("cannot acquire lock to refresh credentials, {0} overdue",
+                                     Fmt.HMS(overdueSec * 1e3));
+                }
+            }
+        }
+
         private void ServiceLoop()
         {
             int throttleMS = GetDequeueThrottleMS();
@@ -981,17 +1049,10 @@ namespace OPS.Landform
             {
                 try
                 {
-                    if (credentialRefreshSec > 0 &&
-                        (lastCredentialRefreshSecUTC <= 0 ||
-                         (UTCTime.Now() - lastCredentialRefreshSecUTC) > credentialRefreshSec))
-                    {
-                        lock (credentialRefreshLock)
-                        {
-                            RefreshCredentials();
-                        }
-                    }
-                    
                     double startSec = UTCTime.Now();
+
+                    CheckCredentials();
+                    
                     QueueMessage msg = !shuttingDown ? DequeueOneMessage(messageQueue) : null;
 
                     if (msg != null)
@@ -1032,23 +1093,23 @@ namespace OPS.Landform
 
                             killedCurrentHandler = false;
 
-                            lock (deleteMessageLock)
+                            try
                             {
-                                //the reason we hold deleteMessageLock here is to make sure that
-                                //the call to UpdateTimeout() in HeartbeatLoop() can't overlap with this
-                                currentMessage = null;
-                                if (handled || drop || recycle)
+                                lock (deleteMessageLock)
                                 {
-                                    try
+                                    //the reason we hold deleteMessageLock here is to make sure that
+                                    //the call to UpdateTimeout() in HeartbeatLoop() can't overlap with this
+                                    currentMessage = null;
+                                    if (handled || drop || recycle)
                                     {
                                         messageQueue.DeleteMessage(msg);
                                         deleted = true;
                                     }
-                                    catch (Exception deleteException)
-                                    {
-                                        pipeline.LogException(deleteException, "deleting message");
-                                    }
                                 }
+                            }
+                            catch (Exception deleteException)
+                            {
+                                pipeline.LogException(deleteException, "deleting message");
                             }
 
                             StopStopwatch(brief: true);
@@ -1190,7 +1251,7 @@ namespace OPS.Landform
                     if (totalSec > maxHandlerSec)
                     {
                         pipeline.LogError("handler has run for {0} > {1}, killing",
-                                          Fmt.HMS( totalSec * 1e3), Fmt.HMS(maxHandlerSec * 1e3));
+                                          Fmt.HMS(totalSec * 1e3), Fmt.HMS(maxHandlerSec * 1e3));
                         killedCurrentHandler = true;
                         KillCurrentCommand(); //swallows exceptions, but handler will throw exception if killed
                         SleepSec(targetPeriod);
@@ -1221,17 +1282,16 @@ namespace OPS.Landform
                                 }
                             }
                             
-                            if (lastHeartbeatSec >= 0)
-                            {
-                                //upper bound on time between visibility update
-                                double heartbeatPeriod = UTCTime.Now() - lastHeartbeatSec;
-                                if (heartbeatPeriod > timeoutSec)
-                                {
-                                    pipeline.LogError("heartbeat {0:F3}s exceeded visibility timeout {1:F3}s",
-                                                      heartbeatPeriod, timeoutSec);
-                                }
-                            }
+                            //upper bound on time between visibility update
+                            double heartbeatPeriod = lastHeartbeatSec >= 0 ? (UTCTime.Now() - lastHeartbeatSec) : -1;
+
                             lastHeartbeatSec = UTCTime.Now();
+
+                            if (heartbeatPeriod > timeoutSec)
+                            {
+                                pipeline.LogError("heartbeat {0} exceeded visibility timeout {1}",
+                                                  Fmt.HMS(heartbeatPeriod * 1e3), Fmt.HMS(timeoutSec * 1e3));
+                            }
                         }
                         catch (Exception ex)
                         {

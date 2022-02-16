@@ -114,8 +114,8 @@ using OPS.Pipeline.AlignmentServer;
 /// worker management.  If --[orbital]workerinstances is a list of one or more EC2 instance IDs or name patterns, the
 /// corresponding workers are started (if not already running) when messages are added to the corresponding queue.  If
 /// --[orbital]workerinstances is a string of the form asg:<name>[:<size>] then the desired number of instances in that
-/// autoscale group is set to the given size (default 1).  If --workerwatchdogsec is positive then an additional 
-/// watchdog timer is activated that ensures the workers are running (in the same way as above) while messages are
+/// autoscale group is set to the given size (default 1).  If --workerautostartsec is positive then an additional 
+/// auto start timer is activated that ensures the workers are running (in the same way as above) while messages are
 /// available in the corresponding worker queue.  All of these options require permissions to perform the requisite
 /// actions on AWS instances and/or auto scale groups.
 ///
@@ -327,11 +327,11 @@ namespace OPS.Landform
         [Option(Default = null, HelpText = "Sol blacklist, 1-5,8,6-10")]
         public string SolBlacklist { get; set; }
 
-        [Option(Default = false, HelpText = "Enable auto-starting workers when running on EC2")]
+        [Option(Default = false, HelpText = "Enable auto starting workers when running on EC2")]
         public bool AutoStartWorkers { get; set; }
 
-        [Option(Default = ProcessContextual.DEF_WORKER_WATCHDOG_SEC, HelpText = "Period in seconds of worker auto-start watchdog, non-positive to disable watchdog")]
-        public int WorkerWatchdogSec { get; set; }
+        [Option(Default = ProcessContextual.DEF_WORKER_AUTOSTART_SEC, HelpText = "Period in seconds of worker auto start, non-positive to disable auto start")]
+        public int WorkerAutoStartSec { get; set; }
 
         [Option(Default = null, HelpText = "Comma separated list of contextual worker EC2 instance ids (starting with \"i-\"), instance names, instance name wildcard patterns, or \"asg:<name>[:<size>]\" to use an auto scaling group (size defaults to 1)")]
         public string WorkerInstances { get; set; }
@@ -353,7 +353,7 @@ namespace OPS.Landform
         public const int DEF_MASTER_MAX_HANDLER_SEC = 10 * 60; //10 minutes
         public const int DEF_MASTER_MAX_MESSAGE_AGE_SEC = 1 * 60 * 60; //1 hour
 
-        public const int DEF_WORKER_WATCHDOG_SEC = 5 * 60; //5 minutes
+        public const int DEF_WORKER_AUTOSTART_SEC = 5 * 60; //5 minutes
 
         public const int MASTER_LOOP_PERIOD_SEC = 10;
 
@@ -393,7 +393,7 @@ namespace OPS.Landform
 
         private int[] solBlacklist;
 
-        private MessageQueue workerQueue, orbitalWorkerQueue;
+        private volatile MessageQueue workerQueue, orbitalWorkerQueue;
 
         //RDR directory -> sitedrive -> list or wedge URL -> last changed UTC milliseconds
         //list and wedge URLs for which we recently recived ObjectCreated (i.e. changed) messages
@@ -410,7 +410,7 @@ namespace OPS.Landform
 
         private List<string> workerInstances, orbitalWorkerInstances;
 
-        private double lastWorkerWatchdogSec = -1;
+        private double lastWorkerAutoStartSec = -1;
 
         //message sent from master to worker
         //defines the job of building one contextual mesh
@@ -855,10 +855,10 @@ namespace OPS.Landform
 
                 if (!serviceUtilMode)
                 {
-                    if (options.AutoStartWorkers)
+                    if (options.AutoStartWorkers && options.WorkerAutoStartSec > 0)
                     {
-                        pipeline.LogInfo("worker auto start enabled{0}", options.WorkerWatchdogSec > 0 ?
-                                         (" watchdog period " + Fmt.HMS(options.WorkerWatchdogSec * 1e3)) : "");
+                        pipeline.LogInfo("worker auto start enabled, period {0}",
+                                         Fmt.HMS(options.WorkerAutoStartSec * 1e3));
                         workerInstances = GetInstances(options.WorkerInstances);
                         orbitalWorkerInstances = GetInstances(options.OrbitalWorkerInstances, "orbital");
                     }
@@ -903,6 +903,7 @@ namespace OPS.Landform
             return true;
         }
 
+        //uses EC2, called only by ParseArguments()
         protected List<string> GetInstances(string opt, string what = "")
         {
             var patterns = StringHelper.ParseList(opt);
@@ -968,10 +969,12 @@ namespace OPS.Landform
 
             if (workerQueue != null)
             {
+                workerQueue.Dispose();
                 workerQueue = GetWorkerMessageQueue();
             }
             if (orbitalWorkerQueue != null)
             {
+                orbitalWorkerQueue.Dispose();
                 orbitalWorkerQueue = GetOrbitalWorkerMessageQueue();
             }
         }
@@ -1509,6 +1512,12 @@ namespace OPS.Landform
             return FilterProduct(id) ?? mission.FilterContextualMeshWedge(id, url);
         }
 
+        //uses S3, so needs to hold credentialRefreshLock when not running from ServiceLoop()
+        //actually called from
+        //ServiceLoop() -> AcceptMessage()
+        //ServiceLoop() -> HandleMessage()
+        //MasterLoop() (locks credentialRefreshLock) ->  LoadSiteDriveLists() [-> MakeList()]
+        //RunBatch() -> BuildContextualTileset() -> MakeParameters() -> FindAllSiteDrives() [-> MakeList()] (no lock)
         private string FilterTexture(RoverProductId id, string url)
         {
             bool videoEDRExists(string s3Folder, string basename)
@@ -1548,6 +1557,9 @@ namespace OPS.Landform
             return null;
         }
 
+        //called by
+        //HandleMessage()
+        //LoadSiteDriveLists()
         private void LoadList(SiteDriveList sdList, String url)
         {
             int split = url.LastIndexOf("/ids-pipeline/");
@@ -1731,6 +1743,8 @@ namespace OPS.Landform
             return ret;
         }
 
+        //called by
+        //MasterLoop()
         private Dictionary<SiteDrive, Stamped<SiteDriveList>>
             LoadSiteDriveLists(string rdrDir, Dictionary<SiteDrive, Dictionary<string, long>> urls)
         {
@@ -2299,7 +2313,10 @@ namespace OPS.Landform
                 oldMsgsCount += oldMsgsOldestToNewest.Count;
             }
 
-            reapExisting(workerQueue, "existing");
+            if (workerQueue != null)
+            {
+                reapExisting(workerQueue, "existing");
+            }
 
             if (orbitalWorkerQueue != null)
             {
@@ -2358,8 +2375,9 @@ namespace OPS.Landform
             return coalesced;
         }
 
-        private bool EnqueueMessages(List<Stamped<ContextualMeshMessage>> msgs, string what, MessageQueue queue,
-                                     string rdrDir)
+        //uses SQS, called only by MasterLoop() while holding credentialRefreshLock
+        private int EnqueueMessages(List<Stamped<ContextualMeshMessage>> msgs, string what, MessageQueue queue,
+                                    string rdrDir)
         {
             //default order messages by when the corresponding sitedrive list changed (oldest to newest)
             var coalesced = msgs.OrderBy(sm => sm.Timestamp).Select(sm => sm.Value).ToList();
@@ -2379,8 +2397,8 @@ namespace OPS.Landform
             
             pipeline.LogInfo("enqueueing {0} {1} mesh messages to {2} for {3}",
                              coalesced.Count, what, queue.Name, rdrDir);
-            
-            bool startWorkers = false;
+
+            int n = 0;
             foreach (var msg in coalesced)
             {
                 try
@@ -2388,14 +2406,14 @@ namespace OPS.Landform
                     pipeline.LogInfo("enqueueing {0} mesh message to {1}: {2}",
                                      what, queue.Name, DescribeMessage(msg, verbose: true));
                     queue.Enqueue(msg);
-                    startWorkers = options.AutoStartWorkers;
+                    n++;
                 }
                 catch (Exception ex)
                 {
                     pipeline.LogException(ex, $"adding {what} message to {queue.Name}");
                 }
             }
-            return startWorkers;
+            return n;
         }
 
         private MessageQueue GetWorkerMessageQueue()
@@ -2440,6 +2458,7 @@ namespace OPS.Landform
             return null;
         }
 
+        //uses EC2, called only by MasterLoop() [-> WorkerAutoStart()] while holding credentialRefreshLock 
         private void StartWorkers(List<string> instances, string what = "")
         {
             if (instances != null && instances.Count > 0)
@@ -2526,33 +2545,19 @@ namespace OPS.Landform
             }
         }
 
-        private void WorkerWatchdog()
+        //uses SQS, called only by MasterLoop() while holding credentialRefreshLock
+        private void WorkerAutoStart(string what, MessageQueue queue, List<string> instances)
         {
-            lastWorkerWatchdogSec = UTCTime.Now();
-
             try
             {
-                if (workerInstances != null && workerQueue != null && workerQueue.GetNumMessages() > 0)
+                if (instances != null && queue != null && queue.GetNumMessages() > 0)
                 {
-                    StartWorkers(workerInstances);
+                    StartWorkers(instances);
                 }
             }
             catch (Exception ex)
             {
-                pipeline.LogException(ex, "in worker watchdog");
-            }
-
-            try
-            {
-                if (orbitalWorkerInstances != null && orbitalWorkerQueue != null &&
-                    orbitalWorkerQueue.GetNumMessages() > 0)
-                {
-                    StartWorkers(orbitalWorkerInstances);
-                }
-            }
-            catch (Exception ex)
-            {
-                pipeline.LogException(ex, "in orbital worker watchdog");
+                pipeline.LogException(ex, $"in {what} auto start");
             }
         }
 
@@ -2561,11 +2566,16 @@ namespace OPS.Landform
             double lastStartSec = -1;
             int targetPeriodSec = MASTER_LOOP_PERIOD_SEC;
 
-            pipeline.LogInfo("worker queue: {0}", workerQueue.Name);
+            if (workerQueue != null)
+            {
+                pipeline.LogInfo("worker queue: {0}", workerQueue.Name);
+            }
+
             if (orbitalWorkerQueue != null)
             {
                 pipeline.LogInfo("orbital worker queue: {0}", orbitalWorkerQueue.Name);
             }
+
             pipeline.LogInfo("running master loop, period {0}s, debounce {1}s", targetPeriodSec, debounceMS / 1000);
 
             while (!shuttingDown && !abort)
@@ -2579,10 +2589,21 @@ namespace OPS.Landform
 
                 try
                 {
-                    if (options.AutoStartWorkers && options.WorkerWatchdogSec > 0 && lastWorkerWatchdogSec <= 0 ||
-                        (UTCTime.Now() - lastWorkerWatchdogSec) >= options.WorkerWatchdogSec)
+                    if (options.AutoStartWorkers && options.WorkerAutoStartSec > 0 && lastWorkerAutoStartSec <= 0 ||
+                        (UTCTime.Now() - lastWorkerAutoStartSec) >= options.WorkerAutoStartSec)
                     {
-                        WorkerWatchdog();
+                        lastWorkerAutoStartSec = UTCTime.Now();
+                        lock (credentialRefreshLock)
+                        {
+                            if (workerQueue != null)
+                            {
+                                WorkerAutoStart("contextual", workerQueue, workerInstances);
+                            }
+                            if (orbitalWorkerQueue != null)
+                            {
+                                WorkerAutoStart("orbital", orbitalWorkerQueue, orbitalWorkerInstances);
+                            }
+                        }
                     }
 
                     long now = (long)UTCTime.NowMS();
@@ -2646,10 +2667,13 @@ namespace OPS.Landform
                                     }
                                 }
                             }
-                            if (EnqueueMessages(omsgs, "orbital", orbitalWorkerQueue, rdrDir))
+                            lock (credentialRefreshLock)
                             {
-                                lastWorkerWatchdogSec = UTCTime.Now();
-                                StartWorkers(orbitalWorkerInstances, "orbital");
+                                if (EnqueueMessages(omsgs, "orbital", orbitalWorkerQueue, rdrDir) > 0 &&
+                                    options.AutoStartWorkers && options.WorkerAutoStartSec > 0)
+                                {
+                                    StartWorkers(orbitalWorkerInstances, "orbital");
+                                }
                             }
                         }
 
@@ -2659,7 +2683,11 @@ namespace OPS.Landform
                             continue;
                         }
 
-                        var sdLists = LoadSiteDriveLists(rdrDir, urlsToProcess[rdrDir]);
+                        Dictionary<SiteDrive, Stamped<SiteDriveList>> sdLists = null;
+                        lock (longRunningCredentialRefereshLock)
+                        {
+                            sdLists = LoadSiteDriveLists(rdrDir, urlsToProcess[rdrDir]);
+                        }
 
                         var changedSDs = urlsToProcess[rdrDir].Keys
                             .Where(sd => sdLists.ContainsKey(sd))
@@ -2726,7 +2754,7 @@ namespace OPS.Landform
                         //better to try on each pass rather than once ever
                         var msgs = new List<Stamped<ContextualMeshMessage>>();
                         bool usePlaces = !options.NoSurface && UsePlacesDB();
-                        lock (usePlaces ? credentialRefreshLock : new Object())
+                        lock (usePlaces ? longRunningCredentialRefereshLock : new Object())
                         {
                             var placesDB = usePlaces ? InitPlacesDB() : null;
                             foreach (var changedSD in changedSDs)
@@ -2747,10 +2775,13 @@ namespace OPS.Landform
                                 }
                             }
                         }
-                        if (EnqueueMessages(msgs, "contextual", workerQueue, rdrDir))
+                        lock (credentialRefreshLock)
                         {
-                            lastWorkerWatchdogSec = UTCTime.Now();
-                            StartWorkers(workerInstances);
+                            if (EnqueueMessages(msgs, "contextual", workerQueue, rdrDir) > 0 &&
+                                options.AutoStartWorkers && options.WorkerAutoStartSec > 0)
+                            {
+                                StartWorkers(workerInstances);
+                            }
                         }
                     }
 
