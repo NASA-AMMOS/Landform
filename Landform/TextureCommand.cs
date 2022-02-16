@@ -304,7 +304,7 @@ namespace OPS.Landform
             return ret;
         }
 
-        protected List<RoverObservation> GetRoverImagesInNextIterationOrder()
+        protected IEnumerable<RoverObservation> GetRoverImagesInNextIterationOrder()
         {
             return ReverseNextRoverImagesIteration() ?
                 roverImages.OrderByDescending(obs => obs.Name).ToList() : roverImages;
@@ -315,7 +315,7 @@ namespace OPS.Landform
             int no = roverImages.Count;
             int np = 0, nc = 0, nl = 0, nf = 0;
             double lastSpew = UTCTime.Now();
-            CoreLimitedParallel.ForEach(GetRoverImagesInNextIterationOrder(), obs =>
+            CoreLimitedParallel.ForEachNoPartition(GetRoverImagesInNextIterationOrder(), obs =>
             {
                 if (!tcopts.RedoObservationMasks && obs.MaskGuid != Guid.Empty)
                 {
@@ -391,7 +391,7 @@ namespace OPS.Landform
             int no = roverImages.Count;
             int np = 0, nc = 0, nl = 0, nf = 0;
             double lastSpew = UTCTime.Now();
-            CoreLimitedParallel.ForEach(GetRoverImagesInNextIterationOrder(), obs =>
+            CoreLimitedParallel.ForEachNoPartition(GetRoverImagesInNextIterationOrder(), obs =>
             {
                 if (!tcopts.RedoObservationStats && obs.StatsGuid != Guid.Empty)
                 {
@@ -460,7 +460,7 @@ namespace OPS.Landform
             int no = roverImages.Count;
             int np = 0, nc = 0, nl = 0, nf = 0;
             double lastSpew = UTCTime.Now();
-            CoreLimitedParallel.ForEach(GetRoverImagesInNextIterationOrder(), obs =>
+            CoreLimitedParallel.ForEachNoPartition(GetRoverImagesInNextIterationOrder(), obs =>
             {
                 if (!tcopts.RedoBlurredObservationTextures && obs.BlurredGuid != Guid.Empty)
                 {

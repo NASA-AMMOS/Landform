@@ -1296,7 +1296,7 @@ namespace OPS.Pipeline
             var obsToHull = new ConcurrentDictionary<string, ConvexHull>();
 
             int np = 0, nc = 0, nl = 0, nf = 0;
-            CoreLimitedParallel.ForEach(imgObservations, obs =>
+            CoreLimitedParallel.ForEachNoPartition(imgObservations, obs =>
             {
                 if (!rebuild && obs.HullGuid != Guid.Empty && obs.HullFarClip == farClip)
                 {
