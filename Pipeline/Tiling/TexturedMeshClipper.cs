@@ -183,14 +183,14 @@ namespace OPS.Pipeline
         {
             mesh.Clean();
             var op = new MeshOperator(mesh, buildFaceTree: false, buildUVFaceTree: true, buildVertexTree: false);
-            var triangles = op.Triangles;
             var patches = new List<TexturePatch>();
-            for (int i = 0; i < triangles.Count; i++)
+            for (int i = 0; i < op.FaceCount; i++)
             {
+                Triangle triangle = op.GetTriangle(i);
                 bool skip = false;
                 foreach (var patch in patches)
                 {
-                    if (patch.Contains(triangles[i]))
+                    if (patch.Contains(triangle))
                     {
                         skip = true;
                         break;
@@ -200,7 +200,7 @@ namespace OPS.Pipeline
                 {
                     var patch = new TexturePatch(img, index, mesh.HasNormals, mesh.HasColors);
                     var trianglesToProcess = new Queue<Triangle>();
-                    trianglesToProcess.Enqueue(triangles[i]);
+                    trianglesToProcess.Enqueue(triangle);
                     while (trianglesToProcess.Count > 0)
                     {
                         var t = trianglesToProcess.Dequeue();
@@ -209,8 +209,7 @@ namespace OPS.Pipeline
                             continue;
                         }
                         patch.Add(t, borderSize);
-                        var intersects = op.UVIntersects(t.UVBounds());
-                        foreach (var inter in intersects)
+                        foreach (var inter in op.UVIntersects(t.UVBounds()))
                         {
                             trianglesToProcess.Enqueue(inter);
                         }

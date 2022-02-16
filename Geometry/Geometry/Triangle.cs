@@ -28,9 +28,9 @@ namespace OPS.Geometry
     /// </summary>
     public class Triangle
     {
-        public readonly Vertex V0;
-        public readonly Vertex V1;
-        public readonly Vertex V2;
+        public virtual Vertex V0 { get; private set; }
+        public virtual Vertex V1 { get; private set; }
+        public virtual Vertex V2 { get; private set; }
 
         public Triangle()
         {
@@ -656,6 +656,32 @@ namespace OPS.Geometry
             // Note that the base class is not invoked because it is
             // System.Object, which defines Equals as reference equality.
             return (V0 == t.V0) && (V1 == t.V1) && (V2 == t.V2);
+        }
+    }
+
+    public class IndirectTriangle : Triangle
+    {
+        public override Vertex V0 { get { return mesh.Vertices[i0]; } }
+        public override Vertex V1 { get { return mesh.Vertices[i1]; } }
+        public override Vertex V2 { get { return mesh.Vertices[i2]; } }
+
+        public readonly Mesh mesh;
+        public readonly int i0, i1, i2;
+
+        public IndirectTriangle(Mesh mesh, int i0, int i1, int i2)
+        {
+            this.mesh = mesh;
+            this.i0 = i0;
+            this.i1 = i1;
+            this.i2 = i2;
+        } 
+
+        public IndirectTriangle(Mesh mesh, Face f) : this(mesh, f.P0, f.P1, f.P2)
+        {
+        } 
+
+        public IndirectTriangle(Mesh mesh, int faceIndex) : this(mesh, mesh.Faces[faceIndex])
+        {
         }
     }
 }

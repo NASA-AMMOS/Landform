@@ -18,8 +18,8 @@ namespace GeometryThirdpartyTest
             Triangle t2 = new Triangle(new Vertex(1, 0, 0), new Vertex(0, 1, 0), new Vertex(1, 1, 1));
             Mesh mesh = new Mesh(new List<Triangle> { t1, t2 });
             Assert.IsTrue(UVAtlas.Atlas(mesh, 512, 512));
-            Triangle newT1 = mesh.Triangles()[0];
-            Triangle newT2 = mesh.Triangles()[1];
+            Triangle newT1 = mesh.FaceToTriangle(0);
+            Triangle newT2 = mesh.FaceToTriangle(1);
             foreach(Triangle t in mesh.Triangles())
             {
                 foreach(Vertex v in t.Vertices())

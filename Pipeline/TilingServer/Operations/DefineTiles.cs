@@ -405,10 +405,10 @@ namespace OPS.Pipeline.TilingServer
                 throw new InvalidDataException("expecting at least one LOD mesh");
             }
 
-            if (lodMeshOps.Count > 1 && lodMeshOps[0].CountVertices() < lodMeshOps[1].CountVertices())
+            if (lodMeshOps.Count > 1 && lodMeshOps[0].VertexCount < lodMeshOps[1].VertexCount)
             {
                 info(string.Format("expecting LOD 0 ({0} verts) to be finer than LOD 1 ({1} verts)",
-                                   lodMeshOps[0].CountVertices(), lodMeshOps[1].CountVertices()));
+                                   lodMeshOps[0].VertexCount, lodMeshOps[1].VertexCount));
             }
 
             var splitCriteria =
