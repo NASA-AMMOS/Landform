@@ -87,7 +87,9 @@ namespace OPS.Geometry
             //of the max island bounding box diameter
             public double MinIslandRatio = DEF_MIN_ISLAND_RATIO;
 
-            public bool PreserveInputsOnError = true;
+            public bool PreserveInputsOnError = false;
+            public string PreserveInputsOverrideFolder = null;
+            public string PreserveInputsOverrideName = null;
         };
 
         /// <summary>
@@ -245,7 +247,7 @@ namespace OPS.Geometry
                     {
                         if (logger != null)
                         {
-                            logger.LogVerbose("running command: {0} {1}", reconstructExe, arguments);
+                            logger.LogInfo("running command: {0} {1}", reconstructExe, arguments);
                         }
                         int exitCode = pr.Run();
                         
@@ -292,47 +294,10 @@ namespace OPS.Geometry
                             logger.LogError(pr.OutputText);
                             logger.LogError(pr.ErrorText);
                         }
-                        if (options.PreserveInputsOnError)
-                        {
-                            if (inputFile != null)
-                            {
-                                try
-                                {
-                                    inputFile = inputFile.Substring(0, inputFile.Length - 4) + "_save.ply";
-                                    PLYSerializer.Write(pointCloud, inputFile, plyWriter);
-                                    if (logger != null)
-                                    {
-                                        logger.LogInfo("preserved input point cloud file at {0}", inputFile);
-                                    }
-                                }
-                                catch (Exception ex2)
-                                {
-                                    if (logger != null)
-                                    {
-                                        logger.LogException(ex2, "error preserving input point cloud file");
-                                    }
-                                }
-                            }
-                            if (envFile != null)
-                            {
-                                try
-                                {
-                                    envFile = envFile.Substring(0, envFile.Length - 4) + "_save.ply";
-                                    PLYSerializer.Write(options.Envelope.Value.ToMesh(), envFile, plyWriter);
-                                    if (logger != null)
-                                    {
-                                        logger.LogInfo("preserved input envelope file at {0}", envFile);
-                                    }
-                                }
-                                catch (Exception ex2)
-                                {
-                                    if (logger != null)
-                                    {
-                                        logger.LogException(ex2, "error preserving input envelope file");
-                                    }
-                                }
-                            }
-                        }
+                        PreserveErrorInput(pointCloud, inputFile, plyWriter, "cloud", options, logger);
+                        Mesh envMesh =
+                            options != null && options.Envelope.HasValue ? options.Envelope.Value.ToMesh() : null;
+                        PreserveErrorInput(envMesh, envFile, plyWriter, "envelope", options, logger);
                         throw new MeshException("failed to run " + (cfg.PoissonExeLegacy ? "(legacy) " : "") +
                                                 reconstructExe + " " + arguments + ": " + ex.Message);
                     }
@@ -412,7 +377,7 @@ namespace OPS.Geometry
                                                  "--aRatio " + options.MinIslandRatio : "");
                 if (logger != null)
                 {
-                    logger.LogVerbose("running command: {0} {1}", trimmerExe, arguments);
+                    logger.LogInfo("running command: {0} {1}", trimmerExe, arguments);
                 }
                 
                 var pr = new ProgramRunner(trimmerExe, arguments, captureOutput: true);
@@ -446,25 +411,7 @@ namespace OPS.Geometry
                         logger.LogError(pr.OutputText);
                         logger.LogError(pr.ErrorText);
                     }
-                    if (options.PreserveInputsOnError && inputFile != null)
-                    {
-                        try
-                        {
-                            inputFile = inputFile.Substring(0, inputFile.Length - 4) + "_save.ply";
-                            PLYSerializer.Write(meshWithValueScaledNormals, inputFile, plyWriter);
-                            if (logger != null)
-                            {
-                                logger.LogInfo("preserved input point cloud file at {0}", inputFile);
-                            }
-                        }
-                        catch (Exception ex2)
-                        {
-                            if (logger != null)
-                            {
-                                logger.LogException(ex2, "error preserving input point cloud file");
-                            }
-                        }
-                    }
+                    PreserveErrorInput(meshWithValueScaledNormals, inputFile, plyWriter, "trimmer", options, logger);
                     throw new MeshException("failed to run " + (cfg.PoissonExeLegacy ? "(legacy) " : "") +
                                             trimmerExe + " " + arguments + ": " + ex.Message);
                 }
@@ -481,6 +428,72 @@ namespace OPS.Geometry
                 }
             });
             return result;
+        }
+
+        private static void PreserveErrorInput(Mesh mesh, string path, PLYWriter plyWriter, string what,
+                                               Options options, ILogger logger)
+        {
+            try
+            {
+                if (options == null || !options.PreserveInputsOnError)
+                {
+                    if (logger != null)
+                    {
+                        logger.LogWarn("not preserving {0} Poisson input, preservation not enabled", what);
+                    }
+                    return;
+                }
+                
+                if (mesh == null)
+                {
+                    if (logger != null)
+                    {
+                        logger.LogWarn("not preserving {0} Poisson input, not available", what);
+                    }
+                    return;
+                }
+
+                string savePath = what + "_poisson.ply";
+                if (options.PreserveInputsOverrideName != null)
+                {
+                    savePath = options.PreserveInputsOverrideName + "_" + savePath;
+                }
+                else if (path != null)
+                {
+                    savePath = StringHelper.GetLastUrlPathSegment(path, stripExtension: true) + "_" + savePath;
+                }
+                
+                if (options.PreserveInputsOverrideFolder != null)
+                {
+                    string dir = options.PreserveInputsOverrideFolder;
+                    savePath = StringHelper.EnsureTrailingSlash(StringHelper.NormalizeSlashes(dir)) + savePath;
+                }
+                else if (path != null)
+                {
+                    string dir = StringHelper.StripLastUrlPathSegment(path) ;
+                    savePath = StringHelper.EnsureTrailingSlash(StringHelper.NormalizeSlashes(dir)) + savePath;
+                }
+
+                if (!File.Exists(savePath))
+                {
+                    PLYSerializer.Write(mesh, savePath, plyWriter ?? new PLYMaximumCompatibilityWriter());
+                    if (logger != null)
+                    {
+                        logger.LogInfo("preserved Poisson {0} input: {1}", what, savePath);
+                    }
+                }
+                else
+                {
+                    logger.LogWarn("not preserving Poisson {0} input, file exists: {1}", what, savePath);
+                }
+            }
+            catch (Exception ex)
+            {
+                if (logger != null)
+                {
+                    logger.LogException(ex, $"error preserving Poisson {what} input: {path}");
+                }
+            }
         }
     }
 }

@@ -459,8 +459,13 @@ namespace OPS.Landform
                 TrimmerLevel = options.PoissonTrimmerLevel,
                 PassEnvelopeToPoisson = options.PassEnvelopeToPoisson,
                 ClipToEnvelope = !options.NoPoissonClipToEnvelope,
-                MinIslandRatio = !options.NoPoissonRemoveIslands ? options.MinIslandRatio : 0
+                MinIslandRatio = !options.NoPoissonRemoveIslands ? options.MinIslandRatio : 0,
+                PreserveInputsOnError = true,
+                PreserveInputsOverrideFolder = Path.GetTempPath(), //system temp doesn't get wiped, ends with \
+                PreserveInputsOverrideName = "landform" //don't preserve more than one set of debug files
             };
+
+            pipeline.LogInfo("saving Poisson failure inputs to {0}", poissonOpts.PreserveInputsOverrideFolder);
 
             if (!string.IsNullOrEmpty(options.OutputMesh))
             {
