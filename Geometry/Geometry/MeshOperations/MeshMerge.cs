@@ -6,6 +6,7 @@ using System.Text;
 using System.IO;
 using Microsoft.Xna.Framework;
 using System.Diagnostics;
+using RTree;
 using OPS.MathExtensions;
 using OPS.Util;
 using OPS.Imaging;
@@ -74,12 +75,26 @@ namespace OPS.Geometry
         /// </summary>
         public static void MergeWith(this Mesh mesh, Mesh[] otherMeshes, bool clean = true, bool normalize = true,
                                      bool removeDuplicateVerts = true, bool uniqueColors = false,
+                                     double mergeNearbyVertices = 0, Action<int> afterEach = null,
                                      Action<string> warn = null)
         {
-            int numNewVerts = otherMeshes.Aggregate(0, (sum, m) => m == null ? sum : sum + m.Vertices.Count);
-            int numNewFaces = otherMeshes.Aggregate(0, (sum, m) => m == null ? sum : sum + m.Faces.Count);
-            mesh.Vertices.Capacity = Math.Max(mesh.Vertices.Capacity, mesh.Vertices.Count + numNewVerts);
-            mesh.Faces.Capacity = Math.Max(mesh.Faces.Capacity, mesh.Faces.Count + numNewFaces);
+            otherMeshes = otherMeshes.Where(m => m != null).ToArray();
+
+            foreach (var m in otherMeshes)
+            {
+                if (!mesh.AttributesSubsetOf(m, checkColors: !uniqueColors))
+                {
+                    throw new MeshException("mesh to merge missing one or more attributes required by aggregate mesh");
+                }
+            }
+
+            mesh.Vertices.Capacity = Math.Max(mesh.Vertices.Capacity, mergeNearbyVertices > 0 ?
+                                              Math.Max(mesh.Vertices.Count, otherMeshes.Max(m => m.Vertices.Count)) :
+                                              (mesh.Vertices.Count + otherMeshes.Sum(m => m.Vertices.Count)));
+
+            mesh.Faces.Capacity = Math.Max(mesh.Faces.Capacity, mesh.Faces.Count + otherMeshes.Sum(m => m.Faces.Count));
+
+
             Vector4[] colors = null;
             if (uniqueColors)
             {
@@ -88,26 +103,70 @@ namespace OPS.Geometry
                     .ToArray();
                 mesh.HasColors = true;
             }
+
+            int k = mesh.Vertices.Count;
+            RTree<int> rTree = null;
+            Dictionary<int, int> oldToNewIndex = null;
+            if (mergeNearbyVertices > 0)
+            {
+                rTree = mesh.MergeNearbyVertices(mergeNearbyVertices);
+                if (otherMeshes.Any(m => m.Faces.Count > 0))
+                {
+                    oldToNewIndex = new Dictionary<int, int>();
+                }
+            }
+
             for (int i = 0; i < otherMeshes.Length; i++)
             {
                 Mesh m = otherMeshes[i];
-                if (m == null)
+
+                int vertexBaseCount = k;
+
+                for (int j = 0; j < m.Vertices.Count; j++, k++)
                 {
-                    continue;
-                }
-                if (!mesh.AttributesSubsetOf(m, checkColors: !uniqueColors))
-                {
-                    throw new MeshException("mesh to merge missing one or more attributes required by aggregate mesh");
-                }
-                int vertexBaseCount = mesh.Vertices.Count;
-                for (int j = 0; j < m.Vertices.Count; j++)
-                {
-                    Vertex v = (Vertex)(m.Vertices[j].Clone());
-                    if (uniqueColors)
+                    Vertex v = m.Vertices[j];
+                    bool doAdd = true;
+                    if (rTree != null)
                     {
-                        v.Color = colors[i];
+                        var rect = v.Position.ToRectangle(mergeNearbyVertices);
+                        var nearestIndices = rTree.Intersects(rect);
+                        if (nearestIndices.Count > 0)
+                        {
+                            if (oldToNewIndex != null)
+                            {
+                                double minDistSq = double.PositiveInfinity;
+                                int closest = -1;
+                                foreach (int n in nearestIndices)
+                                {
+                                    double d2 = Vector3.DistanceSquared(mesh.Vertices[n].Position, v.Position);
+                                    if (d2 < minDistSq)
+                                    {
+                                        closest = n;
+                                        minDistSq = d2;
+                                    }
+                                }
+                                oldToNewIndex[k] = oldToNewIndex[closest];
+                            }
+                            doAdd = false;
+                        }
+                        else
+                        {
+                            rTree.Add(rect, k);
+                            if (oldToNewIndex != null)
+                            {
+                                oldToNewIndex[k] = mesh.Vertices.Count;
+                            }
+                        }
                     }
-                    mesh.Vertices.Add(v);
+                    if (doAdd)
+                    {
+                        v = (Vertex)(v.Clone());
+                        if (uniqueColors)
+                        {
+                            v.Color = colors[i];
+                        }
+                        mesh.Vertices.Add(v);
+                    }
                 }
                 for (int j = 0; j < m.Faces.Count; j++)
                 {
@@ -115,9 +174,20 @@ namespace OPS.Geometry
                     f.P0 += vertexBaseCount;
                     f.P1 += vertexBaseCount;
                     f.P2 += vertexBaseCount;
+                    if (oldToNewIndex != null)
+                    {
+                        f.P0 = oldToNewIndex[f.P0];
+                        f.P1 = oldToNewIndex[f.P1];
+                        f.P2 = oldToNewIndex[f.P2];
+                    }
                     mesh.Faces.Add(f);
                 }
+                if (afterEach !=null)
+                {
+                    afterEach(i);
+                }
             }
+            mesh.Vertices.TrimExcess();
             if (clean)
             {
                 mesh.Clean(normalize, removeDuplicateVerts, warn: warn);
@@ -126,13 +196,28 @@ namespace OPS.Geometry
 
         public static void MergeWith(this Mesh mesh, params Mesh[] otherMeshes)
         {
-            mesh.MergeWith(otherMeshes, true, true, true); //specify params or will be a self-call (infinite recursion)
+            //specify params or will be a self-call (infinite recursion)
+            mesh.MergeWith(otherMeshes, true, true, true, false, 0, null, null);
         }
 
         public static void MergeWith(this Mesh mesh, Action<string> warn, params Mesh[] otherMeshes)
         {
             //specify params or will be a self-call (infinite recursion)
-            mesh.MergeWith(otherMeshes, true, true, true, false, warn);
+            mesh.MergeWith(otherMeshes, true, true, true, false, 0, null, warn);
+        }
+
+        /// <summary>
+        /// Combines several meshes and returnes a new mesh with the specified attributes
+        /// </summary>
+        public static Mesh Merge(bool hasNormals, bool hasUVs, bool hasColors, Mesh[] meshesToCombine,
+                                 bool clean = true, bool normalize = true, bool removeDuplicateVerts = true,
+                                 bool uniqueColors = false, double mergeNearbyVertices = 0,
+                                 Action<int> afterEach = null, Action<string> warn = null)
+        {
+            Mesh result = new Mesh(hasNormals, hasUVs, hasColors);
+            result.MergeWith(meshesToCombine, clean, normalize, removeDuplicateVerts, uniqueColors, mergeNearbyVertices,
+                             afterEach, warn);
+            return result;
         }
 
         /// <summary>
@@ -142,21 +227,33 @@ namespace OPS.Geometry
         /// </summary>
         public static Mesh Merge(Mesh[] meshesToCombine, bool clean = true, bool normalize = true,
                                  bool removeDuplicateVerts = true, bool uniqueColors = false,
+                                 double mergeNearbyVertices  = 0, Action<int> afterEach = null,
                                  Action<string> warn = null)
         {
             Mesh first = meshesToCombine[0];
             return Merge(first.HasNormals, first.HasUVs, first.HasColors, meshesToCombine,
-                         clean, normalize, removeDuplicateVerts, uniqueColors, warn);
+                         clean, normalize, removeDuplicateVerts, uniqueColors, mergeNearbyVertices, afterEach, warn);
         }
 
         public static Mesh Merge(Action<string> warn, params Mesh[] meshesToCombine)
         {
-            return Merge(meshesToCombine, true, true, true, false, warn);
+            return Merge(meshesToCombine, true, true, true, false, 0, null, warn);
         }
 
         public static Mesh Merge(params Mesh[] meshesToCombine)
         {
-            return Merge(meshesToCombine, true, true, true, false, null);
+            return Merge(meshesToCombine, true, true, true, false, 0, null, null);
+        }
+
+        public static Mesh Merge(bool hasNormals, bool hasUvs, bool hasColors, params Mesh[] meshesToCombine)
+        {
+            return Merge(hasNormals, hasUvs, hasColors, meshesToCombine, true, true, true, false, 0, null, null);
+        }
+            
+        public static Mesh Merge(bool hasNormals, bool hasUvs, bool hasColors, Action<string> warn,
+                                 params Mesh[] meshesToCombine)
+        {
+            return Merge(hasNormals, hasUvs, hasColors, meshesToCombine, true, true, true, false, 0, null, warn);
         }
 
         /// <summary>
@@ -166,46 +263,24 @@ namespace OPS.Geometry
         /// </summary>
         public static Mesh MergeWithCommonAttributes(Mesh[] meshesToCombine, bool clean = true, bool normalize = true,
                                                      bool removeDuplicateVerts = true, bool uniqueColors = false,
+                                                     double mergeNearbyVertices = 0, Action<int> afterEach = null, 
                                                      Action<string> warn = null)
         {
             bool normals = meshesToCombine.All(m => m.HasNormals);
             bool uvs = meshesToCombine.All(m => m.HasUVs);
             bool colors = meshesToCombine.All(m => m.HasColors) || uniqueColors;
             return Merge(normals, uvs, colors, meshesToCombine, clean, normalize, removeDuplicateVerts, uniqueColors,
-                         warn);
+                         mergeNearbyVertices, afterEach, warn);
         }
 
         public static Mesh MergeWithCommonAttributes(Action<string> warn, params Mesh[] meshesToCombine)
         {
-            return MergeWithCommonAttributes(meshesToCombine, true, true, true, false, warn);
+            return MergeWithCommonAttributes(meshesToCombine, true, true, true, false, 0, null, warn);
         }
 
         public static Mesh MergeWithCommonAttributes(params Mesh[] meshesToCombine)
         {
-            return MergeWithCommonAttributes(meshesToCombine, true, true, true, false, null);
-        }
-
-        /// <summary>
-        /// Combines several meshes and returnes a new mesh with the specified attributes
-        /// </summary>
-        public static Mesh Merge(bool hasNormals, bool hasUVs, bool hasColors, Mesh[] meshesToCombine,
-                                 bool clean = true, bool normalize = true, bool removeDuplicateVerts = true,
-                                 bool uniqueColors = false, Action<string> warn = null)
-        {
-            Mesh result = new Mesh(hasNormals, hasUVs, hasColors);
-            result.MergeWith(meshesToCombine, clean, normalize, removeDuplicateVerts, uniqueColors, warn);
-            return result;
-        }
-
-        public static Mesh Merge(bool hasNormals, bool hasUvs, bool hasColors, params Mesh[] meshesToCombine)
-        {
-            return Merge(hasNormals, hasUvs, hasColors, meshesToCombine, true, true, true, false, null);
-        }
-            
-        public static Mesh Merge(bool hasNormals, bool hasUvs, bool hasColors, Action<string> warn,
-                                 params Mesh[] meshesToCombine)
-        {
-            return Merge(hasNormals, hasUvs, hasColors, meshesToCombine, true, true, true, false, warn);
+            return MergeWithCommonAttributes(meshesToCombine, true, true, true, false, 0, null, null);
         }
 
         /// <summary>

@@ -493,31 +493,6 @@ namespace OPS.Imaging
             return Blit(srcImg, dstCol, dstRow, srcSubrect.MinX, srcSubrect.MinY, srcSubrect.Width, srcSubrect.Height);
         }
 
-        public void DilateMask(int pixels = 1)
-        {
-            if (this.HasMask)
-            {
-                Image maskCopy;
-                for (int i = 0; i < pixels; ++i)
-                {
-                    maskCopy = this.MaskToImage();
-                    for (int r = 1; r < this.Height - 1; ++r)
-                    {
-                        for (int c = 1; c < this.Width - 1; ++c)
-                        {
-                            if (maskCopy[0, r + 1, c] == 1 ||
-                               maskCopy[0, r - 1, c] == 1 ||
-                               maskCopy[0, r, c + 1] == 1 ||
-                               maskCopy[0, r, c - 1] == 1)
-                            {
-                                this.SetMaskValue(r, c, true);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
         public class Subrect
         {
             public int MinX, MinY, MaxX, MaxY;
@@ -616,31 +591,6 @@ namespace OPS.Imaging
                 ret.MaxX = ret.MaxY = -1;
             }
             return ret;
-        }
-    }
-
-    public class BinaryImage
-    {
-        protected bool[,] data;
-
-        protected BinaryImage() { }
-
-        public BinaryImage(int width, int height)
-        {
-            data = new bool[height, width];
-        }
-
-        public virtual bool this[int row, int column]
-        {
-            get
-            {
-                return data[row, column];
-            }
-
-            set
-            {
-                data[row, column] = value;
-            }
         }
     }
 }

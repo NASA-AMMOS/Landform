@@ -850,6 +850,17 @@ namespace OPS.Geometry
             return box;
         }
 
+        public static BoundingBox Extend(ref BoundingBox box, BoundingBox other)
+        {
+            box.Min.X = Math.Min(box.Min.X, other.Min.X);
+            box.Min.Y = Math.Min(box.Min.Y, other.Min.Y);
+            box.Min.Z = Math.Min(box.Min.Z, other.Min.Z);
+            box.Max.X = Math.Max(box.Max.X, other.Max.X);
+            box.Max.Y = Math.Max(box.Max.Y, other.Max.Y);
+            box.Max.Z = Math.Max(box.Max.Z, other.Max.Z);
+            return box;
+        }
+
         /// <summary>
         /// Returns true if the given triangle intersects with a bounding box
         /// </summary>

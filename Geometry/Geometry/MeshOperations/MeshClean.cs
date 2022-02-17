@@ -290,10 +290,10 @@ namespace OPS.Geometry
         /// <summary>
         /// Merge verticies that are within distance eps and delete any invalid, collapsed, or duplicate faces
         /// </summary>
-        public static void MergeNearbyVertices(this Mesh mesh, double eps)
+        public static RTree<int> MergeNearbyVertices(this Mesh mesh, double eps)
         {
             var rTree = new RTree<int>();
-            var newVertices = new List<Vertex>();
+            var newVertices = new List<Vertex>(mesh.Vertices.Count);
             var oldToNewIndex = mesh.Faces.Count > 0 ? new Dictionary<int, int>() : null;
             for (int i = 0; i < mesh.Vertices.Count; i++)
             {
@@ -327,6 +327,7 @@ namespace OPS.Geometry
                     newVertices.Add(v);
                 }
             }
+            newVertices.TrimExcess();
             mesh.Vertices = newVertices;
 
             if (oldToNewIndex != null)
@@ -342,6 +343,8 @@ namespace OPS.Geometry
                 mesh.RemoveInvalidFaces();
                 mesh.RemoveIdenticalFaces();
             }
+
+            return rTree;
         }
 
         /// <summary>
