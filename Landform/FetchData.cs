@@ -273,6 +273,13 @@ namespace OPS.Landform
         //includes files that were already present in the output directory iff options.AccountExisting was set
         private Queue<FileInfo> lruDownloads = new Queue<FileInfo>();
 
+        //local paths of files that we've downloaded so far in this run
+        //or that we skipped because we were going to download them but they already existed locally
+        //already downloaded paths are skipped when deleting LRU downloads
+        //if sufficient space can not be freed then further downloads will be trimmed
+        //this makes sense when, as is typical, the requested downloads are ordered by decreasing priority
+        private HashSet<string> alreadyDownloaded = new HashSet<string>();
+
         private SiteDrive[] acceptedSiteDrives;
         private RoverProductCamera[] acceptedCameras;
 
@@ -541,9 +548,9 @@ namespace OPS.Landform
             return StringHelper.NormalizeSlashes(path).Replace('/', Path.DirectorySeparatorChar);
         }
 
-        private long LocalBytes(string path)
+        private long LocalBytes(string path, long def = -1)
         {
-            return File.Exists(path) ? (new FileInfo(path)).Length : -1;
+            return File.Exists(path) ? (new FileInfo(path)).Length : def;
         }
 
         private long LocalMSSinceEpoch(string path)
@@ -1185,6 +1192,7 @@ namespace OPS.Landform
             var localPath = LocalPath(url);    
             if (options.DryRun)
             {
+                alreadyDownloaded.Add(localPath);
                 logger.InfoFormat("DRY download {0} -> {1}", url, localPath);
                 return 0;
             }
@@ -1231,6 +1239,7 @@ namespace OPS.Landform
             });
             if (File.Exists(localPath))
             {
+                alreadyDownloaded.Add(localPath);
                 downloadedFiles++;
                 return new FileInfo(localPath).Length;
             }
@@ -1276,6 +1285,7 @@ namespace OPS.Landform
                                           UTCTime.MSSinceEpochToDate(localModified),
                                           UTCTime.MSSinceEpochToDate(remoteModified));
                     }
+                    alreadyDownloaded.Add(localPath);
                     return false;
                 }
             }
@@ -1340,7 +1350,7 @@ namespace OPS.Landform
                 //the reason we don't want to delete files that we will be re-downloading
                 //is that we have already subtracted their existing size from batchBytes
                 var keep = new HashSet<string>(urls.Select(url => LocalPath(url)));
-                //keep.ExceptWith(batch.Select(url => LocalPath(url)));
+                keep.UnionWith(alreadyDownloaded);
                 DeleteLRUDownloads(batchBytes, keep);
             }
 
@@ -1557,6 +1567,15 @@ namespace OPS.Landform
 
                 logger.InfoFormat("total {0} URLs trimmed to limit disk usage ({1} bytes)",
                                   totalTrimmedUrls, Fmt.Bytes(totalTrimmedBytes));
+
+                logger.InfoFormat("total {0} requested files downloaded or already present ({1} bytes)",
+                                  alreadyDownloaded.Count,
+                                  Fmt.Bytes(alreadyDownloaded.Sum(path => LocalBytes(path, 0))));
+
+                logger.InfoFormat("total {0} downloaded files ({1} bytes)",
+                                  Fmt.Bytes(downloadedFiles), Fmt.Bytes(downloadedBytes));
+
+                logger.InfoFormat("total time {0}", Fmt.HMS(stopwatch));
             }
             catch (Exception ex)
             {
@@ -1722,11 +1741,15 @@ namespace OPS.Landform
                                                            includeVersion: false, includeStereoEye: false))
                             .Select(ids => ids.Distinct().OrderBy(id => id.FullId).ToList())
                             .ToList();
-                        logger.InfoFormat("-- fetching {0} product ids for sol {1} under {2} --",
-                                          groups.Select(g => g.Count).Sum(), sol, location);
+                        logger.InfoFormat("-- fetching {0} product ids for sol {1} under {2} ({3} new bytes) --",
+                                          groups.Select(g => g.Count).Sum(), sol, location,
+                                          Fmt.Bytes(urlsBySol[sol]
+                                                        .Sum(url => RemoteBytes(url) - LocalBytes(LocalPath(url), 0))));
                         groups.ForEach(g => g.ForEach(id => logger.Info(id.FullId)));
                     }
                 }
+
+                logger.InfoFormat("-- beginning downloads for {0} sols --", sols.Count);
                 
                 foreach (var sol in sols) //in descending order
                 {
