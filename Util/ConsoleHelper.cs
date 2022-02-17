@@ -1,9 +1,12 @@
 using System;
+using System.Runtime;
+using System.Diagnostics;
+using System.Management;
+using System.Threading.Tasks;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
-using System.Diagnostics;
 
 namespace OPS.Util
 {
@@ -95,6 +98,16 @@ namespace OPS.Util
             { CreateNoWindow = true, UseShellExecute = false });
         }
 
+
+        public static void GC(bool includeLOH = true)
+        {
+            if (includeLOH)
+            {
+                GCSettings.LargeObjectHeapCompactionMode = GCLargeObjectHeapCompactionMode.CompactOnce;
+            }
+            System.GC.Collect();
+        }
+
         public static int GetPID()
         {
             try
@@ -108,6 +121,110 @@ namespace OPS.Util
             {
                 return -1;
             }
+        }
+
+        public static string GetMemoryUsage()
+        {
+            long heap = -1;
+            try
+            {
+                heap = System.GC.GetTotalMemory(false);
+            }
+            catch (Exception)
+            {
+                //ignore
+            }
+
+            long priv = -1, phys = -1, physPeak = -1;
+            try
+            {
+                using (var proc = Process.GetCurrentProcess())
+                {
+                    priv = proc.PrivateMemorySize64;
+                    phys = proc.WorkingSet64;
+                    physPeak = proc.PeakWorkingSet64;
+                    //long virtualBytes = proc.VirtualMemorySize64;
+                    //long virtualBytesPeak = proc.PeakVirtualMemorySize64;
+                    //long pagedBytes = proc.PagedMemorySize64;
+                    //long pagedBytesPeak = proc.PeakPagedMemorySize64;
+                }
+            }
+            catch (Exception)
+            {
+                //ignore
+            }
+
+            long totPhys = -1, freePhys = -1, totVirt = -1, freeVirt = -1;
+            try
+            {
+                var searcher = new ManagementObjectSearcher(new ObjectQuery("SELECT * FROM Win32_OperatingSystem"));
+                foreach (var obj in searcher.Get())
+                {
+                    totPhys = Math.Max(totPhys, GetBytes(obj, "TotalVisibleMemorySize"));
+                    freePhys = Math.Max(freePhys, GetBytes(obj, "FreePhysicalMemory"));
+                    totVirt = Math.Max(totVirt, GetBytes(obj, "TotalVirtualMemorySize"));
+                    freeVirt = Math.Max(freeVirt, GetBytes(obj, "FreeVirtualMemory"));
+                    //totSwap = Math.Max(totSwap, GetBytes(obj, "TotalSwapSpaceSize"));
+                    //freeSwap = Math.Max(freeSwap, GetBytes(obj, "FreeSpaceInPagingFiles"));
+                }
+            }
+            catch (Exception)
+            {
+                //ignore
+            }
+
+            return string.Format("proc used: {0}, {1} heap, {2} phys ({3} pk), " +
+                                 "sys free: {4}/{5} phys, {6}/{7} virt", Fmt.Bytes(priv), Fmt.Bytes(heap),
+                                 Fmt.Bytes(phys), Fmt.Bytes(physPeak), Fmt.Bytes(freePhys), Fmt.Bytes(totPhys),
+                                 Fmt.Bytes(freeVirt), Fmt.Bytes(totVirt));
+        }
+
+        private static long GetBytes(ManagementBaseObject obj, string key)
+        {
+            try
+            {
+                return long.Parse(obj[key].ToString()) * 1024L;
+            }
+            catch (Exception)
+            {
+                return -1;
+            }
+        }
+        
+        public static long GetTotalSystemVirtualMemory()
+        {
+            long totVirt = -1;
+            try
+            {
+                var searcher = new ManagementObjectSearcher(new ObjectQuery("SELECT * FROM Win32_OperatingSystem"));
+                foreach (var obj in searcher.Get())
+                {
+                    totVirt = Math.Max(totVirt, GetBytes(obj, "TotalVirtualMemorySize"));
+                }
+            }
+            catch (Exception)
+            {
+                //ignore
+            }
+            return totVirt;
+        }
+
+        public static long GetFreeSystemVirtualMemory()
+        {
+            long freeVirt = -1;
+            try
+            {
+                var searcher = new ManagementObjectSearcher(new ObjectQuery("SELECT * FROM Win32_OperatingSystem"));
+                foreach (var obj in searcher.Get())
+                {
+                    freeVirt = Math.Max(freeVirt, GetBytes(obj, "FreeVirtualMemory"));
+                }
+            }
+            catch (Exception)
+            {
+                //ignore
+            }
+            return freeVirt;
         }
     }
 }

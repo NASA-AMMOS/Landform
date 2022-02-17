@@ -56,7 +56,7 @@ namespace OPS.Landform
         protected PipelineCore pipeline;
 
         protected Stopwatch stopwatch;
-        protected Dictionary<string, long> msPerPhase = new Dictionary<string, long>();
+        protected Dictionary<string, string> phaseInfo = new Dictionary<string, string>();
 
         protected Project project;
         protected MissionSpecific mission;
@@ -99,35 +99,36 @@ namespace OPS.Landform
         {
             stopwatch.Stop();
 
-            if (quiet)
-            {
-                return;
-            }
+            long ms = stopwatch.ElapsedMilliseconds;
 
-            pipeline.LogInfo("-- {0} total elapsed time --", Fmt.HMS(stopwatch.ElapsedMilliseconds));
+            ConsoleHelper.GC();
+            string mem = ConsoleHelper.GetMemoryUsage();
 
-            if (brief)
+            if (!quiet)
             {
-                return;
-            }
+                pipeline.LogInfo("-- {0} total time, {1} --", Fmt.HMS(ms), mem);
 
-            foreach (var table in new[] { pipeline.InitMSPerPhase, msPerPhase })
-            {
-                foreach (var entry in table)
+                if (!brief)
                 {
-                    pipeline.LogInfo("{0} {1}", Fmt.HMS(entry.Value), entry.Key);
+                    foreach (var table in new[] { pipeline.InitPhaseInfo, phaseInfo })
+                    {
+                        foreach (var entry in table)
+                        {
+                            pipeline.LogInfo("{0}: {1}", entry.Key, entry.Value);
+                        }
+                    }
+                    
+                    pipeline.DumpStats();
+                    
+                    int ndr = PathHelper.NumDeleteRetries;
+                    if (ndr > 0)
+                    {
+                        pipeline.LogWarn("{0} file delete retries", ndr);
+                    }
+                    
+                    DumpOutputPaths();
                 }
             }
-
-            pipeline.DumpStats();
-
-            int ndr = PathHelper.NumDeleteRetries;
-            if (ndr > 0)
-            {
-                pipeline.LogWarn("{0} file delete retries", ndr);
-            }
-
-            DumpOutputPaths();
         }
 
         protected void DumpOutputPaths()
@@ -145,14 +146,17 @@ namespace OPS.Landform
 
         protected void RunPhase(string phase, Action func)
         {
-            pipeline.LogInfo(phase);
             try
             {
+                pipeline.LogInfo(phase);
                 var msStart = stopwatch.ElapsedMilliseconds;
                 func();
                 var msEnd = stopwatch.ElapsedMilliseconds;
-                var ms = msPerPhase[phase] = msEnd - msStart;
-                pipeline.LogInfo("{0}: {1}, total {2}", phase, Fmt.HMS(ms), Fmt.HMS(msEnd));
+                var ms = msEnd - msStart;
+                ConsoleHelper.GC();
+                string mem = ConsoleHelper.GetMemoryUsage();
+                pipeline.LogInfo("{0}: {1}, total {2}, {3}", phase, Fmt.HMS(ms), Fmt.HMS(msEnd), mem);
+                phaseInfo[phase] = string.Format("{0} {1}", Fmt.HMS(ms), mem);
             }
             catch (Exception)
             {

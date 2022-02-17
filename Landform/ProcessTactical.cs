@@ -809,7 +809,7 @@ namespace OPS.Landform
                             }
                             else
                             {
-                                warn($"ignoring {nonLOD} {Fmt.DiskBytes(sz)} > {Fmt.DiskBytes(options.MaxOBJBytes)} bytes", nonLOD);
+                                warn($"ignoring {nonLOD} {Fmt.Bytes(sz)} > {Fmt.Bytes(options.MaxOBJBytes)} bytes", nonLOD);
                             }
                         }
                     }
@@ -833,7 +833,7 @@ namespace OPS.Landform
                                 {
                                     if (sz > options.MaxOBJBytes)
                                     {
-                                        warn($"{lodUrls[i]} {Fmt.DiskBytes(sz)} > {Fmt.DiskBytes(options.MaxOBJBytes)} bytes",
+                                        warn($"{lodUrls[i]} {Fmt.Bytes(sz)} > {Fmt.Bytes(options.MaxOBJBytes)} bytes",
                                              lodUrls[i]);
                                     }
                                     else

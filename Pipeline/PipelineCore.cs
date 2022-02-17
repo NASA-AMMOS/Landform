@@ -98,7 +98,7 @@ namespace OPS.Pipeline
         private LRUCache<string, Image> imageCache; //indexed by URL
         private LRUCache<Guid, DataProduct> dataProductCache;
 
-        public Dictionary<string, long> InitMSPerPhase = new Dictionary<string, long>();
+        public Dictionary<string, string> InitPhaseInfo = new Dictionary<string, string>();
 
         //these are generally used to initialize the database
         //
@@ -211,8 +211,11 @@ namespace OPS.Pipeline
                 var msStart = stopwatch.ElapsedMilliseconds;
                 func();
                 var msEnd = stopwatch.ElapsedMilliseconds;
-                var ms = InitMSPerPhase[phase] = msEnd - msStart;
-                LogInfo("{0}: {1:F3}s, total {2:F3}s", phase, 0.001 * ms, 0.001 * msEnd);
+                var ms = msEnd - msStart;
+                ConsoleHelper.GC();
+                string mem = ConsoleHelper.GetMemoryUsage();
+                LogInfo("{0}: {1}, total {2}, {3}", phase, Fmt.HMS(ms), Fmt.HMS(msEnd), mem);
+                InitPhaseInfo[phase] = string.Format("{0} {1}", Fmt.HMS(ms), mem);
             }
             catch
             {

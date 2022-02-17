@@ -48,7 +48,7 @@ namespace OPS.Util
             else return string.Format("{0:f1}G", b/(k*k*k));
         }
 
-        public static string DiskBytes(double b)
+        public static string Bytes(double b)
         {
             return KMG(b, 1024);
         }
