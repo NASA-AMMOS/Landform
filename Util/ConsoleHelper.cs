@@ -226,5 +226,21 @@ namespace OPS.Util
             }
             return freeVirt;
         }
+
+        public static void Exit(int exitCode)
+        {
+            //Environment.Exit() may not actually exit if
+            // a) there are foreground threads still running
+            //    (and apparently it's nontrivial to force all threads in the Thread.Run() pool to be background??)
+            // b) we were not called from the main thread
+            //https://stackoverflow.com/a/52861663/4970315
+            var p = Process.GetCurrentProcess();
+            if (p != null)
+            {
+                Task.Delay(new TimeSpan(0, 0, 10)).ContinueWith(_ => { p.Kill(); });
+            }
+
+            Environment.Exit(exitCode);
+        }
     }
 }

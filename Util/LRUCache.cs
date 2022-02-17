@@ -141,7 +141,13 @@ namespace OPS.Util
                 return false;
             }
         }
-        
+
+        public void Clear()
+        {
+            keyToNode.Clear();
+            values.Clear();
+        }
+
         public TValue this[TKey key]
         {
             get //returns null if key not found

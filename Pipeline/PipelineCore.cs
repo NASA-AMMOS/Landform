@@ -241,6 +241,12 @@ namespace OPS.Pipeline
                               dataProductCache.Capacity, dataProductCache.GetStats());
         }
 
+        public virtual void ClearCaches()
+        {
+            imageCache.Clear();
+            dataProductCache.Clear();
+        }
+
         //****************** Image Fetch API *****************
 
         private ConcurrentDictionary<string, Exception> imageLoadExceptions =

@@ -230,6 +230,8 @@ namespace OPS.Landform
 
         private volatile Process currentProcess;
 
+        protected volatile bool abort;
+
         public LandformShell(LandformShellOptions options) : base(options)
         {
             this.lsopts = options;
@@ -685,9 +687,11 @@ namespace OPS.Landform
         protected void SleepSec(double sec)
         {
             int ms = (int)(1000 * sec);
-            if (ms > 0)
+            while (ms > 0 && !abort)
             {
-                Thread.Sleep(ms);
+                int chunk = Math.Min(ms, 500);
+                ms -= chunk;
+                Thread.Sleep(chunk);
             }
         }
 

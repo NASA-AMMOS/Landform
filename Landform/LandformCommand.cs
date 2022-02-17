@@ -110,6 +110,8 @@ namespace OPS.Landform
 
                 if (!brief)
                 {
+                    DumpExtraStats();
+
                     foreach (var table in new[] { pipeline.InitPhaseInfo, phaseInfo })
                     {
                         foreach (var entry in table)
@@ -129,6 +131,10 @@ namespace OPS.Landform
                     DumpOutputPaths();
                 }
             }
+        }
+
+        protected virtual void DumpExtraStats()
+        {
         }
 
         protected void DumpOutputPaths()

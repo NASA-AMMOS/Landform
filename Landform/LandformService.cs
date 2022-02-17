@@ -4,6 +4,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Text;
 using System.Reflection;
 using System.Threading.Tasks;
 using CommandLine;
@@ -101,6 +102,21 @@ namespace OPS.Landform
 
         [Option(HelpText = "Use default AWS profile (vs profile from credential refresh) for SQS client", Default = false)]
         public bool UseDefaultAWSProfileForSQSClient { get; set; }
+
+        [Option(Default = LandformService.DEF_WATCHDOG_PERIOD, HelpText = "Memory watchdog period (seconds), non-positive to disable")]
+        public double WatchdogPeriod { get; set; }
+
+        [Option(Default = LandformService.DEF_WATCHDOG_WARN_GB, HelpText = "Memory watchdog free system virtual memory warning level, absolute GB or fraction")]
+        public double WatchdogWarnGB { get; set; }
+
+        [Option(Default = LandformService.DEF_WATCHDOG_ACTION_GB, HelpText = "Memory watchdog free system virtual memory action level, absolute GB or fraction")]
+        public double WatchdogActionGB { get; set; }
+
+        [Option(Default = LandformService.DEF_WATCHDOG_ABORT_GB, HelpText = "Memory watchdog free system virtual memory abort level, absolute GB or fraction")]
+        public double WatchdogAbortGB { get; set; }
+
+        [Option(Default = 0, HelpText = "Positive integer number of GB to leak per watchdog period for leak test")]
+        public int WatchdogLeakTest { get; set; }
     }
     
     public abstract class LandformService : LandformShell
@@ -115,6 +131,14 @@ namespace OPS.Landform
 
         public const int DEF_MAX_HANDLER_SEC = 10 * 60; //10 minutes
         public const int DEF_MAX_MESSAGE_AGE_SEC = 60 * 60; //1 hour
+
+        public const double DEF_WATCHDOG_PERIOD = 5; //seconds
+        public const double DEF_WATCHDOG_WARN_GB = 20;
+        public const double DEF_WATCHDOG_ACTION_GB = 10;
+        public const double DEF_WATCHDOG_ABORT_GB = 5;
+
+        public const int WATCHDOG_ABORT_PERIODS = 2;
+        public const int WATCHDOG_ABORT_EXIT_CODE = 10;
 
         //there is an interplay between the max message age and the max receive count
         //because each time a message is received it becomes invisible for at least the visibility timeout of the queue
@@ -186,6 +210,18 @@ namespace OPS.Landform
         protected volatile bool shuttingDown;
         private double idleStartTime = -1, lastIdleEventTime = -1;
 
+        private double totalMemory = -1;
+        private double watchdogWarnGB = -1;
+        private double watchdogActionGB = -1;
+        private double watchdogAbortGB = -1;
+
+        private double minFreeMemory = -1;
+        private int numWatchdogWarns = -1;
+        private int numWatchdogCollects = -1;
+        private int numWatchdogErrors = -1;
+        private object watchdogStatsLock = new Object();
+        private DateTime? minFreeMemoryTime = null;
+
         /// <summary>
         /// Simple JSON message for testing or in workflows not involving [SNS wrapped] S3 event messages.
         /// </summary>
@@ -208,6 +244,7 @@ namespace OPS.Landform
 
         public int Run()
         {
+            int exitCode = 0;
             try
             {
                 if (!ParseArguments())
@@ -247,27 +284,31 @@ namespace OPS.Landform
                 {
                     RunPhase("dropping failed messages", DropFailedMessages);
                 }
+                else if (lvopts.WatchdogLeakTest > 0)
+                {
+                    RunPhase("testing watchdog", WatchdogLoop);
+                }
                 else if (serviceMode)
                 {
                     RunService();
                 }
                 else
                 {
+                    Task.Run(() => WatchdogLoop());
                     RunBatch();
+                    abort = true;
                 }
             }
             catch (Exception ex)
             {
                 pipeline.LogException(ex);
-                return 1;
+                exitCode = 1;
+                abort = true;
             }
 
-            if (!serviceMode)
-            {
-                StopStopwatch();
-            }
+            StopStopwatch();
 
-            return 0;
+            return exitCode;
         }
 
         protected override bool ParseArguments()
@@ -287,12 +328,13 @@ namespace OPS.Landform
             bool failMessages = lvopts.FailMessages > 0;
             bool dropMessages = lvopts.DropMessages > 0;
             bool dropFailedMessages = lvopts.DropFailedMessages > 0;
+            bool leakTest = lvopts.WatchdogLeakTest > 0;
 
             string utils = "--peekmessages, --peekfailedmessages, --deletequeues, --sendmessage, --retrymessages, " +
-                "--failmessages, --dropmessages, --dropfailedmessages";
+                "--failmessages, --dropmessages, --dropfailedmessages, --watchdogleaktest";
 
             var utilOpts = new bool[] { lvopts.DeleteQueues, sendMessage, peekMessages, peekFailedMessages,
-                                        retryMessages, failMessages, dropMessages, dropFailedMessages };
+                                        retryMessages, failMessages, dropMessages, dropFailedMessages, leakTest };
             serviceUtilMode = utilOpts.Any(o => o);
             serviceMode = IsService();
 
@@ -300,6 +342,12 @@ namespace OPS.Landform
             {
                 throw new Exception(utils + ", and --service are mutually exclusive");
             }
+
+            if (leakTest)
+            {
+                return true;
+            }
+
             if (serviceMode || serviceUtilMode)
             {
                 if (credentialRefreshSec > 0)
@@ -868,6 +916,7 @@ namespace OPS.Landform
         protected virtual void RunService()
         {
             Task.Run(() => HeartbeatLoop());
+            Task.Run(() => WatchdogLoop());
             ServiceLoop();
         }
 
@@ -900,8 +949,7 @@ namespace OPS.Landform
                 }
             }
 
-            //while (!shuttingDown) //don't do this, just let the loop run until the instance is killed
-            while (true)
+            while (!abort) //shuttingDown is handled below
             {
                 try
                 {
@@ -1106,8 +1154,7 @@ namespace OPS.Landform
             double targetPeriod = GetHeartbeatRelPeriod() * timeoutSec;
             pipeline.LogInfo("running heartbeat, period {0:F3}s, message timeout {1}s, max handler {2}",
                              targetPeriod, timeoutSec, Fmt.HMS(maxHandlerSec * 1e3));
-            //while (!shuttingDown) //don't do this, just let the loop run until the instance is killed
-            while (true)
+            while (!abort) //keep going while shuttingDown
             {
                 if (currentMessage != null)
                 {
@@ -1169,6 +1216,223 @@ namespace OPS.Landform
                 {
                     SleepSec(targetPeriod);
                     lastHeartbeatSec = -1;
+                }
+            }
+        }
+
+        protected string GetWatchdogStats()
+        {
+            lock (watchdogStatsLock)
+            {
+                var sb = new StringBuilder();
+                if (minFreeMemory >= 0)
+                {
+                    sb.Append(string.Format("watchdog period {0}, min {1}/{2} free at {3}",
+                                            lvopts.WatchdogPeriod, Fmt.Bytes(minFreeMemory), Fmt.Bytes(totalMemory),
+                                            minFreeMemoryTime.Value));
+                    if (numWatchdogWarns > 0)
+                    {
+                        sb.Append(string.Format(", {0} warnings (< {1} free)",
+                                                numWatchdogWarns, Fmt.Bytes(watchdogWarnGB)));
+                    }
+                    if (numWatchdogCollects > 0)
+                    {
+                        sb.Append(string.Format(", {0} collects (< {1} free)",
+                                                numWatchdogCollects, Fmt.Bytes(watchdogActionGB)));
+                    }
+                    if (numWatchdogErrors > 0)
+                    {
+                        sb.Append(string.Format(", {0} critical (< {1} free)",
+                                                numWatchdogErrors, Fmt.Bytes(watchdogAbortGB)));
+                    }
+                }
+                return sb.ToString();
+            }
+        }
+
+        protected void ResetWatchdogStats()
+        {
+            lock (watchdogStatsLock)
+            {
+                minFreeMemory = -1;
+                numWatchdogWarns = -1;
+                numWatchdogCollects = -1;
+                numWatchdogErrors = -1;
+                minFreeMemoryTime = null;
+            }
+        }
+
+        protected override void DumpExtraStats()
+        {
+            string stats = GetWatchdogStats();
+            if (!string.IsNullOrEmpty(stats))
+            {
+                pipeline.LogInfo("memory watchdog: " + stats);
+            }
+        }
+
+        protected void WatchdogLoop()
+        {
+            //warn and possibly abort if memory runs low
+            //on production servers if the application uses too much virtual memory
+            //important services like CloudWatch can permanently crash (!)
+            //https://github.jpl.nasa.gov/OnSight/Landform/issues/1221
+
+            double targetPeriod = lvopts.WatchdogPeriod;
+            if (targetPeriod <= 0)
+            {
+                pipeline.LogInfo("memory watchdog disabled");
+                return;
+            }
+
+            totalMemory = ConsoleHelper.GetTotalSystemVirtualMemory();
+            if (totalMemory <= 0)
+            {
+                pipeline.LogWarn("memory watchdog disabled, error getting total system virtual memory");
+                return;
+            }
+
+            double freeMemory = ConsoleHelper.GetFreeSystemVirtualMemory();
+            if (freeMemory <= 0)
+            {
+                pipeline.LogWarn("memory watchdog disabled, error getting free system virtual memory");
+                return;
+            }
+
+            double getThreshold(double opt)
+            {
+                if (opt < 0)
+                {
+                    return 0;
+                }
+                if (opt <= 1.0)
+                {
+                    return opt * totalMemory;
+                }
+                double gb = 1024L * 1024L * 1024L;
+                double ret = opt * gb;
+                if (ret > totalMemory)
+                {
+                    ret = totalMemory * (ret / (80 * gb));
+                }
+                return ret;
+            }
+            watchdogWarnGB = getThreshold(lvopts.WatchdogWarnGB);
+            watchdogActionGB = getThreshold(lvopts.WatchdogActionGB);
+            watchdogAbortGB = getThreshold(lvopts.WatchdogAbortGB);
+            if (watchdogWarnGB == 0 && watchdogActionGB == 0 && watchdogAbortGB == 0)
+            {
+                pipeline.LogInfo("memory watchdog disabled, all thresholds unset");
+                return;
+            }
+            pipeline.LogInfo("running memory watchdog, period {0}, " +
+                             "{1}/{2} free, warn level {3} free, cleanup {4} abort {5}",
+                             Fmt.HMS(targetPeriod), Fmt.Bytes(freeMemory), Fmt.Bytes(totalMemory),
+                             Fmt.Bytes(watchdogWarnGB), Fmt.Bytes(watchdogActionGB), Fmt.Bytes(watchdogAbortGB));
+
+            ResetWatchdogStats();
+
+            bool warned = false;
+            int abortCounter = WATCHDOG_ABORT_PERIODS;
+            var leaks = lvopts.WatchdogLeakTest > 0 ? new List<byte[]>() : null;
+            while (!abort) //keep going while shuttingDown
+            {
+                SleepSec(targetPeriod);
+
+                if (lvopts.WatchdogLeakTest > 0)
+                {
+                    pipeline.LogWarn("TESTING MEMORY LEAK, allocating {0}GB", lvopts.WatchdogLeakTest);
+                    for (int i = 0; i < lvopts.WatchdogLeakTest; i++)
+                    {
+                        try
+                        {
+                            var leak = new byte[1024L * 1024L * 1024L];
+                            for (int j = 0; j < leak.Length; j++)
+                            {
+                                leak[j] = (byte)(j&0xFF);
+                            }
+                            leaks.Add(leak);
+                        }
+                        catch (Exception)
+                        {
+                            try
+                            {
+                                pipeline.LogError("failed to allocate");
+                            }
+                            catch (Exception)
+                            {
+                                //ignore
+                            }
+                        }
+                    }
+                }
+
+                freeMemory = ConsoleHelper.GetFreeSystemVirtualMemory();
+                if (freeMemory > 0)
+                {
+                    lock (watchdogStatsLock)
+                    {
+                        if (minFreeMemory < 0 || freeMemory < minFreeMemory)
+                        {
+                            minFreeMemory = freeMemory;
+                            minFreeMemoryTime = DateTime.Now;
+                        }
+                    }
+                    if (freeMemory < watchdogAbortGB)
+                    {
+                        abortCounter--;
+                        lock (watchdogStatsLock)
+                        {
+                            numWatchdogErrors++;
+                        }
+                        if (abortCounter <= 0)
+                        {
+                            pipeline.LogError("{0} < {1} of {2} free system virtual memory, aborting",
+                                              Fmt.Bytes(freeMemory), Fmt.Bytes(watchdogAbortGB),
+                                              Fmt.Bytes(totalMemory));
+                            abort = true;
+                            ConsoleHelper.Exit(WATCHDOG_ABORT_EXIT_CODE);
+                        }
+                        else
+                        {
+                            pipeline.LogWarn("{0} < {1} of {2} free system virtual memory, " +
+                                             "aborting in {3} more consecutive periods", Fmt.Bytes(freeMemory),
+                                             Fmt.Bytes(watchdogAbortGB), Fmt.Bytes(totalMemory), abortCounter);
+                            pipeline.ClearCaches();
+                            ConsoleHelper.GC();
+                        }
+                    }
+                    else
+                    {
+                        abortCounter = WATCHDOG_ABORT_PERIODS;
+
+                        if (freeMemory < watchdogActionGB)
+                        {
+                            lock (watchdogStatsLock)
+                            {
+                                numWatchdogCollects++;
+                            }
+                            pipeline.LogWarn("{0} < {1} of {2} free system virtual memory, recovering memory",
+                                             Fmt.Bytes(freeMemory), Fmt.Bytes(watchdogActionGB),
+                                             Fmt.Bytes(totalMemory));
+                            pipeline.ClearCaches();
+                            ConsoleHelper.GC();
+                        }
+                        else if (freeMemory < watchdogWarnGB)
+                        {
+                            lock (watchdogStatsLock)
+                            {
+                                numWatchdogWarns++;
+                            }
+                            pipeline.LogWarn("{0} < {1} of {2} free system virtual memory",
+                                             Fmt.Bytes(freeMemory), Fmt.Bytes(watchdogWarnGB), Fmt.Bytes(totalMemory));
+                        }
+                    }
+                }
+                else if (!warned)
+                {
+                    pipeline.LogWarn("memory watchdog: error getting free system virtual memory");
+                    warned = true;
                 }
             }
         }

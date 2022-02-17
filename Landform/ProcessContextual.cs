@@ -2500,7 +2500,7 @@ namespace OPS.Landform
             }
             pipeline.LogInfo("running master loop, period {0}s, debounce {1}s", targetPeriodSec, debounceMS / 1000);
 
-            while (!shuttingDown)
+            while (!shuttingDown && !abort)
             {
                 if (lastStartSec >= 0)
                 {
