@@ -248,4 +248,10 @@ rem note %quiet% must always be last, it's a redirect not an option
 
 @echo on
 %landform% configure-local %cfgopts% %quiet%
+
+rem restart service if it crashes or aborts
+rem https://superuser.com/a/1362294
+:start
 %landform% process-%service% %svcopts% %tacticalopts% %svcextra% %quiet% 
+timeout /t 30
+goto:start
