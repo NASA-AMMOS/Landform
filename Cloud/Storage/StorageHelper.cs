@@ -419,13 +419,14 @@ namespace OPS.Cloud
         /// <summary>
         /// Delete an object
         /// </summary>
-        public void DeleteObject(string s3url, bool ignoreErrors = true, ILog logger = null)
+        public bool DeleteObject(string s3url, bool ignoreErrors = true, ILog logger = null)
         {
             logger = logger ?? this.logger;
             try
             {
                 S3Url location = new S3Url(s3url);
                 GetClient(s3url).DeleteObject(location.BucketName, location.Path);
+                return true;
             }
             catch (Exception e)
             {
@@ -437,16 +438,18 @@ namespace OPS.Cloud
                 {
                     logger.WarnFormat("error deleting S3 object {0}: {1}", s3url, e.Message);
                 }
+                return false;
             }
         }
 
         /// <summary>
         /// Delete a set of objects
         /// </summary>
-        public void DeleteObjects(string s3url, string pattern = "*", bool recursive = true,
+        public bool DeleteObjects(string s3url, string pattern = "*", bool recursive = true,
                                   bool ignoreErrors = true, ILog logger = null)
         {
             logger = logger ?? this.logger;
+            bool ok = true;
             try
             {
                 IEnumerable<string> objects = SearchObjects(s3url, pattern, recursive);
@@ -464,6 +467,7 @@ namespace OPS.Cloud
                         }
                         else if (logger != null)
                         {
+                            ok = false;
                             logger.Warn(msg);
                         }
                         return false;
@@ -485,9 +489,11 @@ namespace OPS.Cloud
                 }
                 else if (logger != null)
                 {
+                    ok = false;
                     logger.WarnFormat("error searching objects with prefix {0}: {1}", s3url, e.Message);
                 }
             }
+            return ok;
         }
 
         private GetObjectMetadataResponse GetObjectMetadata(AmazonS3Client client, S3Url location)

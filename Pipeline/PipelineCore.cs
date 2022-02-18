@@ -462,17 +462,21 @@ namespace OPS.Pipeline
         /// <summary>
         /// Delete a persisted file.
         /// </summary>
-        /// <param name="url">URL of file to delete, must start with StorageURL/Venue</param>
-        public abstract void DeleteFile(string url, bool ignoreErrors = true);
+        /// <param name="url">URL of file to delete, if constrainToStorage = true must start with
+        /// StorageURL/Venue</param>
+        /// <returns>false if delete failed</returns>
+        public abstract bool DeleteFile(string url, bool ignoreErrors = true, bool constrainToStorage = true);
 
         /// <summary>
         /// Delete persisted files.
         ///
         /// See SearchFiles() for semantics of url, globPattern, and recursive.
         /// </summary>
-        /// <param name="url">base URL of files to delete, must start with StorageURL/Venue</param>
-        public abstract void DeleteFiles(string url, string globPattern = "*", bool recursive = true,
-                                         bool ignoreErrors = true);
+        /// <param name="url">base URL of files to delete, if constrainToStorage = true must start with
+        /// StorageURL/Venue</param>
+        /// <returns>false if any operation failed</returns>
+        public abstract bool DeleteFiles(string url, string globPattern = "*", bool recursive = true,
+                                         bool ignoreErrors = true, bool constrainToStorage = true);
 
         /// <summary>
         /// Check if a file exists in persisted storage.

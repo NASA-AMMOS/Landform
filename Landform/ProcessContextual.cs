@@ -1468,7 +1468,7 @@ namespace OPS.Landform
                                    "--sphereradius", options.SkySphereRadius,
                                    "--minbackprojectradius", options.SkyMinBackprojectRadius);
                         string skyTilesetDir = venueDir + "/" + BuildSkySphere.SKY_TILESET_DIR + "/" + project;
-                        SaveTileset(skyTilesetDir, project, destDir, "_sky");
+                        SaveTileset(skyTilesetDir, project + "_sky", destDir);
                     }
                 }
 

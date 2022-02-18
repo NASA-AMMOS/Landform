@@ -119,12 +119,13 @@ namespace OPS.Pipeline
         /// <summary>
         /// url can be either a file:// URL or a disk path
         /// </summary>
-        public override void DeleteFile(string url, bool ignoreErrors = true)
+        public override bool DeleteFile(string url, bool ignoreErrors = true, bool constrainToStorage = true)
         {
-            string file = UrlToFile(CheckUrl(url));
+            string file = UrlToFile(CheckUrl(url, constrainToStorage));
             try
             {
                 File.Delete(file);
+                return true;
             }
             catch (Exception ex)
             {
@@ -135,6 +136,7 @@ namespace OPS.Pipeline
                 else
                 {
                     LogWarn("error deleting file {0}: {1}", file, ex.Message);
+                    return false;
                 }
             }
         }
@@ -142,10 +144,11 @@ namespace OPS.Pipeline
         /// <summary>
         /// url can be either a file:// URL or a disk path
         /// </summary>
-        public override void DeleteFiles(string url, string globPattern = "*", bool recursive = true,
-                                         bool ignoreErrors = true)
+        public override bool DeleteFiles(string url, string globPattern = "*", bool recursive = true,
+                                         bool ignoreErrors = true, bool constrainToStorage = true)
         {
-            url = CheckUrl(url, constrainToStorage: true, preserveTrailingSlash: true);
+            bool ok = true;
+            url = CheckUrl(url, constrainToStorage: constrainToStorage, preserveTrailingSlash: true);
             try
             {
                 foreach (var u in SearchFiles(url, globPattern, recursive, constrainToStorage: true))
@@ -163,6 +166,7 @@ namespace OPS.Pipeline
                         }
                         else
                         {
+                            ok = false;
                             LogWarn("error deleting file {0}: {1}", f, ex.Message);
                         }
                     }
@@ -176,9 +180,11 @@ namespace OPS.Pipeline
                 }
                 else
                 {
+                    ok = false;
                     LogWarn("error listing files under " + url);
                 }
             }
+            return ok;
         }
 
         /// <summary>

@@ -305,5 +305,10 @@ namespace OPS.Util
         {
             return CheckProcesses(null, names);
         }
+
+        public static void AtExit(Action handler)
+        {
+            Console.CancelKeyPress += delegate { handler(); };
+        }
     }
 }

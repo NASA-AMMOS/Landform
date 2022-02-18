@@ -871,6 +871,11 @@ namespace OPS.Landform
             DeleteQueue(failMessageQueue, "fail");
         }
 
+        protected override string GetPID()
+        {
+            return !string.IsNullOrEmpty(selfEC2InstanceID) ? selfEC2InstanceID : base.GetPID();
+        }
+
         //uses EC2, called only by ServiceLoop() so does not need to hold credentialRefreshLock
         private void IdleShutdown()
         {

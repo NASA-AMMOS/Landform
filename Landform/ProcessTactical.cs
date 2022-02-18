@@ -165,7 +165,7 @@ namespace OPS.Landform
 
         private RoverProductCamera[] acceptedCameras;
 
-        private class MeshImagePair
+        private class MeshInfo
         {
             public string url;
             public string id;
@@ -174,7 +174,7 @@ namespace OPS.Landform
             public List<string> extraFiles = new List<string>();
         }
 
-        private Dictionary<string, MeshImagePair> meshes = new Dictionary<string, MeshImagePair>();
+        private Dictionary<string, MeshInfo> meshes = new Dictionary<string, MeshInfo>();
 
         public ProcessTactical(ProcessTacticalOptions options) : base(options)
         {
@@ -187,15 +187,15 @@ namespace OPS.Landform
             foreach (var entry in meshes)
             {
                 var id = entry.Key;
-                var mip = entry.Value;
+                var mi = entry.Value;
                 if (options.ResolveInputs)
                 {
-                    Console.WriteLine("{0} {1} {2} {3}", id, mip.mesh, mip.image, String.Join(" ", mip.extraFiles));
+                    Console.WriteLine("{0} {1} {2} {3}", id, mi.mesh, mi.image, String.Join(" ", mi.extraFiles));
                 }
                 else
                 {
                     try {
-                        RunPhase("build tileset " + id, () => BuildTacticalTileset(mip));
+                        RunPhase("build tileset " + id, () => BuildTacticalTileset(mi));
                     } catch (Exception) {
                         //already logged
                     }
@@ -307,10 +307,10 @@ namespace OPS.Landform
                 return true; //drop message, maybe file was deleted or renamed
             }
 
-            MeshImagePair mip = null;
+            MeshInfo mi = null;
             try
             {
-                mip = GetMeshImagePair(url);
+                mi = GetMeshInfo(url);
             }
             catch (Exception ex)
             {
@@ -319,9 +319,9 @@ namespace OPS.Landform
                 return true; //drop message
             }
 
-            if (mip != null)
+            if (mi != null)
             {
-                BuildTacticalTileset(mip); //throws exception on error or if killed
+                BuildTacticalTileset(mi); //throws exception on error or if killed
                 return true; //message handled, remove from queue
             }
             else
@@ -466,10 +466,10 @@ namespace OPS.Landform
                     }
                     else if (!meshes.ContainsKey(idStr))
                     {
-                        var mip = GetMeshImagePair(url, throwOnUnrecoverableError: false);
-                        if (mip != null)
+                        var mi = GetMeshInfo(url, throwOnUnrecoverableError: false);
+                        if (mi != null)
                         {
-                            meshes[idStr] = mip;
+                            meshes[idStr] = mi;
                             return true;
                         }
                     }
@@ -603,11 +603,11 @@ namespace OPS.Landform
         //uses S3, called by
         //RunBatch() -> IndexMeshes() (no credentialRefreshLock needed)
         //ServiceLoop() -> HandleMessage() (no credentialRefreshLock needed)
-        private MeshImagePair GetMeshImagePair(string url, bool throwOnUnrecoverableError = true)
+        private MeshInfo GetMeshInfo(string url, bool throwOnUnrecoverableError = true)
         {
             url = StringHelper.NormalizeSlashes(url);
 
-            MeshImagePair error(string msg, string msgUrl, Exception ex = null, bool unrecoverable = true)
+            MeshInfo error(string msg, string msgUrl, Exception ex = null, bool unrecoverable = true)
             {
                 msg += (msgUrl != url) ? (" for " + url) : "";
                 if (ex != null)
@@ -625,7 +625,7 @@ namespace OPS.Landform
                 return null;
             }
 
-            MeshImagePair warn(string msg, string forUrl)
+            MeshInfo warn(string msg, string forUrl)
             {
                 return error(msg, forUrl, null, false);
             }
@@ -643,31 +643,31 @@ namespace OPS.Landform
                 folder += "/";
             }
 
-            var mip = new MeshImagePair();
-            mip.url = url;
+            var mi = new MeshInfo();
+            mi.url = url;
 
             //determine mesh URL and verify it exists
-            mip.mesh = (ext == ".mtl") ? (bu + ".obj") : (ext == ".MTL") ? (bu + ".OBJ") : url;
-            if (!FileExists(mip.mesh)) //might not have been generated yet, or maybe s3 eventual consistency hiccup
+            mi.mesh = (ext == ".mtl") ? (bu + ".obj") : (ext == ".MTL") ? (bu + ".OBJ") : url;
+            if (!FileExists(mi.mesh)) //might not have been generated yet, or maybe s3 eventual consistency hiccup
             {
-                return warn($"mesh {mip.mesh} not found", mip.mesh);
+                return warn($"mesh {mi.mesh} not found", mi.mesh);
             }
 
             //download mesh now (it'll be cached) because
             //* if it's an OBJ then we'll try to extract a mtllib statement from it to know the associated .MTL
             //* in all cases we'll try to parse out a texture filename from it
-            string tmpMesh = GetFile(mip.mesh);
+            string tmpMesh = GetFile(mi.mesh);
 
             if (tmpMesh == null)
             {
-                return options.DryRun ? warn($"dry run, cannot download {mip.mesh} to determine texture", mip.mesh)
-                    : error($"failed to download {mip.mesh}", mip.mesh);
+                return options.DryRun ? warn($"dry run, cannot download {mi.mesh} to determine texture", mi.mesh)
+                    : error($"failed to download {mi.mesh}", mi.mesh);
             }
 
-            string meshFilename = StringHelper.GetLastUrlPathSegment(mip.mesh);
-            string meshExt = StringHelper.GetUrlExtension(mip.mesh);
+            string meshFilename = StringHelper.GetLastUrlPathSegment(mi.mesh);
+            string meshExt = StringHelper.GetUrlExtension(mi.mesh);
             var match = meshRegex.Match(meshFilename);
-            mip.id = match.Groups[1].Value;
+            mi.id = match.Groups[1].Value;
 
             if (meshExt.ToLower() == ".obj")
             {
@@ -699,14 +699,14 @@ namespace OPS.Landform
                     }
                     if (mtlUrl == null)
                     {
-                        pipeline.LogWarn("did not find mtllib statement in first 100 lines of {0}", mip.mesh);
+                        pipeline.LogWarn("did not find mtllib statement in first 100 lines of {0}", mi.mesh);
                         //resort to assumption that foo.obj uses material library foo.mtl
                         mtlUrl = (ext == ".obj") ? (bu + ".mtl") : (ext == ".OBJ") ? (bu + ".MTL") : null;
                     }
                 }
                 if (mtlUrl == null)
                 {
-                    return error($"failed to associate {mip.mesh} with OBJ material library", mip.mesh);
+                    return error($"failed to associate {mi.mesh} with OBJ material library", mi.mesh);
                 }
                 MTLFile mtl = null;
                 if (mtlUrl != null)
@@ -718,7 +718,7 @@ namespace OPS.Landform
                     try
                     {
                         mtl = new MTLFile(GetFile(mtlUrl)); //download is cached
-                        mip.extraFiles.Add(mtlUrl);
+                        mi.extraFiles.Add(mtlUrl);
                     }
                     catch (Exception ex)
                     {
@@ -761,7 +761,7 @@ namespace OPS.Landform
 
                     //check that all LOD are available
                     var lodUrls = new List<string>();
-                    string pfx = folder + mip.id + "_LOD";
+                    string pfx = folder + mi.id + "_LOD";
                     for (int lod = 1; lod <= lastLOD; lod++)
                     {
                         string lodUrl = pfx + lod.ToString("00");
@@ -779,24 +779,24 @@ namespace OPS.Landform
                         }
                         else
                         {
-                            return error($"mesh {mip.mesh} LOD {lodUrl} not found", mip.mesh);
+                            return error($"mesh {mi.mesh} LOD {lodUrl} not found", mi.mesh);
                         }
                     }
 
                     //maybe add PRODUCTID.obj as first (finest) LOD
-                    string nonLOD = folder + mip.id + meshExt;
-                    if (mip.mesh == nonLOD)
+                    string nonLOD = folder + mi.id + meshExt;
+                    if (mi.mesh == nonLOD)
                     {
-                        lodUrls.Insert(0, mip.mesh);
+                        lodUrls.Insert(0, mi.mesh);
 
                         if (options.ExpectOBJLODTAR)
                         {
-                            string lodTar = folder + mip.id + "_LOD.tar";
+                            string lodTar = folder + mi.id + "_LOD.tar";
                             if (!FileExists(lodTar))
                             {
                                 return warn($"tar {lodTar} not found", lodTar);
                             }
-                            mip.extraFiles.Add(lodTar);
+                            mi.extraFiles.Add(lodTar);
                         }
                     }
                     else if (!options.NoExpectNonLODOBJ)
@@ -864,15 +864,15 @@ namespace OPS.Landform
 
                     //if there are any PRODUCTID_LODmm_nn.obj in the list
                     //i.e. if the list is not just the single entry PRODUCTID.obj
-                    //then let's put PRODUCTID.obj into the mip.extraFiles list
-                    //and use the first PRODUCIT_LODmm[_nn].obj as mip.mesh
+                    //then let's put PRODUCTID.obj into the mi.extraFiles list
+                    //and use the first PRODUCIT_LODmm[_nn].obj as mi.mesh
                     //because that way the loader code in OBJSerializer can more efficiently find all the input files
 
                     //I don't think it's possible that lodUrls is empty here
-                    //but if it is, just leave mip.mesh and mip.extraFiles as they are
+                    //but if it is, just leave mi.mesh and mi.extraFiles as they are
                     if (lodUrls.Count == 1)
                     {
-                        mip.mesh = lodUrls[0];
+                        mi.mesh = lodUrls[0];
                     }
                     else if (lodUrls.Count > 1)
                     {
@@ -885,8 +885,8 @@ namespace OPS.Landform
                                 break;
                             }
                         }
-                        mip.mesh = firstLOD ?? lodUrls[0];
-                        mip.extraFiles.AddRange(lodUrls.Where(u => u != mip.mesh));
+                        mi.mesh = firstLOD ?? lodUrls[0];
+                        mi.extraFiles.AddRange(lodUrls.Where(u => u != mi.mesh));
                     }
 
                 } //!options.NoLoadExistingLODs
@@ -929,7 +929,7 @@ namespace OPS.Landform
                     //no texture filename in mesh file
                     //try sibling files with same basename or same product id
                     string bn = StringHelper.StripUrlExtension(meshFilename);
-                    bns = new string[] { bn, clearMeshType(bn), mip.id, clearMeshType(mip.id) };
+                    bns = new string[] { bn, clearMeshType(bn), mi.id, clearMeshType(mi.id) };
                 }
                 foreach (string tx in fallbackExts)
                 {
@@ -938,18 +938,18 @@ namespace OPS.Landform
                         string tf = folder + bn + tx;
                         if (FileExists(tf))
                         {
-                            mip.image = tf;
-                            warn(msg + ", using " + tf, mip.mesh);
+                            mi.image = tf;
+                            warn(msg + ", using " + tf, mi.mesh);
                             break;
                         }
                     }
-                    if (mip.image != null) {
+                    if (mi.image != null) {
                         break;
                     }
                 }
-                if (mip.image == null)
+                if (mi.image == null)
                 {
-                    warn(msg + ", no alternate available (formats " + string.Join(",", fallbackExts) + ")", mip.mesh);
+                    warn(msg + ", no alternate available (formats " + string.Join(",", fallbackExts) + ")", mi.mesh);
                 }
             }
 
@@ -959,7 +959,7 @@ namespace OPS.Landform
             }
             catch (Exception ex)
             {
-                return error($"error parsing {mip.mesh} to determine texture filename", mip.mesh, ex);
+                return error($"error parsing {mi.mesh} to determine texture filename", mi.mesh, ex);
             }
 
             if (textureFilename != null)
@@ -979,48 +979,47 @@ namespace OPS.Landform
                         string textureUrl = folder + bn + tx;
                         if (FileExists(textureUrl))
                         {
-                            mip.image = textureUrl;
+                            mi.image = textureUrl;
                             break;
                         }
                     }
-                    if (mip.image != null) {
+                    if (mi.image != null) {
                         break;
                     }
                 }
-                if (mip.image == null && fallbackExts.Length > 0)
+                if (mi.image == null && fallbackExts.Length > 0)
                 {
-                    tryFallbackTextureExts($"mesh {mip.mesh} referenced texture {textureFilename} not found" +
+                    tryFallbackTextureExts($"mesh {mi.mesh} referenced texture {textureFilename} not found" +
                                            (exts.Count > 1 ? (" (tried formats " + string.Join(",", exts) + ")"): ""));
                 }
             }
             else if (fallbackExts.Length > 0)
             {
-                tryFallbackTextureExts($"mesh {mip.mesh} did not reference a texture file");
+                tryFallbackTextureExts($"mesh {mi.mesh} did not reference a texture file");
             }
 
             //build-tiling-input currently requires a texture image for tactical mesh processing
-            if (mip.image == null)
+            if (mi.image == null)
             {
-                return warn($"mesh {mip.mesh} texture unavailable", mip.mesh);
+                return warn($"mesh {mi.mesh} texture unavailable", mi.mesh);
             }
 
-            if (!options.NoRequirePDSTexture && !IsPDS(mip.image))
+            if (!options.NoRequirePDSTexture && !IsPDS(mi.image))
             {
-                return warn($"texture {mip.image} is not PDS", mip.image);
+                return warn($"texture {mi.image} is not PDS", mi.image);
             }
 
-            return mip;
+            return mi;
         }
 
-        private void BuildTacticalTileset(MeshImagePair mip)
+        private void BuildTacticalTileset(MeshInfo mi)
         {
             string missionStr = mission != null ? mission.GetMission().ToString() : "None";
             string fullMissionStr = mission != null ? mission.GetMissionWithVenue() : "None";
-            string project = !string.IsNullOrEmpty(options.ProjectName) ? options.ProjectName : mip.id;
+            string project = !string.IsNullOrEmpty(options.ProjectName) ? options.ProjectName : mi.id;
             string venue = string.Format("tactical_{0}_{1}", missionStr, project);
             string venueDir = storageDir + "/" + venue;
             string tilesetDir = venueDir + "/" + TilingCommand.TILESET_DIR + "/" + project;
-            string destDir = TILESET_SUBDIR; //default output to ./TILESET_SUBDIR (e.g. if input is a filename)
             string loadLODs = !options.NoLoadExistingLODs ? "--loadlods" : "";
             string fixupLODs = options.FixupLODs;
             string noTextureProjection = options.NoTextureProjection ? "--notextureprojection" : "";
@@ -1028,7 +1027,13 @@ namespace OPS.Landform
             string synthesizeExtraLODs = options.SynthesizeExtraLODs ? "--synthesizeextralods" : "";
             string noLimitTreeHeightToLODs = options.NoLimitTreeHeightToLODs ? "--nolimittreeheighttolods" : "";
 
-            pipeline.LogInfo("building tileset {0} for {1}", project, mip.url);
+            string destDir = TILESET_SUBDIR; //default output to ./TILESET_SUBDIR (e.g. if input is filename w/o path)
+            if (mi.mesh.IndexOf("/") >= 0)
+            {
+                destDir = GetDestDir(StringHelper.StripLastUrlPathSegment(mi.mesh));
+            }
+
+            pipeline.LogInfo("building tileset {0} for {1}", project, mi.url);
 
             try
             {
@@ -1036,10 +1041,12 @@ namespace OPS.Landform
 
                 Configure(venue);
 
-                string meshFile = GetFile(mip.mesh);
-                string imageFile = GetFile(mip.image);
+                string pidFile = SavePID(destDir, project, "fetch");
 
-                foreach (var file in mip.extraFiles)
+                string meshFile = GetFile(mi.mesh);
+                string imageFile = GetFile(mi.image);
+
+                foreach (var file in mi.extraFiles)
                 {
                     string localPath = GetFile(file);
                     if (localPath.EndsWith(".tar", StringComparison.OrdinalIgnoreCase))
@@ -1049,28 +1056,29 @@ namespace OPS.Landform
                     }
                 }
                 
-                if (mip.mesh.IndexOf("/") >= 0)
-                {
-                    destDir = GetDestDir(StringHelper.StripLastUrlPathSegment(mip.mesh));
-                }
-
                 if (!options.NoTileset)
                 {
+                    SavePID(destDir, project, "leaves", pidFile);
                     BuildTilingInput(project, "--mission", fullMissionStr, "--meshframe", "tactical", "--inputmesh",
                                      meshFile, "--inputtexture", imageFile, loadLODs, "--fixuplods", fixupLODs,
                                      noTextureProjection, noAlignToCam, synthesizeExtraLODs, noLimitTreeHeightToLODs);
                     
+                    SavePID(destDir, project, "tileset", pidFile);
                     BuildTileset(project);
 
                     if (IsPDS(imageFile))
                     {
+                        SavePID(destDir, project, "manifest", pidFile);
                         RunCommand("update-scene-manifest", project, "--mission", fullMissionStr,
                                    "--awsprofile", awsProfile, "--awsregion", awsRegion,
                                    "--manifestfile", tilesetDir + "/" + SCENE_JSON,
                                    "--nocontextual", "--nourls", "--tacticalpdsimage", imageFile);
                     }
 
+                    SavePID(destDir, project, "save", pidFile);
                     SaveTileset(tilesetDir, project, destDir);
+
+                    DeletePID(destDir, project, pidFile);
                 }
 
                 Cleanup(venueDir);
