@@ -798,8 +798,7 @@ namespace OPS.Landform
                 Backproject.FillOutputTexture(pipeline, project, results, mip.Image, tilingOpts.TextureVariant,
                                               tilingOpts.BackprojectInpaintMissing, tilingOpts.BackprojectInpaintGutter,
                                               fallbackToOriginal: true, orbitalTexture: orbitalTexture,
-                                              colorizeHue: tilingOpts.Colorize ? medianHue : -1,
-                                              disableCaches: true);
+                                              colorizeHue: tilingOpts.Colorize ? medianHue : -1);
 
                 if (!tilingOpts.NoIndexImages)
                 {

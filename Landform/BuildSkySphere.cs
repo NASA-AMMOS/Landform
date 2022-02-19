@@ -555,7 +555,7 @@ namespace OPS.Landform
                 var warpedMesh = new Mesh(mesh);
                 if (sceneOccludesSky && options.WarpOcclusionMesh > 0)
                 {
-                    pipeline.LogInfo("warping occlusion mesh {0}x, limit {1:F3}m)",
+                    pipeline.LogInfo("warping occlusion mesh {0}x, limit {1:F3}m",
                                      1 + options.WarpOcclusionMesh, WARP_MAX_ADJ);
                 }
                 //mission surface frames are X north, Y right, Z down
@@ -776,7 +776,8 @@ namespace OPS.Landform
 
                     var corners = new Vector3[] { bl, br, tl, tr };
 
-                    var leaf = new SceneNode((row * sphereTileCols + col).ToString(), root.Transform);
+                    //name in vertical raster order to improve image cache hits
+                    var leaf = new SceneNode((col * sphereTileRows + row).ToString(), root.Transform);
                     leaf.AddComponent(new MeshImagePair(mesh));
                     leaf.AddComponent(new NodeBounds(BoundingBox.CreateFromPoints(corners)));
                     leaf.AddComponent<NodeGeometricError>().Error = 0;
@@ -794,7 +795,7 @@ namespace OPS.Landform
 
         private void BuildTileTexturesAndSaveTiles()
         {
-            var leaves = tileTree.Leaves().ToList();
+            var leaves = tileTree.Leaves().OrderBy(n => n.Name).ToList(); //in vertical raster order
 
             pipeline.LogInfo("backprojecting {0} tiles, texture resolution {1}, quality {2}, prefer color {3}, " +
                              "texture far clip {4:f3}",
@@ -802,7 +803,7 @@ namespace OPS.Landform
                              options.TextureFarClip);
 
             int np = 0, curTileNum = 0, numFailed = 0, numSucceded = 0;
-            CoreLimitedParallel.ForEach(leaves, tile =>
+            CoreLimitedParallel.ForEachNoPartition(leaves, tile =>
             {
                 Interlocked.Increment(ref curTileNum);
                 Interlocked.Increment(ref np);
@@ -903,8 +904,8 @@ namespace OPS.Landform
 
                 //blit into big map
                 int tileNum = int.Parse(leafName);
-                int tileRow = tileNum / sphereTileCols;
-                int tileCol = tileNum % sphereTileCols;
+                int tileRow = tileNum % sphereTileRows;
+                int tileCol = tileNum / sphereTileRows;
                 int dstPixelRow = tileRow * tileRes;
                 int dstPixelCol = (tileCol + (wrappable ? 0 : 1)) * tileRes;
 
