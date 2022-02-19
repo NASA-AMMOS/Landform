@@ -47,10 +47,15 @@ namespace OPS.Landform
 
         [Option(HelpText = "Disable suface observations, only orbital", Default = false)]
         public virtual bool NoSurface { get; set; }
+
+        [Option(HelpText = "Don't periodically force garbage collection", Default = false)]
+        public bool NoForceCollect { get; set; }
     }
 
     public class LandformCommand
     {
+        public const int COLLECT_INTERVAL_SEC = 60;
+
         protected LandformCommandOptions lcopts;
 
         protected PipelineCore pipeline;
@@ -68,6 +73,9 @@ namespace OPS.Landform
 
         protected string imageExt;
         protected string meshExt;
+
+        private double lastCollect = UTCTime.Now();
+        private object collectLock = new Object();
 
         protected LandformCommand(LandformCommandOptions lcopts)
         {
@@ -363,6 +371,24 @@ namespace OPS.Landform
         protected string DriveToString(int drive, bool forceNumeric = false)
         {
             return (mission != null && !forceNumeric) ? mission.DriveToString(drive) : string.Format("{0:D5}", drive);
+        }
+
+        protected void CheckGarbage()
+        {
+            double now = UTCTime.Now();
+            if (!lcopts.NoForceCollect && (now - lastCollect) > COLLECT_INTERVAL_SEC)
+            {
+                lock (collectLock)
+                {
+                    if ((now - lastCollect) > COLLECT_INTERVAL_SEC)
+                    {
+                        ConsoleHelper.GC();
+                        pipeline.LogInfo(ConsoleHelper.GetMemoryUsage());
+                        pipeline.DumpStats();
+                        lastCollect = now;
+                    }
+                }
+            }
         }
     }
 }

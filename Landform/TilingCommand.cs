@@ -750,6 +750,7 @@ namespace OPS.Landform
                         executive.Quit();
                         throw ex;
                     }
+                    CheckGarbage();
                 }
             }
             while (tp != null && !tp.FinishedRunning);

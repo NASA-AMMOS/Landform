@@ -147,15 +147,10 @@ namespace OPS.Landform
 
         [Option(HelpText = "Max texture stretch, 0 for none, 1 for unlimited", Default = TilingDefaults.MAX_TEXTURE_STRETCH)]
         public override double MaxTextureStretch { get; set; }
-
-        [Option(HelpText = "Don't periodically force garbage collection", Default = false)]
-        public bool NoForceCollect { get; set; }
     }
 
     public class BuildTilingInput : TilingCommand
     {
-        public const int COLLECT_INTERVAL_SEC = 60;
-
         public const double SYNTHESIZE_LOD_RELATIVE_THRESHOLD = 0.1;
 
         private BuildTilingInputOptions options;
@@ -1251,8 +1246,6 @@ namespace OPS.Landform
             }
 
             double lastSpew = UTCTime.Now();
-            double lastCollect = UTCTime.Now();
-            var collectLock = new Object();
             int np = 0, cn = 0, nf = 0, ns = 0;
             void textureAndSaveTile(SceneNode tile)
             {
@@ -1275,19 +1268,7 @@ namespace OPS.Landform
                     lastSpew = now;
                 }
 
-                if (!options.NoForceCollect && (now - lastCollect) > COLLECT_INTERVAL_SEC)
-                {
-                    lock (collectLock)
-                    {
-                        if ((now - lastCollect) > COLLECT_INTERVAL_SEC)
-                        {
-                            ConsoleHelper.GC();
-                            pipeline.LogInfo(ConsoleHelper.GetMemoryUsage());
-                            pipeline.DumpStats();
-                            lastCollect = now;
-                        }
-                    }
-                }
+                CheckGarbage();
 
                 var mip = new MeshImagePair();
                 mip.Mesh = LoadTileMesh(tile.Name);
