@@ -110,6 +110,8 @@ namespace OPS.Landform
 
     public class TextureCommand : GeometryCommand
     {
+        public const int SPEW_INTERVAL_SEC = 10;
+
         public const string DEF_FIXUP_LODS = "90000-300000,20000-100000,4000-30000,1000-5000,100-2000";
 
         protected TextureCommandOptions tcopts;
@@ -327,7 +329,7 @@ namespace OPS.Landform
                 Interlocked.Increment(ref np);
 
                 double now = UTCTime.Now();
-                if (!tcopts.NoProgress && (pipeline.Verbose || ((now - lastSpew) > 10)))
+                if (!tcopts.NoProgress && (pipeline.Verbose || ((now - lastSpew) > SPEW_INTERVAL_SEC)))
                 {
                     pipeline.LogInfo("creating mask for observation {0}, processing {1} in parallel, " +
                                      "completed {2}/{3}, {4} cached, {5} failed", obs.Name, np, nc, no, nl, nf);
@@ -403,7 +405,7 @@ namespace OPS.Landform
                 Interlocked.Increment(ref np);
                 
                 double now = UTCTime.Now();
-                if (!tcopts.NoProgress && (pipeline.Verbose || ((now - lastSpew) > 10)))
+                if (!tcopts.NoProgress && (pipeline.Verbose || ((now - lastSpew) > SPEW_INTERVAL_SEC)))
                 {
                     pipeline.LogInfo("computing stats for observation {0}, processing {1} in parallel, " +
                                      "completed {2}/{3}, {4} cached, {5} failed", obs.Name, np, nc, no, nl, nf);
@@ -481,7 +483,7 @@ namespace OPS.Landform
                 Interlocked.Increment(ref np);
 
                 double now = UTCTime.Now();
-                if (!tcopts.NoProgress && (pipeline.Verbose || ((now - lastSpew) > 10)))
+                if (!tcopts.NoProgress && (pipeline.Verbose || ((now - lastSpew) > SPEW_INTERVAL_SEC)))
                 {
                     pipeline.LogInfo("computing blurred image for observation {0}, processing {1} in parallel, " +
                                      "completed {2}/{3}, {4} cached, {5} failed", obs.Name, np, nc, no, nl, nf);

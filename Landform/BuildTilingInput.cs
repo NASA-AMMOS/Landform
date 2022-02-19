@@ -147,10 +147,15 @@ namespace OPS.Landform
 
         [Option(HelpText = "Max texture stretch, 0 for none, 1 for unlimited", Default = TilingDefaults.MAX_TEXTURE_STRETCH)]
         public override double MaxTextureStretch { get; set; }
+
+        [Option(HelpText = "Don't periodically force garbage collection", Default = false)]
+        public bool NoForceCollect { get; set; }
     }
 
     public class BuildTilingInput : TilingCommand
     {
+        public const int COLLECT_INTERVAL_SEC = 60;
+
         public const double SYNTHESIZE_LOD_RELATIVE_THRESHOLD = 0.1;
 
         private BuildTilingInputOptions options;
@@ -977,11 +982,11 @@ namespace OPS.Landform
 
             pipeline.LogInfo("using {0}/{1} LODs", rootLOD + 1, meshLOD.Count);
 
-            int numFailed = 0, curNode = 0, numNodes = nodes.Count, np = 0;
+            int nf = 0, cn = 0, nn = nodes.Count, np = 0;
             double lastSpew = UTCTime.Now();
             CoreLimitedParallel.ForEach(nodes, node =>
             {
-                Interlocked.Increment(ref curNode);
+                Interlocked.Increment(ref cn);
 
                 if (onlyForTiles != null && !onlyForTiles.Contains(node.Name))
                 {
@@ -993,10 +998,10 @@ namespace OPS.Landform
                 int lod = nearestAvailableLOD(node.GetComponent<NodeLOD>().Lod);
                 
                 double now = UTCTime.Now();
-                if (!options.NoProgress && (pipeline.Verbose || ((now - lastSpew) > 10)))
+                if (!options.NoProgress && (pipeline.Verbose || ((now - lastSpew) > SPEW_INTERVAL_SEC)))
                 {
                     pipeline.LogInfo("building tile mesh {0}/{1} ({2:F2}%){3}: tile {4}, clipping from LOD {5}",
-                                     curNode, numNodes, 100 * curNode / (float)numNodes,
+                                     cn, nn, 100 * cn / (float)nn,
                                      np > 1 ? ", processing " + np + " in parallel" : "", node.Name, lod);
                     lastSpew = now;
                 }
@@ -1014,15 +1019,15 @@ namespace OPS.Landform
                 }
                 else
                 {
-                    Interlocked.Increment(ref numFailed);
+                    Interlocked.Increment(ref nf);
                 }
 
                 Interlocked.Decrement(ref np);
             });
 
-            if (numFailed > 0)
+            if (nf > 0)
             {
-                pipeline.LogWarn("failed to generate meshes for {0} tiles", numFailed);
+                pipeline.LogWarn("failed to generate meshes for {0} tiles", nf);
             }
         }
 
@@ -1116,11 +1121,11 @@ namespace OPS.Landform
 
         private void BuildLeafMeshes()
         {
-            int curNode = 0, numFailed = 0, numNodes = tileTree.Leaves().Count(), np = 0;
+            int cn = 0, nf = 0, nn = tileTree.Leaves().Count(), np = 0;
             double lastSpew = UTCTime.Now();
             CoreLimitedParallel.ForEach(tileTree.Leaves(), leaf =>
             {
-                Interlocked.Increment(ref curNode);
+                Interlocked.Increment(ref cn);
 
                 if (onlyForTiles != null && !onlyForTiles.Contains(leaf.Name))
                 {
@@ -1130,10 +1135,10 @@ namespace OPS.Landform
                 Interlocked.Increment(ref np);
 
                 double now = UTCTime.Now();
-                if (!options.NoProgress && (pipeline.Verbose || (now - lastSpew) > 10))
+                if (!options.NoProgress && (pipeline.Verbose || (now - lastSpew) > SPEW_INTERVAL_SEC))
                 {
                     pipeline.LogInfo("building leaf mesh {0}/{1} ({2:F2}%){3}: {4}",
-                                     curNode, numNodes, 100 * curNode / (float)numNodes,
+                                     cn, nn, 100 * cn / (float)nn,
                                      np > 1 ? ", processing " + np + " in parallel" : "", leaf.Name);
                     lastSpew = now;
                 }
@@ -1151,15 +1156,15 @@ namespace OPS.Landform
                 }
                 else
                 {
-                    Interlocked.Increment(ref numFailed);
+                    Interlocked.Increment(ref nf);
                 }
 
                 Interlocked.Decrement(ref np);
             });
 
-            if (numFailed > 0)
+            if (nf > 0)
             {
-                pipeline.LogWarn("failed to generate meshes for {0} leaves", numFailed);
+                pipeline.LogWarn("failed to generate meshes for {0} leaves", nf);
             }
 
             DumpAtlasStats();
@@ -1189,7 +1194,7 @@ namespace OPS.Landform
             tileList.RootTransform = meshTransform.HasValue ? Matrix.Invert(meshTransform.Value) : Matrix.Identity;
 
             var tilesToTexture = tileTree.DepthFirstTraverse().Where(t => TileMeshExists(t.Name)).ToList();
-            int tileCount = tilesToTexture.Count;
+            int nn = tilesToTexture.Count;
 
             string texMsg = textureMode == TextureMode.Bake ? "baking" :
                 textureMode == TextureMode.Backproject ? "backprojecting" :
@@ -1197,7 +1202,7 @@ namespace OPS.Landform
                 "no";
 
             pipeline.LogInfo("processing {0} tiles, {1} max {2}x{2} {3} textures{4}",
-                             tileCount, texMsg, maxTileResolution, options.TextureVariant,
+                             nn, texMsg, maxTileResolution, options.TextureVariant,
                              options.TextureVariant != TextureVariant.Original ?
                              " (falling back to " + TextureVariant.Original + ")" : "");
 
@@ -1245,10 +1250,13 @@ namespace OPS.Landform
                 bakeClipper.InitTextureBaker();
             }
 
-            int np = 0, curTileNum = 0, numFailed = 0, numSucceded = 0;
-            void buildTile(SceneNode tile)
+            double lastSpew = UTCTime.Now();
+            double lastCollect = UTCTime.Now();
+            var collectLock = new Object();
+            int np = 0, cn = 0, nf = 0, ns = 0;
+            void textureAndSaveTile(SceneNode tile)
             {
-                Interlocked.Increment(ref curTileNum);
+                Interlocked.Increment(ref cn);
 
                 if (onlyForTiles != null && !onlyForTiles.Contains(tile.Name))
                 {
@@ -1257,12 +1265,28 @@ namespace OPS.Landform
 
                 Interlocked.Increment(ref np);
 
-                if (!options.NoProgress)
+                double now = UTCTime.Now();
+                if (!options.NoProgress && (pipeline.Verbose || ((now - lastSpew) > SPEW_INTERVAL_SEC)))
                 {
                     pipeline.LogInfo("{0}saving tile {1}/{2} ({3:F2}%){4}: {5}",
                                      withTextures ? "texturing and " : "", 
-                                     curTileNum, tileCount, 100 * curTileNum / (float)tileCount,
+                                     cn, nn, 100 * cn / (float)nn,
                                      np > 1 ? ", processing " + np + " in parallel" : "", tile.Name);
+                    lastSpew = now;
+                }
+
+                if (!options.NoForceCollect && (now - lastCollect) > COLLECT_INTERVAL_SEC)
+                {
+                    lock (collectLock)
+                    {
+                        if ((now - lastCollect) > COLLECT_INTERVAL_SEC)
+                        {
+                            ConsoleHelper.GC();
+                            pipeline.LogInfo(ConsoleHelper.GetMemoryUsage());
+                            pipeline.DumpStats();
+                            lastCollect = now;
+                        }
+                    }
                 }
 
                 var mip = new MeshImagePair();
@@ -1312,25 +1336,28 @@ namespace OPS.Landform
                     mip.Index = tmp.Index;
                 }
 
-                if (mip.Image != null && mip.Mesh != null && options.WriteDebug)
+                if (mip.Mesh != null && mip.Mesh.HasFaces && mip.Image != null)
                 {
-                    SaveImage(mip.Image, tile.Name + "_rawTexture");
-                    SaveMesh(mip.Mesh, tile.Name + "_rawTexture", tile.Name + "_rawTexture");
-                    if (mip.Index != null)
+                    if (options.WriteDebug)
                     {
-                        SaveImage(Backproject.GenerateIndexPreviewImage(mip.Index), tile.Name + "_indexPreview");
+                        SaveImage(mip.Image, tile.Name + "_rawTexture");
+                        SaveMesh(mip.Mesh, tile.Name + "_rawTexture", tile.Name + "_rawTexture");
+                        if (mip.Index != null)
+                        {
+                            SaveImage(Backproject.GenerateIndexPreviewImage(mip.Index), tile.Name + "_indexPreview");
+                        }
                     }
-                }
 
-                if (mip.Mesh != null && mip.Mesh.HasFaces && mip.Image != null && maxTextureStretch < 1 &&
-                    !options.PowerOfTwoTextures)
-                {
-                    pipeline.LogVerbose("clipping image and remapping UVs for tile " + tile.Name);
-                    mip.Image = mip.Mesh.ClipImageAndRemapUVs(mip.Image, ref mip.Index);
-                    if (mip.Image != null && mip.Mesh != null && options.WriteDebug)
+                    if (maxTextureStretch < 1 && !options.PowerOfTwoTextures)
                     {
-                        SaveImage(mip.Image, tile.Name + "_clippedTexture");
-                        SaveMesh(mip.Mesh, tile.Name + "_clippedTexture", tile.Name + "_clippedTexture");
+                        pipeline.LogVerbose("clipping image and remapping UVs for tile " + tile.Name);
+                        mip.Image = mip.Mesh.ClipImageAndRemapUVs(mip.Image, ref mip.Index);
+
+                        if (options.WriteDebug)
+                        {
+                            SaveImage(mip.Image, tile.Name + "_clippedTexture");
+                            SaveMesh(mip.Mesh, tile.Name + "_clippedTexture", tile.Name + "_clippedTexture");
+                        }
                     }
                 }
 
@@ -1338,11 +1365,11 @@ namespace OPS.Landform
                 {
                     //need to re-save the mesh here just to add the image name (e.g. PLY embeds the image name)
                     SaveTileContent(tile.Name, mip, tile.IsLeaf);
-                    Interlocked.Increment(ref numSucceded);
+                    Interlocked.Increment(ref ns);
                 }
                 else
                 {
-                    Interlocked.Increment(ref numFailed);
+                    Interlocked.Increment(ref nf);
                 }
 
                 //conserve memory
@@ -1357,12 +1384,12 @@ namespace OPS.Landform
             //now that PipelineCore implements locking to prevent multiple threads from trying to load the same image
             CoreLimitedParallel.ForEachNoPartition(tilesToTexture.OrderByDescending(t => t.Name), textureAndSaveTile);
 
-            if (withTextures && numFailed > 0)
+            if (withTextures && nf > 0)
             {
-                pipeline.LogWarn("failed to generate textures for {0} tiles", numFailed);
+                pipeline.LogWarn("failed to generate textures for {0} tiles", nf);
             }
 
-            pipeline.LogInfo("{0} tiles built successfully", numSucceded);
+            pipeline.LogInfo("{0} tiles built successfully", ns);
 
             if (textureMode == TextureMode.Backproject)
             {
