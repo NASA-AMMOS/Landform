@@ -95,6 +95,9 @@ namespace OPS.Landform
         [Option(Default = -1, HelpText = "When running as EC2 instance, attempt shutdown after idle for at least this many seconds, non-positive disables")]
         public int IdleShutdownSec { get; set; }
 
+        [Option(Default = LandformService.DEF_IDLE_SHUTDOWN_FAILSAFE_SEC, HelpText = "Request OS shutdown after idle for this many seconds, non-positive disables")]
+        public int IdleShutdownFailsafeSec { get; set; }
+
         [Option(Default = IdleShutdownMethod.None, HelpText = "When running as EC2 instance use this method to shutdown after idle time exceeded")]
         public IdleShutdownMethod IdleShutdownMethod { get; set; }
 
@@ -142,6 +145,8 @@ namespace OPS.Landform
         public const int DEF_DEQUEUE_THROTTLE_MS = 1;
 
         public const int SERVICE_LOOP_THROTTLE_SEC = 60;
+
+        public const int DEF_IDLE_SHUTDOWN_FAILSAFE_SEC = 60 * 60;
 
         public const int IDLE_EVENT_THROTTLE_SEC = 60;
 
@@ -232,8 +237,8 @@ namespace OPS.Landform
 
         protected string selfEC2InstanceID;
 
-        protected volatile bool shuttingDown;
-        private double idleStartTime = -1, lastIdleEventTime = -1;
+        protected bool idleShutdownInitiated;
+        private double idlePendingStartTime = -1, idleStartTime = -1, lastIdleEventTime = -1;
 
         private double totalMemory = -1;
         private double watchdogWarnGB = -1;
@@ -877,10 +882,10 @@ namespace OPS.Landform
         }
 
         //uses EC2, called only by ServiceLoop() so does not need to hold credentialRefreshLock
-        private void IdleShutdown()
+        private void InitiateIdleShutdown()
         {
             if (lvopts.IdleShutdownMethod == IdleShutdownMethod.None || lvopts.IdleShutdownSec <= 0 ||
-                string.IsNullOrEmpty(selfEC2InstanceID) || shuttingDown)
+                string.IsNullOrEmpty(selfEC2InstanceID) || idleShutdownInitiated)
             {
                 return;
             }
@@ -890,7 +895,7 @@ namespace OPS.Landform
                 pipeline.LogInfo("{0} for instance {1}{2}", LOG_IDLE_MSG, selfEC2InstanceID,
                                  !string.IsNullOrEmpty(lvopts.AutoScaleGroup) ?
                                  (" in ASG " + lvopts.AutoScaleGroup) : "");
-                shuttingDown = true;
+                idleShutdownInitiated = true;
                 return;
             }
 
@@ -900,9 +905,9 @@ namespace OPS.Landform
                 {
                     pipeline.LogInfo("disabling scale-in protection for instance {0} (self) in ASG {1}",
                                      selfEC2InstanceID, lvopts.AutoScaleGroup);
-                    shuttingDown = computeHelper.SetInstanceProtection(lvopts.AutoScaleGroup, selfEC2InstanceID, false);
-                    if (shuttingDown)
+                    if (computeHelper.SetInstanceProtection(lvopts.AutoScaleGroup, selfEC2InstanceID, false))
                     {
+                        idleShutdownInitiated = true;
                         pipeline.LogInfo("{0} for instance {1} in ASG {2}",
                                          LOG_IDLE_MSG, selfEC2InstanceID, lvopts.AutoScaleGroup);
                     }
@@ -924,8 +929,11 @@ namespace OPS.Landform
                 try
                 {
                     pipeline.LogInfo("scaling ASG {0} to zero instances", lvopts.AutoScaleGroup);
-                    shuttingDown = computeHelper.SetAutoScalingGroupSize(lvopts.AutoScaleGroup, 0);
-                    if (!shuttingDown)
+                    if (computeHelper.SetAutoScalingGroupSize(lvopts.AutoScaleGroup, 0))
+                    {
+                        idleShutdownInitiated = true;
+                    }
+                    else
                     {
                         pipeline.LogError("failed to change ASG size");
                     }
@@ -943,8 +951,11 @@ namespace OPS.Landform
                 try
                 {
                     pipeline.LogInfo("stopping EC2 instance {0} (self)", selfEC2InstanceID);
-                    shuttingDown = computeHelper.StopInstances(selfEC2InstanceID);
-                    if (!shuttingDown)
+                    if (computeHelper.StopInstances(selfEC2InstanceID))
+                    {
+                        idleShutdownInitiated = true;
+                    }
+                    else
                     {
                         pipeline.LogError("failed to stop EC2 instance {0} (self)", selfEC2InstanceID);
                     }
@@ -956,10 +967,10 @@ namespace OPS.Landform
             }
 
             if (lvopts.IdleShutdownMethod == IdleShutdownMethod.Shutdown ||
-                (lvopts.IdleShutdownMethod == IdleShutdownMethod.StopInstanceOrShutdown && !shuttingDown))
+                (lvopts.IdleShutdownMethod == IdleShutdownMethod.StopInstanceOrShutdown))
             {
+                idleShutdownInitiated = true;
                 pipeline.LogInfo("requesting OS shutdown");
-                shuttingDown = true;
                 ConsoleHelper.Shutdown();
             }
         }
@@ -1050,19 +1061,55 @@ namespace OPS.Landform
                 }
             }
 
-            while (!abort) //shuttingDown is handled below
+            while (!abort)
             {
                 try
                 {
                     double startSec = UTCTime.Now();
 
                     CheckCredentials();
-                    
-                    QueueMessage msg = !shuttingDown ? DequeueOneMessage(messageQueue) : null;
 
-                    if (msg != null)
+                    QueueMessage msg = null;
+                    if (idleStartTime >= 0)
                     {
-                        idleStartTime = -1;
+                        double now = UTCTime.Now();
+                        double idleSec = now - idleStartTime;
+                        if (lastIdleEventTime < 0 || (now - lastIdleEventTime > IDLE_EVENT_THROTTLE_SEC))
+                        {
+                            lastIdleEventTime = now;
+
+                            if (lvopts.IdleShutdownFailsafeSec > 0 && idleSec > lvopts.IdleShutdownFailsafeSec)
+                            {
+                                pipeline.LogWarn("EC2 instance {0} idle for {1} > {2}, requesting failsafe OS shutdown",
+                                                 selfEC2InstanceID, Fmt.HMS(idleSec * 1e3), 
+                                                 Fmt.HMS(lvopts.IdleShutdownFailsafeSec * 1e3));
+                                ConsoleHelper.Shutdown();
+                            }
+
+                            if (!idleShutdownInitiated)
+                            {
+                                pipeline.LogInfo("shutting down EC2 instance {0} (self), idle for {1} >= {2}, " +
+                                                 "shutdown method {3}",
+                                                 selfEC2InstanceID, Fmt.HMS(idleSec * 1e3),
+                                                 Fmt.HMS(lvopts.IdleShutdownSec * 1e3), lvopts.IdleShutdownMethod);
+                                InitiateIdleShutdown();
+                            }
+                            else
+                            {
+                                //important to prevent zombie instances that prevent other instances from spawning
+                                //repeat LOG_IDLE_MSG so ASG scale down is retriggered until instance terminated
+                                pipeline.LogWarn("{0} for instance {1}{2}, " +
+                                                 "idle for {3} >= {4} but still running",
+                                                 LOG_IDLE_MSG, selfEC2InstanceID,
+                                                 !string.IsNullOrEmpty(lvopts.AutoScaleGroup) ?
+                                                 (" in ASG " + lvopts.AutoScaleGroup) : "",
+                                                 Fmt.HMS(idleSec * 1e3), Fmt.HMS(lvopts.IdleShutdownSec * 1e3));
+                            }
+                        }
+                    }
+                    else if ((msg = DequeueOneMessage(messageQueue)) != null)
+                    {
+                        idlePendingStartTime = -1;
 
                         string desc = DescribeMessage(msg);
                         int ageSec = (int)(0.001 * (msg.ApproxReceiveMS - GetFirstReceiveMS(msg)));
@@ -1177,45 +1224,23 @@ namespace OPS.Landform
                             }
                         }
                     }
-                    else // no messages available or shutting down
+                    else if (!string.IsNullOrEmpty(selfEC2InstanceID) && lvopts.IdleShutdownSec > 0 &&
+                             lvopts.IdleShutdownMethod != IdleShutdownMethod.None)
                     {
                         double now = UTCTime.Now();
-                        if (idleStartTime < 0)
+                        if (idlePendingStartTime < 0)
                         {
-                            idleStartTime = now;
-                            lastIdleEventTime = -1;
+                            idlePendingStartTime = now;
                         }
-                        else if (!string.IsNullOrEmpty(selfEC2InstanceID) && lvopts.IdleShutdownSec > 0 &&
-                                 lvopts.IdleShutdownMethod != IdleShutdownMethod.None)
+                        else if ((now - idlePendingStartTime) > lvopts.IdleShutdownSec)
                         {
-                            double idleSec = now - idleStartTime;
-                            if (idleSec > lvopts.IdleShutdownSec &&
-                                (lastIdleEventTime < 0 || (now - lastIdleEventTime > IDLE_EVENT_THROTTLE_SEC)))
-                            {
-                                if (!shuttingDown)
-                                {
-                                    pipeline.LogInfo("shutting down EC2 instance {0} (self), idle for {1} >= {2}, " +
-                                                     "shutdown method {3}",
-                                                     selfEC2InstanceID, Fmt.HMS(idleSec * 1e3),
-                                                     Fmt.HMS(lvopts.IdleShutdownSec * 1e3), lvopts.IdleShutdownMethod);
-                                    IdleShutdown();
-                                }
-                                else
-                                {
-                                    //important to prevent zombie instances that prevent other instances from spawning
-                                    //repeat LOG_IDLE_MSG so ASG scale down is retriggered until instance terminated
-                                    pipeline.LogWarn("{0} for instance {1}{2}, " +
-                                                     "idle for {3} >= {4} but still running",
-                                                     LOG_IDLE_MSG, selfEC2InstanceID,
-                                                     !string.IsNullOrEmpty(lvopts.AutoScaleGroup) ?
-                                                     (" in ASG " + lvopts.AutoScaleGroup) : "",
-                                                     Fmt.HMS(idleSec * 1e3), Fmt.HMS(lvopts.IdleShutdownSec * 1e3));
-                                }
-                                lastIdleEventTime = now;
-                            }
+                            pipeline.LogInfo("no messages available for {0} > {1}, going idle",
+                                             Fmt.HMS((now - idlePendingStartTime) * 1e3),
+                                             Fmt.HMS(lvopts.IdleShutdownSec * 1e3));
+                            idleStartTime = idlePendingStartTime;
                         }
                     }
-
+                    
                     double elapsedSec = UTCTime.Now() - startSec;
                     SleepSec((0.001 * throttleMS) - elapsedSec);
                 }
@@ -1248,7 +1273,7 @@ namespace OPS.Landform
             double targetPeriod = GetHeartbeatRelPeriod() * timeoutSec;
             pipeline.LogInfo("running heartbeat, period {0:F3}s, message timeout {1}s, max handler {2}",
                              targetPeriod, timeoutSec, Fmt.HMS(maxHandlerSec * 1e3));
-            while (!abort) //keep going while shuttingDown
+            while (!abort)
             {
                 if (currentMessage != null)
                 {
@@ -1492,7 +1517,7 @@ namespace OPS.Landform
             bool memWarned = false, procWarned = false;
             int abortCounter = WATCHDOG_ABORT_PERIODS;
             var leaks = lvopts.WatchdogLeakTest > 0 ? new List<byte[]>() : null;
-            while (!abort) //keep going while shuttingDown
+            while (!abort)
             {
                 SleepSec(targetPeriod);
 
