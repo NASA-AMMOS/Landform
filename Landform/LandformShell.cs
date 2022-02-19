@@ -856,6 +856,16 @@ namespace OPS.Landform
 
         protected string SavePID(string destDir, string project, string status, string pidFile = null)
         {
+            if (abort)
+            {
+                pipeline.LogWarn("process abort requested");
+                if (pidFile != null)
+                {
+                    DeletePID(destDir, project, pidFile);
+                }
+                throw new InvalidOperationException("process aborted");
+            }
+
             try
             {
                 if (pidFile == null)
