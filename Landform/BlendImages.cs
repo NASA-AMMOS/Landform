@@ -778,6 +778,7 @@ namespace OPS.Landform
             }
 
             int np = 0, nc = 0, nf = 0;
+            double lastSpew = UTCTime.Now();
             CoreLimitedParallel.ForEach(indexedImages, entry =>
             {
                 int obsIndex = entry.Key;
@@ -829,9 +830,14 @@ namespace OPS.Landform
 
                 Interlocked.Increment(ref np);
 
-                pipeline.LogInfo("blending image for observation {0}, processing {1} in parallel, " +
-                                 "completed {2}/{3}", obs.Name, np, nc, no);
-
+                double now = UTCTime.Now();
+                if (!options.NoProgress && (pipeline.Verbose || ((now - lastSpew) > SPEW_INTERVAL_SEC)))
+                {
+                    pipeline.LogInfo("blending image for observation {0}, processing {1} in parallel, " +
+                                     "completed {2}/{3}", obs.Name, np, nc, no);
+                    lastSpew = now;
+                }
+                    
                 Image img = pipeline.LoadImage(obs.Url, noCache: true);
                 writeDebug(img, obs, "");
 
@@ -1140,25 +1146,31 @@ namespace OPS.Landform
             string leafFolder = TilingCommand.TILING_DIR;
             BuildBlendedLeafTextures(pipeline, project, leafFolder, tileList, indexedImages, orbitalTexture,
                                      options.BackprojectInpaintMissing, options.BackprojectInpaintGutter,
-                                     colorizeHue: options.Colorize ? medianHue : -1);
+                                     colorizeHue: options.Colorize ? medianHue : -1, noProgress: options.NoProgress);
         }
 
         static public void BuildBlendedLeafTextures(PipelineCore pipeline, Project project, string leafFolder,
                                                     TileList tileList, Dictionary<int, Observation> indexedImages,
                                                     Image orbitalTexture, int inpaintMissing, int inpaintGutter,
                                                     TextureVariant textureVariant = TextureVariant.Blended,
-                                                    double colorizeHue = -1)
+                                                    double colorizeHue = -1, bool noProgress = false)
         {
             pipeline.LogInfo("replacing leaf textures in {0} with {1} variant",
                              pipeline.GetStorageUrl(leafFolder, project.Name), textureVariant);
             int curLeafNum = 0, leafCount = tileList.LeafNames.Count;
             int numSurfacePixels = 0, numOrbitalPixels = 0, numMissingPixels = 0, numFallbacks = 0;
+            double lastSpew = UTCTime.Now();
             //reverse access order to improve cache coherence
             CoreLimitedParallel.ForEach(tileList.LeafNames.OrderByDescending(name => name), leaf =>
             {
                 Interlocked.Increment(ref curLeafNum);
-                pipeline.LogInfo("building {0} leaf texture {1}/{2} ({3:F2}%): {4}",
-                                 textureVariant, curLeafNum, leafCount, 100 * curLeafNum / (float)leafCount, leaf);
+                double now = UTCTime.Now();
+                if (!noProgress && (pipeline.Verbose || ((now - lastSpew) > SPEW_INTERVAL_SEC)))
+                {
+                    pipeline.LogInfo("building {0} leaf texture {1}/{2} ({3:F2}%): {4}",
+                                     textureVariant, curLeafNum, leafCount, 100 * curLeafNum / (float)leafCount, leaf);
+                    lastSpew = now;
+                }
                 string indexName = leaf + TilingDefaults.INDEX_FILE_SUFFIX + TilingDefaults.INDEX_FILE_EXT;
                 string indexUrl = pipeline.GetStorageUrl(leafFolder, project.Name, indexName);
                 var index = pipeline.LoadImage(indexUrl, noCache: true);

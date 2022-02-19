@@ -983,7 +983,8 @@ namespace OPS.Landform
             BlendImages.BuildBlendedLeafTextures(pipeline, project, outputFolder, tileList, indexedImages,
                                                  orbitalTexture, options.BackprojectInpaintMissing,
                                                  options.BackprojectInpaintGutter, TextureVariant.SkyBlended,
-                                                 colorizeHue: options.Colorize ? medianHue : -1);
+                                                 colorizeHue: options.Colorize ? medianHue : -1,
+                                                 noProgress: options.NoProgress);
         }
     }
 }
