@@ -580,8 +580,10 @@ namespace OPS.Landform
                     bool renderBEV = includeBEVs && !bevs.ContainsKey(siteDrive);
                     bool renderDEM = includeDEMs && !dems.ContainsKey(siteDrive);
 
-                    Mesh mesh = null;
-                    Image img = null;
+                    if (!wedgeMeshes.ContainsKey(siteDrive))
+                    {
+                        throw new Exception("no wedges to render BEV/DEM");
+                    }
 
                     //ensure inputs are in a canonical order particularly for BEVBlending = Over
                     var inputs = wedgeMeshes[siteDrive]
@@ -596,19 +598,20 @@ namespace OPS.Landform
                         if (bad.Count > 0)
                         {
                             pipeline.LogWarn("{0} wedges missing UVs or texture image, " +
-                                             "excluding from BEV for site drive {1}: {2}",
+                                             "excluding from BEV/DEM for site drive {1}: {2}",
                                              bad.Count, siteDrive, String.Join(", ", bad.Select(inp => inp.Item1)));
                             inputs = inputs.Where(inp => inp.Item2.HasUVs && inp.Item3 != null).ToList();
                         }
                     }
 
                     var pairs = inputs.Select(inp => new Tuple<Mesh, Image>(inp.Item2, inp.Item3)).ToArray();
-
                     if (pairs.Length == 0)
                     {
-                        throw new Exception("no wedges to render BEV");
+                        throw new Exception("no wedges to render BEV/DEM");
                     }
                     
+                    Mesh mesh = null;
+                    Image img = null;
                     if (renderBEV && bcopts.BEVColoring == BirdsEyeView.ColorMode.Texture)
                     {
                         var pair = MeshMerge.MergeMeshesAndTextures(pairs);
@@ -619,6 +622,12 @@ namespace OPS.Landform
                     {
                         mesh = MeshMerge.MergeWithCommonAttributes(pairs.Select(pr => pr.Item1).ToArray());
                     }
+
+                    //this is a memory pinch point
+                    wedgeMeshes.TryRemove(siteDrive, out _); //https://stackoverflow.com/a/49415372/4970315
+                    inputs = null;
+                    pairs = null;
+                    CheckGarbage(immediate: true);
 
                     if (renderBEV)
                     {

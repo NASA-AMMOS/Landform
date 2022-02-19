@@ -373,14 +373,14 @@ namespace OPS.Landform
             return (mission != null && !forceNumeric) ? mission.DriveToString(drive) : string.Format("{0:D5}", drive);
         }
 
-        protected void CheckGarbage()
+        protected void CheckGarbage(bool immediate = false)
         {
             double now = UTCTime.Now();
-            if (!lcopts.NoForceCollect && (now - lastCollect) > COLLECT_INTERVAL_SEC)
+            if (!lcopts.NoForceCollect && (immediate || (now - lastCollect) > COLLECT_INTERVAL_SEC))
             {
                 lock (collectLock)
                 {
-                    if ((now - lastCollect) > COLLECT_INTERVAL_SEC)
+                    if (immediate || ((now - lastCollect) > COLLECT_INTERVAL_SEC))
                     {
                         ConsoleHelper.GC();
                         pipeline.LogInfo(ConsoleHelper.GetMemoryUsage());
