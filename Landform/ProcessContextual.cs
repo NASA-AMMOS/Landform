@@ -1550,7 +1550,7 @@ namespace OPS.Landform
                     if (options.StartPhase <= Phase.leaves && options.EndPhase >= Phase.leaves)
                     {
                         SavePID(destDir, project, Phase.leaves, pidFile);
-                        BuildTilingInput(project, allowUnmasked);
+                        BuildTilingInput(project, allowUnmasked, options.Redo ? "--texturevariant=Original" : "");
                     }
 
                     if (!orbitalOnly && options.StartPhase <= Phase.blend && options.EndPhase >= Phase.blend)
