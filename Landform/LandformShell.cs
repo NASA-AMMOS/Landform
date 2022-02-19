@@ -434,7 +434,7 @@ namespace OPS.Landform
         }
 
         public static IEnumerable<string> SearchFiles(PipelineCore pipeline, Func<StorageHelper> storageHelper,
-                                                      string url, string globPattern, bool recursive = false,
+                                                      string url, string globPattern = "", bool recursive = false,
                                                       bool ignoreCase = false)
         {
             if (url.StartsWith("s3://") && !(pipeline is CloudPipeline))
@@ -698,18 +698,20 @@ namespace OPS.Landform
 
         //noop if sec <= 0
         //otherwise sleeps at least 1ms
-        protected void SleepSec(double sec)
+        protected bool SleepSec(double sec)
         {
-            if (sec > 0)
+            if (sec <= 0)
             {
-                int ms = (int)Math.Ceiling(1000 * sec);
-                while (ms > 0 && !abort)
-                {
-                    int chunk = Math.Min(ms, 500);
-                    ms -= chunk;
-                    Thread.Sleep(chunk);
-                }
+                return true;
             }
+            int ms = (int)Math.Ceiling(1000 * sec);
+            while (ms > 0 && !abort)
+            {
+                int chunk = Math.Min(ms, 500);
+                ms -= chunk;
+                Thread.Sleep(chunk);
+            }
+            return ms <= 0;
         }
 
         protected string GetDestDir(string inputFolder)

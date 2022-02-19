@@ -72,12 +72,12 @@ using OPS.Pipeline.AlignmentServer;
 /// * "c:/foo/bar"
 /// * "./foo/bar"
 ///
-/// The output tileset is named TTTT_SSSDDDD where TTTT is the primary sol and SSSDDDD is the primary sitedrive.  It is
-/// written to rdrDir/tileset/TTTT_SSSDDDD (*), unless --outputfolder is specified, in which case it is written to a
-/// subdirectory TTTT_SSSDDDD there.
+/// The output tileset is named TTTT_SSSDDDD[Vnn] where TTTT is the primary sol and SSSDDDD is the primary sitedrive.  Vnn is an optional version suffix where V is a literal V and nn is typically a two digit positive integer, but can be any string not containing whitespace, slashes, or underscores.  It is
+/// written to rdrDir/tileset/TTTT_SSSDDDD[Vnn] (*), unless --outputfolder is specified, in which case it is written to a
+/// subdirectory TTTT_SSSDDDD[Vnn] there.
 ///
 /// (*) Actually if rdrDir contains a prefix ending /rdr then the output directory is that prefix but with rdr replaced
-/// with rdr/tileset/TTTT_SSSDDDD.
+/// with rdr/tileset/TTTT_SSSDDDD[Vnn].
 ///
 /// When run as a service the RDR directory is also given as part of each SQS message.  Thus, the service will write the
 /// tilesets back to the same RDR tree as the source RDRs, but under the rdr/tileset subdirectory. (If the source bucket
@@ -86,15 +86,15 @@ using OPS.Pipeline.AlignmentServer;
 ///
 /// The tileset will contain
 /// * one .b3dm file per tile
-/// * a tilest file TTTT_SSSDDDD/TTTT_SSSDDDD_tileset.json
-/// * a manifest file TTTT_SSSDDDD/TTTT_SSSDDDD_scene.json with relative URLs
-/// * a stats file TTTT_SSSDDDD/TTTT_SSSDDDD_stats.txt.
+/// * a tilest file TTTT_SSSDDDD[Vnn]/TTTT_SSSDDDD[Vnn]_tileset.json
+/// * a manifest file TTTT_SSSDDDD[Vnn]/TTTT_SSSDDDD[Vnn]_scene.json with relative URLs
+/// * a stats file TTTT_SSSDDDD[Vnn]/TTTT_SSSDDDD[Vnn]_stats.txt.
 /// 
-/// Unless --nosky is specified all of the above also holds for a sky tileset named TTTT_SSSDDDD_sky.
+/// Unless --nosky is specified all of the above also holds for a sky tileset named TTTT_SSSDDDD[Vnn]_sky.
 /// 
-/// A combined scene manifest with absolute URLs can also be optionally created or updated as a sibling of the output
-/// tileset directory.  In that case the update-scene-manifest tool will also include any sibling tactical mesh tilesets
-/// in the manifest.
+/// A combined scene manifest TTT_SSSDDDD[Vnn]_scene.json with absolute URLs can also be optionally created or updated
+/// as a sibling of the output tileset directory.  In that case the update-scene-manifest tool will also include any
+/// sibling tactical mesh tilesets in the manifest.
 ///
 /// This service can also run in master service mode by specifying --master.  In that mode the service listens for
 /// messages indicating XYZ list files and/or XYZ wedge files have been created or updated.  There is generally one list
@@ -338,6 +338,9 @@ namespace OPS.Landform
 
         [Option(Default = null, HelpText = "Comma separated list of orbital worker EC2 instance ids (starting with \"i-\"), instance names, or instance name wildcard patterns, or \"asg:<name>[:<size>]\" to use an auto scaling group (size defaults to 1)")]
         public string OrbitalWorkerInstances { get; set; }
+
+        [Option(Default = null, HelpText = "Set version string.  Can be any integer or string not containing whitespace, slashes, or underscores.  Non-positive integers have the effect of un-setting the version.  If null or empty then the next available version number is automatically assigned.")]
+        public string Version { get; set; }
     }
 
     public class ProcessContextual : LandformService
@@ -356,6 +359,9 @@ namespace OPS.Landform
         public const int DEF_WORKER_AUTOSTART_SEC = 5 * 60; //5 minutes
 
         public const int MASTER_LOOP_PERIOD_SEC = 10;
+
+        public const int MAX_VERSION = 100;
+        public const int VERSION_INTERLOCK_SEC = 10;
 
         //currently up to ~5min gaps in XYZ IMG within one pass
         //but PlacesDB orbital solutions may not stabilize for up to 25 min after generation
@@ -1277,6 +1283,89 @@ namespace OPS.Landform
             }
         }
 
+        private string AssignVersionAndSavePID(string destDir, ref string project)
+        {
+            string sfx = "_orbital";
+            if (project.EndsWith(sfx))
+            {
+                project = project.Substring(0, project.Length - sfx.Length);
+            }
+            else
+            {
+                sfx = "";
+            }
+
+            string version = "";
+            string versionedProject = project + version + sfx;
+
+            string pid = GetPID();
+            string pidFile = null;
+            if (!string.IsNullOrEmpty(options.Version))
+            {
+                version = (int.TryParse(options.Version, out int v) && v <= 0) ? "" : ("V" + options.Version);
+                versionedProject = project + version + sfx;
+                pidFile = SavePID(destDir, versionedProject, "interlock");
+            }
+            else
+            {
+                for (int i = 0; i <= MAX_VERSION && pidFile == null; i++)
+                {
+                    if (i >= MAX_VERSION)
+                    {
+                        throw new Exception($"no versions available for tileset {destDir}/{project + sfx}");
+                    }
+                    if (i > 0)
+                    {
+                        version = "V" + i.ToString("D2");
+                    }
+                    versionedProject = project + version + sfx;
+                    if (SearchFiles($"{destDir}/{versionedProject}/", recursive: false).Count() == 0)
+                    {
+                        pidFile = SavePID(destDir, versionedProject, "interlock");
+                        pipeline.LogInfo("beginning {0} version interlock for tileset {1}/{2} for worker {3}",
+                                         Fmt.HMS(VERSION_INTERLOCK_SEC * 1e3), destDir, versionedProject, pid);
+                        if (!SleepSec(VERSION_INTERLOCK_SEC))
+                        {
+                            DeletePID(destDir, versionedProject, pidFile);
+                            pipeline.LogWarn("tileset {0}/{1} aborted in version interlock", destDir, versionedProject);
+                            return null;
+                        }
+                        var pids =
+                            SearchFiles($"{destDir}/{versionedProject}/", globPattern: "*" + PID_EXT, recursive: false)
+                            .Select(url => StringHelper.GetLastUrlPathSegment(url, stripExtension: true))
+                            .OrderByDescending(p => p)
+                            .ToList();
+                        if (pids.Count == 0)
+                        {
+                            DeletePID(destDir, versionedProject, pidFile); //just in case
+                            pipeline.LogWarn("tileset {0}/{1} aborted in version interlock, PID file missing",
+                                             destDir, versionedProject);
+                            return null;
+                        }
+                        if (pids[0] != pid)
+                        {
+                            DeletePID(destDir, versionedProject, pidFile);
+                            pipeline.LogInfo("tileset {0}/{1} cancelled in version interlock, claimed by worker {2}",
+                                             destDir, versionedProject, pids[0]);
+                            return null;
+                        }
+                        pipeline.LogInfo("tileset {0}/{1} claimed by worker {2}", destDir, versionedProject, pid);
+                    }
+                }
+            }
+
+            pipeline.LogInfo("using version \"{0}\" for tileset {1}/{2}{3}", version, destDir, project, sfx);
+
+            project = versionedProject;
+
+            return pidFile;
+        }
+
+        private string SavePID(string destDir, string project, Phase phase, string pidFile)
+        {
+            return SavePID(destDir, project, phase.ToString(), pidFile);
+        }
+
         /// <summary>
         /// rdrDir is e.g.
         /// * "s3://BUCKET/ods/VER/sol/#####/ids/rdr"
@@ -1326,7 +1415,6 @@ namespace OPS.Landform
             string fetchDir = !string.IsNullOrEmpty(options.FetchDir) ? options.FetchDir : storageDir + "/" + FETCH_DIR;
             string ingestDir =
                 (rdrDir.StartsWith("s3://") && !(pipeline is CloudPipeline)) ? (fetchDir + "/rdrs") : solDir;
-            string tilesetDir = venueDir + "/" + TilingCommand.TILESET_DIR + "/" + project;
             string destDir = GetDestDir(solDir);
 
             var orbitalCfg = OrbitalConfig.Instance;
@@ -1363,6 +1451,14 @@ namespace OPS.Landform
                 Cleanup(venueDir);
 
                 Configure(venue);
+
+                string pidFile = AssignVersionAndSavePID(destDir, ref project);
+                if (string.IsNullOrEmpty(pidFile))
+                {
+                    return;
+                }
+
+                string tilesetDir = venueDir + "/" + TilingCommand.TILESET_DIR + "/" + project;
 
                 if (!options.NoFetch && !orbitalOnly && rdrDir.StartsWith("s3://") && !(pipeline is CloudPipeline) &&
                     options.StartPhase <= Phase.fetch && options.EndPhase >= Phase.fetch)
@@ -1427,6 +1523,7 @@ namespace OPS.Landform
                     {
                         throw new NotImplementedException("ingestion from multi-sol s3 wildcard not implemented");
                     }
+                    SavePID(destDir, project, Phase.ingest, pidFile);
                     RunCommand("ingest", project, "--mission", fullMissionStr, "--meshframe", sdStr, 
                                "--onlyforsitedrives", sdsStr, "--onlyforsols", solRanges,
                                "--inputpath", ingestDir + "/" + (options.RecursiveSearch ? "**" : "*"), noSurface,
@@ -1436,12 +1533,14 @@ namespace OPS.Landform
                 if (!options.NoAlign && !orbitalOnly &&
                     options.StartPhase <= Phase.align && options.EndPhase >= Phase.align)
                 {
+                    SavePID(destDir, project, Phase.align, pidFile);
                     RunCommand("bev-align", options.AbortOnAlignmentError, project, allowUnmasked);
                     RunCommand("heightmap-align", options.AbortOnAlignmentError, project, allowUnmasked);
                 }
 
                 if (!options.NoGeometry && options.StartPhase <= Phase.geometry && options.EndPhase >= Phase.geometry)
                 {
+                    SavePID(destDir, project, Phase.geometry, pidFile);
                     RunCommand("build-geometry", project, "--extent", options.Extent.ToString(),
                                "--surfaceextent", options.SurfaceExtent.ToString(), allowUnmasked);
                 }
@@ -1450,21 +1549,25 @@ namespace OPS.Landform
                 {
                     if (options.StartPhase <= Phase.leaves && options.EndPhase >= Phase.leaves)
                     {
+                        SavePID(destDir, project, Phase.leaves, pidFile);
                         BuildTilingInput(project, allowUnmasked);
                     }
 
                     if (!orbitalOnly && options.StartPhase <= Phase.blend && options.EndPhase >= Phase.blend)
                     {
+                        SavePID(destDir, project, Phase.blend, pidFile);
                         RunCommand("blend-images", project, allowUnmasked, colorize);
                     }
 
                     if (options.StartPhase <= Phase.tileset && options.EndPhase >= Phase.tileset)
                     {
+                        SavePID(destDir, project, Phase.tileset, pidFile);
                         BuildTileset(project, allowUnmasked);
                     }
                     
                     if (options.StartPhase <= Phase.manifest && options.EndPhase >= Phase.manifest)
                     {
+                        SavePID(destDir, project, Phase.manifest, pidFile);
                         RunCommand("update-scene-manifest", project, "--notactical", "--nourls", "--nosky",
                                    allowUnmasked, "--sol", solStr, "--sitedrive", sdStr, "--sols", solRanges,
                                    "--sitedrives", sdsStr, "--manifestfile", tilesetDir + "/" + SCENE_JSON);
@@ -1472,14 +1575,16 @@ namespace OPS.Landform
                         
                     if (options.StartPhase <= Phase.save && options.EndPhase >= Phase.save)
                     {
+                        SavePID(destDir, project, Phase.save, pidFile);
                         SaveTileset(tilesetDir, project, destDir);
                     }
 
                     if (!options.NoSky && !orbitalOnly &&
                         options.StartPhase <= Phase.sky && options.EndPhase >= Phase.sky)
                     {
-                        RunCommand("build-sky-sphere", project, "--skymode", options.SkyMode.ToString(), allowUnmasked,
-                                   "--sphereradius", options.SkySphereRadius,
+                        SavePID(destDir, project, Phase.sky, pidFile);
+                        RunCommand("build-sky-sphere", project, "--skymode", options.SkyMode.ToString(),
+                                   allowUnmasked, "--sphereradius", options.SkySphereRadius,
                                    "--minbackprojectradius", options.SkyMinBackprojectRadius);
                         string skyTilesetDir = venueDir + "/" + BuildSkySphere.SKY_TILESET_DIR + "/" + project;
                         SaveTileset(skyTilesetDir, project + "_sky", destDir);
@@ -1489,11 +1594,14 @@ namespace OPS.Landform
                 if (!options.NoCombinedManifest && !orbitalOnly &&
                     options.StartPhase <= Phase.combinedManifest && options.EndPhase >= Phase.combinedManifest)
                 {
+                    SavePID(destDir, project, Phase.combinedManifest, pidFile);
                     RunCommand("update-scene-manifest", project, allowUnmasked, "--tilesetdir", destDir,
                                "--rdrdir", rdrDir, "--sol", solStr, "--sitedrive", sdStr,
                                "--sols", solRanges, "--sitedrives", sdsStr,
                                "--awsprofile", awsProfile, "--awsregion", awsRegion);
                 }
+
+                DeletePID(destDir, project, pidFile);
 
                 Cleanup(venueDir);
 
