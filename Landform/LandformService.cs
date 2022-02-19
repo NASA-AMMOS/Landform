@@ -1320,9 +1320,8 @@ namespace OPS.Landform
                 var sb = new StringBuilder();
                 if (minFreeMemory >= 0)
                 {
-                    sb.Append(string.Format("watchdog period {0}, min {1}/{2} free at {3}",
-                                            lvopts.WatchdogPeriod, Fmt.Bytes(minFreeMemory), Fmt.Bytes(totalMemory),
-                                            minFreeMemoryTime.Value));
+                    sb.Append(string.Format("period {0}, min {1}/{2} free at {3}", Fmt.HMS(lvopts.WatchdogPeriod * 1e3),
+                                            Fmt.Bytes(minFreeMemory), Fmt.Bytes(totalMemory), minFreeMemoryTime.Value));
                     if (numWatchdogWarns > 0)
                     {
                         sb.Append(string.Format(", {0} warnings (< {1} free)",

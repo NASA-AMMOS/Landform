@@ -181,6 +181,14 @@ namespace OPS.Landform
             this.options = options;
         }
 
+        protected override void DumpExtraStats()
+        {
+            if (!serviceMode)
+            {
+                base.DumpExtraStats();
+            }
+        }
+
         protected override void RunBatch()
         {
             RunPhase("index input meshes", IndexMeshes);
@@ -321,7 +329,13 @@ namespace OPS.Landform
 
             if (mi != null)
             {
+                ResetWatchdogStats();
                 BuildTacticalTileset(mi); //throws exception on error or if killed
+                string stats = GetWatchdogStats();
+                if (!string.IsNullOrEmpty(stats))
+                {
+                    pipeline.LogInfo("memory watchdog: {0}", stats);
+                }
                 return true; //message handled, remove from queue
             }
             else

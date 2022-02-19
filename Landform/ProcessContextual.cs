@@ -759,7 +759,13 @@ namespace OPS.Landform
                 var parameters = MakeParameters(msg as ContextualMeshMessage);
                 if (parameters != null)
                 {
+                    ResetWatchdogStats();
                     BuildContextualTileset(parameters); //throws exception on error or if killed
+                    string stats = GetWatchdogStats();
+                    if (!string.IsNullOrEmpty(stats))
+                    {
+                        pipeline.LogInfo("memory watchdog: {0}", stats);
+                    }
                 }
                 return true; //message ignored or successfully processed, remove from queue
             }
@@ -1039,6 +1045,14 @@ namespace OPS.Landform
                 Task.Run(() => MasterLoop());
             }
             base.RunService();
+        }
+
+        protected override void DumpExtraStats()
+        {
+            if (!serviceMode)
+            {
+                base.DumpExtraStats();
+            }
         }
 
         private string MakeSolRanges(HashSet<int> sols)
