@@ -216,6 +216,8 @@ namespace OPS.Landform
                 //conserve memory: we will (probably) want the textures later, but we can reload them at that point
                 RunPhase("clear LRU image cache", ClearImageCache);
 
+                RunPhase("load or generate backproject index", LoadOrBuildBackprojectIndex);
+
                 RunPhase("load or generate blurred texture", LoadOrBuildBlurredTexture);
 
                 RunPhase("load or generate blended texture", LoadOrBuildBlendedTexture);
@@ -468,6 +470,40 @@ namespace OPS.Landform
             }
         }
 
+        private void LoadOrBuildBackprojectIndex()
+        {
+            if (useExistingIndex)
+            {
+                var indexGuid = sceneMesh.BackprojectIndexGuid;
+                backprojectIndex = pipeline.GetDataProduct<TiffDataProduct>(project, indexGuid, noCache: true).Image;
+                if (sceneMesh.Variant != MeshVariant.Shrinkwrap)
+                {
+                    pipeline.LogInfo("reprojecting backproject index");
+                    ReprojectBackprojectIndex();
+                }
+                else
+                {
+                    pipeline.LogInfo("using shrinkwrap backproject index");
+                }
+                BuildBackprojectResultsFromIndex();
+            }
+            else if (useExistingLeaves)
+            {
+                pipeline.LogInfo("using existing leaf backproject indices");
+                BuildBackprojectIndexFromLeaves();
+                BuildBackprojectResultsFromIndex();
+            }
+            else
+            {
+                pipeline.LogInfo("backprojecting shrinkwrap mesh");
+                BuildSceneCaster();
+                BuildMeshOperator();
+                InitBackprojectStrategy();
+                BackprojectObservations();
+                BuildBackprojectIndex();
+            }
+        }
+
         private void LoadOrBuildBlurredTexture()
         {
             if (!options.RedoBlurredTexture && sceneMesh.BlurredTextureGuid != Guid.Empty)
@@ -484,44 +520,13 @@ namespace OPS.Landform
                 {
                     SaveBackprojectTextureDebug(blurredTexture, TextureVariant.Blurred);
                 }
-                return;
-            }
-
-            if (useExistingIndex)
-            {
-                var indexGuid = sceneMesh.BackprojectIndexGuid;
-                backprojectIndex = pipeline.GetDataProduct<TiffDataProduct>(project, indexGuid, noCache: true).Image;
-                if (sceneMesh.Variant != MeshVariant.Shrinkwrap)
-                {
-                    pipeline.LogInfo("creating blurred texture from reprojected existing backproject index");
-                    ReprojectBackprojectIndex();
-                }
-                else
-                {
-                    pipeline.LogInfo("creating blurred texture from existing shrinkwrap backproject index");
-                }
-                BuildBackprojectResultsFromIndex();
-            }
-            else if (useExistingLeaves)
-            {
-                pipeline.LogInfo("creating blurred texture from existing leaf backproject indices");
-                BuildBackprojectIndexFromLeaves();
-                BuildBackprojectResultsFromIndex();
             }
             else
             {
-                pipeline.LogInfo("backprojecting blurred texture from shrinkwrap mesh");
-                BuildSceneCaster();
-                BuildMeshOperator();
-                InitBackprojectStrategy();
-                BackprojectObservations();
-                BuildBackprojectIndex();
+                //note: BuildBackprojectTexture() will colorize blurredTexture if appropriate
+                blurredTexture = BuildBackprojectTexture(TextureVariant.Blurred, null, options.PreadjustLuminance);
+                pipeline.LogInfo("created {0}x{0} blurred texture", sceneTextureResolution);
             }
-
-            //note: BuildBackprojectTexture() will colorize blurredTexture if appropriate
-            blurredTexture = BuildBackprojectTexture(TextureVariant.Blurred, null, options.PreadjustLuminance);
-
-            pipeline.LogInfo("created {0}x{0} blurred texture", sceneTextureResolution);
         }
 
         private void LoadOrBuildBlendedTexture()
