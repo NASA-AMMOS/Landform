@@ -946,45 +946,22 @@ namespace OPS.Landform
             }
 
             var edgeMode = wrappable ? LimberDMG.EdgeBehavior.WrapCylinder : LimberDMG.DEF_EDGE_BEHAVIOR;
-            Image bigBlendedImage = BlendImages.BlendImage(pipeline, bigIndexMap, bigBlurredImage, indexedImages,
-                                                           edgeMode: edgeMode, colorize: options.Colorize);
+            Image bigBlendedImage = BlendImage(bigBlurredImage, bigIndexMap, edgeMode: edgeMode);
+
             bigBlurredImage = null; //free memory
+            CheckGarbage(immediate: true);
 
             if (options.WriteDebug)
             {
                 SaveBackprojectTextureDebug(bigBlendedImage, TextureVariant.Blended, withMesh: false);
             }
 
-            var blendOptions = new BlendImagesOptions()
-            {
-                NoSave = options.NoSave,
-                NoProgress = options.NoProgress,
-                RedoBlendedObservationTextures = true, //yes, always redo
-                BlendStrategy = BlendStrategy.Inpaint,
-                BarycentricInterpolateWinners = false,
-                //BarycentricInterpolateMaxTriangleSideLengthPixels = 100,
-                InpaintDiff = -1,
-                BlurDiff = 7,
-                NoFillBlendWithAverageDiff = false
-            };
+            BuildBlendedObservationImages(bigBlendedImage, bigIndexMap, TextureVariant.SkyBlended, forceRedo: true);
 
-            Action<Image, Observation, string> saveDebugImg = null;
-            if (options.WriteDebug)
-            {
-                blendOptions.WriteDebug = true;
-                saveDebugImg = SaveDebugWedgeImage;
-            }
-
-            BlendImages.BuildBlendedObservationImages(pipeline, project, blendOptions, bigIndexMap, bigBlendedImage,
-                                                      indexedImages, TextureVariant.SkyBlended, saveDebugImg,
-                                                      options.Colorize ? medianHue : -1);
             bigIndexMap = bigBlendedImage = null;
+            CheckGarbage(immediate: true);
 
-            BlendImages.BuildBlendedLeafTextures(pipeline, project, outputFolder, tileList, indexedImages,
-                                                 orbitalTexture, options.BackprojectInpaintMissing,
-                                                 options.BackprojectInpaintGutter, TextureVariant.SkyBlended,
-                                                 colorizeHue: options.Colorize ? medianHue : -1,
-                                                 noProgress: options.NoProgress);
+            BuildBlendedLeafTextures(outputFolder, TextureVariant.SkyBlended);
         }
     }
 }
