@@ -937,8 +937,7 @@ namespace OPS.Landform
                                           TextureVariant.Blurred, options.BackprojectInpaintMissing,
                                           options.BackprojectInpaintGutter, missingColor: skyColor,
                                           preadjustLuminance: options.PreadjustLuminance,
-                                          colorizeHue: options.Colorize ? medianHue : -1,
-                                          disableCaches: true);
+                                          colorizeHue: options.Colorize ? medianHue : -1);
 
             if (options.WriteDebug)
             {

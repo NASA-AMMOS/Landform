@@ -959,7 +959,8 @@ namespace OPS.Landform
 
             pipeline.LogInfo("stitching {0}x{1} image with LimberDMG, residual epsilon {2}, {3} relaxation steps, " +
                              "{4} multigrid iterations, lambda {5}",
-                             width, height, tcopts.ResidualEpsilon, tcopts.NumRelaxationSteps, tcopts.NumMultigridIterations, tcopts.BlendLambda);
+                             width, height, tcopts.ResidualEpsilon, tcopts.NumRelaxationSteps,
+                             tcopts.NumMultigridIterations, tcopts.BlendLambda);
 
             Image index = new Image(1, width, height);
             Image flags = new Image(3, width, height);
@@ -1658,8 +1659,7 @@ namespace OPS.Landform
                                                       tcopts.BackprojectInpaintMissing, tcopts.BackprojectInpaintGutter,
                                                       orbitalTexture: orbitalTexture,
                                                       preadjustLuminance: preadjustLuminance,
-                                                      colorizeHue: tcopts.Colorize ? medianHue : -1,
-                                                      disableCaches: true);
+                                                      colorizeHue: tcopts.Colorize ? medianHue : -1);
 
             pipeline.LogInfo("filled {0} pixels from {1} surface observations, {2} from orbital, {3} failed, " +
                              "{4} fallbacks to original texture",

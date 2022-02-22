@@ -141,7 +141,6 @@ namespace OPS.Landform
 
         [Option(HelpText = "Redo blended texture", Default = false)]
         public bool RedoBlendedTexture { get; set; }
-
     }
 
     public class BlendImages : TextureCommand
