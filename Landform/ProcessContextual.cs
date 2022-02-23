@@ -339,8 +339,11 @@ namespace OPS.Landform
         [Option(Default = null, HelpText = "Comma separated list of orbital worker EC2 instance ids (starting with \"i-\"), instance names, or instance name wildcard patterns, or \"asg:<name>[:<size>]\" to use an auto scaling group (size defaults to 1)")]
         public string OrbitalWorkerInstances { get; set; }
 
-        [Option(Default = null, HelpText = "Set version string.  Can be any integer or string not containing whitespace, slashes, or underscores.  Non-positive integers have the effect of un-setting the version.  If null or empty then the next available version number is automatically assigned.")]
+        [Option(Default = null, HelpText = "Force version string.  Can be any integer or string not containing whitespace, slashes, or underscores.  Non-positive integers have the effect of un-setting the version.  If null or empty then the next available version number is automatically assigned.")]
         public string Version { get; set; }
+
+        [Option(Default = ProcessContextual.DEF_ZOMBIE_SEC, HelpText = "Consider existing PIDs zombie if not updated for longer than this (disabled if non-positive)")]
+        public int ZombieSec { get; set; }
     }
 
     public class ProcessContextual : LandformService
@@ -362,6 +365,7 @@ namespace OPS.Landform
 
         public const int MAX_VERSION = 100;
         public const int VERSION_INTERLOCK_SEC = 10;
+        public const int DEF_ZOMBIE_SEC = 6 * 60 * 60; //6 hours
 
         //currently up to ~5min gaps in XYZ IMG within one pass
         //but PlacesDB orbital solutions may not stabilize for up to 25 min after generation
@@ -451,6 +455,34 @@ namespace OPS.Landform
                 }
                 var msg = obj as ContextualMeshMessage;
                 return msg.rdrDir == rdrDir && msg.primarySol == primarySol && msg.primarySiteDrive == primarySiteDrive;
+            }
+
+            public bool ExactEquals(ContextualMeshMessage other)
+            {
+                return Equals(other) && other.orbitalOnly == orbitalOnly && other.timestamp == timestamp &&
+                    ParseSols().Equals(other.ParseSols()) && ParseSiteDrives().Equals(other.ParseSiteDrives());
+            }
+
+            public HashSet<int> ParseSols(HashSet<int> ret = null)
+            {
+                ret = ret ?? new HashSet<int>();
+                ret.Add(primarySol);
+                if (!string.IsNullOrEmpty(sols))
+                {
+                    ret.UnionWith(IngestAlignmentInputs.ExpandSolSpecifier(sols));
+                }
+                return ret;
+            }
+            
+            public HashSet<SiteDrive> ParseSiteDrives(HashSet<SiteDrive> ret = null)
+            {
+                ret = ret ?? new HashSet<SiteDrive>();
+                ret.Add(new SiteDrive(primarySiteDrive));
+                if (!string.IsNullOrEmpty(siteDrives))
+                {
+                    ret.UnionWith(SiteDrive.ParseList(siteDrives));
+                }
+                return ret;
             }
 
             public ContextualMeshMessage Clone()
@@ -1120,20 +1152,10 @@ namespace OPS.Landform
             ret.RDRDir = !string.IsNullOrEmpty(msg.rdrDir) ? msg.rdrDir : options.RDRDir;
             
             ret.PrimarySol = msg.primarySol;
-            ret.Sols.Add(ret.PrimarySol);
-            
-            if (!string.IsNullOrEmpty(msg.sols))
-            {
-                ret.Sols.UnionWith(IngestAlignmentInputs.ExpandSolSpecifier(msg.sols));
-            }
+            msg.ParseSols(ret.Sols);
             
             ret.PrimarySiteDrive = new SiteDrive(msg.primarySiteDrive);
-            ret.SiteDrives.Add(ret.PrimarySiteDrive);
-            
-            if (!string.IsNullOrEmpty(msg.siteDrives))
-            {
-                ret.SiteDrives.UnionWith(SiteDrive.ParseList(msg.siteDrives));
-            }
+            msg.ParseSiteDrives(ret.SiteDrives);
 
             ret.NumWedges = msg.numWedges;
             ret.Timestamp = msg.timestamp;
@@ -1283,6 +1305,21 @@ namespace OPS.Landform
             }
         }
 
+        private class ContextualPIDContent : ServicePIDContent
+        {
+            public ContextualMeshMessage message;
+
+            public ContextualPIDContent(string pid, string status, QueueMessage msg) : base(pid, status, msg)
+            {
+                this.message = msg as ContextualMeshMessage;
+            }
+        }
+
+        protected override string MakePIDContent(string pid, string status)
+        {
+            return JsonHelper.ToJson(new ContextualPIDContent(pid, status, currentMessage), autoTypes: false);
+        }
+
         private string AssignVersionAndSavePID(string destDir, ref string project)
         {
             string sfx = "_orbital";
@@ -1319,7 +1356,68 @@ namespace OPS.Landform
                         version = "V" + i.ToString("D2");
                     }
                     versionedProject = project + version + sfx;
-                    if (SearchFiles($"{destDir}/{versionedProject}/", recursive: false).Count() == 0)
+                    bool noExisting = true, alreadyProcessed = false;
+                    foreach (var f in SearchFiles($"{destDir}/{versionedProject}/", recursive: false))
+                    {
+                        //we shouldn't normally be able to receive the same message to process a tileset
+                        //that is either already processed or currently processing by a live worker
+                        //because the message should be hidden from visibility by the heartbeat loop
+                        //while processing and it should be deleted after successful processing
+                        //however it is worth double checking here because the heartbeat loop can fail
+                        //and with FIFO queues when that happens the message can't even be deleted
+                        //until it is re-received
+                        //(eventually such a message will get deleted due to max receive count)
+                        noExisting = false;
+                        if (f.EndsWith(MESSAGE_JSON) && StringHelper.GetLastUrlPathSegment(f) == MESSAGE_JSON)
+                        {
+                            try
+                            {
+                                var existingJson = File.ReadAllText(GetFile(f, filenameUnique: false));
+                                var existingMsg = JsonHelper.FromJson<ContextualMeshMessage>(existingJson);
+                                bool sameMsg = existingMsg.ExactEquals(currentMessage as ContextualMeshMessage);
+                                if (sameMsg)
+                                {
+                                    alreadyProcessed = true;
+                                    pipeline.LogInfo("tileset {0}/{1} aborted, already procesessed at {2}",
+                                                     destDir, versionedProject, storageHelper.LastModified(f));
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                pipeline.LogException(ex, "failed to read " + f);
+                            }
+                        }
+                        else if (f.EndsWith(PID_EXT))
+                        {
+                            try
+                            {
+                                var existingJson = File.ReadAllText(GetFile(f, filenameUnique: false));
+                                var existingContent = JsonHelper.FromJson<ContextualPIDContent>(existingJson);
+                                var existingMsg = existingContent.message;
+                                bool sameMsg = existingMsg.ExactEquals(currentMessage as ContextualMeshMessage);
+                                DateTime? ts = null;
+                                if (sameMsg && (options.ZombieSec < 0 ||
+                                                DateTime.Now.Subtract((ts = storageHelper.LastModified(f)).Value)
+                                                .TotalSeconds < options.ZombieSec))
+                                {
+                                    alreadyProcessed = true;
+                                    pipeline.LogInfo("tileset {0}/{1} aborted, already processing by {2} " +
+                                                     "(current stage {3}{4})",
+                                                     destDir, versionedProject, existingContent.pid,
+                                                     existingContent.status, ts.HasValue ? $", last updated {ts}" : "");
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                pipeline.LogException(ex, "failed to read " + f);
+                            }
+                        }
+                    }
+                    if (alreadyProcessed)
+                    {
+                        return null;
+                    }
+                    else if (noExisting)
                     {
                         pidFile = SavePID(destDir, versionedProject, "interlock");
                         pipeline.LogInfo("beginning {0} version interlock for tileset {1}/{2} for worker {3}",
@@ -1345,7 +1443,7 @@ namespace OPS.Landform
                         if (pids[0] != pid)
                         {
                             DeletePID(destDir, versionedProject, pidFile);
-                            pipeline.LogInfo("tileset {0}/{1} cancelled in version interlock, claimed by worker {2}",
+                            pipeline.LogInfo("tileset {0}/{1} aborted in version interlock, claimed by worker {2}",
                                              destDir, versionedProject, pids[0]);
                             return null;
                         }
@@ -1601,6 +1699,8 @@ namespace OPS.Landform
                                "--awsprofile", awsProfile, "--awsregion", awsRegion);
                 }
 
+                SaveMessage(destDir, project);
+
                 DeletePID(destDir, project, pidFile);
 
                 Cleanup(venueDir);
@@ -1609,8 +1709,9 @@ namespace OPS.Landform
             }
             catch
             {
+                pipeline.LogError("fatal error producing contextual tileset {0}", project);
                 Cleanup(venueDir);
-                throw;
+                throw; //will spew detailed error
             }
         }
 

@@ -854,6 +854,23 @@ namespace OPS.Landform
             return ConsoleHelper.GetPID().ToString();
         }
 
+        protected class PIDContent
+        {
+            public string pid;
+            public string status;
+
+            public PIDContent(string pid, string status)
+            {
+                this.pid = pid;
+                this.status = status;
+            }
+        }
+
+        protected virtual string MakePIDContent(string pid, string status)
+        {
+            return JsonHelper.ToJson(new PIDContent(pid, status));
+        }
+
         protected string SavePID(string destDir, string project, string status, string pidFile = null)
         {
             if (abort)
@@ -868,9 +885,10 @@ namespace OPS.Landform
 
             try
             {
+                string pid = GetPID();
                 if (pidFile == null)
                 {
-                    pidFile = GetPID() + PID_EXT;
+                    pidFile = pid + PID_EXT;
                 }
 
                 string url = string.Format("{0}/{1}/{2}", destDir, project, pidFile);
@@ -888,7 +906,7 @@ namespace OPS.Landform
                 }
 
                 TemporaryFile.GetAndDelete(PID_EXT, tmp => {
-                    File.WriteAllText(tmp, status);
+                    File.WriteAllText(tmp, MakePIDContent(pid, status));
                     SaveFile(tmp, url);
                 });
             }

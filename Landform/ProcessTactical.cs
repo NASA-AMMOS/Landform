@@ -461,6 +461,22 @@ namespace OPS.Landform
             return "tactical";
         }
 
+        private class TacticalPIDContent : ServicePIDContent
+        {
+            public string url;
+
+            public TacticalPIDContent(string pid, string status, QueueMessage msg, string url) : base(pid, status, msg)
+            {
+                this.url = url;
+            }
+        }
+
+        protected override string MakePIDContent(string pid, string status)
+        {
+            string url = GetUrlFromMessage(currentMessage);
+            return JsonHelper.ToJson(new TacticalPIDContent(pid, status, currentMessage, url), autoTypes: false);
+        }
+
         //uses S3 but called only by RunBatch() so no credentialRefreshLock needed
         private void IndexMeshes()
         {
@@ -1092,6 +1108,8 @@ namespace OPS.Landform
                     SavePID(destDir, project, "save", pidFile);
                     SaveTileset(tilesetDir, project, destDir);
 
+                    SaveMessage(destDir, project);
+
                     DeletePID(destDir, project, pidFile);
                 }
 
@@ -1099,8 +1117,9 @@ namespace OPS.Landform
             }
             catch
             {
+                pipeline.LogError("fatal error producing tactical tileset {0}", project);
                 Cleanup(venueDir);
-                throw;
+                throw; //will spew detailed error
             }
         }
     }

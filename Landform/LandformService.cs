@@ -140,6 +140,8 @@ namespace OPS.Landform
     
     public abstract class LandformService : LandformShell
     {
+        public const string MESSAGE_JSON = "message.json";
+
         public const double DEF_HEARTBEAT_REL_PERIOD = 0.333;
 
         public const int DEF_DEQUEUE_THROTTLE_MS = 1;
@@ -228,7 +230,7 @@ namespace OPS.Landform
         /// </summary>
         private object deleteMessageLock = new Object();
 
-        private volatile QueueMessage currentMessage;
+        protected volatile QueueMessage currentMessage;
         private volatile bool killedCurrentHandler;
 
         //in C# 64 bit fields can't  be volatile, so can't use double or long here
@@ -879,6 +881,31 @@ namespace OPS.Landform
         protected override string GetPID()
         {
             return !string.IsNullOrEmpty(selfEC2InstanceID) ? selfEC2InstanceID : base.GetPID();
+        }
+
+        protected class ServicePIDContent : PIDContent
+        {
+            public string messageId;
+
+            public ServicePIDContent(string pid, string status, QueueMessage msg) : base(pid, status)
+            {
+                this.messageId = msg?.MessageId;
+            }
+        }
+
+        protected override string MakePIDContent(string pid, string status)
+        {
+            return JsonHelper.ToJson(new ServicePIDContent(pid, status, currentMessage));
+        }
+
+        protected void SaveMessage(string destDir, string project)
+        {
+            string url = string.Format("{0}/{1}/{2}", destDir, project, MESSAGE_JSON);
+            pipeline.LogInfo("saving mesage file {0}", url);
+            TemporaryFile.GetAndDelete(MESSAGE_JSON, tmp => {
+                File.WriteAllText(tmp, JsonHelper.ToJson(currentMessage, autoTypes: false));
+                SaveFile(tmp, url);
+            });
         }
 
         //uses EC2, called only by ServiceLoop() so does not need to hold credentialRefreshLock
