@@ -1387,7 +1387,7 @@ namespace OPS.Landform
                                 pipeline.LogException(ex, "failed to read " + f);
                             }
                         }
-                        else if (f.EndsWith(PID_EXT))
+                        else if (f.EndsWith(PID_JSON))
                         {
                             try
                             {
@@ -1428,9 +1428,11 @@ namespace OPS.Landform
                             pipeline.LogWarn("tileset {0}/{1} aborted in version interlock", destDir, versionedProject);
                             return null;
                         }
+                        string pidSfx = "_" + PID_JSON;
                         var pids =
-                            SearchFiles($"{destDir}/{versionedProject}/", globPattern: "*" + PID_EXT, recursive: false)
-                            .Select(url => StringHelper.GetLastUrlPathSegment(url, stripExtension: true))
+                            SearchFiles($"{destDir}/{versionedProject}/", globPattern: "*" + pidSfx, recursive: false)
+                            .Select(url => StringHelper.GetLastUrlPathSegment(url))
+                            .Select(n => n.EndsWith(pidSfx) ? n.Substring(0, n.Length - pidSfx.Length) : n)
                             .OrderByDescending(p => p)
                             .ToList();
                         if (pids.Count == 0)
@@ -1440,7 +1442,7 @@ namespace OPS.Landform
                                              destDir, versionedProject);
                             return null;
                         }
-                        if (pids[0] != pid)
+                        if (!pids[0].StartsWith(pid))
                         {
                             DeletePID(destDir, versionedProject, pidFile);
                             pipeline.LogInfo("tileset {0}/{1} aborted in version interlock, claimed by worker {2}",

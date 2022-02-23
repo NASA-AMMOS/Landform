@@ -142,7 +142,7 @@ namespace OPS.Landform
         public const string TILESET_JSON = "tileset.json";
         public const string SCENE_JSON = "scene.json";
         public const string STATS_TXT = "stats.txt";
-        public const string PID_EXT = ".pid";
+        public const string PID_JSON = "pid.json";
 
         public readonly string[] RDR_SUBDIRS = new string[] { "rdr", "fdr" };
         public const string TILESET_SUBDIR = "tileset";
@@ -888,7 +888,7 @@ namespace OPS.Landform
                 string pid = GetPID();
                 if (pidFile == null)
                 {
-                    pidFile = pid + PID_EXT;
+                    pidFile = pid + "_" + PID_JSON;
                 }
 
                 string url = string.Format("{0}/{1}/{2}", destDir, project, pidFile);
@@ -905,7 +905,7 @@ namespace OPS.Landform
                     activePIDFiles.Add(url);
                 }
 
-                TemporaryFile.GetAndDelete(PID_EXT, tmp => {
+                TemporaryFile.GetAndDelete(PID_JSON, tmp => {
                     File.WriteAllText(tmp, MakePIDContent(pid, status));
                     SaveFile(tmp, url);
                 });
