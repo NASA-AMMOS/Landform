@@ -639,26 +639,33 @@ namespace OPS.Landform
             void searchRDRs(string dir, string pat)
             {
                 pipeline.LogInfo("searching for RDRs under {0}, pattern {1}", dir, pat);
-                foreach (var url in SearchFiles(dir, pat, recursive: true, ignoreCase: true))
+                try
                 {
-                    string ext = StringHelper.GetUrlExtension(url); //includes leading dot
-                    string idStr = StringHelper.GetLastUrlPathSegment(url, stripExtension: true);
-                    if (idStr.EndsWith(SceneManifestHelper.TILESET_SUFFIX))
+                    foreach (var url in SearchFiles(dir, pat, recursive: true, ignoreCase: true))
                     {
-                        addRDR(idStr, url); //don't strip "_tileset" suffix from id
-                    }
-                    else
-                    {
-                        if (exts.Any(ex => ex.Equals(ext, StringComparison.OrdinalIgnoreCase)))
+                        string ext = StringHelper.GetUrlExtension(url); //includes leading dot
+                        string idStr = StringHelper.GetLastUrlPathSegment(url, stripExtension: true);
+                        if (idStr.EndsWith(SceneManifestHelper.TILESET_SUFFIX))
                         {
-                            var id = RoverProductId.Parse(idStr, mission, throwOnFail: false);
-                            if (id != null && id.IsSingleFrame())
+                            addRDR(idStr, url); //don't strip "_tileset" suffix from id
+                        }
+                        else
+                        {
+                            if (exts.Any(ex => ex.Equals(ext, StringComparison.OrdinalIgnoreCase)))
                             {
-                                addRDR(idStr, url);
+                                var id = RoverProductId.Parse(idStr, mission, throwOnFail: false);
+                                if (id != null && id.IsSingleFrame())
+                                {
+                                    addRDR(idStr, url);
+                                }
                             }
                         }
+                        total++;
                     }
-                    total++;
+                }
+                catch (Exception ex)
+                {
+                    pipeline.LogWarn("error searching RDRs under {0}: {1}", dir, ex.Message);
                 }
             }
 
@@ -908,6 +915,12 @@ namespace OPS.Landform
         {
             if (string.IsNullOrEmpty(options.TacticalPDSImage))
             {
+                if (rdrs.Count == 0)
+                {
+                    pipeline.LogWarn("cannot update tactical mesh manifests, failed to index RDRs");
+                    return;
+                }
+
                 string contextualId = null;
                 if (options.Sol >= 0 && !string.IsNullOrEmpty(options.SiteDrive))
                 {
@@ -1168,6 +1181,11 @@ namespace OPS.Landform
 
         private void UpdateURLs()
         {
+            if (rdrs.Count == 0)
+            {
+                pipeline.LogWarn("cannot update URLs, failed to index RDRs");
+                return;
+            }
             sceneManifest.UpdateTilesetURIs(rdrs);
             sceneManifest.UpdateImageURIs(imageExts, rdrs, mission);
         }
