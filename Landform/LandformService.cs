@@ -74,7 +74,7 @@ namespace OPS.Landform
         [Option(Default = false, HelpText = "Delete message and fail queues iff Landform owned")]
         public bool DeleteQueues { get; set; }
 
-        [Option(Default = 0, HelpText = "SQS queue message timeout, nonpositive to use default")]
+        [Option(Default = 0, HelpText = "SQS queue message timeout, nonpositive to use default (does not apply to fail queues), only used when queues don't already exist")]
         public int MessageTimeoutSec { get; set; }
 
         [Option(Default = 0, HelpText = "Maximum handler runtime, nonpositive to use default")]
@@ -695,7 +695,7 @@ namespace OPS.Landform
                 }
                 name += "-fail";
             }
-            return GetMessageQueue(name, GetDefaultMessageTimeoutSec(), lvopts.LandformOwnedFailQueue, "fail message");
+            return GetMessageQueue(name, MessageQueue.DEF_TIMEOUT_SEC, lvopts.LandformOwnedFailQueue, "fail message");
         }
 
         protected MessageQueue GetMessageQueue(string name, int defTimeoutSec, bool landformOwned, string what)
