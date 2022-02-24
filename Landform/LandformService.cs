@@ -445,6 +445,11 @@ namespace OPS.Landform
                         }
                         pipeline.LogInfo("will attempt to shutdown after {0} idle, shutdown method {1}",
                                          Fmt.HMS(lvopts.IdleShutdownSec * 1e3), lvopts.IdleShutdownMethod);
+                        if (lvopts.IdleShutdownFailsafeSec > 0)
+                        {
+                            pipeline.LogInfo("failsafe OS shutdown after {0} idle}",
+                                             Fmt.HMS(lvopts.IdleShutdownFailsafeSec * 1e3));
+                        }
                     }
                     else
                     {
