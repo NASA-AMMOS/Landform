@@ -117,6 +117,21 @@ namespace OPS.Landform
 
         [Option(Default = 0, HelpText = "Positive integer number of GB to leak per watchdog period for leak test")]
         public int WatchdogLeakTest { get; set; }
+
+        [Option(Default = null, HelpText = "Comma separated list of processes to check")]
+        public string CheckProcesses { get; set; }
+
+        [Option(Default = "mission", HelpText = "Watchdog SSM process, empty to disable, \"mission\" to use mission-specific default")]
+        public string WatchdogSSMProcess { get; set; }
+
+        [Option(Default = "mission", HelpText = "Watchdog SSM restart command, empty to disable, \"mission\" to use mission-specific default")]
+        public string WatchdogSSMCommand { get; set; }
+
+        [Option(Default = "mission", HelpText = "Watchdog CloudWatch process, empty to disable, \"mission\" to use mission-specific default")]
+        public string WatchdogCloudWatchProcess { get; set; }
+
+        [Option(Default = "mission", HelpText = "Watchdog CloudWatch restart command, empty to disable, \"mission\" to use mission-specific default")]
+        public string WatchdogCloudWatchCommand { get; set; }
     }
     
     public abstract class LandformService : LandformShell
@@ -143,6 +158,8 @@ namespace OPS.Landform
 
         public const int WATCHDOG_ABORT_PERIODS = 2;
         public const int WATCHDOG_ABORT_EXIT_CODE = 10;
+
+        public const int WATCHDOG_PROCESS_RESTART_PERIODS = 12;
 
         //there is an interplay between the max message age and the max receive count
         //because each time a message is received it becomes invisible for at least the visibility timeout of the queue
@@ -292,6 +309,11 @@ namespace OPS.Landform
                 {
                     RunPhase("testing watchdog", WatchdogLoop);
                 }
+                else if (!string.IsNullOrEmpty(lvopts.CheckProcesses))
+                {
+                    RunPhase("checking processes", () =>
+                             ConsoleHelper.CheckProcesses(pipeline, StringHelper.ParseList(lvopts.CheckProcesses)));
+                }
                 else if (serviceMode)
                 {
                     RunService();
@@ -333,12 +355,14 @@ namespace OPS.Landform
             bool dropMessages = lvopts.DropMessages > 0;
             bool dropFailedMessages = lvopts.DropFailedMessages > 0;
             bool leakTest = lvopts.WatchdogLeakTest > 0;
+            bool checkProcesses = !string.IsNullOrEmpty(lvopts.CheckProcesses);
 
             string utils = "--peekmessages, --peekfailedmessages, --deletequeues, --sendmessage, --retrymessages, " +
-                "--failmessages, --dropmessages, --dropfailedmessages, --watchdogleaktest";
+                "--failmessages, --dropmessages, --dropfailedmessages, --watchdogleaktest, --checkprocesses";
 
-            var utilOpts = new bool[] { lvopts.DeleteQueues, sendMessage, peekMessages, peekFailedMessages,
-                                        retryMessages, failMessages, dropMessages, dropFailedMessages, leakTest };
+            var utilOpts = new bool[] {
+                lvopts.DeleteQueues, sendMessage, peekMessages, peekFailedMessages, retryMessages, failMessages,
+                dropMessages, dropFailedMessages, leakTest, checkProcesses };
             serviceUtilMode = utilOpts.Any(o => o);
             serviceMode = IsService();
 
@@ -347,7 +371,7 @@ namespace OPS.Landform
                 throw new Exception(utils + ", and --service are mutually exclusive");
             }
 
-            if (leakTest)
+            if (leakTest || checkProcesses)
             {
                 return true;
             }
@@ -1345,11 +1369,63 @@ namespace OPS.Landform
             {
                 pipeline.LogWarn("memory watchdog disabled, error getting system virtual memory stats");
             }
+
+            var procNames = new List<string>();
+            var procCmds = new List<string>();
+            var procCounters = new List<int>();
+            string ssmProcess =
+                (lvopts.WatchdogSSMProcess == "mission") ? mission.GetSSMProcess() : lvopts.WatchdogSSMProcess;
+            string ssmCommand =
+                (lvopts.WatchdogSSMCommand == "mission") ? mission.GetSSMCommand() : lvopts.WatchdogSSMCommand;
+            bool ssmEnabled = !string.IsNullOrEmpty(ssmProcess) && !string.IsNullOrEmpty(ssmCommand);
+            if (ssmEnabled)
+            {
+                procNames.Add(ssmProcess);
+                procCmds.Add(ssmCommand);
+                procCounters.Add(WATCHDOG_PROCESS_RESTART_PERIODS);
+                pipeline.LogInfo("running SSM watchdog, period {0}, process: {1}, command: {2}",
+                                 Fmt.HMS(targetPeriod * 1e3), ssmProcess, ssmCommand);
+            }
+            else
+            {
+                pipeline.LogInfo("SSM watchdog disabled");
+            }
+
+            string cwProcess =(lvopts.WatchdogCloudWatchProcess == "mission") ? mission.GetCloudWatchProcess() :
+                lvopts.WatchdogCloudWatchProcess;
+            string cwCommand = (lvopts.WatchdogCloudWatchCommand == "mission") ? mission.GetCloudWatchCommand() :
+                lvopts.WatchdogCloudWatchCommand;
+            bool cwEnabled = !string.IsNullOrEmpty(cwProcess) && !string.IsNullOrEmpty(cwCommand);
+            if (cwEnabled)
+            {
+                procNames.Add(cwProcess);
+                procCmds.Add(cwCommand);
+                procCounters.Add(WATCHDOG_PROCESS_RESTART_PERIODS);
+                pipeline.LogInfo("running CloudWatch watchdog, period {0}, process: {1}, command: {2}",
+                                 Fmt.HMS(targetPeriod * 1e3), cwProcess, cwCommand);
+            }
+            else
+            {
+                pipeline.LogInfo("CloudWatch watchdog disabled");
+            }
+
+            string[] processName = procNames.ToArray();
+            string[] processCommand = procCmds.ToArray();
+            int[] processCounter = procCounters.ToArray();
+            bool[] processEverRan = new bool[processName.Length];
+            if (processName.Length > 0)
+            {
+                pipeline.LogInfo("running process watchdog for {0} processes: {1}",
+                                 processName.Length, String.Join(", ", processName));
+            }
+            else
+            {
+                pipeline.LogInfo("not running process watchdog");
             }
 
             ResetWatchdogStats();
 
-            bool warned = false;
+            bool memWarned = false, procWarned = false;
             int abortCounter = WATCHDOG_ABORT_PERIODS;
             var leaks = lvopts.WatchdogLeakTest > 0 ? new List<byte[]>() : null;
             while (!abort) //keep going while shuttingDown
@@ -1451,10 +1527,61 @@ namespace OPS.Landform
                         }
                     }
                 }
-                else if (!warned)
+                else if (totalMemory > 0 && !memWarned)
                 {
                     pipeline.LogWarn("memory watchdog: error getting free system virtual memory");
-                    warned = true;
+                    memWarned = true;
+                }
+
+                try
+                {
+                    ILogger logger = lvopts.Verbose ? pipeline : null;
+                    bool[] processRunning = ConsoleHelper.CheckProcesses(logger, processName);
+                    for (int i = 0; i < processRunning.Length; i++)
+                    {
+                        if (processRunning[i])
+                        {
+                            processCounter[i] = WATCHDOG_PROCESS_RESTART_PERIODS;
+                            if (!processEverRan[i])
+                            {
+                                processEverRan[i] = true;
+                                pipeline.LogInfo("detected running watchdog process {0}", processName[i]);
+                            }
+                        }
+                        else if (processEverRan[i])
+                        {
+                            processCounter[i]--;
+                            if (processCounter[i] <= 0)
+                            {
+                                pipeline.LogWarn("watchdog process {0} not running, attempting restart, command: {1}",
+                                                 processName[i], processCommand[i]);
+                                try
+                                {
+                                    var pr = new ProgramRunner(processCommand[i], waitForExit: false);
+                                    pr.Run(p => pipeline.LogInfo("restarted process {0}, PID {1}",
+                                                                 processName[i], p.Id));
+                                }
+                                catch (Exception ex)
+                                {
+                                    pipeline.LogException(ex, $"running {processCommand[i]}");
+                                }
+                                processCounter[i] = WATCHDOG_PROCESS_RESTART_PERIODS;
+                            }
+                            else
+                            {
+                                pipeline.LogWarn("watchdog process {0} not running, will attempt restart in {1}",
+                                                 processName[i], Fmt.HMS(processCounter[i] * targetPeriod * 1e3));
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    if (!procWarned)
+                    {
+                        pipeline.LogException(ex, "in watchdog for processes: " + string.Join(", ", processName));
+                        procWarned = true;
+                    }
                 }
             }
         }

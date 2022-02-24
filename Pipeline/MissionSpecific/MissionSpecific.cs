@@ -1320,5 +1320,25 @@ namespace OPS.Pipeline
         {
             return GetAllowedProducers(MissionConfig.Instance.AllowedProducers);
         }
+
+        public virtual string GetSSMProcess()
+        {
+            return null;
+        }
+
+        public virtual string GetSSMCommand()
+        {
+            return null;
+        }
+
+        public virtual string GetCloudWatchProcess()
+        {
+            return null;
+        }
+
+        public virtual string GetCloudWatchCommand()
+        {
+            return null;
+        }
     }
 }

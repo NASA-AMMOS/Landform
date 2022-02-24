@@ -13,18 +13,64 @@ namespace OPS.Util
     /// </summary>
     public class ProgramRunner
     {
-        string cmd;
-        string arguments;
-        bool createNoWindow;
-        bool useShellExecute;
-        bool captureOutput;
-        string workingDir;
+        private string cmd;
+        private string arguments;
+        private bool createNoWindow;
+        private bool useShellExecute;
+        private bool captureOutput;
+        private string workingDir;
+        private bool waitForExit;
 
         public string OutputText { get; private set; }
         public string ErrorText { get; private set; }
 
+        public ProgramRunner(string cmdAndArgs, bool createNoWindow = true, bool useShellExecute = false,
+                             bool captureOutput = false, string workingDir = null, bool waitForExit = true)
+            : this(GetCommand(cmdAndArgs), GetArgs(cmdAndArgs),
+                   createNoWindow, useShellExecute, captureOutput, workingDir, waitForExit)
+        {
+        }
+
+        public static string GetCommand(string cmdAndArgs)
+        {
+            char[] chars = cmdAndArgs.ToCharArray();
+            int firstChar = Array.FindIndex(chars, c => !char.IsWhiteSpace(c));
+            if (firstChar >= 0)
+            {
+                int firstSpace = Array.FindIndex(chars, firstChar, c => char.IsWhiteSpace(c));
+                if (firstSpace > firstChar)
+                {
+                    return cmdAndArgs.Substring(firstChar, firstSpace - firstChar);
+                }
+                else
+                {
+                    return cmdAndArgs;
+                }
+            }
+            return "";
+        }
+
+        public static string GetArgs(string cmdAndArgs)
+        {
+            char[] chars = cmdAndArgs.ToCharArray();
+            int firstChar = Array.FindIndex(chars, c => !char.IsWhiteSpace(c));
+            if (firstChar >= 0)
+            {
+                int firstSpace = Array.FindIndex(chars, firstChar, c => char.IsWhiteSpace(c));
+                if (firstSpace > firstChar)
+                {
+                    return cmdAndArgs.Substring(firstSpace);
+                }
+                else
+                {
+                    return "";
+                }
+            }
+            return "";
+        }
+
         public ProgramRunner(string cmd, string arguments, bool createNoWindow = true, bool useShellExecute = false,
-                             bool captureOutput = false, string workingDir = null)
+                             bool captureOutput = false, string workingDir = null, bool waitForExit = true)
         {
             this.cmd = cmd;
             this.arguments = arguments;           
@@ -32,29 +78,24 @@ namespace OPS.Util
             this.useShellExecute = useShellExecute;
             this.captureOutput = captureOutput;
             this.workingDir = workingDir;
+            this.waitForExit = waitForExit;
         }
 
         public int Run(Action<Process> callback = null)
         {
-            ProcessStartInfo startInfo = new ProcessStartInfo();
-            startInfo.FileName = cmd;
-            startInfo.CreateNoWindow = createNoWindow;
-            startInfo.UseShellExecute = useShellExecute;
-            startInfo.Arguments = arguments;
-            startInfo.WindowStyle = ProcessWindowStyle.Hidden;
-            startInfo.RedirectStandardOutput = true;
-            startInfo.RedirectStandardError = true;
+            var process = new Process();
+
+            process.StartInfo.FileName = cmd;
+            process.StartInfo.CreateNoWindow = createNoWindow;
+            process.StartInfo.UseShellExecute = useShellExecute;
+            process.StartInfo.Arguments = arguments;
+            process.StartInfo.WindowStyle = ProcessWindowStyle.Hidden;
+            process.StartInfo.RedirectStandardOutput = true;
+            process.StartInfo.RedirectStandardError = true;
             if (workingDir != null)
             {
-                startInfo.WorkingDirectory = workingDir;
+                process.StartInfo.WorkingDirectory = workingDir;
             }
-            Process process = Process.Start(startInfo);
-
-            //this is deadlock prone
-            //https://csharp.today/how-to-avoid-deadlocks-when-reading-redirected-child-console-in-c-part-2
-            //OutputText = p.StandardOutput.ReadToEnd();
-            //ErrorText = p.StandardError.ReadToEnd();
-
             var osb = new StringBuilder();
             var esb = new StringBuilder();
             process.OutputDataReceived += (_, evt) => {
@@ -87,12 +128,25 @@ namespace OPS.Util
                 }
             };
 
+            process.Start();
+
+            //this is deadlock prone
+            //https://csharp.today/how-to-avoid-deadlocks-when-reading-redirected-child-console-in-c-part-2
+            //OutputText = process.StandardOutput.ReadToEnd();
+            //ErrorText = process.StandardError.ReadToEnd();
+
+            //docs say to (1) assign the *DataReceived handlers; (2) start the process; (3) Begin*ReadLine()
             process.BeginOutputReadLine();
             process.BeginErrorReadLine();
 
             if (callback != null)
             {
                 callback(process);
+            }
+
+            if (!waitForExit)
+            {
+                return 0;
             }
 
             process.WaitForExit();
@@ -104,7 +158,9 @@ namespace OPS.Util
             ErrorText = esb.ToString();
 
             int code = process.ExitCode;
+
             process.Close();
+
             return code;
         }
     }

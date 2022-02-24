@@ -242,5 +242,68 @@ namespace OPS.Util
 
             Environment.Exit(exitCode);
         }
+
+        public static bool[] CheckProcesses(ILogger logger, params string[] names)
+        {
+            if (logger != null)
+            {
+                logger.LogInfo("checking {0} processes: {1}", names.Length, String.Join(", ", names));
+            }
+            bool[] ret = new bool[names.Length];
+            if (names.Length == 0)
+            {
+                return ret;
+            }
+            var processes = Process.GetProcesses();
+            try
+            {
+                foreach (var p in processes)
+                {
+                    bool requested = false;
+                    bool hasExited = false;
+                    String name = null;
+                    int id = -1;
+                    try
+                    {
+                        id = p.Id;
+                        name = p.ProcessName;
+                        hasExited = p.HasExited; //can throw access denied if p is elevated and we are not
+                    }
+                    catch (Exception ex)
+                    {
+                        if (logger != null)
+                        {
+                            logger.LogWarn("error getting info for process {0} {1}: {2}", id, name, ex.Message);
+                        }
+                    }
+                    for (int i = 0; i < names.Length; i++)
+                    {
+                        if (name == names[i])
+                        {
+                            requested = true;
+                            ret[i] |= !hasExited;
+                        }
+                    }
+                    if (logger != null)
+                    {
+                        logger.LogInfo("process {0} {1}: {2}{3}", id, name, hasExited ? "exited" : "running",
+                                       requested ? " (requested)" : "");
+                    }
+                }
+            }
+            finally
+            {
+                foreach (var p in processes)
+                {
+                    p.Dispose();
+                }
+            }
+            return ret;
+        }
+
+        public static bool[] CheckProcesses(params string[] names)
+        {
+            return CheckProcesses(null, names);
+        }
     }
 }
