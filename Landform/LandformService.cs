@@ -103,16 +103,16 @@ namespace OPS.Landform
         [Option(HelpText = "Use default AWS profile (vs profile from credential refresh) for SQS client", Default = false)]
         public bool UseDefaultAWSProfileForSQSClient { get; set; }
 
-        [Option(Default = LandformService.DEF_WATCHDOG_PERIOD, HelpText = "Memory watchdog period (seconds), non-positive to disable")]
+        [Option(Default = LandformService.DEF_WATCHDOG_PERIOD, HelpText = "Watchdog period (seconds), non-positive to disable")]
         public double WatchdogPeriod { get; set; }
 
-        [Option(Default = LandformService.DEF_WATCHDOG_WARN_GB, HelpText = "Memory watchdog free system virtual memory warning level, absolute GB or fraction")]
+        [Option(Default = LandformService.DEF_WATCHDOG_WARN_GB, HelpText = "Watchdog free system virtual memory warning level, absolute GB or fraction")]
         public double WatchdogWarnGB { get; set; }
 
-        [Option(Default = LandformService.DEF_WATCHDOG_ACTION_GB, HelpText = "Memory watchdog free system virtual memory action level, absolute GB or fraction")]
+        [Option(Default = LandformService.DEF_WATCHDOG_ACTION_GB, HelpText = "Watchdog free system virtual memory action level, absolute GB or fraction")]
         public double WatchdogActionGB { get; set; }
 
-        [Option(Default = LandformService.DEF_WATCHDOG_ABORT_GB, HelpText = "Memory watchdog free system virtual memory abort level, absolute GB or fraction")]
+        [Option(Default = LandformService.DEF_WATCHDOG_ABORT_GB, HelpText = "Watchdog free system virtual memory abort level, absolute GB or fraction")]
         public double WatchdogAbortGB { get; set; }
 
         [Option(Default = 0, HelpText = "Positive integer number of GB to leak per watchdog period for leak test")]
@@ -136,6 +136,10 @@ namespace OPS.Landform
         public const double DEF_WATCHDOG_WARN_GB = 20;
         public const double DEF_WATCHDOG_ACTION_GB = 10;
         public const double DEF_WATCHDOG_ABORT_GB = 5;
+
+        //if actual total memory is less than this
+        //then interpret absolute watchdog thresholds as relative to this
+        public const double DEF_WATCHDOG_TOTAL_GB = 80;
 
         public const int WATCHDOG_ABORT_PERIODS = 2;
         public const int WATCHDOG_ABORT_EXIT_CODE = 10;
@@ -1281,54 +1285,67 @@ namespace OPS.Landform
             double targetPeriod = lvopts.WatchdogPeriod;
             if (targetPeriod <= 0)
             {
-                pipeline.LogInfo("memory watchdog disabled");
+                pipeline.LogInfo("watchdog disabled");
                 return;
             }
 
             totalMemory = ConsoleHelper.GetTotalSystemVirtualMemory();
-            if (totalMemory <= 0)
-            {
-                pipeline.LogWarn("memory watchdog disabled, error getting total system virtual memory");
-                return;
-            }
-
             double freeMemory = ConsoleHelper.GetFreeSystemVirtualMemory();
-            if (freeMemory <= 0)
+            double lastThreshold = -1;
+            if (totalMemory > 0 && freeMemory > 0)
             {
-                pipeline.LogWarn("memory watchdog disabled, error getting free system virtual memory");
-                return;
+                double getThreshold(double opt)
+                {
+                    double ret = -1;
+                    double gb = 1024L * 1024L * 1024L;
+                    if (opt < 0)
+                    {
+                        ret = 0;
+                    }
+                    else if (opt < 1)
+                    {
+                        ret = opt * totalMemory;
+                    }
+                    else if (totalMemory >= (DEF_WATCHDOG_TOTAL_GB * gb))
+                    {
+                        ret = opt * gb;
+                    }
+                    else
+                    {
+                        ret = (opt / DEF_WATCHDOG_TOTAL_GB) * totalMemory;
+                    }
+                    if (lastThreshold > 0)
+                    {
+                        ret = Math.Min(lastThreshold, ret);
+                    }
+                    ret = Math.Min(totalMemory, ret);
+                    if (ret > 0)
+                    {
+                        lastThreshold = ret;
+                    }
+                    return ret;
+                }
+                watchdogWarnGB = getThreshold(lvopts.WatchdogWarnGB);
+                watchdogActionGB = getThreshold(lvopts.WatchdogActionGB);
+                watchdogAbortGB = getThreshold(lvopts.WatchdogAbortGB);
+                if (watchdogWarnGB <= 0 && watchdogActionGB <= 0 && watchdogAbortGB <= 0)
+                {
+                    pipeline.LogInfo("memory watchdog disabled, all thresholds unset");
+                }
+                else
+                {
+                    pipeline.LogInfo("running memory watchdog, period {0}, " +
+                                     "{1}/{2} free, warn level {3} free, cleanup {4} abort {5}",
+                                     Fmt.HMS(targetPeriod * 1e3), Fmt.Bytes(freeMemory), Fmt.Bytes(totalMemory),
+                                     Fmt.Bytes(watchdogWarnGB), Fmt.Bytes(watchdogActionGB),
+                                     Fmt.Bytes(watchdogAbortGB));
+                }
             }
-
-            double getThreshold(double opt)
+            else
             {
-                if (opt < 0)
-                {
-                    return 0;
-                }
-                if (opt <= 1.0)
-                {
-                    return opt * totalMemory;
-                }
-                double gb = 1024L * 1024L * 1024L;
-                double ret = opt * gb;
-                if (ret > totalMemory)
-                {
-                    ret = totalMemory * (ret / (80 * gb));
-                }
-                return ret;
+                pipeline.LogWarn("memory watchdog disabled, error getting system virtual memory stats");
             }
-            watchdogWarnGB = getThreshold(lvopts.WatchdogWarnGB);
-            watchdogActionGB = getThreshold(lvopts.WatchdogActionGB);
-            watchdogAbortGB = getThreshold(lvopts.WatchdogAbortGB);
-            if (watchdogWarnGB == 0 && watchdogActionGB == 0 && watchdogAbortGB == 0)
-            {
-                pipeline.LogInfo("memory watchdog disabled, all thresholds unset");
-                return;
             }
-            pipeline.LogInfo("running memory watchdog, period {0}, " +
-                             "{1}/{2} free, warn level {3} free, cleanup {4} abort {5}",
-                             Fmt.HMS(targetPeriod), Fmt.Bytes(freeMemory), Fmt.Bytes(totalMemory),
-                             Fmt.Bytes(watchdogWarnGB), Fmt.Bytes(watchdogActionGB), Fmt.Bytes(watchdogAbortGB));
 
             ResetWatchdogStats();
 
@@ -1367,7 +1384,11 @@ namespace OPS.Landform
                     }
                 }
 
-                freeMemory = ConsoleHelper.GetFreeSystemVirtualMemory();
+                freeMemory = totalMemory > 0 ? ConsoleHelper.GetFreeSystemVirtualMemory() : 0;
+                if (totalMemory > 0)
+                {
+                    pipeline.LogVerbose("{0}/{1} free memory", Fmt.Bytes(freeMemory), Fmt.Bytes(totalMemory));
+                }
                 if (freeMemory > 0)
                 {
                     lock (watchdogStatsLock)
@@ -1378,7 +1399,7 @@ namespace OPS.Landform
                             minFreeMemoryTime = DateTime.Now;
                         }
                     }
-                    if (freeMemory < watchdogAbortGB)
+                    if (watchdogAbortGB >= 0 && freeMemory < watchdogAbortGB)
                     {
                         abortCounter--;
                         lock (watchdogStatsLock)
@@ -1396,8 +1417,9 @@ namespace OPS.Landform
                         else
                         {
                             pipeline.LogWarn("{0} < {1} of {2} free system virtual memory, " +
-                                             "aborting in {3} more consecutive periods", Fmt.Bytes(freeMemory),
-                                             Fmt.Bytes(watchdogAbortGB), Fmt.Bytes(totalMemory), abortCounter);
+                                             "aborting in {3}", Fmt.Bytes(freeMemory),
+                                             Fmt.Bytes(watchdogAbortGB), Fmt.Bytes(totalMemory),
+                                             Fmt.HMS(abortCounter * targetPeriod * 1e3));
                             pipeline.ClearCaches();
                             ConsoleHelper.GC();
                         }
@@ -1406,7 +1428,7 @@ namespace OPS.Landform
                     {
                         abortCounter = WATCHDOG_ABORT_PERIODS;
 
-                        if (freeMemory < watchdogActionGB)
+                        if (watchdogActionGB >= 0 && freeMemory < watchdogActionGB)
                         {
                             lock (watchdogStatsLock)
                             {
@@ -1418,7 +1440,7 @@ namespace OPS.Landform
                             pipeline.ClearCaches();
                             ConsoleHelper.GC();
                         }
-                        else if (freeMemory < watchdogWarnGB)
+                        else if (watchdogWarnGB >= 0 && freeMemory < watchdogWarnGB)
                         {
                             lock (watchdogStatsLock)
                             {
