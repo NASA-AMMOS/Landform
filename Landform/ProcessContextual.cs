@@ -457,10 +457,90 @@ namespace OPS.Landform
                 return msg.rdrDir == rdrDir && msg.primarySol == primarySol && msg.primarySiteDrive == primarySiteDrive;
             }
 
-            public bool ExactEquals(ContextualMeshMessage other)
+            public bool ExactEquals(ContextualMeshMessage other, ILogger logger = null)
             {
-                return Equals(other) && other.orbitalOnly == orbitalOnly && other.timestamp == timestamp &&
-                    ParseSols().Equals(other.ParseSols()) && ParseSiteDrives().Equals(other.ParseSiteDrives());
+                if (other == null)
+                {
+                    if (logger != null)
+                    {
+                        logger.LogInfo("messages differ: null");
+                    }
+                    return false;
+                }
+
+                if (rdrDir != other.rdrDir)
+                {
+                    if (logger != null)
+                    {
+                        logger.LogInfo("messages differ: rdr dir \"{0}\" != \"{1}\"", rdrDir, other.rdrDir);
+                    }
+                    return false;
+                }
+
+                if (primarySol != other.primarySol)
+                {
+                    if (logger != null)
+                    {
+                        logger.LogInfo("messages differ: primary sol {0} != {1}", primarySol, other.primarySol);
+                    }
+                    return false;
+                }
+
+                if (primarySiteDrive != other.primarySiteDrive)
+                {
+                    if (logger != null)
+                    {
+                        logger.LogInfo("messages differ: primary site drive \"{0}\" != \"{1}\"",
+                                       primarySiteDrive, other.primarySiteDrive);
+                    }
+                    return false;
+                }
+
+                if (orbitalOnly != other.orbitalOnly)
+                {
+                    if (logger != null)
+                    {
+                        logger.LogInfo("messages differ: orbital only {0} != {1}", orbitalOnly, other.orbitalOnly);
+                    }
+                    return false;
+                }
+
+                if (timestamp != other.timestamp)
+                {
+                    if (logger != null)
+                    {
+                        logger.LogInfo("messages differ: timestamp {0} != {1}", UTCTime.MSSinceEpochToDate(timestamp),
+                                       UTCTime.MSSinceEpochToDate(other.timestamp));
+                    }
+                    return false;
+                }
+
+                var mySols = ParseSols();
+                var otherSols = other.ParseSols();
+                if (!mySols.SetEquals(otherSols))
+                {
+                    if (logger != null)
+                    {
+                        logger.LogInfo("messages differ: sols {0} != {1}", ProcessContextual.MakeSolRanges(mySols),
+                                       ProcessContextual.MakeSolRanges(otherSols));
+                    }
+                    return false;
+                }
+
+                var mySDs = ParseSiteDrives();
+                var otherSDs = other.ParseSiteDrives();
+                if (!mySDs.SetEquals(otherSDs))
+                {
+                    if (logger != null)
+                    {
+                        logger.LogInfo("messages differ: site drives {0} != {1}",
+                                       string.Join(",", mySDs.OrderBy(sd => sd).ToArray()),
+                                       string.Join(",", otherSDs.OrderBy(sd => sd).ToArray()));
+                    }
+                    return false;
+                }
+
+                return true;
             }
 
             public HashSet<int> ParseSols(HashSet<int> ret = null)
@@ -1093,7 +1173,7 @@ namespace OPS.Landform
             }
         }
 
-        private string MakeSolRanges(HashSet<int> sols)
+        public static string MakeSolRanges(HashSet<int> sols)
         {
             var ranges = new List<int[]>();
             foreach (var sol in sols.OrderBy(sol => sol))
@@ -1110,7 +1190,7 @@ namespace OPS.Landform
             return String.Join(",", ranges.Select(range => range[0] + (range[0] != range[1] ? ("-" + range[1]) : "")));
         }
 
-        private string MakeSolRanges(int[] sols)
+        public static string MakeSolRanges(int[] sols)
         {
             return MakeSolRanges(new HashSet<int>(sols));
         }
@@ -1374,7 +1454,8 @@ namespace OPS.Landform
                             {
                                 var existingJson = File.ReadAllText(GetFile(f, filenameUnique: false));
                                 var existingMsg = JsonHelper.FromJson<ContextualMeshMessage>(existingJson);
-                                bool sameMsg = existingMsg.ExactEquals(currentMessage as ContextualMeshMessage);
+                                bool sameMsg =
+                                    existingMsg.ExactEquals(currentMessage as ContextualMeshMessage, pipeline);
                                 if (sameMsg)
                                 {
                                     alreadyProcessed = true;
@@ -1394,7 +1475,8 @@ namespace OPS.Landform
                                 var existingJson = File.ReadAllText(GetFile(f, filenameUnique: false));
                                 var existingContent = JsonHelper.FromJson<ContextualPIDContent>(existingJson);
                                 var existingMsg = existingContent.message;
-                                bool sameMsg = existingMsg.ExactEquals(currentMessage as ContextualMeshMessage);
+                                bool sameMsg =
+                                    existingMsg.ExactEquals(currentMessage as ContextualMeshMessage, pipeline);
                                 DateTime? ts = null;
                                 if (sameMsg && (options.ZombieSec < 0 ||
                                                 DateTime.Now.Subtract((ts = storageHelper.LastModified(f)).Value)
