@@ -735,8 +735,13 @@ namespace OPS.Landform
 
         protected override QueueMessage ParseMessage(string msg)
         {
-            return options.Master ? base.ParseMessage(msg)
-                : JsonHelper.FromJson<ContextualMeshMessage>(msg, autoTypes: false);
+            if (options.Master)
+            {
+                return base.ParseMessage(msg);
+            }
+            var cmm = JsonHelper.FromJson<ContextualMeshMessage>(msg, autoTypes: false);
+            cmm.timestamp = (long)UTCTime.NowMS();
+            return cmm;
         }
 
         protected override bool AcceptMessage(QueueMessage msg, out string reason)
