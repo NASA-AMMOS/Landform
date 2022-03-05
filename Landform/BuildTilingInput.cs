@@ -163,6 +163,7 @@ namespace OPS.Landform
         private BoundingBox? surfaceBounds;
 
         private int maxTreeHeight = -1;
+        private bool builtLODTileMeshes;
 
         private bool tacticalFrame;
         private string inputTexturePDS;
@@ -916,6 +917,8 @@ namespace OPS.Landform
 
         private void BuildLODTileMeshes()
         {
+            builtLODTileMeshes = true;
+
             //it is possible that a tiling scheme may choose not to split a node
             //which means there can be leaf nodes at any depth in the tree
             //the approach to map tiling nodes to pre-existing LODs is as follows
@@ -1212,7 +1215,7 @@ namespace OPS.Landform
                 pipeline.LogInfo("colorize: {0}", options.Colorize);
             }
 
-            if (textureMode == TextureMode.Clip && meshLOD.Count == 1 && !TextureProjectionEnabled())
+            if (textureMode == TextureMode.Clip && !builtLODTileMeshes && !TextureProjectionEnabled())
             {
                 pipeline.LogWarn("clipping leaf tile textures but baking parent tile textures");
             }
@@ -1398,7 +1401,7 @@ namespace OPS.Landform
                 {
                     pipeline.LogInfo("saving texture projector");
                     var textureProjector = new TextureProjector(sceneTexture, meshToCamera.Value);
-                    if (textureMode == TextureMode.Clip && meshLOD.Count == 1)
+                    if (textureMode == TextureMode.Clip && !builtLODTileMeshes)
                     {
                         pipeline.LogInfo("saving input image for clipping parent textures");
                         var textureProd = new PngDataProduct(sceneTexture);
