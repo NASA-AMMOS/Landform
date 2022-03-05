@@ -12,14 +12,10 @@ if "%lfver%"=="" (
    goto:eof
 )
 
-set lfbucket=
+set lfbucket=m20-ids-g-landform
 if not "%LANDFORM_DIST_BUCKET%"=="" set lfbucket=%LANDFORM_DIST_BUCKET%
-if "%lfbucket%"=="" (
-   echo LANDFORM_DIST_BUCKET not set, skipping bootstrap
-   goto:eof
-)
 
-set lffolder=
+set lffolder=deploy/
 if not "%LANDFORM_DIST_FOLDER%"=="" set lffolder=%LANDFORM_DIST_FOLDER%
 
 set awsprofile=
@@ -32,6 +28,6 @@ set zip=Landform-%lfver%.zip
 
 aws %awsprofile% %awsregion% s3 cp s3://%lfbucket%/%lffolder%%zip% %ddir%\%zip%
 
-powershell %ddir%\deltree.ps1 %lfdir%
+powershell %ddir%\deltree.ps1 %lfdir%\Landform-%lfver%
 
 powershell %ddir%\unzip.ps1 %ddir%\%zip% %lfdir%
