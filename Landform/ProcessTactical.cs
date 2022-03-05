@@ -473,7 +473,7 @@ namespace OPS.Landform
 
         protected override string MakePIDContent(string pid, string status)
         {
-            string url = GetUrlFromMessage(currentMessage);
+            string url = currentMessage != null ? GetUrlFromMessage(currentMessage) : null;
             return JsonHelper.ToJson(new TacticalPIDContent(pid, status, currentMessage, url), autoTypes: false);
         }
 
