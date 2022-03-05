@@ -447,7 +447,7 @@ namespace OPS.Landform
                                          Fmt.HMS(lvopts.IdleShutdownSec * 1e3), lvopts.IdleShutdownMethod);
                         if (lvopts.IdleShutdownFailsafeSec > 0)
                         {
-                            pipeline.LogInfo("failsafe OS shutdown after {0} idle}",
+                            pipeline.LogInfo("failsafe OS shutdown will occur after {0} idle",
                                              Fmt.HMS(lvopts.IdleShutdownFailsafeSec * 1e3));
                         }
                     }
@@ -1124,6 +1124,11 @@ namespace OPS.Landform
                                                  "shutdown method {3}",
                                                  selfEC2InstanceID, Fmt.HMS(idleSec * 1e3),
                                                  Fmt.HMS(lvopts.IdleShutdownSec * 1e3), lvopts.IdleShutdownMethod);
+                                if (lvopts.IdleShutdownFailsafeSec > 0)
+                                {
+                                    pipeline.LogInfo("failsafe OS shutdown will occur after {0} idle",
+                                                     Fmt.HMS(lvopts.IdleShutdownFailsafeSec * 1e3));
+                                }
                                 InitiateIdleShutdown();
                             }
                             else
