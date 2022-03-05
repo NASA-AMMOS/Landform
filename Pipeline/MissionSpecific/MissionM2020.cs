@@ -90,7 +90,8 @@ namespace OPS.Pipeline
         //CloudWatch service watchdog restart command, {venue} and {cwagentctl} will be replaced, empty to disable
         [ConfigEnvironmentVariable("LANDFORM_WATCHDOG_CLOUDWATCH_COMMAND")]
         public string WatchdogCloudWatchCommand { get; set; } =
-            "powershell -Command \"& {cwagentctl} -a fetch-config -m ec2 -s -c ssm:/m20/{venue}/ids/landform/cloudwatch\"";
+            //"powershell -Command \"& {cwagentctl} -a fetch-config -m ec2 -s -c ssm:/m20/{venue}/ids/landform/cloudwatch\"";
+            "powershell -Command \"& {cwagentctl} -a fetch-config -m ec2 -s -c file:C:\\landform\\config_files\\amazon-cloudwatch-agent.json\"";
     }
     
     public class MissionM2020 : MissionSpecific
