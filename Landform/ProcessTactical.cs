@@ -204,8 +204,8 @@ namespace OPS.Landform
                 {
                     try {
                         RunPhase("build tileset " + id, () => BuildTacticalTileset(mi));
-                    } catch (Exception) {
-                        //already logged
+                    } catch (Exception ex) {
+                        pipeline.LogException(ex);
                     }
                 }
             }
