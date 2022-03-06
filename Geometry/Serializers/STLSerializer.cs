@@ -129,7 +129,6 @@ namespace OPS.Geometry
         /// <param name="imageFilename"></param>
         public override void Save(Mesh m, string filename, string imageFilename)
         {
-            var triangles = m.Triangles();
             using (FileStream fs = new FileStream(filename, FileMode.Create, FileAccess.Write))
             {
                 using (BinaryWriter bw = new BinaryWriter(fs))
@@ -137,8 +136,8 @@ namespace OPS.Geometry
                     byte[] header = System.Text.Encoding.UTF8.GetBytes("STL created by Landform");
                     bw.Write(header);
                     bw.Write(new byte[80 - header.Length]);
-                    bw.Write(triangles.Count);
-                    foreach(var t in triangles)
+                    bw.Write(m.Faces.Count);
+                    foreach(var t in m.Triangles())
                     {
                         Vector3 n = t.Normal;
                         bw.Write((float)n.X);

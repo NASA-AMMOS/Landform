@@ -120,13 +120,11 @@ namespace OPS.Geometry
         /// on</returns>
         private Vector3WithTri[] PlacePointsOnSurface(Mesh input, int quantity)
         {
-            List<Triangle> tris = input.Triangles();
-
-            double[] runningTriAreas = new double[tris.Count];
+            double[] runningTriAreas = new double[input.Faces.Count];
             double surfaceArea = 0;
             for (int i = 0; i < runningTriAreas.Length; i++)
             {
-                surfaceArea += tris[i].Area();
+                surfaceArea += input.FaceToTriangle(i).Area();
                 runningTriAreas[i] = surfaceArea;
             }
 
@@ -135,7 +133,7 @@ namespace OPS.Geometry
             CoreLimitedParallel.For(0, samples.Length,
                                     () => new Random(random.Next()),
                                     (i, rng) => {
-                                        samples[i] = PickPointOnMesh(tris, runningTriAreas, surfaceArea, rng);
+                                        samples[i] = PickPointOnMesh(input, runningTriAreas, surfaceArea, rng);
                                         return rng;
                                     },
                                     rng => {});
@@ -146,14 +144,13 @@ namespace OPS.Geometry
         /// Picks a random face with probability proportional to its area in the mesh and places a point randomly within
         /// its triangle
         /// </summary>
-        /// <param name="tris">Triangles in the mesh</param>
+        /// <param name="input">the input mesh</param>
         /// <param name="runningTriAreas">Surface area of all triangles up to and including the nth triangle in the
-        /// tris list</param>
+        /// input mesh face list</param>
         /// <param name="surfaceArea">Total surface area of all triangles in the mesh</param>
         /// <returns>Randomly picked point on a random triangle represented as a coordinate Vector3/Triangle reference
         ///pair</returns>
-        private Vector3WithTri PickPointOnMesh(List<Triangle> tris, double[] runningTriAreas, double surfaceArea,
-                                               Random rng)
+        private Vector3WithTri PickPointOnMesh(Mesh input, double[] runningTriAreas, double surfaceArea, Random rng)
         {
             // Pick a face weighted by its area
             double chosenFaceRunningArea = rng.NextDouble() * surfaceArea;
@@ -180,7 +177,7 @@ namespace OPS.Geometry
             // Pick the index of the triangle from the binary search
             int index = runningTriAreas[first] >= chosenFaceRunningArea ? first : last;
 
-            Triangle chosenTri = tris[index];
+            Triangle chosenTri = input.FaceToTriangle(index);
             return new Vector3WithTri(chosenTri.RandomPoint(rng), chosenTri);
         }
 

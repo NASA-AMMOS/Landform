@@ -97,6 +97,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="CameraModels\PlanetaryBody.cs" />
+    <Compile Include="Imaging\BinaryImage.cs" />
     <Compile Include="Imaging\BrewerColors.cs" />
     <Compile Include="GdalConfiguration.cs" />
     <Compile Include="CameraModels\CAHV.cs" />

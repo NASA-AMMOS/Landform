@@ -172,9 +172,9 @@ namespace OPS.Landform
                                 pipeline.LogVerbose("not recomputing features for observation {0}", imageObs.Name);
                                 if (options.WriteFeatureImages || options.TallyExisting)
                                 {
-                                    var product =
-                                        pipeline.GetDataProduct<DetectedFeatures>(project.ProductPath,
-                                                                                  imageObs.FeaturesGuid, project.Name);
+                                    var product = pipeline
+                                        .GetDataProduct<DetectedFeatures>(project.ProductPath, imageObs.FeaturesGuid,
+                                                                          project.Name, noCache: true);
                                     if (options.WriteFeatureImages)
                                     {
                                         WriteFeatureImage(product, maskUrl, imageObs);
@@ -235,7 +235,7 @@ namespace OPS.Landform
 
                             if (!options.NoSave)
                             {
-                                pipeline.SaveDataProduct(project.ProductPath, result, project.Name);
+                                pipeline.SaveDataProduct(project.ProductPath, result, project.Name, noCache: true);
                                 imageObs.FeaturesGuid = result.Guid;
                                 imageObs.Save(pipeline);
                             }

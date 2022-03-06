@@ -50,7 +50,7 @@ namespace OPS.Pipeline.AlignmentServer
             var res = detector.Detect(message.ImageUrl, message.MaskUrl, project);
             if (res != null)
             {
-                pipeline.SaveDataProduct(project.ProductPath, res, projectName);
+                pipeline.SaveDataProduct(project.ProductPath, res, projectName, noCache: true);
                 LogLess("detected features for image {0} in project {1}", shortUrl, project.Name);
                 pipeline.EnqueueToMaster(new FeaturesDetectedMessage()
                                          { ImageUrl = message.ImageUrl, FeaturesGuid = res.Guid });

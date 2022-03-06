@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Text;
+using System.Linq;
 using System.Collections.Generic;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using OPS.Geometry;
@@ -499,24 +500,26 @@ namespace GeometryTest
             m.Faces.Add(new Face(0, 1, 2));
             m.Faces.Add(new Face(0, 2, 3));
 
-            List<Triangle> ts = m.Triangles();
+            List<Triangle> ts = m.Triangles().ToList();
+            Assert.AreEqual(2, ts.Count);
+
             Triangle t1 = new Triangle(new Vertex(0,   0, 0, 0, 0, 1, 0,    0, 1, 0, 0, 1),
                                        new Vertex(1,   0, 0, 0, 0, 1, 0.5,  0, 0, 1, 0, 1),
                                        new Vertex(1,   1, 0, 0, 0, 1, 0.5,  1, 0, 0, 1, 1));
-            Triangle t2 = new Triangle(new Vertex(0,   0, 0, 0, 0, 1, 0,    0, 1, 0, 0, 1),
-                                       new Vertex(1,   1, 0, 0, 0, 1, 0.5,  1, 0, 0, 1, 1),
-                                       new Vertex(0.5, 1, 0, 0, 0, 1, 0.25, 1, 0, 0, 1, 1));
-            Assert.AreEqual(2, ts.Count);
             Assert.AreEqual(t1.V0, ts[0].V0);
             Assert.AreEqual(t1.V1, ts[0].V1);
             Assert.AreEqual(t1.V2, ts[0].V2);
+
+            Triangle t2 = new Triangle(new Vertex(0,   0, 0, 0, 0, 1, 0,    0, 1, 0, 0, 1),
+                                       new Vertex(1,   1, 0, 0, 0, 1, 0.5,  1, 0, 0, 1, 1),
+                                       new Vertex(0.5, 1, 0, 0, 0, 1, 0.25, 1, 0, 0, 1, 1));
             Assert.AreEqual(t2.V0, ts[1].V0);
             Assert.AreEqual(t2.V1, ts[1].V1);
             Assert.AreEqual(t2.V2, ts[1].V2);
 
             // Check for side effects
-            t1.V0.Position.X = 7;
-            Assert.AreEqual(0, m.Vertices[0].Position.X);
+            ts[0].V0.Position.X = 7;
+            Assert.AreEqual(7, m.Vertices[0].Position.X);
         }
 
         [TestMethod]

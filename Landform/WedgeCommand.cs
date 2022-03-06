@@ -279,6 +279,7 @@ namespace OPS.Landform
                 .Where(obs => (obs is RoverObservation))
                 .Cast<RoverObservation>()
                 .Where(obs => (filter == null || filter(obs)))
+                .OrderBy(obs => obs.Name)
                 .ToList();
         }
 

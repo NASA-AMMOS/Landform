@@ -208,8 +208,19 @@ namespace OPS.Landform
                     return 0;
                 }
                  
-                RunPhase("checking/generating observation image masks", BuildObservationImageMasks);
-                RunPhase("build observation frustum hulls", BuildObsHulls);
+                RunPhase("check or generate observation image masks", BuildObservationImageMasks);
+                RunPhase("check or generate observation frustum hulls", () => BuildObservationImageHulls(noSave: true));
+                if (!options.NoBlend)
+                {
+                    if (options.PreadjustLuminance > 0 || options.Colorize)
+                    {
+                        RunPhase("check or generate observation image stats", BuildObservationImageStats);
+                    }
+                    RunPhase("check or generate blurred observation images", BuildBlurredObservationImages);
+                }
+
+                //conserve memory: we will (probably) want the textures later, but we can reload them at that point
+                RunPhase("clear LRU image cache", ClearImageCache);
 
                 RunPhase("build sky sphere tile geometry", BuildTileTree);
 
@@ -223,11 +234,6 @@ namespace OPS.Landform
 
                 if (!options.NoBlend)
                 {
-                    if (options.PreadjustLuminance > 0 || options.Colorize)
-                    {
-                        RunPhase("checking/computing observation image stats", BuildObservationImageStats);
-                    }
-                    RunPhase("build blurred observations", BuildBlurredObservationImages);
                     RunPhase("blending sky sphere tile textures", BlendTileTextures);
                 }
 
@@ -549,7 +555,7 @@ namespace OPS.Landform
                 var warpedMesh = new Mesh(mesh);
                 if (sceneOccludesSky && options.WarpOcclusionMesh > 0)
                 {
-                    pipeline.LogInfo("warping occlusion mesh {0}x, limit {1:F3}m)",
+                    pipeline.LogInfo("warping occlusion mesh {0}x, limit {1:F3}m",
                                      1 + options.WarpOcclusionMesh, WARP_MAX_ADJ);
                 }
                 //mission surface frames are X north, Y right, Z down
@@ -770,7 +776,8 @@ namespace OPS.Landform
 
                     var corners = new Vector3[] { bl, br, tl, tr };
 
-                    var leaf = new SceneNode((row * sphereTileCols + col).ToString(), root.Transform);
+                    //name in vertical raster order to improve image cache hits
+                    var leaf = new SceneNode((col * sphereTileRows + row).ToString(), root.Transform);
                     leaf.AddComponent(new MeshImagePair(mesh));
                     leaf.AddComponent(new NodeBounds(BoundingBox.CreateFromPoints(corners)));
                     leaf.AddComponent<NodeGeometricError>().Error = 0;
@@ -788,7 +795,7 @@ namespace OPS.Landform
 
         private void BuildTileTexturesAndSaveTiles()
         {
-            var leaves = tileTree.Leaves().ToList();
+            var leaves = tileTree.Leaves().OrderBy(n => n.Name).ToList(); //in vertical raster order
 
             pipeline.LogInfo("backprojecting {0} tiles, texture resolution {1}, quality {2}, prefer color {3}, " +
                              "texture far clip {4:f3}",
@@ -796,7 +803,7 @@ namespace OPS.Landform
                              options.TextureFarClip);
 
             int np = 0, curTileNum = 0, numFailed = 0, numSucceded = 0;
-            CoreLimitedParallel.ForEach(leaves, tile =>
+            CoreLimitedParallel.ForEachNoPartition(leaves, tile =>
             {
                 Interlocked.Increment(ref curTileNum);
                 Interlocked.Increment(ref np);
@@ -816,7 +823,7 @@ namespace OPS.Landform
                 {
                     if (!options.NoSave)
                     {
-                        SaveTile(mip, tile.Name, localSave, cloudSave, tile.IsLeaf);
+                        SaveTileContent(tile.Name, mip, tile.IsLeaf);
                     }
                     Interlocked.Increment(ref numSucceded);
                 }
@@ -849,7 +856,7 @@ namespace OPS.Landform
             {
                 pipeline.LogInfo("saving sky tile list");
                 var skySceneMesh = SceneMesh.Create(pipeline, project, MeshVariant.Sky, mesh);
-                pipeline.SaveDataProduct(project, tileList);
+                pipeline.SaveDataProduct(project, tileList, noCache: true);
                 skySceneMesh.TileListGuid = tileList.Guid;
                 skySceneMesh.Save(pipeline);
             }
@@ -883,7 +890,8 @@ namespace OPS.Landform
             {
                 string indexName = leafName + TilingDefaults.INDEX_FILE_SUFFIX + TilingDefaults.INDEX_FILE_EXT;
                 string indexUrl = pipeline.GetStorageUrl(outputFolder, project.Name, indexName);
-                var leafIndex = MaskBackprojectIndex(pipeline.LoadImage(indexUrl));
+                var leafIndex = pipeline.LoadImage(indexUrl); //LRU cache for later use in BuildBlendedLeafTextures()
+                leafIndex = MaskBackprojectIndex(leafIndex);
 
                 if (tileDecimation > 1)
                 {
@@ -896,8 +904,8 @@ namespace OPS.Landform
 
                 //blit into big map
                 int tileNum = int.Parse(leafName);
-                int tileRow = tileNum / sphereTileCols;
-                int tileCol = tileNum % sphereTileCols;
+                int tileRow = tileNum % sphereTileRows;
+                int tileCol = tileNum / sphereTileRows;
                 int dstPixelRow = tileRow * tileRes;
                 int dstPixelCol = (tileCol + (wrappable ? 0 : 1)) * tileRes;
 
@@ -937,44 +945,22 @@ namespace OPS.Landform
             }
 
             var edgeMode = wrappable ? LimberDMG.EdgeBehavior.WrapCylinder : LimberDMG.DEF_EDGE_BEHAVIOR;
-            Image bigBlendedImage = BlendImages.BlendImage(pipeline, bigIndexMap, bigBlurredImage, indexedImages,
-                                                           edgeMode: edgeMode, colorize: options.Colorize);
+            Image bigBlendedImage = BlendImage(bigBlurredImage, bigIndexMap, edgeMode: edgeMode);
+
             bigBlurredImage = null; //free memory
+            CheckGarbage(immediate: true);
 
             if (options.WriteDebug)
             {
                 SaveBackprojectTextureDebug(bigBlendedImage, TextureVariant.Blended, withMesh: false);
             }
 
-            var blendOptions = new BlendImagesOptions()
-            {
-                NoSave = options.NoSave,
-                NoProgress = options.NoProgress,
-                RedoBlendedObservationTextures = true, //yes, always redo
-                BlendStrategy = BlendStrategy.Inpaint,
-                BarycentricInterpolateWinners = false,
-                //BarycentricInterpolateMaxTriangleSideLengthPixels = 100,
-                InpaintDiff = -1,
-                BlurDiff = 7,
-                NoFillBlendWithAverageDiff = false
-            };
+            BuildBlendedObservationImages(bigBlendedImage, bigIndexMap, TextureVariant.SkyBlended, forceRedo: true);
 
-            Action<Image, Observation, string> saveDebugImg = null;
-            if (options.WriteDebug)
-            {
-                blendOptions.WriteDebug = true;
-                saveDebugImg = SaveDebugWedgeImage;
-            }
-
-            BlendImages.BuildBlendedObservationImages(pipeline, project, blendOptions, bigIndexMap, bigBlendedImage,
-                                                      indexedImages, TextureVariant.SkyBlended, saveDebugImg,
-                                                      options.Colorize ? medianHue : -1);
             bigIndexMap = bigBlendedImage = null;
+            CheckGarbage(immediate: true);
 
-            BlendImages.BuildBlendedLeafTextures(pipeline, project, outputFolder, tileList, indexedImages,
-                                                 orbitalTexture, options.BackprojectInpaintMissing,
-                                                 options.BackprojectInpaintGutter, TextureVariant.SkyBlended,
-                                                 colorizeHue: options.Colorize ? medianHue : -1);
+            BuildBlendedLeafTextures(outputFolder, TextureVariant.SkyBlended);
         }
     }
 }

@@ -141,7 +141,16 @@ namespace OPS.Util
                 return false;
             }
         }
-        
+
+        public void Clear()
+        {
+            lock (values)
+            {
+                values.Clear();
+                keyToNode.Clear();
+            }
+        }
+
         public TValue this[TKey key]
         {
             get //returns null if key not found
@@ -179,7 +188,7 @@ namespace OPS.Util
                         values.Remove(node);
                         values.AddFirst(node);
                     }
-                    else
+                    else if (capacity > 0)
                     {
                         node = values.AddFirst(new Entry(key, value));
                         keyToNode.AddOrUpdate(key, _ => node, (_, __) => node);

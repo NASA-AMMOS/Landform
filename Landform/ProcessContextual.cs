@@ -72,12 +72,12 @@ using OPS.Pipeline.AlignmentServer;
 /// * "c:/foo/bar"
 /// * "./foo/bar"
 ///
-/// The output tileset is named TTTT_SSSDDDD where TTTT is the primary sol and SSSDDDD is the primary sitedrive.  It is
-/// written to rdrDir/tileset/TTTT_SSSDDDD (*), unless --outputfolder is specified, in which case it is written to a
-/// subdirectory TTTT_SSSDDDD there.
+/// The output tileset is named TTTT_SSSDDDD[Vnn] where TTTT is the primary sol and SSSDDDD is the primary sitedrive.  Vnn is an optional version suffix where V is a literal V and nn is typically a two digit positive integer, but can be any string not containing whitespace, slashes, or underscores.  It is
+/// written to rdrDir/tileset/TTTT_SSSDDDD[Vnn] (*), unless --outputfolder is specified, in which case it is written to a
+/// subdirectory TTTT_SSSDDDD[Vnn] there.
 ///
 /// (*) Actually if rdrDir contains a prefix ending /rdr then the output directory is that prefix but with rdr replaced
-/// with rdr/tileset/TTTT_SSSDDDD.
+/// with rdr/tileset/TTTT_SSSDDDD[Vnn].
 ///
 /// When run as a service the RDR directory is also given as part of each SQS message.  Thus, the service will write the
 /// tilesets back to the same RDR tree as the source RDRs, but under the rdr/tileset subdirectory. (If the source bucket
@@ -86,15 +86,15 @@ using OPS.Pipeline.AlignmentServer;
 ///
 /// The tileset will contain
 /// * one .b3dm file per tile
-/// * a tilest file TTTT_SSSDDDD/TTTT_SSSDDDD_tileset.json
-/// * a manifest file TTTT_SSSDDDD/TTTT_SSSDDDD_scene.json with relative URLs
-/// * a stats file TTTT_SSSDDDD/TTTT_SSSDDDD_stats.txt.
+/// * a tilest file TTTT_SSSDDDD[Vnn]/TTTT_SSSDDDD[Vnn]_tileset.json
+/// * a manifest file TTTT_SSSDDDD[Vnn]/TTTT_SSSDDDD[Vnn]_scene.json with relative URLs
+/// * a stats file TTTT_SSSDDDD[Vnn]/TTTT_SSSDDDD[Vnn]_stats.txt.
 /// 
-/// Unless --nosky is specified all of the above also holds for a sky tileset named TTTT_SSSDDDD_sky.
+/// Unless --nosky is specified all of the above also holds for a sky tileset named TTTT_SSSDDDD[Vnn]_sky.
 /// 
-/// A combined scene manifest with absolute URLs can also be optionally created or updated as a sibling of the output
-/// tileset directory.  In that case the update-scene-manifest tool will also include any sibling tactical mesh tilesets
-/// in the manifest.
+/// A combined scene manifest TTT_SSSDDDD[Vnn]_scene.json with absolute URLs can also be optionally created or updated
+/// as a sibling of the output tileset directory.  In that case the update-scene-manifest tool will also include any
+/// sibling tactical mesh tilesets in the manifest.
 ///
 /// This service can also run in master service mode by specifying --master.  In that mode the service listens for
 /// messages indicating XYZ list files and/or XYZ wedge files have been created or updated.  There is generally one list
@@ -114,8 +114,8 @@ using OPS.Pipeline.AlignmentServer;
 /// worker management.  If --[orbital]workerinstances is a list of one or more EC2 instance IDs or name patterns, the
 /// corresponding workers are started (if not already running) when messages are added to the corresponding queue.  If
 /// --[orbital]workerinstances is a string of the form asg:<name>[:<size>] then the desired number of instances in that
-/// autoscale group is set to the given size (default 1).  If --workerwatchdogsec is positive then an additional 
-/// watchdog timer is activated that ensures the workers are running (in the same way as above) while messages are
+/// autoscale group is set to the given size (default 1).  If --workerautostartsec is positive then an additional 
+/// auto start timer is activated that ensures the workers are running (in the same way as above) while messages are
 /// available in the corresponding worker queue.  All of these options require permissions to perform the requisite
 /// actions on AWS instances and/or auto scale groups.
 ///
@@ -214,6 +214,12 @@ namespace OPS.Landform
 
         [Option(Default = false, HelpText = "Don't generate sky sphere tileset")]
         public bool NoSky { get; set; }
+
+        [Option(Default = ProcessContextual.Phase.begin, HelpText = "(Re)Start at phase: begin, fetch, ingest, align, geometry, leaves, blend, tileset, manifest, save, sky, combinedManifest (combine with --redo to ignore cached products)")]
+        public ProcessContextual.Phase StartPhase { get; set; }
+
+        [Option(Default = ProcessContextual.Phase.end, HelpText = "Stop at phase: fetch, ingest, align, geometry, leaves, blend, tileset, manifest, save, sky, combinedManifest, end (combine with --redo to ignore cached products)")]
+        public ProcessContextual.Phase EndPhase { get; set; }
 
         [Option(HelpText = "Sky mode (Box, Sphere, TopoSphere, Auto)", Default = BuildSkySphere.DEF_SKY_MODE)]
         public SkyMode SkyMode { get; set; }
@@ -321,21 +327,30 @@ namespace OPS.Landform
         [Option(Default = null, HelpText = "Sol blacklist, 1-5,8,6-10")]
         public string SolBlacklist { get; set; }
 
-        [Option(Default = false, HelpText = "Enable auto-starting workers when running on EC2")]
+        [Option(Default = false, HelpText = "Enable auto starting workers when running on EC2")]
         public bool AutoStartWorkers { get; set; }
 
-        [Option(Default = ProcessContextual.DEF_WORKER_WATCHDOG_SEC, HelpText = "Period in seconds of worker auto-start watchdog, non-positive to disable watchdog")]
-        public int WorkerWatchdogSec { get; set; }
+        [Option(Default = ProcessContextual.DEF_WORKER_AUTOSTART_SEC, HelpText = "Period in seconds of worker auto start, non-positive to disable auto start")]
+        public int WorkerAutoStartSec { get; set; }
 
         [Option(Default = null, HelpText = "Comma separated list of contextual worker EC2 instance ids (starting with \"i-\"), instance names, instance name wildcard patterns, or \"asg:<name>[:<size>]\" to use an auto scaling group (size defaults to 1)")]
         public string WorkerInstances { get; set; }
 
         [Option(Default = null, HelpText = "Comma separated list of orbital worker EC2 instance ids (starting with \"i-\"), instance names, or instance name wildcard patterns, or \"asg:<name>[:<size>]\" to use an auto scaling group (size defaults to 1)")]
         public string OrbitalWorkerInstances { get; set; }
+
+        [Option(Default = null, HelpText = "Force version string.  Can be any integer or string not containing whitespace, slashes, or underscores.  Non-positive integers have the effect of un-setting the version.  If null or empty then the next available version number is automatically assigned.")]
+        public string Version { get; set; }
+
+        [Option(Default = ProcessContextual.DEF_ZOMBIE_SEC, HelpText = "Consider existing PIDs zombie if not updated for longer than this (disabled if non-positive)")]
+        public int ZombieSec { get; set; }
     }
 
     public class ProcessContextual : LandformService
     {
+        public enum Phase
+        { begin, fetch, ingest, align, geometry, leaves, blend, tileset, manifest, save, sky, combinedManifest, end };
+
         public const string FETCH_DIR = "fetched";
 
         new public const int DEF_MAX_HANDLER_SEC = 6 * 60 * 60; //6 hours
@@ -344,9 +359,13 @@ namespace OPS.Landform
         public const int DEF_MASTER_MAX_HANDLER_SEC = 10 * 60; //10 minutes
         public const int DEF_MASTER_MAX_MESSAGE_AGE_SEC = 1 * 60 * 60; //1 hour
 
-        public const int DEF_WORKER_WATCHDOG_SEC = 5 * 60; //5 minutes
+        public const int DEF_WORKER_AUTOSTART_SEC = 5 * 60; //5 minutes
 
         public const int MASTER_LOOP_PERIOD_SEC = 10;
+
+        public const int MAX_VERSION = 100;
+        public const int VERSION_INTERLOCK_SEC = 10;
+        public const int DEF_ZOMBIE_SEC = 6 * 60 * 60; //6 hours
 
         //currently up to ~5min gaps in XYZ IMG within one pass
         //but PlacesDB orbital solutions may not stabilize for up to 25 min after generation
@@ -384,7 +403,7 @@ namespace OPS.Landform
 
         private int[] solBlacklist;
 
-        private MessageQueue workerQueue, orbitalWorkerQueue;
+        private volatile MessageQueue workerQueue, orbitalWorkerQueue;
 
         //RDR directory -> sitedrive -> list or wedge URL -> last changed UTC milliseconds
         //list and wedge URLs for which we recently recived ObjectCreated (i.e. changed) messages
@@ -401,7 +420,7 @@ namespace OPS.Landform
 
         private List<string> workerInstances, orbitalWorkerInstances;
 
-        private double lastWorkerWatchdogSec = -1;
+        private double lastWorkerAutoStartSec = -1;
 
         //message sent from master to worker
         //defines the job of building one contextual mesh
@@ -436,6 +455,114 @@ namespace OPS.Landform
                 }
                 var msg = obj as ContextualMeshMessage;
                 return msg.rdrDir == rdrDir && msg.primarySol == primarySol && msg.primarySiteDrive == primarySiteDrive;
+            }
+
+            public bool ExactEquals(ContextualMeshMessage other, ILogger logger = null)
+            {
+                if (other == null)
+                {
+                    if (logger != null)
+                    {
+                        logger.LogInfo("messages differ: null");
+                    }
+                    return false;
+                }
+
+                if (rdrDir != other.rdrDir)
+                {
+                    if (logger != null)
+                    {
+                        logger.LogInfo("messages differ: rdr dir \"{0}\" != \"{1}\"", rdrDir, other.rdrDir);
+                    }
+                    return false;
+                }
+
+                if (primarySol != other.primarySol)
+                {
+                    if (logger != null)
+                    {
+                        logger.LogInfo("messages differ: primary sol {0} != {1}", primarySol, other.primarySol);
+                    }
+                    return false;
+                }
+
+                if (primarySiteDrive != other.primarySiteDrive)
+                {
+                    if (logger != null)
+                    {
+                        logger.LogInfo("messages differ: primary site drive \"{0}\" != \"{1}\"",
+                                       primarySiteDrive, other.primarySiteDrive);
+                    }
+                    return false;
+                }
+
+                if (orbitalOnly != other.orbitalOnly)
+                {
+                    if (logger != null)
+                    {
+                        logger.LogInfo("messages differ: orbital only {0} != {1}", orbitalOnly, other.orbitalOnly);
+                    }
+                    return false;
+                }
+
+                if (timestamp != other.timestamp)
+                {
+                    if (logger != null)
+                    {
+                        logger.LogInfo("messages differ: timestamp {0} != {1}", UTCTime.MSSinceEpochToDate(timestamp),
+                                       UTCTime.MSSinceEpochToDate(other.timestamp));
+                    }
+                    return false;
+                }
+
+                var mySols = ParseSols();
+                var otherSols = other.ParseSols();
+                if (!mySols.SetEquals(otherSols))
+                {
+                    if (logger != null)
+                    {
+                        logger.LogInfo("messages differ: sols {0} != {1}", ProcessContextual.MakeSolRanges(mySols),
+                                       ProcessContextual.MakeSolRanges(otherSols));
+                    }
+                    return false;
+                }
+
+                var mySDs = ParseSiteDrives();
+                var otherSDs = other.ParseSiteDrives();
+                if (!mySDs.SetEquals(otherSDs))
+                {
+                    if (logger != null)
+                    {
+                        logger.LogInfo("messages differ: site drives {0} != {1}",
+                                       string.Join(",", mySDs.OrderBy(sd => sd).ToArray()),
+                                       string.Join(",", otherSDs.OrderBy(sd => sd).ToArray()));
+                    }
+                    return false;
+                }
+
+                return true;
+            }
+
+            public HashSet<int> ParseSols(HashSet<int> ret = null)
+            {
+                ret = ret ?? new HashSet<int>();
+                ret.Add(primarySol);
+                if (!string.IsNullOrEmpty(sols))
+                {
+                    ret.UnionWith(IngestAlignmentInputs.ExpandSolSpecifier(sols));
+                }
+                return ret;
+            }
+            
+            public HashSet<SiteDrive> ParseSiteDrives(HashSet<SiteDrive> ret = null)
+            {
+                ret = ret ?? new HashSet<SiteDrive>();
+                ret.Add(new SiteDrive(primarySiteDrive));
+                if (!string.IsNullOrEmpty(siteDrives))
+                {
+                    ret.UnionWith(SiteDrive.ParseList(siteDrives));
+                }
+                return ret;
             }
 
             public ContextualMeshMessage Clone()
@@ -608,8 +735,13 @@ namespace OPS.Landform
 
         protected override QueueMessage ParseMessage(string msg)
         {
-            return options.Master ? base.ParseMessage(msg)
-                : JsonHelper.FromJson<ContextualMeshMessage>(msg, autoTypes: false);
+            if (options.Master)
+            {
+                return base.ParseMessage(msg);
+            }
+            var cmm = JsonHelper.FromJson<ContextualMeshMessage>(msg, autoTypes: false);
+            cmm.timestamp = (long)UTCTime.NowMS();
+            return cmm;
         }
 
         protected override bool AcceptMessage(QueueMessage msg, out string reason)
@@ -750,7 +882,13 @@ namespace OPS.Landform
                 var parameters = MakeParameters(msg as ContextualMeshMessage);
                 if (parameters != null)
                 {
+                    ResetWatchdogStats();
                     BuildContextualTileset(parameters); //throws exception on error or if killed
+                    string stats = GetWatchdogStats();
+                    if (!string.IsNullOrEmpty(stats))
+                    {
+                        pipeline.LogInfo("memory watchdog: {0}", stats);
+                    }
                 }
                 return true; //message ignored or successfully processed, remove from queue
             }
@@ -846,10 +984,10 @@ namespace OPS.Landform
 
                 if (!serviceUtilMode)
                 {
-                    if (options.AutoStartWorkers)
+                    if (options.AutoStartWorkers && options.WorkerAutoStartSec > 0)
                     {
-                        pipeline.LogInfo("worker auto start enabled{0}", options.WorkerWatchdogSec > 0 ?
-                                         (" watchdog period " + Fmt.HMS(options.WorkerWatchdogSec * 1e3)) : "");
+                        pipeline.LogInfo("worker auto start enabled, period {0}",
+                                         Fmt.HMS(options.WorkerAutoStartSec * 1e3));
                         workerInstances = GetInstances(options.WorkerInstances);
                         orbitalWorkerInstances = GetInstances(options.OrbitalWorkerInstances, "orbital");
                     }
@@ -894,6 +1032,7 @@ namespace OPS.Landform
             return true;
         }
 
+        //uses EC2, called only by ParseArguments()
         protected List<string> GetInstances(string opt, string what = "")
         {
             var patterns = StringHelper.ParseList(opt);
@@ -959,10 +1098,12 @@ namespace OPS.Landform
 
             if (workerQueue != null)
             {
+                workerQueue.Dispose();
                 workerQueue = GetWorkerMessageQueue();
             }
             if (orbitalWorkerQueue != null)
             {
+                orbitalWorkerQueue.Dispose();
                 orbitalWorkerQueue = GetOrbitalWorkerMessageQueue();
             }
         }
@@ -1029,7 +1170,15 @@ namespace OPS.Landform
             base.RunService();
         }
 
-        private string MakeSolRanges(HashSet<int> sols)
+        protected override void DumpExtraStats()
+        {
+            if (!serviceMode)
+            {
+                base.DumpExtraStats();
+            }
+        }
+
+        public static string MakeSolRanges(HashSet<int> sols)
         {
             var ranges = new List<int[]>();
             foreach (var sol in sols.OrderBy(sol => sol))
@@ -1046,7 +1195,7 @@ namespace OPS.Landform
             return String.Join(",", ranges.Select(range => range[0] + (range[0] != range[1] ? ("-" + range[1]) : "")));
         }
 
-        private string MakeSolRanges(int[] sols)
+        public static string MakeSolRanges(int[] sols)
         {
             return MakeSolRanges(new HashSet<int>(sols));
         }
@@ -1088,20 +1237,10 @@ namespace OPS.Landform
             ret.RDRDir = !string.IsNullOrEmpty(msg.rdrDir) ? msg.rdrDir : options.RDRDir;
             
             ret.PrimarySol = msg.primarySol;
-            ret.Sols.Add(ret.PrimarySol);
-            
-            if (!string.IsNullOrEmpty(msg.sols))
-            {
-                ret.Sols.UnionWith(IngestAlignmentInputs.ExpandSolSpecifier(msg.sols));
-            }
+            msg.ParseSols(ret.Sols);
             
             ret.PrimarySiteDrive = new SiteDrive(msg.primarySiteDrive);
-            ret.SiteDrives.Add(ret.PrimarySiteDrive);
-            
-            if (!string.IsNullOrEmpty(msg.siteDrives))
-            {
-                ret.SiteDrives.UnionWith(SiteDrive.ParseList(msg.siteDrives));
-            }
+            msg.ParseSiteDrives(ret.SiteDrives);
 
             ret.NumWedges = msg.numWedges;
             ret.Timestamp = msg.timestamp;
@@ -1194,7 +1333,8 @@ namespace OPS.Landform
                 changedSDsBySol[primarySol].Add(primarySD.Value);
 
                 var placesDB = !orbitalOnly ? InitPlacesDB() : null;
-                var msg = MakeContextualMeshMessage(primarySD.Value, changedSDsBySol, allSDs, placesDB, orbitalOnly);
+                var msg = orbitalOnly ? MakeOrbitalMeshMessage(allSDs[primarySD.Value]) :
+                    MakeContextualMeshMessage(primarySD.Value, changedSDsBySol, allSDs, placesDB);
 
                 if (msg == null)
                 {
@@ -1250,6 +1390,169 @@ namespace OPS.Landform
             }
         }
 
+        private class ContextualPIDContent : ServicePIDContent
+        {
+            public ContextualMeshMessage message;
+
+            public ContextualPIDContent(string pid, string status, QueueMessage msg) : base(pid, status, msg)
+            {
+                this.message = msg as ContextualMeshMessage;
+            }
+        }
+
+        protected override string MakePIDContent(string pid, string status)
+        {
+            return JsonHelper.ToJson(new ContextualPIDContent(pid, status, currentMessage), autoTypes: false);
+        }
+
+        private string AssignVersionAndSavePID(string destDir, ref string project)
+        {
+            string sfx = "_orbital";
+            if (project.EndsWith(sfx))
+            {
+                project = project.Substring(0, project.Length - sfx.Length);
+            }
+            else
+            {
+                sfx = "";
+            }
+
+            string version = "";
+            string versionedProject = project + version + sfx;
+
+            string pid = GetPID();
+            string pidFile = null;
+            if (!string.IsNullOrEmpty(options.Version))
+            {
+                version = (int.TryParse(options.Version, out int v) && v <= 0) ? "" : ("V" + options.Version);
+                versionedProject = project + version + sfx;
+                pidFile = SavePID(destDir, versionedProject, "interlock");
+            }
+            else
+            {
+                for (int i = 0; i <= MAX_VERSION && pidFile == null; i++)
+                {
+                    if (i >= MAX_VERSION)
+                    {
+                        throw new Exception($"no versions available for tileset {destDir}/{project + sfx}");
+                    }
+                    if (i > 0)
+                    {
+                        version = "V" + i.ToString("D2");
+                    }
+                    versionedProject = project + version + sfx;
+                    bool noExisting = true, alreadyProcessed = false;
+                    foreach (var f in SearchFiles($"{destDir}/{versionedProject}/", recursive: false))
+                    {
+                        //we shouldn't normally be able to receive the same message to process a tileset
+                        //that is either already processed or currently processing by a live worker
+                        //because the message should be hidden from visibility by the heartbeat loop
+                        //while processing and it should be deleted after successful processing
+                        //however it is worth double checking here because the heartbeat loop can fail
+                        //and with FIFO queues when that happens the message can't even be deleted
+                        //until it is re-received
+                        //(eventually such a message will get deleted due to max receive count)
+                        noExisting = false;
+                        if (f.EndsWith(MESSAGE_JSON) && StringHelper.GetLastUrlPathSegment(f) == MESSAGE_JSON)
+                        {
+                            try
+                            {
+                                var existingJson = File.ReadAllText(GetFile(f, filenameUnique: false));
+                                var existingMsg = JsonHelper.FromJson<ContextualMeshMessage>(existingJson);
+                                bool sameMsg =
+                                    existingMsg.ExactEquals(currentMessage as ContextualMeshMessage, pipeline);
+                                if (sameMsg)
+                                {
+                                    alreadyProcessed = true;
+                                    pipeline.LogInfo("tileset {0}/{1} aborted, already procesessed at {2}",
+                                                     destDir, versionedProject, storageHelper.LastModified(f));
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                pipeline.LogException(ex, "failed to read " + f);
+                            }
+                        }
+                        else if (f.EndsWith(PID_JSON))
+                        {
+                            try
+                            {
+                                var existingJson = File.ReadAllText(GetFile(f, filenameUnique: false));
+                                var existingContent = JsonHelper.FromJson<ContextualPIDContent>(existingJson);
+                                var existingMsg = existingContent.message;
+                                bool sameMsg =
+                                    existingMsg.ExactEquals(currentMessage as ContextualMeshMessage, pipeline);
+                                DateTime? ts = null;
+                                if (sameMsg && (options.ZombieSec < 0 ||
+                                                DateTime.Now.Subtract((ts = storageHelper.LastModified(f)).Value)
+                                                .TotalSeconds < options.ZombieSec))
+                                {
+                                    alreadyProcessed = true;
+                                    pipeline.LogInfo("tileset {0}/{1} aborted, already processing by {2} " +
+                                                     "(current stage {3}{4})",
+                                                     destDir, versionedProject, existingContent.pid,
+                                                     existingContent.status, ts.HasValue ? $", last updated {ts}" : "");
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                pipeline.LogException(ex, "failed to read " + f);
+                            }
+                        }
+                    }
+                    if (alreadyProcessed)
+                    {
+                        return null;
+                    }
+                    else if (noExisting)
+                    {
+                        pidFile = SavePID(destDir, versionedProject, "interlock");
+                        pipeline.LogInfo("beginning {0} version interlock for tileset {1}/{2} for worker {3}",
+                                         Fmt.HMS(VERSION_INTERLOCK_SEC * 1e3), destDir, versionedProject, pid);
+                        if (!SleepSec(VERSION_INTERLOCK_SEC))
+                        {
+                            DeletePID(destDir, versionedProject, pidFile);
+                            pipeline.LogWarn("tileset {0}/{1} aborted in version interlock", destDir, versionedProject);
+                            return null;
+                        }
+                        string pidSfx = "_" + PID_JSON;
+                        var pids =
+                            SearchFiles($"{destDir}/{versionedProject}/", globPattern: "*" + pidSfx, recursive: false)
+                            .Select(url => StringHelper.GetLastUrlPathSegment(url))
+                            .Select(n => n.EndsWith(pidSfx) ? n.Substring(0, n.Length - pidSfx.Length) : n)
+                            .OrderByDescending(p => p)
+                            .ToList();
+                        if (pids.Count == 0)
+                        {
+                            DeletePID(destDir, versionedProject, pidFile); //just in case
+                            pipeline.LogWarn("tileset {0}/{1} aborted in version interlock, PID file missing",
+                                             destDir, versionedProject);
+                            return null;
+                        }
+                        if (!pids[0].StartsWith(pid))
+                        {
+                            DeletePID(destDir, versionedProject, pidFile);
+                            pipeline.LogInfo("tileset {0}/{1} aborted in version interlock, claimed by worker {2}",
+                                             destDir, versionedProject, pids[0]);
+                            return null;
+                        }
+                        pipeline.LogInfo("tileset {0}/{1} claimed by worker {2}", destDir, versionedProject, pid);
+                    }
+                }
+            }
+
+            pipeline.LogInfo("using version \"{0}\" for tileset {1}/{2}{3}", version, destDir, project, sfx);
+
+            project = versionedProject;
+
+            return pidFile;
+        }
+
+        private string SavePID(string destDir, string project, Phase phase, string pidFile)
+        {
+            return SavePID(destDir, project, phase.ToString(), pidFile);
+        }
+
         /// <summary>
         /// rdrDir is e.g.
         /// * "s3://BUCKET/ods/VER/sol/#####/ids/rdr"
@@ -1299,7 +1602,6 @@ namespace OPS.Landform
             string fetchDir = !string.IsNullOrEmpty(options.FetchDir) ? options.FetchDir : storageDir + "/" + FETCH_DIR;
             string ingestDir =
                 (rdrDir.StartsWith("s3://") && !(pipeline is CloudPipeline)) ? (fetchDir + "/rdrs") : solDir;
-            string tilesetDir = venueDir + "/" + TilingCommand.TILESET_DIR + "/" + project;
             string destDir = GetDestDir(solDir);
 
             var orbitalCfg = OrbitalConfig.Instance;
@@ -1337,7 +1639,16 @@ namespace OPS.Landform
 
                 Configure(venue);
 
-                if (!options.NoFetch && !orbitalOnly && rdrDir.StartsWith("s3://") && !(pipeline is CloudPipeline))
+                string pidFile = AssignVersionAndSavePID(destDir, ref project);
+                if (string.IsNullOrEmpty(pidFile))
+                {
+                    return;
+                }
+
+                string tilesetDir = venueDir + "/" + TilingCommand.TILESET_DIR + "/" + project;
+
+                if (!options.NoFetch && !orbitalOnly && rdrDir.StartsWith("s3://") && !(pipeline is CloudPipeline) &&
+                    options.StartPhase <= Phase.fetch && options.EndPhase >= Phase.fetch)
                 {
                     string searchLocations = rdrDir + "/";
                     string[] rdrSubdirs = mission.GetContextualMeshRDRSubdirs();
@@ -1349,7 +1660,8 @@ namespace OPS.Landform
                           "--onlyforsitedrives", sdsStr, "--nomeshes", "--summary");
                 }
 
-                if (!options.NoFetch && !options.NoOrbital)
+                if (!options.NoFetch && !options.NoOrbital &&
+                    options.StartPhase <= Phase.fetch && options.EndPhase >= Phase.fetch)
                 {
                     Action<string, string> fetchOrbitalAsset = (url, file) =>
                     {
@@ -1392,64 +1704,93 @@ namespace OPS.Landform
                     fetchOrbitalAsset(orbitalDEMUrl, orbitalDEMFile);
                 }
 
-                if (!options.NoIngest)
+                if (!options.NoIngest && options.StartPhase <= Phase.ingest && options.EndPhase >= Phase.ingest)
                 {
                     if (sols.Count > 1 && ingestDir.StartsWith("s3://") && ingestDir == solDir && ingestDir != rdrDir)
                     {
                         throw new NotImplementedException("ingestion from multi-sol s3 wildcard not implemented");
                     }
+                    SavePID(destDir, project, Phase.ingest, pidFile);
                     RunCommand("ingest", project, "--mission", fullMissionStr, "--meshframe", sdStr, 
                                "--onlyforsitedrives", sdsStr, "--onlyforsols", solRanges,
                                "--inputpath", ingestDir + "/" + (options.RecursiveSearch ? "**" : "*"), noSurface,
                                noOrbital, orbitalDEMFileOpt, orbitalImageFileOpt, camerasOpt);
                 }
 
-                if (!options.NoAlign && !orbitalOnly)
+                if (!options.NoAlign && !orbitalOnly &&
+                    options.StartPhase <= Phase.align && options.EndPhase >= Phase.align)
                 {
+                    SavePID(destDir, project, Phase.align, pidFile);
                     RunCommand("bev-align", options.AbortOnAlignmentError, project, allowUnmasked);
                     RunCommand("heightmap-align", options.AbortOnAlignmentError, project, allowUnmasked);
                 }
 
-                if (!options.NoGeometry)
+                if (!options.NoGeometry && options.StartPhase <= Phase.geometry && options.EndPhase >= Phase.geometry)
                 {
+                    SavePID(destDir, project, Phase.geometry, pidFile);
                     RunCommand("build-geometry", project, "--extent", options.Extent.ToString(),
                                "--surfaceextent", options.SurfaceExtent.ToString(), allowUnmasked);
                 }
                 
                 if (!options.NoTileset)
                 {
-                    BuildTilingInput(project, allowUnmasked);
-
-                    if (!orbitalOnly)
+                    if (options.StartPhase <= Phase.leaves && options.EndPhase >= Phase.leaves)
                     {
+                        SavePID(destDir, project, Phase.leaves, pidFile);
+                        BuildTilingInput(project, allowUnmasked, options.Redo ? "--texturevariant=Original" : "");
+                    }
+
+                    if (!orbitalOnly && options.StartPhase <= Phase.blend && options.EndPhase >= Phase.blend)
+                    {
+                        SavePID(destDir, project, Phase.blend, pidFile);
                         RunCommand("blend-images", project, allowUnmasked, colorize);
                     }
-                    
-                    BuildTileset(project, allowUnmasked);
-                    
-                    RunCommand("update-scene-manifest", project, "--notactical", "--nourls", "--nosky", allowUnmasked,
-                               "--sol", solStr, "--sitedrive", sdStr, "--sols", solRanges, "--sitedrives", sdsStr,
-                               "--manifestfile", tilesetDir + "/" + SCENE_JSON);
 
-                    SaveTileset(tilesetDir, project, destDir);
-
-                    if (!options.NoSky && !orbitalOnly)
+                    if (options.StartPhase <= Phase.tileset && options.EndPhase >= Phase.tileset)
                     {
-                        RunCommand("build-sky-sphere", project, "--skymode", options.SkyMode.ToString(), allowUnmasked,
-                                   "--sphereradius", options.SkySphereRadius,
+                        SavePID(destDir, project, Phase.tileset, pidFile);
+                        BuildTileset(project, allowUnmasked);
+                    }
+                    
+                    if (options.StartPhase <= Phase.manifest && options.EndPhase >= Phase.manifest)
+                    {
+                        SavePID(destDir, project, Phase.manifest, pidFile);
+                        RunCommand("update-scene-manifest", project, "--notactical", "--nourls", "--nosky",
+                                   allowUnmasked, "--sol", solStr, "--sitedrive", sdStr, "--sols", solRanges,
+                                   "--sitedrives", sdsStr, "--manifestfile", tilesetDir + "/" + SCENE_JSON);
+                    }
+                        
+                    if (options.StartPhase <= Phase.save && options.EndPhase >= Phase.save)
+                    {
+                        SavePID(destDir, project, Phase.save, pidFile);
+                        SaveTileset(tilesetDir, project, destDir);
+                    }
+
+                    if (!options.NoSky && !orbitalOnly &&
+                        options.StartPhase <= Phase.sky && options.EndPhase >= Phase.sky)
+                    {
+                        SavePID(destDir, project, Phase.sky, pidFile);
+                        RunCommand("build-sky-sphere", project, "--skymode", options.SkyMode.ToString(),
+                                   allowUnmasked, "--sphereradius", options.SkySphereRadius,
                                    "--minbackprojectradius", options.SkyMinBackprojectRadius);
                         string skyTilesetDir = venueDir + "/" + BuildSkySphere.SKY_TILESET_DIR + "/" + project;
-                        SaveTileset(skyTilesetDir, project, destDir, "_sky");
+                        SaveTileset(skyTilesetDir, project + "_sky", destDir);
                     }
                 }
 
-                if (!options.NoCombinedManifest && !orbitalOnly)
+                if (!options.NoCombinedManifest && !orbitalOnly &&
+                    options.StartPhase <= Phase.combinedManifest && options.EndPhase >= Phase.combinedManifest)
                 {
+                    SavePID(destDir, project, Phase.combinedManifest, pidFile);
                     RunCommand("update-scene-manifest", project, allowUnmasked, "--tilesetdir", destDir,
                                "--rdrdir", rdrDir, "--sol", solStr, "--sitedrive", sdStr,
                                "--sols", solRanges, "--sitedrives", sdsStr,
                                "--awsprofile", awsProfile, "--awsregion", awsRegion);
                 }
+
+                SaveMessage(destDir, project);
+
+                DeletePID(destDir, project, pidFile);
 
                 Cleanup(venueDir);
 
@@ -1457,8 +1798,9 @@ namespace OPS.Landform
             }
             catch
             {
+                pipeline.LogError("fatal error producing contextual tileset {0}", project);
                 Cleanup(venueDir);
-                throw;
+                throw; //will spew detailed error
             }
         }
 
@@ -1482,6 +1824,12 @@ namespace OPS.Landform
             return FilterProduct(id) ?? mission.FilterContextualMeshWedge(id, url);
         }
 
+        //uses S3, so needs to hold credentialRefreshLock when not running from ServiceLoop()
+        //actually called from
+        //ServiceLoop() -> AcceptMessage()
+        //ServiceLoop() -> HandleMessage()
+        //MasterLoop() (locks credentialRefreshLock) ->  LoadSiteDriveLists() [-> MakeList()]
+        //RunBatch() -> BuildContextualTileset() -> MakeParameters() -> FindAllSiteDrives() [-> MakeList()] (no lock)
         private string FilterTexture(RoverProductId id, string url)
         {
             bool videoEDRExists(string s3Folder, string basename)
@@ -1521,6 +1869,9 @@ namespace OPS.Landform
             return null;
         }
 
+        //called by
+        //HandleMessage()
+        //LoadSiteDriveLists()
         private void LoadList(SiteDriveList sdList, String url)
         {
             int split = url.LastIndexOf("/ids-pipeline/");
@@ -1704,6 +2055,8 @@ namespace OPS.Landform
             return ret;
         }
 
+        //called by
+        //MasterLoop()
         private Dictionary<SiteDrive, Stamped<SiteDriveList>>
             LoadSiteDriveLists(string rdrDir, Dictionary<SiteDrive, Dictionary<string, long>> urls)
         {
@@ -1971,6 +2324,26 @@ namespace OPS.Landform
             return ret;
         }
 
+        private ContextualMeshMessage MakeOrbitalMeshMessage(SiteDriveList primarySDList)
+        {
+            return MakeOrbitalMeshMessage(primarySDList.RDRDir, primarySDList.MaxSol, primarySDList.SiteDrive);
+        }
+
+        private ContextualMeshMessage MakeOrbitalMeshMessage(string rdrDir, int primarySol, SiteDrive primarySD)
+        {
+            return new ContextualMeshMessage()
+            {
+                rdrDir = rdrDir,
+                primarySol = primarySol,
+                primarySiteDrive = primarySD.ToString(),
+                sols = primarySol.ToString(), 
+                siteDrives = primarySD.ToString(),
+                numWedges = 0,
+                orbitalOnly = true,
+                timestamp = (long)UTCTime.NowMS()
+            };
+        }
+
         /// <summary>
         /// Applys heruistics to possibly make a ContextualMesh for primarySD.
         /// Returns null if it decided not to make one, or if there was a problem.
@@ -1982,55 +2355,36 @@ namespace OPS.Landform
         private ContextualMeshMessage MakeContextualMeshMessage(SiteDrive primarySD,
                                                                 Dictionary<int, List<SiteDrive>> changedSDsBySol,
                                                                 Dictionary<SiteDrive, SiteDriveList> allSDs,
-                                                                PlacesDB placesDB = null, bool orbitalOnly = false)
+                                                                PlacesDB placesDB = null)
         {
             SiteDriveList primarySDList = allSDs[primarySD];
 
             string rdrDir = primarySDList.RDRDir;
             int primarySol = primarySDList.MaxSol;
 
-            ContextualMeshMessage orbitalOnlyMsg()
-            {
-                pipeline.LogInfo("making orbital only contextual mesh");
-                return new ContextualMeshMessage()
-                {
-                    rdrDir = rdrDir,
-                    primarySol = primarySol,
-                    primarySiteDrive = primarySD.ToString(),
-                    sols = primarySol.ToString(), 
-                    siteDrives = primarySD.ToString(),
-                    numWedges = 0,
-                    orbitalOnly = true,
-                    timestamp = (long)UTCTime.NowMS()
-                };
-            }
-
-            if (orbitalOnly)
-            {
-                return orbitalOnlyMsg();
-            }
+            string name = string.Format("{0}_{1}", SolToString(primarySol), primarySD.ToString());
 
             int minSol = primarySol - solRange;
             int maxSol = primarySol + solRange;
             primarySDList = primarySDList.FilterToSolRange(minSol, maxSol);
-
-            string name = string.Format("{0}_{1}", SolToString(primarySol), primarySD.ToString());
 
             //primary site drive must have at least this many wedges
             //unless it's the highest numbered sitedrive in its sol
             if ((!changedSDsBySol.ContainsKey(primarySol) || primarySD < changedSDsBySol[primarySol].Max()) &&
                 options.MinPrimarySiteDriveWedges > 0 && primarySDList.NumWedges < options.MinPrimarySiteDriveWedges)
             {
-                string msg = "not producing";
-                ContextualMeshMessage ret = null;
-                if (orbitalWorkerQueue != null)
+                if (orbitalWorkerQueue == null)
                 {
-                    msg = "producing orbital only";
-                    ret = orbitalOnlyMsg();
+                    pipeline.LogInfo("making orbital only contextual mesh {0} in {1}, {2} < {3} wedges",
+                                     name, rdrDir, primarySDList.NumWedges, options.MinPrimarySiteDriveWedges);
+                    return MakeOrbitalMeshMessage(primarySDList);
                 }
-                pipeline.LogInfo("{0} contextual mesh {1} in {2}, {3} < {4} wedges",
-                                 msg, name, rdrDir, primarySDList.NumWedges, options.MinPrimarySiteDriveWedges);
-                return ret;
+                else
+                {
+                    pipeline.LogInfo("skipping contextual mesh {0} in {1}, {2} < {3} wedges",
+                                     name, rdrDir, primarySDList.NumWedges, options.MinPrimarySiteDriveWedges);
+                    return null;
+                }
             }
 
             int maxWedges = mission.GetContextualMeshMaxWedges();
@@ -2205,26 +2559,21 @@ namespace OPS.Landform
         /// enforces options.MaxSiteDrivesPerSol
         /// Returns messages sorted first by decreasing sol, then by decreasing number of wedges.
         /// </summary>
-        private List<ContextualMeshMessage> CoalesceMessages(List<ContextualMeshMessage> newMsgsOldestToNewest)
+        private List<ContextualMeshMessage> CoalesceMessages(List<ContextualMeshMessage> newMsgsOldestToNewest,
+                                                             string what, MessageQueue queue, string rdrDir)
         {
             if (newMsgsOldestToNewest.Count == 0)
             {
                 return newMsgsOldestToNewest;
             }
 
-            string rdrDir = newMsgsOldestToNewest[0].rdrDir;
-            if (newMsgsOldestToNewest.Any(msg => msg.rdrDir != rdrDir))
-            {
-                throw new ArgumentException("all new messages must have same RDR dir");
-            }
-                 
-            pipeline.LogInfo("coalescing {0} new messages with existing", newMsgsOldestToNewest.Count);
+            pipeline.LogInfo("coalescing {0} new {1} messages with existing", newMsgsOldestToNewest.Count, what);
 
             //keep at most one message per (primarySol, primarySiteDrive) pair
             //ContextualMeshMessage defines its GetHashCode() and Equals() by (primarySol, primarySiteDrive)
             var keepers = new HashSet<ContextualMeshMessage>();
 
-            void keepNewest(List<ContextualMeshMessage> msgs, string what)
+            void keepNewest(List<ContextualMeshMessage> msgs, string kind)
             {
                 for (int i = msgs.Count - 1; i >= 0; i--) //iterate newest -> oldest
                 {
@@ -2234,8 +2583,8 @@ namespace OPS.Landform
                     }
                     else
                     {
-                        pipeline.LogInfo("{0} contextual mesh message superceded by a newer one, dropping: {1}",
-                                         what, DescribeMessage(msgs[i], verbose: true));
+                        pipeline.LogInfo("{0} {1} mesh message superceded by a newer one, dropping: {2}",
+                                         kind, what, DescribeMessage(msgs[i], verbose: true));
                     }
                 }
             }
@@ -2248,40 +2597,30 @@ namespace OPS.Landform
             //really there should be no dupes among the old messages
             //but just in case, keep them in order
             int oldMsgsCount = 0;
-            void reapExisting(MessageQueue queue, string what)
+            var oldMsgsOldestToNewest = new List<ContextualMeshMessage>();
+            while (true)
             {
-                var oldMsgsOldestToNewest = new List<ContextualMeshMessage>();
-                while (true)
+                var msg = queue.DequeueOne<ContextualMeshMessage>() as ContextualMeshMessage;
+                if (msg == null)
                 {
-                    var msg = queue.DequeueOne<ContextualMeshMessage>() as ContextualMeshMessage;
-                    if (msg == null)
-                    {
-                        break;
-                    }
-                    if (msg.rdrDir == rdrDir)
-                    {
-                        queue.DeleteMessage(msg);
-                        oldMsgsOldestToNewest.Add(msg);
-                    }
+                    break;
                 }
-                pipeline.LogInfo("dequeued {0} {1} messages from {2}", oldMsgsOldestToNewest.Count, what, queue.Name);
-                
-                keepNewest(oldMsgsOldestToNewest, what);
-
-                oldMsgsCount += oldMsgsOldestToNewest.Count;
+                if (msg.rdrDir == rdrDir)
+                {
+                    queue.DeleteMessage(msg);
+                    oldMsgsOldestToNewest.Add(msg);
+                }
             }
+            pipeline.LogInfo("dequeued {0} {1} messages from {2}", oldMsgsOldestToNewest.Count, what, queue.Name);
+            
+            keepNewest(oldMsgsOldestToNewest, "old");
+            
+            oldMsgsCount += oldMsgsOldestToNewest.Count;
 
-            reapExisting(workerQueue, "existing");
-
-            if (orbitalWorkerQueue != null)
-            {
-                reapExisting(orbitalWorkerQueue, "existing orbital only");
-            }
-
-            if (options.MaxSiteDrivesPerSol > 0)
+            if (options.MaxSiteDrivesPerSol > 0 && keepers.Any(msg => !msg.orbitalOnly))
             {
                 var msgsBySol = new Dictionary<int, List<ContextualMeshMessage>>();
-                foreach (var msg in keepers)
+                foreach (var msg in keepers.Where(msg => !msg.orbitalOnly))
                 {
                     if (!msgsBySol.ContainsKey(msg.primarySol))
                     {
@@ -2309,12 +2648,14 @@ namespace OPS.Landform
                     }   
                     msgsBySol[sol] = filtered;
                 }
+                var oo = keepers.Where(msg => msg.orbitalOnly).ToList();
                 keepers.Clear();
+                keepers.UnionWith(oo);
                 keepers.UnionWith(msgsBySol.Values.SelectMany(msgs => msgs));
             }
 
-            pipeline.LogInfo("kept {0} coalesced messages from {1} old and {2} new",
-                             keepers.Count, oldMsgsCount, newMsgsOldestToNewest.Count);
+            pipeline.LogInfo("kept {0} {1} coalesced messages from {2} old and {3} new",
+                             keepers.Count, what, oldMsgsCount, newMsgsOldestToNewest.Count);
 
             //yes, OrderByDescending() is stable
             //https://stackoverflow.com/questions/1209935/orderby-and-orderbydescending-are-stable
@@ -2328,6 +2669,47 @@ namespace OPS.Landform
             //note message ordering will only be precisely respected if an SQS FIFO queue is used
             
             return coalesced;
+        }
+
+        //uses SQS, called only by MasterLoop() while holding credentialRefreshLock
+        private int EnqueueMessages(List<Stamped<ContextualMeshMessage>> msgs, string what, MessageQueue queue,
+                                    string rdrDir)
+        {
+            //default order messages by when the corresponding sitedrive list changed (oldest to newest)
+            var coalesced = msgs.OrderBy(sm => sm.Timestamp).Select(sm => sm.Value).ToList();
+            try
+            {
+                //remove duplicates and order descending by sol, then sitedrive, then num wedges
+                coalesced = CoalesceMessages(coalesced, what, queue, rdrDir);
+            }
+            catch (Exception ex)
+            {
+                pipeline.LogException(ex, $"error coalescing {what} mesh messages, proceeding with un-coaleseced");
+            }
+            
+            //TODO right about here we should try to determine if any workers
+            //are processing meshes for which there are new messages and if so, ask them to abort
+            //https://github.jpl.nasa.gov/OnSight/Landform/issues/1026
+            
+            pipeline.LogInfo("enqueueing {0} {1} mesh messages to {2} for {3}",
+                             coalesced.Count, what, queue.Name, rdrDir);
+
+            int n = 0;
+            foreach (var msg in coalesced)
+            {
+                try
+                {
+                    pipeline.LogInfo("enqueueing {0} mesh message to {1}: {2}",
+                                     what, queue.Name, DescribeMessage(msg, verbose: true));
+                    queue.Enqueue(msg);
+                    n++;
+                }
+                catch (Exception ex)
+                {
+                    pipeline.LogException(ex, $"adding {what} message to {queue.Name}");
+                }
+            }
+            return n;
         }
 
         private MessageQueue GetWorkerMessageQueue()
@@ -2372,6 +2754,7 @@ namespace OPS.Landform
             return null;
         }
 
+        //uses EC2, called only by MasterLoop() [-> WorkerAutoStart()] while holding credentialRefreshLock 
         private void StartWorkers(List<string> instances, string what = "")
         {
             if (instances != null && instances.Count > 0)
@@ -2458,33 +2841,19 @@ namespace OPS.Landform
             }
         }
 
-        private void WorkerWatchdog()
+        //uses SQS, called only by MasterLoop() while holding credentialRefreshLock
+        private void WorkerAutoStart(string what, MessageQueue queue, List<string> instances)
         {
-            lastWorkerWatchdogSec = UTCTime.Now();
-
             try
             {
-                if (workerInstances != null && workerQueue != null && workerQueue.GetNumMessages() > 0)
+                if (instances != null && queue != null && queue.GetNumMessages() > 0)
                 {
-                    StartWorkers(workerInstances);
+                    StartWorkers(instances);
                 }
             }
             catch (Exception ex)
             {
-                pipeline.LogException(ex, "in worker watchdog");
-            }
-
-            try
-            {
-                if (orbitalWorkerInstances != null && orbitalWorkerQueue != null &&
-                    orbitalWorkerQueue.GetNumMessages() > 0)
-                {
-                    StartWorkers(orbitalWorkerInstances);
-                }
-            }
-            catch (Exception ex)
-            {
-                pipeline.LogException(ex, "in orbital worker watchdog");
+                pipeline.LogException(ex, $"in {what} auto start");
             }
         }
 
@@ -2493,14 +2862,19 @@ namespace OPS.Landform
             double lastStartSec = -1;
             int targetPeriodSec = MASTER_LOOP_PERIOD_SEC;
 
-            pipeline.LogInfo("worker queue: {0}", workerQueue.Name);
+            if (workerQueue != null)
+            {
+                pipeline.LogInfo("worker queue: {0}", workerQueue.Name);
+            }
+
             if (orbitalWorkerQueue != null)
             {
                 pipeline.LogInfo("orbital worker queue: {0}", orbitalWorkerQueue.Name);
             }
+
             pipeline.LogInfo("running master loop, period {0}s, debounce {1}s", targetPeriodSec, debounceMS / 1000);
 
-            while (!shuttingDown)
+            while (!abort)
             {
                 if (lastStartSec >= 0)
                 {
@@ -2511,10 +2885,21 @@ namespace OPS.Landform
 
                 try
                 {
-                    if (options.AutoStartWorkers && options.WorkerWatchdogSec > 0 && lastWorkerWatchdogSec <= 0 ||
-                        (UTCTime.Now() - lastWorkerWatchdogSec) >= options.WorkerWatchdogSec)
+                    if (options.AutoStartWorkers && options.WorkerAutoStartSec > 0 && lastWorkerAutoStartSec <= 0 ||
+                        (UTCTime.Now() - lastWorkerAutoStartSec) >= options.WorkerAutoStartSec)
                     {
-                        WorkerWatchdog();
+                        lastWorkerAutoStartSec = UTCTime.Now();
+                        lock (credentialRefreshLock)
+                        {
+                            if (workerQueue != null)
+                            {
+                                WorkerAutoStart("contextual", workerQueue, workerInstances);
+                            }
+                            if (orbitalWorkerQueue != null)
+                            {
+                                WorkerAutoStart("orbital", orbitalWorkerQueue, orbitalWorkerInstances);
+                            }
+                        }
                     }
 
                     long now = (long)UTCTime.NowMS();
@@ -2550,7 +2935,55 @@ namespace OPS.Landform
                     
                     foreach (var rdrDir in urlsToProcess.Keys)
                     {
-                        var sdLists = LoadSiteDriveLists(rdrDir, urlsToProcess[rdrDir]);
+                        //don't delay orbital meshes while we collect adjacent sitedrives for contextual meshes
+                        //in practice that can take like ~30min
+                        //https://github.jpl.nasa.gov/OnSight/Landform/issues/1224
+                        if (orbitalWorkerQueue != null)
+                        {
+                            var omsgs = new List<Stamped<ContextualMeshMessage>>();
+                            foreach (var sd in urlsToProcess[rdrDir].Keys.OrderByDescending(sd => sd).ToList())
+                            {
+                                var urls = urlsToProcess[rdrDir][sd];
+                                if (urls.Count > 0)
+                                {
+                                    int sol = urls
+                                        .Max(entry => SiteDriveList.GetSol(entry.Key,
+                                                                           RoverProductId.Parse(entry.Key, mission,
+                                                                                                throwOnFail: false)));
+                                    if (sol >= 0)
+                                    {
+                                        long stamp = urls.Max(entry => entry.Value);
+                                        var msg = MakeOrbitalMeshMessage(rdrDir, sol, sd);
+                                        omsgs.Add(new Stamped<ContextualMeshMessage>(msg, stamp));
+                                    }
+                                    else
+                                    {
+                                        pipeline.LogWarn("error getting sol for orbital mesh {0} in {1}, first url {2}",
+                                                         sd, rdrDir, urls.First().Key);
+                                    }
+                                }
+                            }
+                            lock (credentialRefreshLock)
+                            {
+                                if (EnqueueMessages(omsgs, "orbital", orbitalWorkerQueue, rdrDir) > 0 &&
+                                    options.AutoStartWorkers && options.WorkerAutoStartSec > 0)
+                                {
+                                    StartWorkers(orbitalWorkerInstances, "orbital");
+                                }
+                            }
+                        }
+
+                        if (workerQueue == null)
+                        {
+                            pipeline.LogWarn("not enqueing contextual mesh messages for {0}, no worker queue", rdrDir);
+                            continue;
+                        }
+
+                        Dictionary<SiteDrive, Stamped<SiteDriveList>> sdLists = null;
+                        lock (longRunningCredentialRefereshLock)
+                        {
+                            sdLists = LoadSiteDriveLists(rdrDir, urlsToProcess[rdrDir]);
+                        }
 
                         var changedSDs = urlsToProcess[rdrDir].Keys
                             .Where(sd => sdLists.ContainsKey(sd))
@@ -2610,23 +3043,23 @@ namespace OPS.Landform
                                 .ToList();
                         }
 
-                        var msgs = new List<Stamped<ContextualMeshMessage>>();
-
                         //try to connect to PlacesDB just for this pass
-                        //we do that for a couple of reasons rather than having a single long-lived PlacesDB connection
+                        //rather than having a single long-lived PlacesDB connection
                         //for one thing our PlacesDB interface caches results, and the cache could become stale
                         //also, particularly in certain dev scenarios, PlacesDB availability may be iffy
                         //better to try on each pass rather than once ever
+                        var msgs = new List<Stamped<ContextualMeshMessage>>();
                         bool usePlaces = !options.NoSurface && UsePlacesDB();
-                        lock (usePlaces ? credentialRefreshLock : new Object())
+                        lock (usePlaces ? longRunningCredentialRefereshLock : new Object())
                         {
                             var placesDB = usePlaces ? InitPlacesDB() : null;
                             foreach (var changedSD in changedSDs)
                             {
                                 try
                                 {
-                                    var msg = MakeContextualMeshMessage(changedSD, changedSDsBySol, allSDs, placesDB,
-                                                                        options.NoSurface);
+                                    var msg = options.NoSurface ?
+                                        MakeOrbitalMeshMessage(allSDs[changedSD]) :
+                                        MakeContextualMeshMessage(changedSD, changedSDsBySol, allSDs, placesDB);
                                     if (msg != null)
                                     {
                                         msgs.Add(new Stamped<ContextualMeshMessage>(msg, sdLists[changedSD].Timestamp));
@@ -2638,88 +3071,12 @@ namespace OPS.Landform
                                 }
                             }
                         }
-
-                        //order messages according to when the corresponding sitedrive list changed (oldest to newest)
-                        var rawMsgs = msgs.OrderBy(sm => sm.Timestamp).Select(sm => sm.Value).ToList();
-                        
-                        if (msgs.Count > 0)
+                        lock (credentialRefreshLock)
                         {
-                            bool startWorkers = false, startOrbitalWorkers = false;
-
-                            try
-                            {
-                                //this will remove duplicates and also order descending
-                                //by sol, then sitedrive, then num wedges
-                                rawMsgs = CoalesceMessages(rawMsgs);
-                            }
-                            catch (Exception ex)
-                            {
-                                pipeline.LogException(ex, "error coalescing messages, proceeding with un-coaleseced");
-                            }
-                            
-                            //TODO right about here we should try to determine if any workers
-                            //are processing contextual meshes for which there are new messages
-                            //and if so, ask them to abort
-                            //https://github.jpl.nasa.gov/OnSight/Landform/issues/1026
-
-                            if (orbitalWorkerQueue != null)
-                            {
-                                pipeline.LogInfo("enqueueing {0} orbital only contextual mesh messages to {1} for {2}",
-                                                 rawMsgs.Count, orbitalWorkerQueue.Name, rdrDir);
-
-                                foreach (var msg in rawMsgs)
-                                {
-                                    var omsg = msg; //cannot modify foreach iteration variable
-                                    if (!omsg.orbitalOnly)
-                                    {
-                                        omsg = omsg.Clone();
-                                        omsg.orbitalOnly = true;
-                                    }
-                                    try
-                                    {
-                                        pipeline.LogInfo("enqueueing contextual mesh message to {0}: {1}",
-                                                         orbitalWorkerQueue.Name, DescribeMessage(omsg, verbose: true));
-                                        orbitalWorkerQueue.Enqueue(omsg);
-                                        startOrbitalWorkers = options.AutoStartWorkers;
-                                    }
-                                    catch (Exception ex)
-                                    {
-                                        pipeline.LogException(ex, "adding message to " + orbitalWorkerQueue.Name);
-                                    }
-                                }
-
-                                rawMsgs = rawMsgs.Where(msg => !msg.orbitalOnly).ToList();
-                            }
-                                
-                            pipeline.LogInfo("enqueueing {0} contextual mesh messages to {1} for {2}",
-                                             rawMsgs.Count, workerQueue.Name, rdrDir);
-                            
-                            foreach (var msg in rawMsgs)
-                            {
-                                try
-                                {
-                                    pipeline.LogInfo("enqueueing contextual mesh message to {0}: {1}",
-                                                     workerQueue.Name, DescribeMessage(msg, verbose: true));
-                                    workerQueue.Enqueue(msg);
-                                    startWorkers = options.AutoStartWorkers;
-                                }
-                                catch (Exception ex)
-                                {
-                                    pipeline.LogException(ex, "adding message to " + workerQueue.Name);
-                                }
-                            }
-
-                            if (startWorkers || startOrbitalWorkers)
-                            {
-                                lastWorkerWatchdogSec = UTCTime.Now();
-                            }
-                            if (startWorkers)
+                            if (EnqueueMessages(msgs, "contextual", workerQueue, rdrDir) > 0 &&
+                                options.AutoStartWorkers && options.WorkerAutoStartSec > 0)
                             {
                                 StartWorkers(workerInstances);
-                            }
-                            if (startOrbitalWorkers)
-                            {
-                                StartWorkers(orbitalWorkerInstances, "orbital");
                             }
                         }
                     }

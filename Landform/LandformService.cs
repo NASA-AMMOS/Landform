@@ -4,7 +4,9 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Text;
 using System.Reflection;
+using System.Threading;
 using System.Threading.Tasks;
 using CommandLine;
 using Amazon.SQS.Model;
@@ -72,7 +74,7 @@ namespace OPS.Landform
         [Option(Default = false, HelpText = "Delete message and fail queues iff Landform owned")]
         public bool DeleteQueues { get; set; }
 
-        [Option(Default = 0, HelpText = "SQS queue message timeout, nonpositive to use default")]
+        [Option(Default = 0, HelpText = "SQS queue message timeout, nonpositive to use default (does not apply to fail queues), only used when queues don't already exist")]
         public int MessageTimeoutSec { get; set; }
 
         [Option(Default = 0, HelpText = "Maximum handler runtime, nonpositive to use default")]
@@ -93,6 +95,9 @@ namespace OPS.Landform
         [Option(Default = -1, HelpText = "When running as EC2 instance, attempt shutdown after idle for at least this many seconds, non-positive disables")]
         public int IdleShutdownSec { get; set; }
 
+        [Option(Default = LandformService.DEF_IDLE_SHUTDOWN_FAILSAFE_SEC, HelpText = "Request OS shutdown after idle for this many seconds, non-positive disables")]
+        public int IdleShutdownFailsafeSec { get; set; }
+
         [Option(Default = IdleShutdownMethod.None, HelpText = "When running as EC2 instance use this method to shutdown after idle time exceeded")]
         public IdleShutdownMethod IdleShutdownMethod { get; set; }
 
@@ -101,20 +106,68 @@ namespace OPS.Landform
 
         [Option(HelpText = "Use default AWS profile (vs profile from credential refresh) for SQS client", Default = false)]
         public bool UseDefaultAWSProfileForSQSClient { get; set; }
+
+        [Option(Default = LandformService.DEF_WATCHDOG_PERIOD, HelpText = "Watchdog period (seconds), non-positive to disable")]
+        public double WatchdogPeriod { get; set; }
+
+        [Option(Default = LandformService.DEF_WATCHDOG_WARN_GB, HelpText = "Watchdog free system virtual memory warning level, absolute GB or fraction")]
+        public double WatchdogWarnGB { get; set; }
+
+        [Option(Default = LandformService.DEF_WATCHDOG_ACTION_GB, HelpText = "Watchdog free system virtual memory action level, absolute GB or fraction")]
+        public double WatchdogActionGB { get; set; }
+
+        [Option(Default = LandformService.DEF_WATCHDOG_ABORT_GB, HelpText = "Watchdog free system virtual memory abort level, absolute GB or fraction")]
+        public double WatchdogAbortGB { get; set; }
+
+        [Option(Default = 0, HelpText = "Positive integer number of GB to leak per watchdog period for leak test")]
+        public int WatchdogLeakTest { get; set; }
+
+        [Option(Default = null, HelpText = "Comma separated list of processes to check")]
+        public string CheckProcesses { get; set; }
+
+        [Option(Default = "mission", HelpText = "Watchdog SSM process, empty to disable, \"mission\" to use mission-specific default")]
+        public string WatchdogSSMProcess { get; set; }
+
+        [Option(Default = "mission", HelpText = "Watchdog SSM restart command, empty to disable, \"mission\" to use mission-specific default")]
+        public string WatchdogSSMCommand { get; set; }
+
+        [Option(Default = "mission", HelpText = "Watchdog CloudWatch process, empty to disable, \"mission\" to use mission-specific default")]
+        public string WatchdogCloudWatchProcess { get; set; }
+
+        [Option(Default = "mission", HelpText = "Watchdog CloudWatch restart command, empty to disable, \"mission\" to use mission-specific default")]
+        public string WatchdogCloudWatchCommand { get; set; }
     }
     
     public abstract class LandformService : LandformShell
     {
+        public const string MESSAGE_JSON = "message.json";
+
         public const double DEF_HEARTBEAT_REL_PERIOD = 0.333;
 
         public const int DEF_DEQUEUE_THROTTLE_MS = 1;
 
         public const int SERVICE_LOOP_THROTTLE_SEC = 60;
 
+        public const int DEF_IDLE_SHUTDOWN_FAILSAFE_SEC = 60 * 60;
+
         public const int IDLE_EVENT_THROTTLE_SEC = 60;
 
         public const int DEF_MAX_HANDLER_SEC = 10 * 60; //10 minutes
         public const int DEF_MAX_MESSAGE_AGE_SEC = 60 * 60; //1 hour
+
+        public const double DEF_WATCHDOG_PERIOD = 5; //seconds
+        public const double DEF_WATCHDOG_WARN_GB = 20;
+        public const double DEF_WATCHDOG_ACTION_GB = 10;
+        public const double DEF_WATCHDOG_ABORT_GB = 5;
+
+        //if actual total memory is less than this
+        //then interpret absolute watchdog thresholds as relative to this
+        public const double DEF_WATCHDOG_TOTAL_GB = 80;
+
+        public const int WATCHDOG_ABORT_PERIODS = 2;
+        public const int WATCHDOG_ABORT_EXIT_CODE = 10;
+
+        public const int WATCHDOG_PROCESS_RESTART_PERIODS = 12;
 
         //there is an interplay between the max message age and the max receive count
         //because each time a message is received it becomes invisible for at least the visibility timeout of the queue
@@ -153,28 +206,31 @@ namespace OPS.Landform
         /// implementations of HandleMessage(), are not locked because they cannot overlap with the call to
         /// RefreshCredentials() which is in the same thread.
         ///
-        /// Other threads which require credentials should hold credentialRefreshLock (only) while needed.  Not to avoid
-        /// concurrent use of credentials, which is totally fine (and even necessary e.g. for HeartbeatLoop()), but to
-        /// prevent RefreshCredentials() from being called while the credentials may be in use.
+        /// To prevent RefreshCredentials() from being called while the credentials may be in use, other threads which
+        /// require credentials should hold credentialRefreshLock only while needed.  Potentially long running
+        /// operations should use longRunningCredentialRefereshLock instead.  The only place that both locks should be
+        /// qcquired simultaneously is in ServiceLoop() before calling RefreshCredentials().  To prevent any chance of
+        /// deadlock acquisition order should always be:
+        /// credentialRefreshLock[, longRunningCredentialRefereshLock], deleteMessageLock.
         ///
         /// For example
         /// * HeartbeatLoop() acquires credentials when it needs to update SQS message timeouts.
-        /// * ProcessContextual.MasterLoop() acquires credentials while it may use PLACES.
+        /// * ProcessContextual.MasterLoop() acquires credentials while it may use PLACES or S3.
         /// </summary>
-        protected object credentialRefreshLock = new Object();
+        protected object credentialRefreshLock = new Object(), longRunningCredentialRefereshLock = new Object();
 
         /// <summary>
         /// ServiceLoop() acquires deleteMessageLock while deleting messages from the SQS queue.
         /// HeartbeatLoop() also acquires it while updating the message timeout.
         /// This avoids overlaps between deleting the message and updating its timeout.
         /// HeartbeatLoop() actually needs both credentialRefreshLock and deleteMessageLock while updating the timeout,
-        /// but that's OK.  It's the only thing that should acquire both at the same time.  Should anything else also
-        /// ever need to acquire both at the same time, the order must be 1) credentialRefreshLock; 2) deleteMessageLock
-        /// else deadlock can occur.
+        /// but that's OK.  It's the only thing that should acquire both at the same time.
+        /// To prevent any chance of deadlock acquisition order should always be:
+        /// credentialRefreshLock[, longRunningCredentialRefereshLock], deleteMessageLock.
         /// </summary>
         private object deleteMessageLock = new Object();
 
-        private volatile QueueMessage currentMessage;
+        protected volatile QueueMessage currentMessage;
         private volatile bool killedCurrentHandler;
 
         //in C# 64 bit fields can't  be volatile, so can't use double or long here
@@ -183,8 +239,20 @@ namespace OPS.Landform
 
         protected string selfEC2InstanceID;
 
-        protected volatile bool shuttingDown;
-        private double idleStartTime = -1, lastIdleEventTime = -1;
+        protected bool idleShutdownInitiated;
+        private double idlePendingStartTime = -1, idleStartTime = -1, lastIdleEventTime = -1;
+
+        private double totalMemory = -1;
+        private double watchdogWarnGB = -1;
+        private double watchdogActionGB = -1;
+        private double watchdogAbortGB = -1;
+
+        private double minFreeMemory = -1;
+        private int numWatchdogWarns = -1;
+        private int numWatchdogCollects = -1;
+        private int numWatchdogErrors = -1;
+        private object watchdogStatsLock = new Object();
+        private DateTime? minFreeMemoryTime = null;
 
         /// <summary>
         /// Simple JSON message for testing or in workflows not involving [SNS wrapped] S3 event messages.
@@ -208,6 +276,7 @@ namespace OPS.Landform
 
         public int Run()
         {
+            int exitCode = 0;
             try
             {
                 if (!ParseArguments())
@@ -247,27 +316,36 @@ namespace OPS.Landform
                 {
                     RunPhase("dropping failed messages", DropFailedMessages);
                 }
+                else if (lvopts.WatchdogLeakTest > 0)
+                {
+                    RunPhase("testing watchdog", WatchdogLoop);
+                }
+                else if (!string.IsNullOrEmpty(lvopts.CheckProcesses))
+                {
+                    RunPhase("checking processes", () =>
+                             ConsoleHelper.CheckProcesses(pipeline, StringHelper.ParseList(lvopts.CheckProcesses)));
+                }
                 else if (serviceMode)
                 {
                     RunService();
                 }
                 else
                 {
+                    Task.Run(() => WatchdogLoop());
                     RunBatch();
+                    abort = true;
                 }
             }
             catch (Exception ex)
             {
                 pipeline.LogException(ex);
-                return 1;
+                exitCode = 1;
+                abort = true;
             }
 
-            if (!serviceMode)
-            {
-                StopStopwatch();
-            }
+            StopStopwatch();
 
-            return 0;
+            return exitCode;
         }
 
         protected override bool ParseArguments()
@@ -287,12 +365,15 @@ namespace OPS.Landform
             bool failMessages = lvopts.FailMessages > 0;
             bool dropMessages = lvopts.DropMessages > 0;
             bool dropFailedMessages = lvopts.DropFailedMessages > 0;
+            bool leakTest = lvopts.WatchdogLeakTest > 0;
+            bool checkProcesses = !string.IsNullOrEmpty(lvopts.CheckProcesses);
 
             string utils = "--peekmessages, --peekfailedmessages, --deletequeues, --sendmessage, --retrymessages, " +
-                "--failmessages, --dropmessages, --dropfailedmessages";
+                "--failmessages, --dropmessages, --dropfailedmessages, --watchdogleaktest, --checkprocesses";
 
-            var utilOpts = new bool[] { lvopts.DeleteQueues, sendMessage, peekMessages, peekFailedMessages,
-                                        retryMessages, failMessages, dropMessages, dropFailedMessages };
+            var utilOpts = new bool[] {
+                lvopts.DeleteQueues, sendMessage, peekMessages, peekFailedMessages, retryMessages, failMessages,
+                dropMessages, dropFailedMessages, leakTest, checkProcesses };
             serviceUtilMode = utilOpts.Any(o => o);
             serviceMode = IsService();
 
@@ -300,6 +381,12 @@ namespace OPS.Landform
             {
                 throw new Exception(utils + ", and --service are mutually exclusive");
             }
+
+            if (leakTest || checkProcesses)
+            {
+                return true;
+            }
+
             if (serviceMode || serviceUtilMode)
             {
                 if (credentialRefreshSec > 0)
@@ -358,6 +445,11 @@ namespace OPS.Landform
                         }
                         pipeline.LogInfo("will attempt to shutdown after {0} idle, shutdown method {1}",
                                          Fmt.HMS(lvopts.IdleShutdownSec * 1e3), lvopts.IdleShutdownMethod);
+                        if (lvopts.IdleShutdownFailsafeSec > 0)
+                        {
+                            pipeline.LogInfo("failsafe OS shutdown will occur after {0} idle",
+                                             Fmt.HMS(lvopts.IdleShutdownFailsafeSec * 1e3));
+                        }
                     }
                     else
                     {
@@ -400,11 +492,13 @@ namespace OPS.Landform
 
             if (messageQueue != null)
             {
+                messageQueue.Dispose();
                 messageQueue = GetMessageQueue();
             }
 
             if (failMessageQueue != null)
             {
+                failMessageQueue.Dispose();
                 failMessageQueue = GetFailMessageQueue();
             }
         }
@@ -608,7 +702,7 @@ namespace OPS.Landform
                 }
                 name += "-fail";
             }
-            return GetMessageQueue(name, GetDefaultMessageTimeoutSec(), lvopts.LandformOwnedFailQueue, "fail message");
+            return GetMessageQueue(name, MessageQueue.DEF_TIMEOUT_SEC, lvopts.LandformOwnedFailQueue, "fail message");
         }
 
         protected MessageQueue GetMessageQueue(string name, int defTimeoutSec, bool landformOwned, string what)
@@ -648,6 +742,7 @@ namespace OPS.Landform
             return queue;
         }
 
+        //uses SQS, called only in service util mode so does not need to hold credentialRefreshLock
         protected virtual void SendMessage()
         {
             pipeline.LogInfo("{0}sending message to queue {1}", lvopts.DryRun ? "dry " : "", messageQueue.Name);
@@ -658,6 +753,7 @@ namespace OPS.Landform
             }
         }
 
+        //uses SQS, called only in service util mode so does not need to hold credentialRefreshLock
         private void PeekMessagesImpl(MessageQueue queue, int max)
         {
             pipeline.LogInfo("peeking up to {0} messages from {1}", max, queue.Name);
@@ -679,16 +775,19 @@ namespace OPS.Landform
             }
         }
 
+        //uses SQS, called only in service util mode so does not need to hold credentialRefreshLock
         private void PeekMessages()
         {
             PeekMessagesImpl(messageQueue, max: lvopts.PeekMessages);
         }
 
+        //uses SQS, called only in service util mode so does not need to hold credentialRefreshLock
         private void PeekFailedMessages()
         {
             PeekMessagesImpl(failMessageQueue, max: lvopts.PeekFailedMessages);
         }
 
+        //uses SQS, called only in service util mode so does not need to hold credentialRefreshLock
         private void MoveOrDropMessages(MessageQueue fromQueue, MessageQueue toQueue, int max)
         {
             if (toQueue != null)
@@ -733,26 +832,31 @@ namespace OPS.Landform
             }
         }
 
+        //uses SQS, called only in service util mode so does not need to hold credentialRefreshLock
         private void RetryMessages()
         {
             MoveOrDropMessages(fromQueue: failMessageQueue, toQueue: messageQueue, max: lvopts.RetryMessages);
         }
 
+        //uses SQS, called only in service util mode so does not need to hold credentialRefreshLock
         private void FailMessages()
         {
             MoveOrDropMessages(fromQueue: messageQueue, toQueue: failMessageQueue, max: lvopts.FailMessages);
         }
 
+        //uses SQS, called only in service util mode so does not need to hold credentialRefreshLock
         private void DropMessages()
         {
             MoveOrDropMessages(fromQueue: messageQueue, toQueue: null, max: lvopts.DropMessages);
         }
             
+        //uses SQS, called only in service util mode so does not need to hold credentialRefreshLock
         private void DropFailedMessages()
         {
             MoveOrDropMessages(fromQueue: failMessageQueue, toQueue: null, max: lvopts.DropFailedMessages);
         }
 
+        //uses SQS, called only in service util mode so does not need to hold credentialRefreshLock
         protected void DeleteQueue(MessageQueue queue, string what)
         {
             if (queue != null)
@@ -772,16 +876,48 @@ namespace OPS.Landform
             }
         }
 
+        //uses SQS, called only in service util mode so does not need to hold credentialRefreshLock
         protected virtual void DeleteQueues()
         {
             DeleteQueue(messageQueue, "message");
             DeleteQueue(failMessageQueue, "fail");
         }
 
-        private void IdleShutdown()
+        protected override string GetPID()
+        {
+            return !string.IsNullOrEmpty(selfEC2InstanceID) ? selfEC2InstanceID : base.GetPID();
+        }
+
+        protected class ServicePIDContent : PIDContent
+        {
+            public string messageId;
+
+            public ServicePIDContent(string pid, string status, QueueMessage msg) : base(pid, status)
+            {
+                this.messageId = msg?.MessageId;
+            }
+        }
+
+        protected override string MakePIDContent(string pid, string status)
+        {
+            return JsonHelper.ToJson(new ServicePIDContent(pid, status, currentMessage));
+        }
+
+        protected void SaveMessage(string destDir, string project)
+        {
+            string url = string.Format("{0}/{1}/{2}", destDir, project, MESSAGE_JSON);
+            pipeline.LogInfo("saving mesage file {0}", url);
+            TemporaryFile.GetAndDelete(MESSAGE_JSON, tmp => {
+                File.WriteAllText(tmp, JsonHelper.ToJson(currentMessage, autoTypes: false));
+                SaveFile(tmp, url);
+            });
+        }
+
+        //uses EC2, called only by ServiceLoop() so does not need to hold credentialRefreshLock
+        private void InitiateIdleShutdown()
         {
             if (lvopts.IdleShutdownMethod == IdleShutdownMethod.None || lvopts.IdleShutdownSec <= 0 ||
-                string.IsNullOrEmpty(selfEC2InstanceID) || shuttingDown)
+                string.IsNullOrEmpty(selfEC2InstanceID) || idleShutdownInitiated)
             {
                 return;
             }
@@ -791,7 +927,7 @@ namespace OPS.Landform
                 pipeline.LogInfo("{0} for instance {1}{2}", LOG_IDLE_MSG, selfEC2InstanceID,
                                  !string.IsNullOrEmpty(lvopts.AutoScaleGroup) ?
                                  (" in ASG " + lvopts.AutoScaleGroup) : "");
-                shuttingDown = true;
+                idleShutdownInitiated = true;
                 return;
             }
 
@@ -801,9 +937,9 @@ namespace OPS.Landform
                 {
                     pipeline.LogInfo("disabling scale-in protection for instance {0} (self) in ASG {1}",
                                      selfEC2InstanceID, lvopts.AutoScaleGroup);
-                    shuttingDown = computeHelper.SetInstanceProtection(lvopts.AutoScaleGroup, selfEC2InstanceID, false);
-                    if (shuttingDown)
+                    if (computeHelper.SetInstanceProtection(lvopts.AutoScaleGroup, selfEC2InstanceID, false))
                     {
+                        idleShutdownInitiated = true;
                         pipeline.LogInfo("{0} for instance {1} in ASG {2}",
                                          LOG_IDLE_MSG, selfEC2InstanceID, lvopts.AutoScaleGroup);
                     }
@@ -825,8 +961,11 @@ namespace OPS.Landform
                 try
                 {
                     pipeline.LogInfo("scaling ASG {0} to zero instances", lvopts.AutoScaleGroup);
-                    shuttingDown = computeHelper.SetAutoScalingGroupSize(lvopts.AutoScaleGroup, 0);
-                    if (!shuttingDown)
+                    if (computeHelper.SetAutoScalingGroupSize(lvopts.AutoScaleGroup, 0))
+                    {
+                        idleShutdownInitiated = true;
+                    }
+                    else
                     {
                         pipeline.LogError("failed to change ASG size");
                     }
@@ -844,8 +983,11 @@ namespace OPS.Landform
                 try
                 {
                     pipeline.LogInfo("stopping EC2 instance {0} (self)", selfEC2InstanceID);
-                    shuttingDown = computeHelper.StopInstances(selfEC2InstanceID);
-                    if (!shuttingDown)
+                    if (computeHelper.StopInstances(selfEC2InstanceID))
+                    {
+                        idleShutdownInitiated = true;
+                    }
+                    else
                     {
                         pipeline.LogError("failed to stop EC2 instance {0} (self)", selfEC2InstanceID);
                     }
@@ -857,10 +999,10 @@ namespace OPS.Landform
             }
 
             if (lvopts.IdleShutdownMethod == IdleShutdownMethod.Shutdown ||
-                (lvopts.IdleShutdownMethod == IdleShutdownMethod.StopInstanceOrShutdown && !shuttingDown))
+                (lvopts.IdleShutdownMethod == IdleShutdownMethod.StopInstanceOrShutdown))
             {
+                idleShutdownInitiated = true;
                 pipeline.LogInfo("requesting OS shutdown");
-                shuttingDown = true;
                 ConsoleHelper.Shutdown();
             }
         }
@@ -868,7 +1010,58 @@ namespace OPS.Landform
         protected virtual void RunService()
         {
             Task.Run(() => HeartbeatLoop());
+            Task.Run(() => WatchdogLoop());
             ServiceLoop();
+        }
+
+        private void CheckCredentials()
+        {
+            if (credentialRefreshSec <= 0)
+            {
+                return;
+            }
+
+            double overdueSec = 0;
+            if (lastCredentialRefreshSecUTC >= 0)
+            {
+                double deadline = lastCredentialRefreshSecUTC + credentialRefreshSec;
+                overdueSec = UTCTime.Now() - deadline;
+            }
+
+            if (overdueSec >= 0)
+            {
+                if (Monitor.TryEnter(credentialRefreshLock, 5000))
+                {
+                    try
+                    {
+                        if (Monitor.TryEnter(longRunningCredentialRefereshLock, 5000))
+                        {
+                            try
+                            {
+                                RefreshCredentials(); //let exception propagate
+                            }
+                            finally
+                            {
+                                Monitor.Exit(longRunningCredentialRefereshLock);
+                            }
+                        }
+                        else
+                        {
+                            pipeline.LogWarn("cannot acquire long-running lock to refresh credentials, {0} overdue",
+                                             Fmt.HMS(overdueSec * 1e3));
+                        }
+                    }
+                    finally
+                    {
+                        Monitor.Exit(credentialRefreshLock);
+                    }
+                }
+                else
+                {
+                    pipeline.LogWarn("cannot acquire lock to refresh credentials, {0} overdue",
+                                     Fmt.HMS(overdueSec * 1e3));
+                }
+            }
         }
 
         private void ServiceLoop()
@@ -900,27 +1093,60 @@ namespace OPS.Landform
                 }
             }
 
-            //while (!shuttingDown) //don't do this, just let the loop run until the instance is killed
-            while (true)
+            while (!abort)
             {
                 try
                 {
-                    if (credentialRefreshSec > 0 &&
-                        (lastCredentialRefreshSecUTC <= 0 ||
-                         (UTCTime.Now() - lastCredentialRefreshSecUTC) > credentialRefreshSec))
+                    double startSec = UTCTime.Now();
+
+                    CheckCredentials();
+
+                    QueueMessage msg = null;
+                    if (idleStartTime >= 0)
                     {
-                        lock (credentialRefreshLock)
+                        double now = UTCTime.Now();
+                        double idleSec = now - idleStartTime;
+                        if (lastIdleEventTime < 0 || (now - lastIdleEventTime > IDLE_EVENT_THROTTLE_SEC))
                         {
-                            RefreshCredentials();
+                            lastIdleEventTime = now;
+
+                            if (lvopts.IdleShutdownFailsafeSec > 0 && idleSec > lvopts.IdleShutdownFailsafeSec)
+                            {
+                                pipeline.LogWarn("EC2 instance {0} idle for {1} > {2}, requesting failsafe OS shutdown",
+                                                 selfEC2InstanceID, Fmt.HMS(idleSec * 1e3), 
+                                                 Fmt.HMS(lvopts.IdleShutdownFailsafeSec * 1e3));
+                                ConsoleHelper.Shutdown();
+                            }
+
+                            if (!idleShutdownInitiated)
+                            {
+                                pipeline.LogInfo("shutting down EC2 instance {0} (self), idle for {1} >= {2}, " +
+                                                 "shutdown method {3}",
+                                                 selfEC2InstanceID, Fmt.HMS(idleSec * 1e3),
+                                                 Fmt.HMS(lvopts.IdleShutdownSec * 1e3), lvopts.IdleShutdownMethod);
+                                if (lvopts.IdleShutdownFailsafeSec > 0)
+                                {
+                                    pipeline.LogInfo("failsafe OS shutdown will occur after {0} idle",
+                                                     Fmt.HMS(lvopts.IdleShutdownFailsafeSec * 1e3));
+                                }
+                                InitiateIdleShutdown();
+                            }
+                            else
+                            {
+                                //important to prevent zombie instances that prevent other instances from spawning
+                                //repeat LOG_IDLE_MSG so ASG scale down is retriggered until instance terminated
+                                pipeline.LogWarn("{0} for instance {1}{2}, " +
+                                                 "idle for {3} >= {4} but still running",
+                                                 LOG_IDLE_MSG, selfEC2InstanceID,
+                                                 !string.IsNullOrEmpty(lvopts.AutoScaleGroup) ?
+                                                 (" in ASG " + lvopts.AutoScaleGroup) : "",
+                                                 Fmt.HMS(idleSec * 1e3), Fmt.HMS(lvopts.IdleShutdownSec * 1e3));
+                            }
                         }
                     }
-                    
-                    double startSec = UTCTime.Now();
-                    QueueMessage msg = !shuttingDown ? DequeueOneMessage(messageQueue) : null;
-
-                    if (msg != null)
+                    else if ((msg = DequeueOneMessage(messageQueue)) != null)
                     {
-                        idleStartTime = -1;
+                        idlePendingStartTime = -1;
 
                         string desc = DescribeMessage(msg);
                         int ageSec = (int)(0.001 * (msg.ApproxReceiveMS - GetFirstReceiveMS(msg)));
@@ -956,23 +1182,23 @@ namespace OPS.Landform
 
                             killedCurrentHandler = false;
 
-                            lock (deleteMessageLock)
+                            try
                             {
-                                //the reason we hold deleteMessageLock here is to make sure that
-                                //the call to UpdateTimeout() in HeartbeatLoop() can't overlap with this
-                                currentMessage = null;
-                                if (handled || drop || recycle)
+                                lock (deleteMessageLock)
                                 {
-                                    try
+                                    //the reason we hold deleteMessageLock here is to make sure that
+                                    //the call to UpdateTimeout() in HeartbeatLoop() can't overlap with this
+                                    currentMessage = null;
+                                    if (handled || drop || recycle)
                                     {
                                         messageQueue.DeleteMessage(msg);
                                         deleted = true;
                                     }
-                                    catch (Exception deleteException)
-                                    {
-                                        pipeline.LogException(deleteException, "deleting message");
-                                    }
                                 }
+                            }
+                            catch (Exception deleteException)
+                            {
+                                pipeline.LogException(deleteException, "deleting message");
                             }
 
                             StopStopwatch(brief: true);
@@ -1035,45 +1261,23 @@ namespace OPS.Landform
                             }
                         }
                     }
-                    else // no messages available or shutting down
+                    else if (!string.IsNullOrEmpty(selfEC2InstanceID) && lvopts.IdleShutdownSec > 0 &&
+                             lvopts.IdleShutdownMethod != IdleShutdownMethod.None)
                     {
                         double now = UTCTime.Now();
-                        if (idleStartTime < 0)
+                        if (idlePendingStartTime < 0)
                         {
-                            idleStartTime = now;
-                            lastIdleEventTime = -1;
+                            idlePendingStartTime = now;
                         }
-                        else if (!string.IsNullOrEmpty(selfEC2InstanceID) && lvopts.IdleShutdownSec > 0 &&
-                                 lvopts.IdleShutdownMethod != IdleShutdownMethod.None)
+                        else if ((now - idlePendingStartTime) > lvopts.IdleShutdownSec)
                         {
-                            double idleSec = now - idleStartTime;
-                            if (idleSec > lvopts.IdleShutdownSec &&
-                                (lastIdleEventTime < 0 || (now - lastIdleEventTime > IDLE_EVENT_THROTTLE_SEC)))
-                            {
-                                if (!shuttingDown)
-                                {
-                                    pipeline.LogInfo("shutting down EC2 instance {0} (self), idle for {1} >= {2}, " +
-                                                     "shutdown method {3}",
-                                                     selfEC2InstanceID, Fmt.HMS(idleSec * 1e3),
-                                                     Fmt.HMS(lvopts.IdleShutdownSec * 1e3), lvopts.IdleShutdownMethod);
-                                    IdleShutdown();
-                                }
-                                else
-                                {
-                                    //important to prevent zombie instances that prevent other instances from spawning
-                                    //repeat LOG_IDLE_MSG so ASG scale down is retriggered until instance terminated
-                                    pipeline.LogWarn("{0} for instance {1}{2}, " +
-                                                     "idle for {3} >= {4} but still running",
-                                                     LOG_IDLE_MSG, selfEC2InstanceID,
-                                                     !string.IsNullOrEmpty(lvopts.AutoScaleGroup) ?
-                                                     (" in ASG " + lvopts.AutoScaleGroup) : "",
-                                                     Fmt.HMS(idleSec * 1e3), Fmt.HMS(lvopts.IdleShutdownSec * 1e3));
-                                }
-                                lastIdleEventTime = now;
-                            }
+                            pipeline.LogInfo("no messages available for {0} > {1}, going idle",
+                                             Fmt.HMS((now - idlePendingStartTime) * 1e3),
+                                             Fmt.HMS(lvopts.IdleShutdownSec * 1e3));
+                            idleStartTime = idlePendingStartTime;
                         }
                     }
-
+                    
                     double elapsedSec = UTCTime.Now() - startSec;
                     SleepSec((0.001 * throttleMS) - elapsedSec);
                 }
@@ -1106,8 +1310,7 @@ namespace OPS.Landform
             double targetPeriod = GetHeartbeatRelPeriod() * timeoutSec;
             pipeline.LogInfo("running heartbeat, period {0:F3}s, message timeout {1}s, max handler {2}",
                              targetPeriod, timeoutSec, Fmt.HMS(maxHandlerSec * 1e3));
-            //while (!shuttingDown) //don't do this, just let the loop run until the instance is killed
-            while (true)
+            while (!abort)
             {
                 if (currentMessage != null)
                 {
@@ -1115,7 +1318,7 @@ namespace OPS.Landform
                     if (totalSec > maxHandlerSec)
                     {
                         pipeline.LogError("handler has run for {0} > {1}, killing",
-                                          Fmt.HMS( totalSec * 1e3), Fmt.HMS(maxHandlerSec * 1e3));
+                                          Fmt.HMS(totalSec * 1e3), Fmt.HMS(maxHandlerSec * 1e3));
                         killedCurrentHandler = true;
                         KillCurrentCommand(); //swallows exceptions, but handler will throw exception if killed
                         SleepSec(targetPeriod);
@@ -1146,17 +1349,16 @@ namespace OPS.Landform
                                 }
                             }
                             
-                            if (lastHeartbeatSec >= 0)
-                            {
-                                //upper bound on time between visibility update
-                                double heartbeatPeriod = UTCTime.Now() - lastHeartbeatSec;
-                                if (heartbeatPeriod > timeoutSec)
-                                {
-                                    pipeline.LogError("heartbeat {0:F3}s exceeded visibility timeout {1:F3}s",
-                                                      heartbeatPeriod, timeoutSec);
-                                }
-                            }
+                            //upper bound on time between visibility update
+                            double heartbeatPeriod = lastHeartbeatSec >= 0 ? (UTCTime.Now() - lastHeartbeatSec) : -1;
+
                             lastHeartbeatSec = UTCTime.Now();
+
+                            if (heartbeatPeriod > timeoutSec)
+                            {
+                                pipeline.LogError("heartbeat {0} exceeded visibility timeout {1}",
+                                                  Fmt.HMS(heartbeatPeriod * 1e3), Fmt.HMS(timeoutSec * 1e3));
+                            }
                         }
                         catch (Exception ex)
                         {
@@ -1169,6 +1371,343 @@ namespace OPS.Landform
                 {
                     SleepSec(targetPeriod);
                     lastHeartbeatSec = -1;
+                }
+            }
+        }
+
+        protected string GetWatchdogStats()
+        {
+            lock (watchdogStatsLock)
+            {
+                var sb = new StringBuilder();
+                if (minFreeMemory >= 0)
+                {
+                    sb.Append(string.Format("period {0}, min {1}/{2} free at {3}", Fmt.HMS(lvopts.WatchdogPeriod * 1e3),
+                                            Fmt.Bytes(minFreeMemory), Fmt.Bytes(totalMemory), minFreeMemoryTime.Value));
+                    if (numWatchdogWarns > 0)
+                    {
+                        sb.Append(string.Format(", {0} warnings (< {1} free)",
+                                                numWatchdogWarns, Fmt.Bytes(watchdogWarnGB)));
+                    }
+                    if (numWatchdogCollects > 0)
+                    {
+                        sb.Append(string.Format(", {0} collects (< {1} free)",
+                                                numWatchdogCollects, Fmt.Bytes(watchdogActionGB)));
+                    }
+                    if (numWatchdogErrors > 0)
+                    {
+                        sb.Append(string.Format(", {0} critical (< {1} free)",
+                                                numWatchdogErrors, Fmt.Bytes(watchdogAbortGB)));
+                    }
+                }
+                return sb.ToString();
+            }
+        }
+
+        protected void ResetWatchdogStats()
+        {
+            lock (watchdogStatsLock)
+            {
+                minFreeMemory = -1;
+                numWatchdogWarns = -1;
+                numWatchdogCollects = -1;
+                numWatchdogErrors = -1;
+                minFreeMemoryTime = null;
+            }
+        }
+
+        protected override void DumpExtraStats()
+        {
+            string stats = GetWatchdogStats();
+            if (!string.IsNullOrEmpty(stats))
+            {
+                pipeline.LogInfo("memory watchdog: " + stats);
+            }
+        }
+
+        protected void WatchdogLoop()
+        {
+            //warn and possibly abort if memory runs low
+            //on production servers if the application uses too much virtual memory
+            //important services like CloudWatch can permanently crash (!)
+            //https://github.jpl.nasa.gov/OnSight/Landform/issues/1221
+
+            double targetPeriod = lvopts.WatchdogPeriod;
+            if (targetPeriod <= 0)
+            {
+                pipeline.LogInfo("watchdog disabled");
+                return;
+            }
+
+            totalMemory = ConsoleHelper.GetTotalSystemVirtualMemory();
+            double freeMemory = ConsoleHelper.GetFreeSystemVirtualMemory();
+            double lastThreshold = -1;
+            if (totalMemory > 0 && freeMemory > 0)
+            {
+                double getThreshold(double opt)
+                {
+                    double ret = -1;
+                    double gb = 1024L * 1024L * 1024L;
+                    if (opt < 0)
+                    {
+                        ret = 0;
+                    }
+                    else if (opt < 1)
+                    {
+                        ret = opt * totalMemory;
+                    }
+                    else if (totalMemory >= (DEF_WATCHDOG_TOTAL_GB * gb))
+                    {
+                        ret = opt * gb;
+                    }
+                    else
+                    {
+                        ret = (opt / DEF_WATCHDOG_TOTAL_GB) * totalMemory;
+                    }
+                    if (lastThreshold > 0)
+                    {
+                        ret = Math.Min(lastThreshold, ret);
+                    }
+                    ret = Math.Min(totalMemory, ret);
+                    if (ret > 0)
+                    {
+                        lastThreshold = ret;
+                    }
+                    return ret;
+                }
+                watchdogWarnGB = getThreshold(lvopts.WatchdogWarnGB);
+                watchdogActionGB = getThreshold(lvopts.WatchdogActionGB);
+                watchdogAbortGB = getThreshold(lvopts.WatchdogAbortGB);
+                if (watchdogWarnGB <= 0 && watchdogActionGB <= 0 && watchdogAbortGB <= 0)
+                {
+                    pipeline.LogInfo("memory watchdog disabled, all thresholds unset");
+                }
+                else
+                {
+                    pipeline.LogInfo("running memory watchdog, period {0}, " +
+                                     "{1}/{2} free, warn level {3} free, cleanup {4} abort {5}",
+                                     Fmt.HMS(targetPeriod * 1e3), Fmt.Bytes(freeMemory), Fmt.Bytes(totalMemory),
+                                     Fmt.Bytes(watchdogWarnGB), Fmt.Bytes(watchdogActionGB),
+                                     Fmt.Bytes(watchdogAbortGB));
+                }
+            }
+            else
+            {
+                pipeline.LogWarn("memory watchdog disabled, error getting system virtual memory stats");
+            }
+
+            var procNames = new List<string>();
+            var procCmds = new List<string>();
+            var procCounters = new List<int>();
+            string ssmProcess =
+                (lvopts.WatchdogSSMProcess == "mission") ? mission.GetSSMProcess() : lvopts.WatchdogSSMProcess;
+            string ssmCommand =
+                (lvopts.WatchdogSSMCommand == "mission") ? mission.GetSSMCommand() : lvopts.WatchdogSSMCommand;
+            bool ssmEnabled = !string.IsNullOrEmpty(ssmProcess) && !string.IsNullOrEmpty(ssmCommand);
+            if (ssmEnabled)
+            {
+                procNames.Add(ssmProcess);
+                procCmds.Add(ssmCommand);
+                procCounters.Add(WATCHDOG_PROCESS_RESTART_PERIODS);
+                pipeline.LogInfo("running SSM watchdog, period {0}, process: {1}, command: {2}",
+                                 Fmt.HMS(targetPeriod * 1e3), ssmProcess, ssmCommand);
+            }
+            else
+            {
+                pipeline.LogInfo("SSM watchdog disabled");
+            }
+
+            string cwProcess =(lvopts.WatchdogCloudWatchProcess == "mission") ? mission.GetCloudWatchProcess() :
+                lvopts.WatchdogCloudWatchProcess;
+            string cwCommand = (lvopts.WatchdogCloudWatchCommand == "mission") ? mission.GetCloudWatchCommand() :
+                lvopts.WatchdogCloudWatchCommand;
+            bool cwEnabled = !string.IsNullOrEmpty(cwProcess) && !string.IsNullOrEmpty(cwCommand);
+            if (cwEnabled)
+            {
+                procNames.Add(cwProcess);
+                procCmds.Add(cwCommand);
+                procCounters.Add(WATCHDOG_PROCESS_RESTART_PERIODS);
+                pipeline.LogInfo("running CloudWatch watchdog, period {0}, process: {1}, command: {2}",
+                                 Fmt.HMS(targetPeriod * 1e3), cwProcess, cwCommand);
+            }
+            else
+            {
+                pipeline.LogInfo("CloudWatch watchdog disabled");
+            }
+
+            string[] processName = procNames.ToArray();
+            string[] processCommand = procCmds.ToArray();
+            int[] processCounter = procCounters.ToArray();
+            bool[] processEverRan = new bool[processName.Length];
+            if (processName.Length > 0)
+            {
+                pipeline.LogInfo("running process watchdog for {0} processes: {1}",
+                                 processName.Length, String.Join(", ", processName));
+            }
+            else
+            {
+                pipeline.LogInfo("not running process watchdog");
+            }
+
+            ResetWatchdogStats();
+
+            bool memWarned = false, procWarned = false;
+            int abortCounter = WATCHDOG_ABORT_PERIODS;
+            var leaks = lvopts.WatchdogLeakTest > 0 ? new List<byte[]>() : null;
+            while (!abort)
+            {
+                SleepSec(targetPeriod);
+
+                if (lvopts.WatchdogLeakTest > 0)
+                {
+                    pipeline.LogWarn("TESTING MEMORY LEAK, allocating {0}GB", lvopts.WatchdogLeakTest);
+                    for (int i = 0; i < lvopts.WatchdogLeakTest; i++)
+                    {
+                        try
+                        {
+                            var leak = new byte[1024L * 1024L * 1024L];
+                            for (int j = 0; j < leak.Length; j++)
+                            {
+                                leak[j] = (byte)(j&0xFF);
+                            }
+                            leaks.Add(leak);
+                        }
+                        catch (Exception)
+                        {
+                            try
+                            {
+                                pipeline.LogError("failed to allocate");
+                            }
+                            catch (Exception)
+                            {
+                                //ignore
+                            }
+                        }
+                    }
+                }
+
+                freeMemory = totalMemory > 0 ? ConsoleHelper.GetFreeSystemVirtualMemory() : 0;
+                if (totalMemory > 0)
+                {
+                    pipeline.LogVerbose("{0}/{1} free memory", Fmt.Bytes(freeMemory), Fmt.Bytes(totalMemory));
+                }
+                if (freeMemory > 0)
+                {
+                    lock (watchdogStatsLock)
+                    {
+                        if (minFreeMemory < 0 || freeMemory < minFreeMemory)
+                        {
+                            minFreeMemory = freeMemory;
+                            minFreeMemoryTime = DateTime.Now;
+                        }
+                    }
+                    if (watchdogAbortGB >= 0 && freeMemory < watchdogAbortGB)
+                    {
+                        abortCounter--;
+                        lock (watchdogStatsLock)
+                        {
+                            numWatchdogErrors++;
+                        }
+                        if (abortCounter <= 0)
+                        {
+                            pipeline.LogError("{0} < {1} of {2} free system virtual memory, aborting",
+                                              Fmt.Bytes(freeMemory), Fmt.Bytes(watchdogAbortGB),
+                                              Fmt.Bytes(totalMemory));
+                            abort = true;
+                            ConsoleHelper.Exit(WATCHDOG_ABORT_EXIT_CODE);
+                        }
+                        else
+                        {
+                            pipeline.LogWarn("{0} < {1} of {2} free system virtual memory, " +
+                                             "aborting in {3}", Fmt.Bytes(freeMemory),
+                                             Fmt.Bytes(watchdogAbortGB), Fmt.Bytes(totalMemory),
+                                             Fmt.HMS(abortCounter * targetPeriod * 1e3));
+                            pipeline.ClearCaches();
+                            ConsoleHelper.GC();
+                        }
+                    }
+                    else
+                    {
+                        abortCounter = WATCHDOG_ABORT_PERIODS;
+
+                        if (watchdogActionGB >= 0 && freeMemory < watchdogActionGB)
+                        {
+                            lock (watchdogStatsLock)
+                            {
+                                numWatchdogCollects++;
+                            }
+                            pipeline.LogWarn("{0} < {1} of {2} free system virtual memory, recovering memory",
+                                             Fmt.Bytes(freeMemory), Fmt.Bytes(watchdogActionGB),
+                                             Fmt.Bytes(totalMemory));
+                            pipeline.ClearCaches();
+                            ConsoleHelper.GC();
+                        }
+                        else if (watchdogWarnGB >= 0 && freeMemory < watchdogWarnGB)
+                        {
+                            lock (watchdogStatsLock)
+                            {
+                                numWatchdogWarns++;
+                            }
+                            pipeline.LogWarn("{0} < {1} of {2} free system virtual memory",
+                                             Fmt.Bytes(freeMemory), Fmt.Bytes(watchdogWarnGB), Fmt.Bytes(totalMemory));
+                        }
+                    }
+                }
+                else if (totalMemory > 0 && !memWarned)
+                {
+                    pipeline.LogWarn("memory watchdog: error getting free system virtual memory");
+                    memWarned = true;
+                }
+
+                try
+                {
+                    ILogger logger = lvopts.Verbose ? pipeline : null;
+                    bool[] processRunning = ConsoleHelper.CheckProcesses(logger, processName);
+                    for (int i = 0; i < processRunning.Length; i++)
+                    {
+                        if (processRunning[i])
+                        {
+                            processCounter[i] = WATCHDOG_PROCESS_RESTART_PERIODS;
+                            if (!processEverRan[i])
+                            {
+                                processEverRan[i] = true;
+                                pipeline.LogInfo("detected running watchdog process {0}", processName[i]);
+                            }
+                        }
+                        else if (processEverRan[i])
+                        {
+                            processCounter[i]--;
+                            if (processCounter[i] <= 0)
+                            {
+                                pipeline.LogWarn("watchdog process {0} not running, attempting restart, command: {1}",
+                                                 processName[i], processCommand[i]);
+                                try
+                                {
+                                    var pr = new ProgramRunner(processCommand[i], waitForExit: false);
+                                    pr.Run(p => pipeline.LogInfo("restarted process {0}, PID {1}",
+                                                                 processName[i], p.Id));
+                                }
+                                catch (Exception ex)
+                                {
+                                    pipeline.LogException(ex, $"running {processCommand[i]}");
+                                }
+                                processCounter[i] = WATCHDOG_PROCESS_RESTART_PERIODS;
+                            }
+                            else
+                            {
+                                pipeline.LogWarn("watchdog process {0} not running, will attempt restart in {1}",
+                                                 processName[i], Fmt.HMS(processCounter[i] * targetPeriod * 1e3));
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    if (!procWarned)
+                    {
+                        pipeline.LogException(ex, "in watchdog for processes: " + string.Join(", ", processName));
+                        procWarned = true;
+                    }
                 }
             }
         }

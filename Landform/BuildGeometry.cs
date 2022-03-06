@@ -241,7 +241,12 @@ namespace OPS.Landform
         public const double DEF_BLEND_RADIUS = 3;
         public const double DEF_SEW_RADIUS = 0.2;
 
-        public const double SURFACE_HULL_MERGE_EPS = 0.01;
+        public const double OBS_CLOUD_MERGE_EPS = 0.005;
+        public const double SURFACE_HULL_MERGE_EPS = 0.1;
+        public const double SITEDRIVE_MERGE_EPS = 0.01;
+        public const double CROSS_SITEDRIVE_MERGE_EPS = 0.01;
+
+        public const int SURFACE_HULL_FILL_HOLES = 10;
 
         public const int BLEND_GUTTER_SAMPLES = 4;
 
@@ -258,12 +263,11 @@ namespace OPS.Landform
         private ConcurrentDictionary<string, Mesh> observationPointClouds = new ConcurrentDictionary<string, Mesh>();
         private Mesh orbitalPointCloud;
 
-        private Mesh surfaceHull;
         private MeshOperator surfaceHullUVMeshOp;
 
         private Mesh pointCloud;
 
-        private BoundingBox pointCloudBounds, envelopeBounds;
+        private BoundingBox pointCloudBounds;
 
         private Mesh mesh;
 
@@ -297,6 +301,7 @@ namespace OPS.Landform
                 if (!options.NoSurface)
                 {
                     RunPhase("build observation point clouds", BuildObservationPointClouds);
+                    RunPhase("clear LRU image cache", ClearImageCache);
                     RunPhase("build surface hull", MakeSurfaceHull);
                     RunPhase("merge point clouds", MergePointClouds);
                     RunPhase("reconstruct mesh", ReconstructMesh);
@@ -308,7 +313,7 @@ namespace OPS.Landform
 
                 if (!options.NoSurface)
                 {
-                    RunPhase("clip surface mesh", ClipSurfaceMesh);
+                    RunPhase("clip surface mesh", () => ClipSurfaceMesh(options.SurfaceExtent));
                     if (orbitalPointCloud == null)
                     {
                         //if we merged with an orbital pointcloud (which would have been clipped to the surface XY hull)
@@ -330,7 +335,7 @@ namespace OPS.Landform
                     {
                         extent = options.SurfaceExtent;
                     }
-                    RunPhase("clip mesh", () => ClipMesh(extent));
+                    RunPhase("clip surface mesh", () => ClipSurfaceMesh(extent));
                 }
                 else
                 {
@@ -459,8 +464,13 @@ namespace OPS.Landform
                 TrimmerLevel = options.PoissonTrimmerLevel,
                 PassEnvelopeToPoisson = options.PassEnvelopeToPoisson,
                 ClipToEnvelope = !options.NoPoissonClipToEnvelope,
-                MinIslandRatio = !options.NoPoissonRemoveIslands ? options.MinIslandRatio : 0
+                MinIslandRatio = !options.NoPoissonRemoveIslands ? options.MinIslandRatio : 0,
+                PreserveInputsOnError = true,
+                PreserveInputsOverrideFolder = Path.GetTempPath(), //system temp doesn't get wiped, ends with \
+                PreserveInputsOverrideName = "landform" //don't preserve more than one set of debug files
             };
+
+            pipeline.LogInfo("saving Poisson failure inputs to {0}", poissonOpts.PreserveInputsOverrideFolder);
 
             if (!string.IsNullOrEmpty(options.OutputMesh))
             {
@@ -518,7 +528,9 @@ namespace OPS.Landform
             wedgeMeshOpts = new WedgeObservations.MeshOptions()
             {
                 Frame = meshFrame,
-                NormalFilter = options.NormalFilter
+                NormalFilter = options.NormalFilter,
+                NoCacheTextureImages = true,
+                NoCacheGeometryImages = true
             };
 
             if ((options.ReconstructionMethod == MeshReconstructionMethod.Poisson) &&
@@ -583,6 +595,7 @@ namespace OPS.Landform
             int no = wedges.Count;
             pipeline.LogInfo("building point clouds for {0} wedges", no);
             int np = 0, nc = 0, nf = 0;
+            double lastSpew = UTCTime.Now();
             CoreLimitedParallel.ForEach(wedges, obs =>
             {
                 Interlocked.Increment(ref np);
@@ -590,8 +603,13 @@ namespace OPS.Landform
                 //bookeep name of the points observation so that we can recover its observation transform later
                 string ptsName = obs.Points == null ? obs.Range.Name : obs.Points.Name;
 
-                pipeline.LogVerbose("building {0} wedge point clouds in parallel, completed {1}/{2}, {3} failed",
-                                    np, nc, no, nf);
+                double now = UTCTime.Now();
+                if (!options.NoProgress && ((now - lastSpew) > 10))
+                {
+                    pipeline.LogInfo("building {0} wedge point clouds in parallel, completed {1}/{2}, {3} failed",
+                                     np, nc, no, nf);
+                    lastSpew = now;
+                }
 
                 var mo = wedgeMeshOpts.Clone();
                 mo.Decimate = WedgeObservations.AutoDecimate(obs.Points, options.DecimateWedgeMeshes,
@@ -643,6 +661,17 @@ namespace OPS.Landform
                         else if (!options.NoProgress)
                         {
                             pipeline.LogVerbose(msg);
+                        }
+                    }
+
+                    if (OBS_CLOUD_MERGE_EPS > 0)
+                    {
+                        int ov = pc.Vertices.Count;
+                        pc.MergeNearbyVertices(OBS_CLOUD_MERGE_EPS);
+                        if (!options.NoProgress)
+                        {
+                            pipeline.LogVerbose("merged {0} -> {1} points in observation {2}, epsilon {3:f3}m",
+                                                Fmt.KMG(ov), Fmt.KMG(pc.Vertices.Count), ptsName, OBS_CLOUD_MERGE_EPS);
                         }
                     }
 
@@ -699,19 +728,87 @@ namespace OPS.Landform
                     }
                 }
             }
+
+            int sz = observationPointClouds.Values.Sum(c => c.Vertices.Count);
+            if (sz == 0)
+            {
+                throw new Exception("no observation points");
+            }
+            pipeline.LogInfo("loaded {0} points from {1} observations, {2} failed", Fmt.KMG(sz), nc - nf, nf);
         }
 
         private void MakeSurfaceHull()
         {
-            var reducedSurfaceCloud = new Mesh();
-            reducedSurfaceCloud.Vertices = observationPointClouds.Values.SelectMany(pc => pc.Vertices).ToList();
-            pipeline.LogInfo("merging nearby vertices to make surface hull, {0} vertices, epsilon {1:f3}m",
-                             Fmt.KMG(reducedSurfaceCloud.Vertices.Count), SURFACE_HULL_MERGE_EPS);
-            reducedSurfaceCloud.MergeNearbyVertices(SURFACE_HULL_MERGE_EPS);
+            var oc = observationPointClouds.Values.ToArray();
+
+            ComputePointCloudBounds(oc);
+
+            //this works but can consume a huge amount of memory
+            //Mesh reducedSurfaceCloud = MeshMerge.Merge(oc, clean: false, mergeNearbyVertices: SURFACE_HULL_MERGE_EPS);
+
+            //instead grid the points as and just keep edges
+            var bMin = pointCloudBounds.Min;
+            var bMax = pointCloudBounds.Max;
+            int gridW = (int)Math.Ceiling((bMax.X - bMin.X) /  SURFACE_HULL_MERGE_EPS);
+            int gridH = (int)Math.Ceiling((bMax.Y - bMin.Y) /  SURFACE_HULL_MERGE_EPS);
+            pipeline.LogInfo("surface hull grid is {0}x{1} ({2:f3}m/px)", gridW, gridH, SURFACE_HULL_MERGE_EPS);
+            var grid = new BinaryImage(gridW, gridH);
+            foreach (var c in oc)
+            {
+                foreach (var v in c.Vertices)
+                {
+                    int i = Math.Min(gridH - 1, (int)((v.Position.Y - bMin.Y) / SURFACE_HULL_MERGE_EPS));
+                    int j = Math.Min(gridW - 1, (int)((v.Position.X - bMin.X) / SURFACE_HULL_MERGE_EPS));
+                    grid[i, j] = true;
+                }
+            }
+
+            pipeline.LogInfo("filling holes in surface hull up to {0:f3}m radius",
+                             SURFACE_HULL_FILL_HOLES * SURFACE_HULL_MERGE_EPS);
+            grid = grid.MorphologicalClose(SURFACE_HULL_FILL_HOLES);
+
+            Mesh reducedSurfaceCloud = new Mesh();
+            double z = 0.5 * (bMax.Z + bMin.Z);
+            for (int i = 0; i < gridH; i++)
+            {
+                for (int j = 0; j < gridW; j++)
+                {
+                    if (grid[i, j])
+                    {
+                        int s = 0;
+                        for (int di = -1; di <= 1; di++)
+                        {
+                            for (int dj = -1; dj <= 1; dj++)
+                            {
+                                if (grid[Math.Max(0, Math.Min(gridH - 1, i + di)),
+                                         Math.Max(0, Math.Min(gridW - 1, j + dj))])
+                                {
+                                    s++;
+                                }
+                            }
+                        }
+                        if (s < 9)
+                        {
+                            double y = bMin.Y + (i + 0.5) * SURFACE_HULL_MERGE_EPS;
+                            double x = bMin.X + (j + 0.5) * SURFACE_HULL_MERGE_EPS;
+                            reducedSurfaceCloud.Vertices.Add(new Vertex(x, y, z));
+                        }
+                    }
+                }
+            }
+
+            pipeline.LogInfo("merged {0} -> {1} vertices to make surface hull, epsilon {2:f3}m",
+                             Fmt.KMG(oc.Sum(c => c.Vertices.Count)), Fmt.KMG(reducedSurfaceCloud.Vertices.Count),
+                             SURFACE_HULL_MERGE_EPS);
 
             pipeline.LogInfo("delaunay triangulating {0} points to make surface hull",
                              Fmt.KMG(reducedSurfaceCloud.Vertices.Count));
-            surfaceHull = Delaunay.Triangulate(reducedSurfaceCloud.Vertices);
+            Mesh surfaceHull = Delaunay.Triangulate(reducedSurfaceCloud.Vertices);
+
+            //when the hull is made from a grid it may actually be a little bigger than the surface extent
+            //at this point because the grid points are centered on each grid cell
+            ClipMesh(surfaceHull, options.SurfaceExtent, clipToPointCloudBounds: false);
+
             pipeline.LogInfo("surface hull has {0} vertices, {1} triangles",
                              Fmt.KMG(surfaceHull.Vertices.Count), Fmt.KMG(surfaceHull.Faces.Count));
 
@@ -725,30 +822,84 @@ namespace OPS.Landform
 
         private void MergePointClouds()
         {
-            var groups = observationPointClouds.GroupBy(entry =>
+            var groups = new Dictionary<string, List<Mesh>>();
+            foreach (var entry in observationPointClouds)
             {
                 var obs = observationCache.GetObservation(entry.Key);
-                if (options.NoCleverCombine || options.IntraSitedriveCleverCombine || !(obs is RoverObservation))
+                string key =
+                    (options.NoCleverCombine || options.IntraSitedriveCleverCombine || !(obs is RoverObservation)) ?
+                    entry.Key : (obs as RoverObservation).SiteDrive.ToString();
+                if (!groups.ContainsKey(key))
                 {
-                    return entry.Key;
+                    groups[key] = new List<Mesh>();
                 }
-                return (obs as RoverObservation).SiteDrive.ToString();
-            }).ToArray();
+                groups[key].Add(entry.Value);
+            }
+            observationPointClouds.Clear(); //reduce memory usage
 
-            var cloudList = groups.Select(group =>
+            var origins = new List<Vector3>();
+            var cloudList = new List<Mesh>();
+            foreach (var entry in groups)
             {
-                var obsClouds = group.Select(pair => pair.Value).ToArray();
-                if (obsClouds.Length == 1)
+                if (!options.NoCleverCombine)
                 {
-                    return obsClouds[0];
+                    if (SiteDrive.IsSiteDriveString(entry.Key))
+                    {
+                        var xform = frameCache.GetRelativeTransform(entry.Key, meshFrame,
+                                                                    options.UsePriors, options.OnlyAligned);
+                        origins.Add(Vector3.Transform(Vector3.Zero, xform.Mean));
+                    }
+                    else
+                    {
+                        var pointsObs = observationCache.GetObservation(entry.Key);
+                        var pointsCam = pointsObs.CameraModel as CAHV;
+                        var obsToMesh = frameCache.GetObservationTransform(pointsObs, meshFrame,
+                                                                           options.UsePriors, options.OnlyAligned);
+                        //obsToMesh cannot be null here because WedgeObservations.BuildPointCloud() returned non-null
+                        if (pointsCam != null && options.IntraSitedriveCleverCombine)
+                        {
+                            //the reference point used to determine how good a point is for clever combine
+                            //naive version is using distance from camera
+                            origins.Add(Vector3.Transform(pointsCam.C, obsToMesh.Mean));
+                        }
+                        else
+                        {
+                            if (options.IntraSitedriveCleverCombine)
+                            {
+                                pipeline.LogWarn("no CAHV camera model for observation {0}, " +
+                                                 "using observation frame origin for clever combine", entry.Key);
+                            }
+                            origins.Add(Vector3.Transform(Vector3.Zero, obsToMesh.Mean));
+                        }
+                    }
                 }
-                pipeline.LogInfo("merging {0} observation point clouds in sitedrive {1} without clever combine, " +
-                                 "total {2} points", obsClouds.Length, group.Key,
-                                 Fmt.KMG(obsClouds.Sum(c => c.Vertices.Count)));
-                var pc = new Mesh(hasNormals: true);
-                pc.MergeWith(obsClouds, normalize: false, removeDuplicateVerts: false);
-                return pc;
-            }).ToList();
+
+                var obsClouds = entry.Value;
+                if (obsClouds.Count == 1)
+                {
+                    if (SITEDRIVE_MERGE_EPS > 0)
+                    {
+                        int ov = obsClouds[0].Vertices.Count;
+                        obsClouds[0].MergeNearbyVertices(SITEDRIVE_MERGE_EPS);
+                        pipeline.LogInfo("merged 1 observation point cloud in sitedrive {0} without clever combine, " +
+                                         "total {1} -> {2} points, epsilon {3:f3}m", entry.Key, Fmt.KMG(ov),
+                                         Fmt.KMG(obsClouds[0].Vertices.Count), SITEDRIVE_MERGE_EPS);
+                    }
+                    cloudList.Add(obsClouds[0]);
+                }
+                else
+                {
+                    int ov = obsClouds.Sum(c => c.Vertices.Count);
+                    var oc = obsClouds.ToArray();
+                    var pc = MeshMerge.Merge(oc, clean: false, mergeNearbyVertices: SITEDRIVE_MERGE_EPS,
+                                             afterEach: (i) => { oc[i] = null; } ); //reduce memory usage
+                    cloudList.Add(pc);
+                    pipeline.LogInfo("merged {0} observation point clouds in sitedrive {1} without clever combine, " +
+                                     "total {2} -> {3} points, epsilon {4:f3}m", oc.Length, entry.Key,
+                                     Fmt.KMG(ov), Fmt.KMG(pc.Vertices.Count), SITEDRIVE_MERGE_EPS);
+                }
+                obsClouds.Clear(); //reduce memory usage
+            }
 
             int numNonOrbitalClouds = cloudList.Count;
 
@@ -759,9 +910,17 @@ namespace OPS.Landform
                 MakeOrbitalPointCloud();
                 cloudList.Add(orbitalPointCloud);
                 pipeline.LogInfo("orbital point cloud has {0} points", Fmt.KMG(orbitalPointCloud.Vertices.Count));
+
+                if (poissonOpts.TrimmerLevel > 0)
+                {
+                    pipeline.LogInfo("disabling Poisson trimmer, using orbital to fill holes and surface hull to trim");
+                    poissonOpts.TrimmerLevel = 0;
+                }
             }
 
             var clouds = cloudList.ToArray();
+            cloudList.Clear(); //reduce memory usage
+
             long nv = clouds.Sum(pc => pc.Vertices.Count);
 
             int numDownward = 0;
@@ -798,55 +957,24 @@ namespace OPS.Landform
 
             if (options.NoCleverCombine)
             {
-                pipeline.LogInfo("merging {0} observation point clouds without clever combine, total {1} points",
-                                 clouds.Length, Fmt.KMG(nv));
-                pointCloud.MergeWith(clouds, normalize: false, removeDuplicateVerts: false);
+                pointCloud.MergeWith(clouds, clean: false, mergeNearbyVertices: CROSS_SITEDRIVE_MERGE_EPS,
+                                     afterEach: (i) => { clouds[i] = null; }); //reduce memory usage
+                pipeline.LogInfo("merged {0} observation clouds without clever combine, total {1} -> {2} points, " +
+                                 "epsilon {3:f3}m", clouds.Length, Fmt.KMG(nv), Fmt.KMG(pointCloud.Vertices.Count),
+                                 CROSS_SITEDRIVE_MERGE_EPS);
                 SaveDebugMesh(pointCloud, "cloud");
             }
             else
             {
-                var origins = groups.Select(group =>
-                {
-                    if (SiteDrive.IsSiteDriveString(group.Key))
-                    {
-                        var xform = frameCache.GetRelativeTransform(group.Key, meshFrame,
-                                                                    options.UsePriors, options.OnlyAligned);
-                        return Vector3.Transform(Vector3.Zero, xform.Mean);
-                    }
-                    else
-                    {
-                        var pointsObs = observationCache.GetObservation(group.Key);
-                        var pointsCam = pointsObs.CameraModel as CAHV;
-                        var obsToMesh = frameCache.GetObservationTransform(pointsObs, meshFrame,
-                                                                           options.UsePriors, options.OnlyAligned);
-                        //obsToMesh cannot be null here because WedgeObservations.BuildPointCloud() returned non-null
-                        if (pointsCam != null && options.IntraSitedriveCleverCombine)
-                        {
-                            //the reference point used to determine how good a point is for clever combine
-                            //naive version is using distance from camera
-                            return Vector3.Transform(pointsCam.C, obsToMesh.Mean);
-                        }
-                        else
-                        {
-                            if (options.IntraSitedriveCleverCombine)
-                            {
-                                pipeline.LogWarn("no CAHV camera model for observation {0}, " +
-                                                 "using observation frame origin for clever combine", group.Key);
-                            }
-                            return Vector3.Transform(Vector3.Zero, obsToMesh.Mean);
-                        }
-                    }
-                }).ToArray();
-
                 if (options.WriteDebug || clouds.Length == 1)
                 {
-                    pointCloud.MergeWith(clouds, normalize: false, removeDuplicateVerts: false);
+                    pointCloud.MergeWith(clouds, clean: false);
+                    SaveDebugMesh(pointCloud, "cloud");
                 }
-
-                SaveDebugMesh(pointCloud, "cloud");
 
                 if (clouds.Length > 1)
                 {
+                    pointCloud = null; //reduce memory usage
                     pipeline.LogInfo("clever combining {0} point clouds, cell size {1}, aspect {2}, " +
                                      "max points per cell {3}, total {4} pts",
                                      clouds.Length, options.CleverCombineCellSize, options.CleverCombineCellAspect,
@@ -854,7 +982,7 @@ namespace OPS.Landform
                     
                     var cc = new CleverCombine(options.CleverCombineCellSize, options.CleverCombineCellAspect,
                                                options.CleverCombineMaxPointsPerCell);
-                    pointCloud = cc.Combine(clouds, origins, pipeline);
+                    pointCloud = cc.Combine(clouds, origins.ToArray(), pipeline);
                     
                     pipeline.LogInfo("clever combine returned {0} points", Fmt.KMG(pointCloud.Vertices.Count));
                     
@@ -866,17 +994,10 @@ namespace OPS.Landform
                 }
             }
 
-            observationPointClouds.Clear(); //significant memory usage
-
-            pointCloudBounds = pointCloud.Bounds();
-
-            envelopeBounds = pointCloudBounds;
-
-            envelopeBounds.Max += options.ExpandEnvelopeBounds * Vector3.UnitZ;
-            envelopeBounds.Min -= options.ExpandEnvelopeBounds * Vector3.UnitZ;
-            poissonOpts.Envelope = envelopeBounds;
-
-            SaveDebugMesh(envelopeBounds.ToMesh(), "envelope");
+            if (options.NoSurface)
+            {
+                ComputePointCloudBounds(pointCloud); //normally this is done in MakeSurfaceHull()
+            }
 
             if (options.WriteDebug && wedgeMeshOpts.NormalScale != NormalScale.None)
             {
@@ -888,6 +1009,18 @@ namespace OPS.Landform
                 colored.NormalizeNormals();
                 SaveDebugMesh(colored, wedgeMeshOpts.NormalScale.ToString());
             }
+        }
+
+        private void ComputePointCloudBounds(params Mesh[] pointCloud)
+        {
+            pointCloudBounds = BoundingBoxExtensions.Union(pointCloud.Select(pc => pc.Bounds()).ToArray());
+
+            pointCloudBounds.Max += options.ExpandEnvelopeBounds * Vector3.UnitZ;
+            pointCloudBounds.Min -= options.ExpandEnvelopeBounds * Vector3.UnitZ;
+
+            poissonOpts.Envelope = pointCloudBounds;
+
+            SaveDebugMesh(pointCloudBounds.ToMesh(), "envelope");
         }
 
         private void ReconstructMesh()
@@ -978,7 +1111,7 @@ namespace OPS.Landform
 
         private void CleanMesh()
         {
-            mesh.Clip(envelopeBounds);
+            mesh.Clip(pointCloudBounds);
 
             if (options.MinIslandRatio > 0)
             {
@@ -998,12 +1131,18 @@ namespace OPS.Landform
 
             mesh.GenerateVertexNormals();
 
+            if (mesh.Faces.Count == 0)
+            {
+                throw new Exception("cleaned mesh is empty");
+            }
+
             pipeline.LogInfo("cleaned mesh has {0} faces", Fmt.KMG(mesh.Faces.Count));
         }
 
-        private void ClipSurfaceMesh()
+        private void ClipSurfaceMesh(double extent = 0)
         {
-            ClipMesh(options.SurfaceExtent);
+            ClipMesh(mesh, extent);
+            CleanMesh();
             SaveDebugMesh(mesh, "clipped-surface");
         }
 
@@ -1412,41 +1551,24 @@ namespace OPS.Landform
             SaveDebugMesh(mesh, "combined");
         }
 
-        private void ClipMesh(double extent, bool clipToPointCloudBounds = true)
+        private void ClipMesh(Mesh mesh, double extent, bool clipToPointCloudBounds = true)
         {
-            double minZ = double.NaN, maxZ = double.NaN;
-
             if (clipToPointCloudBounds)
             {
                 pipeline.LogInfo("clipping mesh to source point cloud bounds");
                 mesh.Clip(pointCloudBounds);
-                minZ = pointCloudBounds.Min.Z;
-                maxZ = pointCloudBounds.Max.Z;
-            }
-            else
-            {
-                var bounds = mesh.Bounds();
-                minZ = bounds.Min.Z;
-                maxZ = bounds.Max.Z;
             }
 
             if (extent > 0)
             {
                 pipeline.LogInfo("clipping mesh to {0:f3} meter box around {1} frame origin in XY plane",
                                  extent, meshFrame);
-                mesh.Clip(BoundsFromXYExtent(Vector3.Zero, extent, minZ, maxZ));
+                mesh.Clip(BoundsFromXYExtent(Vector3.Zero, extent, pointCloudBounds.Min.Z, pointCloudBounds.Max.Z));
             }
 
             if (mesh.Faces.Count == 0)
             {
                 throw new Exception("clipped mesh is empty");
-            }
-
-            CleanMesh();
-
-            if (mesh.Faces.Count == 0)
-            {
-                throw new Exception("mesh is empty");
             }
         }
 
@@ -1472,8 +1594,10 @@ namespace OPS.Landform
             pipeline.LogInfo("only keeping triangles visible in observations: {0}",
                              string.Join(", ", onlyForObs.Select(obs => obs.Name)));
 
-            var hulls = Backproject.BuildFrustumHulls(pipeline, frameCache, meshFrame, options.UsePriors,
-                                                      options.OnlyAligned, onlyForObs).Values;
+            var hulls = Backproject
+                .BuildFrustumHulls(pipeline, frameCache, meshFrame, options.UsePriors, options.OnlyAligned, onlyForObs,
+                                   project, options.Redo, options.NoSave)
+                .Values;
 
             Mesh filtered = new Mesh();
             filtered.SetProperties(mesh);
@@ -1647,7 +1771,7 @@ namespace OPS.Landform
                     tmp.HasColors = false;
                 }
                 var meshProd = new PlyGZDataProduct(tmp);
-                pipeline.SaveDataProduct(project, meshProd);
+                pipeline.SaveDataProduct(project, meshProd, noCache: true);
                 sceneMesh.MeshGuid = meshProd.Guid;
                 sceneMesh.SurfaceExtent = surfaceExtent;
                 sceneMesh.Save(pipeline);

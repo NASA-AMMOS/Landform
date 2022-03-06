@@ -78,13 +78,13 @@ namespace OPS.Pipeline.AlignmentServer
             var meshProd = mesh != null ? new PlyGZDataProduct(mesh) : null;
             if (meshProd != null && !noSave)
             {
-                pipeline.SaveDataProduct(project, meshProd);
+                pipeline.SaveDataProduct(project, meshProd, noCache: true);
             }
 
             PngDataProduct textureProd = texture != null ? new PngDataProduct(texture) : null;
             if (textureProd != null && !noSave)
             {
-                pipeline.SaveDataProduct(project, textureProd);
+                pipeline.SaveDataProduct(project, textureProd, noCache: true);
             } 
 
             var ret = new SceneMesh(project.Name, variant, meshProd != null ? meshProd.Guid : Guid.Empty,

@@ -639,26 +639,33 @@ namespace OPS.Landform
             void searchRDRs(string dir, string pat)
             {
                 pipeline.LogInfo("searching for RDRs under {0}, pattern {1}", dir, pat);
-                foreach (var url in SearchFiles(dir, pat, recursive: true, ignoreCase: true))
+                try
                 {
-                    string ext = StringHelper.GetUrlExtension(url); //includes leading dot
-                    string idStr = StringHelper.GetLastUrlPathSegment(url, stripExtension: true);
-                    if (idStr.EndsWith(SceneManifestHelper.TILESET_SUFFIX))
+                    foreach (var url in SearchFiles(dir, pat, recursive: true, ignoreCase: true))
                     {
-                        addRDR(idStr, url); //don't strip "_tileset" suffix from id
-                    }
-                    else
-                    {
-                        if (exts.Any(ex => ex.Equals(ext, StringComparison.OrdinalIgnoreCase)))
+                        string ext = StringHelper.GetUrlExtension(url); //includes leading dot
+                        string idStr = StringHelper.GetLastUrlPathSegment(url, stripExtension: true);
+                        if (idStr.EndsWith(SceneManifestHelper.TILESET_SUFFIX))
                         {
-                            var id = RoverProductId.Parse(idStr, mission, throwOnFail: false);
-                            if (id != null && id.IsSingleFrame())
+                            addRDR(idStr, url); //don't strip "_tileset" suffix from id
+                        }
+                        else
+                        {
+                            if (exts.Any(ex => ex.Equals(ext, StringComparison.OrdinalIgnoreCase)))
                             {
-                                addRDR(idStr, url);
+                                var id = RoverProductId.Parse(idStr, mission, throwOnFail: false);
+                                if (id != null && id.IsSingleFrame())
+                                {
+                                    addRDR(idStr, url);
+                                }
                             }
                         }
+                        total++;
                     }
-                    total++;
+                }
+                catch (Exception ex)
+                {
+                    pipeline.LogWarn("error searching RDRs under {0}: {1}", dir, ex.Message);
                 }
             }
 
@@ -803,7 +810,8 @@ namespace OPS.Landform
                 {
                     try
                     {
-                        var tileList = pipeline.GetDataProduct<TileList>(project, sceneMesh.TileListGuid);
+                        var tileList =
+                            pipeline.GetDataProduct<TileList>(project, sceneMesh.TileListGuid, noCache: true);
                         
                         if (tileList.LeafNames == null || tileList.LeafNames.Count == 0)
                         {
@@ -822,7 +830,7 @@ namespace OPS.Landform
                         {
                             string indexName = leaf + TilingDefaults.INDEX_FILE_SUFFIX + TilingDefaults.INDEX_FILE_EXT;
                             string indexUrl = pipeline.GetStorageUrl(leafFolder, project.Name, indexName);
-                            var leafIndex = pipeline.LoadImage(indexUrl);
+                            var leafIndex = pipeline.LoadImage(indexUrl, noCache: true);
                             for (int r = 0; r < leafIndex.Height; r++)
                             {
                                 for (int c = 0; c < leafIndex.Width; c++)
@@ -865,13 +873,20 @@ namespace OPS.Landform
                 if (!options.NoFilterImagesToMeshHull)
                 {
                     pipeline.LogInfo("loading {0} scene mesh from database to filter images", meshVariant);
-                    var mesh = pipeline.GetDataProduct<PlyGZDataProduct>(project, sceneMesh.MeshGuid).Mesh;
-                    var meshHull = ConvexHull.CreateWithFallback(mesh);
+                    var mesh = pipeline
+                        .GetDataProduct<PlyGZDataProduct>(project, sceneMesh.MeshGuid, noCache: true)
+                        .Mesh;
+                    var meshHull = ConvexHull.Create(mesh);
                     
                     pipeline.LogInfo("testing {0} image frusta for intersection with {1} scene mesh hull",
                                      images.Count, meshVariant);
+
+                    //use same FarClip here as in TextureCommand.BuildObservationImageHulls()
                     var obsToHull = Backproject.BuildFrustumHulls(pipeline, frameCache, options.SiteDrive,
-                                                                  options.UsePriors, options.OnlyAligned, images);
+                                                                  options.UsePriors, options.OnlyAligned, images,
+                                                                  project, options.Redo, options.NoSave,
+                                                                  farClip: options.TextureFarClip);
+
                     var tmp = new ConcurrentBag<string>();
                     CoreLimitedParallel.ForEach(images, obs =>
                     {
@@ -900,6 +915,12 @@ namespace OPS.Landform
         {
             if (string.IsNullOrEmpty(options.TacticalPDSImage))
             {
+                if (rdrs.Count == 0)
+                {
+                    pipeline.LogWarn("cannot update tactical mesh manifests, failed to index RDRs");
+                    return;
+                }
+
                 string contextualId = null;
                 if (options.Sol >= 0 && !string.IsNullOrEmpty(options.SiteDrive))
                 {
@@ -1160,6 +1181,11 @@ namespace OPS.Landform
 
         private void UpdateURLs()
         {
+            if (rdrs.Count == 0)
+            {
+                pipeline.LogWarn("cannot update URLs, failed to index RDRs");
+                return;
+            }
             sceneManifest.UpdateTilesetURIs(rdrs);
             sceneManifest.UpdateImageURIs(imageExts, rdrs, mission);
         }

@@ -47,16 +47,21 @@ namespace OPS.Landform
 
         [Option(HelpText = "Disable suface observations, only orbital", Default = false)]
         public virtual bool NoSurface { get; set; }
+
+        [Option(HelpText = "Don't periodically force garbage collection", Default = false)]
+        public bool NoForceCollect { get; set; }
     }
 
     public class LandformCommand
     {
+        public const int COLLECT_INTERVAL_SEC = 60;
+
         protected LandformCommandOptions lcopts;
 
         protected PipelineCore pipeline;
 
         protected Stopwatch stopwatch;
-        protected Dictionary<string, long> msPerPhase = new Dictionary<string, long>();
+        protected Dictionary<string, string> phaseInfo = new Dictionary<string, string>();
 
         protected Project project;
         protected MissionSpecific mission;
@@ -68,6 +73,9 @@ namespace OPS.Landform
 
         protected string imageExt;
         protected string meshExt;
+
+        private double lastCollect = UTCTime.Now();
+        private object collectLock = new Object();
 
         protected LandformCommand(LandformCommandOptions lcopts)
         {
@@ -99,35 +107,42 @@ namespace OPS.Landform
         {
             stopwatch.Stop();
 
-            if (quiet)
-            {
-                return;
-            }
+            long ms = stopwatch.ElapsedMilliseconds;
 
-            pipeline.LogInfo("-- {0} total elapsed time --", Fmt.HMS(stopwatch.ElapsedMilliseconds));
+            ConsoleHelper.GC();
+            string mem = ConsoleHelper.GetMemoryUsage();
 
-            if (brief)
+            if (!quiet)
             {
-                return;
-            }
+                pipeline.LogInfo("-- {0} total time, {1} --", Fmt.HMS(ms), mem);
 
-            foreach (var table in new[] { pipeline.InitMSPerPhase, msPerPhase })
-            {
-                foreach (var entry in table)
+                if (!brief)
                 {
-                    pipeline.LogInfo("{0} {1}", Fmt.HMS(entry.Value), entry.Key);
+                    DumpExtraStats();
+
+                    foreach (var table in new[] { pipeline.InitPhaseInfo, phaseInfo })
+                    {
+                        foreach (var entry in table)
+                        {
+                            pipeline.LogInfo("{0}: {1}", entry.Key, entry.Value);
+                        }
+                    }
+                    
+                    pipeline.DumpStats();
+                    
+                    int ndr = PathHelper.NumDeleteRetries;
+                    if (ndr > 0)
+                    {
+                        pipeline.LogWarn("{0} file delete retries", ndr);
+                    }
+                    
+                    DumpOutputPaths();
                 }
             }
+        }
 
-            pipeline.DumpStats();
-
-            int ndr = PathHelper.NumDeleteRetries;
-            if (ndr > 0)
-            {
-                pipeline.LogWarn("{0} file delete retries", ndr);
-            }
-
-            DumpOutputPaths();
+        protected virtual void DumpExtraStats()
+        {
         }
 
         protected void DumpOutputPaths()
@@ -145,14 +160,17 @@ namespace OPS.Landform
 
         protected void RunPhase(string phase, Action func)
         {
-            pipeline.LogInfo(phase);
             try
             {
+                pipeline.LogInfo(phase);
                 var msStart = stopwatch.ElapsedMilliseconds;
                 func();
                 var msEnd = stopwatch.ElapsedMilliseconds;
-                var ms = msPerPhase[phase] = msEnd - msStart;
-                pipeline.LogInfo("{0}: {1}, total {2}", phase, Fmt.HMS(ms), Fmt.HMS(msEnd));
+                var ms = msEnd - msStart;
+                ConsoleHelper.GC();
+                string mem = ConsoleHelper.GetMemoryUsage();
+                pipeline.LogInfo("{0}: {1}, total {2}, {3}", phase, Fmt.HMS(ms), Fmt.HMS(msEnd), mem);
+                phaseInfo[phase] = string.Format("{0} {1}", Fmt.HMS(ms), mem);
             }
             catch (Exception)
             {
@@ -353,6 +371,24 @@ namespace OPS.Landform
         protected string DriveToString(int drive, bool forceNumeric = false)
         {
             return (mission != null && !forceNumeric) ? mission.DriveToString(drive) : string.Format("{0:D5}", drive);
+        }
+
+        protected void CheckGarbage(bool immediate = false)
+        {
+            double now = UTCTime.Now();
+            if (!lcopts.NoForceCollect && (immediate || (now - lastCollect) > COLLECT_INTERVAL_SEC))
+            {
+                lock (collectLock)
+                {
+                    if (immediate || ((now - lastCollect) > COLLECT_INTERVAL_SEC))
+                    {
+                        ConsoleHelper.GC();
+                        pipeline.LogInfo(ConsoleHelper.GetMemoryUsage());
+                        pipeline.DumpStats();
+                        lastCollect = now;
+                    }
+                }
+            }
         }
     }
 }

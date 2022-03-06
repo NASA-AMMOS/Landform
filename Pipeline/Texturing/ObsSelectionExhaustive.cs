@@ -21,14 +21,14 @@ namespace OPS.Pipeline.Texturing
     {
         public override ObsSelectionStrategyName Name { get { return ObsSelectionStrategyName.Exhaustive; } }
 
-        private MeshOperator meshOp;
+        private BoundingBox meshBounds;
         private SceneCaster meshCaster;
         private SceneCaster occlusionScene;
 
         public override void Initialize(Mesh mesh, MeshOperator meshOp, SceneCaster meshCaster,
                                         SceneCaster occlusionScene, List<Backproject.Context> contexts)
         {
-            this.meshOp = meshOp;
+            this.meshBounds = meshOp.Bounds;
             this.meshCaster = meshCaster;
             this.occlusionScene = occlusionScene;
         }
@@ -59,7 +59,7 @@ namespace OPS.Pipeline.Texturing
                 {
                     //estimate of min meters on mesh per pixel in obs, smaller distance means better texture resolution
                     double dist = ProjectedPixelDistances
-                        .CalculateForObs(meshOp.Bounds, meshCaster ?? this.meshCaster, occlusionScene,
+                        .CalculateForObs(meshBounds, meshCaster ?? this.meshCaster, occlusionScene,
                                          new List<PixelPoint>() { new PixelPoint(pixel, meshPoint) },
                                          ctx.Obs, ctx.CameraModel, ctx.FrustumHull, ctx.ObsToMesh, RaycastTolerance);
                     if (dist < double.MaxValue && BetterThanOrbital(ctx, dist))

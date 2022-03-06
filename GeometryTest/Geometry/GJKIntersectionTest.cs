@@ -27,7 +27,7 @@ namespace GeometryTest
                     z ? 0.5 : -0.5
                     ));
             }
-            ConvexHull unitCube = new ConvexHull(unitCubeVerts);
+            ConvexHull unitCube = ConvexHull.Create(unitCubeVerts);
 
             Func<Vector3, Vector3, ConvexHull> CubeAt = (center, size) =>
               {

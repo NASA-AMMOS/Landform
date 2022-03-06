@@ -142,12 +142,13 @@ namespace OPS.Landform
         public const string TILESET_JSON = "tileset.json";
         public const string SCENE_JSON = "scene.json";
         public const string STATS_TXT = "stats.txt";
+        public const string PID_JSON = "pid.json";
 
         public readonly string[] RDR_SUBDIRS = new string[] { "rdr", "fdr" };
         public const string TILESET_SUBDIR = "tileset";
 
-        public static readonly string[] VERBOSE_SAVE_EXTS =
-            { ".png", ".jpg", ".jpeg", ".tif", ".tiff", ".b3dm", ".gltf" };
+        public static readonly string[] VERBOSE_SAVE_SUFFIXES =
+            { PID_JSON, ".png", ".jpg", ".jpeg", ".tif", ".tiff", ".b3dm", ".gltf" };
 
         protected LandformShellOptions lsopts;
 
@@ -182,19 +183,6 @@ namespace OPS.Landform
                     return _storageHelper;
                 }
             }
-
-            set
-            {
-                lock (storageHelperLock)
-                {
-                    if (_storageHelper != null)
-                    {
-                        _storageHelper.Dispose();
-                        _storageHelper = null;
-                    }
-                    _storageHelper = value;
-                }
-            }
         }
 
         private Object computeHelperLock = new Object();
@@ -213,22 +201,14 @@ namespace OPS.Landform
                     return _computeHelper;
                 }
             }
-
-            set
-            {
-                lock (computeHelperLock)
-                {
-                    if (_computeHelper != null)
-                    {
-                        _computeHelper.Dispose();
-                        _computeHelper = null;
-                    }
-                    _computeHelper = value;
-                }
-            }
         }
 
         private volatile Process currentProcess;
+
+        protected volatile bool abort;
+
+        private bool addedPIDCleanup;
+        private HashSet<String> activePIDFiles = new HashSet<String>();
 
         public LandformShell(LandformShellOptions options) : base(options)
         {
@@ -340,8 +320,6 @@ namespace OPS.Landform
         {
             pipeline.LogInfo("refreshing credentials");
 
-            lastCredentialRefreshSecUTC = UTCTime.Now();
-
             if (mission != null)
             {
                 var newProfile = mission.RefreshCredentials(originalAWSProfile, awsRegion, !pipeline.Verbose,
@@ -349,8 +327,26 @@ namespace OPS.Landform
                 awsProfile = newProfile ?? originalAWSProfile;
             }
 
-            storageHelper = null;
-            computeHelper = null;
+            lock (storageHelperLock)
+            {
+                if (_storageHelper != null)
+                {
+                    _storageHelper.Dispose();
+                    _storageHelper = null;
+                }
+            }
+
+            lock (computeHelperLock)
+            {
+                if (_computeHelper != null)
+                {
+                    _computeHelper.Dispose();
+                    _computeHelper = null;
+                }
+            }
+
+            //not conservative timing but do here to ensure that we only set the timestamp if we didn't error out
+            lastCredentialRefreshSecUTC = UTCTime.Now();
         }
 
         protected abstract string GetSubcommandLogFile();
@@ -364,12 +360,17 @@ namespace OPS.Landform
             return FileExists(pipeline, () => storageHelper, url);
         }
 
+        protected bool DeleteFile(string url)
+        {
+            return DeleteFile(pipeline, () => storageHelper, url);
+        }
+
         protected long FileSize(string url)
         {
             return FileSize(pipeline, () => storageHelper, url);
         }
 
-        protected IEnumerable<string> SearchFiles(string url, string globPattern,
+        protected IEnumerable<string> SearchFiles(string url, string globPattern = "*",
                                                   bool? recursive = null, bool? ignoreCase = null)
         {
             return SearchFiles(pipeline, () => storageHelper, url, globPattern,
@@ -408,6 +409,18 @@ namespace OPS.Landform
             }
         }
 
+        public static bool DeleteFile(PipelineCore pipeline, Func<StorageHelper> storageHelper, string url)
+        {
+            if (url.StartsWith("s3://") && !(pipeline is CloudPipeline))
+            {
+                return storageHelper().DeleteObject(url);
+            }
+            else
+            {
+                return pipeline.DeleteFile(url, constrainToStorage: false);
+            }
+        }
+
         public static long FileSize(PipelineCore pipeline, Func<StorageHelper> storageHelper, string url)
         {
             if (url.StartsWith("s3://") && !(pipeline is CloudPipeline))
@@ -421,7 +434,7 @@ namespace OPS.Landform
         }
 
         public static IEnumerable<string> SearchFiles(PipelineCore pipeline, Func<StorageHelper> storageHelper,
-                                                      string url, string globPattern, bool recursive = false,
+                                                      string url, string globPattern = "", bool recursive = false,
                                                       bool ignoreCase = false)
         {
             if (url.StartsWith("s3://") && !(pipeline is CloudPipeline))
@@ -488,8 +501,7 @@ namespace OPS.Landform
         public static void SaveFile(PipelineCore pipeline, Func<StorageHelper> storageHelper, string file, string url,
                                     bool dryRun = false)
         {
-            string ext = StringHelper.GetUrlExtension(url);
-            if (VERBOSE_SAVE_EXTS.Any(vse => String.Equals(vse, ext, StringComparison.OrdinalIgnoreCase)))
+            if (VERBOSE_SAVE_SUFFIXES.Any(sfx => url.EndsWith(sfx, StringComparison.OrdinalIgnoreCase)))
             {
                 pipeline.LogVerbose("{0}saving {1}", dryRun ? "dry " : "", url);
             }
@@ -625,6 +637,8 @@ namespace OPS.Landform
 
         protected void Cleanup(string venueDir, bool deleteDownloadCache = true, bool cleanupTempDir = true)
         {
+            DeleteActivePIDFiles();
+            
             if (lsopts.NoCleanup || lsopts.DryRun)
             {
                 pipeline.LogInfo("not cleaning up {0}", venueDir);
@@ -682,13 +696,22 @@ namespace OPS.Landform
             RunCommand("configure-local", allowedFlags, "--venue", venue, "--storagedir", storageDir, mco, rso);
         }
 
-        protected void SleepSec(double sec)
+        //noop if sec <= 0
+        //otherwise sleeps at least 1ms
+        protected bool SleepSec(double sec)
         {
-            int ms = (int)(1000 * sec);
-            if (ms > 0)
+            if (sec <= 0)
             {
-                Thread.Sleep(ms);
+                return true;
             }
+            int ms = (int)Math.Ceiling(1000 * sec);
+            while (ms > 0 && !abort)
+            {
+                int chunk = Math.Min(ms, 500);
+                ms -= chunk;
+                Thread.Sleep(chunk);
+            }
+            return ms <= 0;
         }
 
         protected string GetDestDir(string inputFolder)
@@ -826,12 +849,119 @@ namespace OPS.Landform
             RunCommand("build-tileset", args.Concat(extraArgs).ToArray());
         }
 
+        protected virtual string GetPID()
+        {
+            return ConsoleHelper.GetPID().ToString();
+        }
+
+        protected class PIDContent
+        {
+            public string pid;
+            public string status;
+
+            public PIDContent(string pid, string status)
+            {
+                this.pid = pid;
+                this.status = status;
+            }
+        }
+
+        protected virtual string MakePIDContent(string pid, string status)
+        {
+            return JsonHelper.ToJson(new PIDContent(pid, status));
+        }
+
+        protected string SavePID(string destDir, string project, string status, string pidFile = null)
+        {
+            if (abort)
+            {
+                pipeline.LogWarn("process abort requested");
+                if (pidFile != null)
+                {
+                    DeletePID(destDir, project, pidFile);
+                }
+                throw new InvalidOperationException("process aborted");
+            }
+
+            try
+            {
+                string pid = GetPID();
+                if (pidFile == null)
+                {
+                    pidFile = pid + "_" + PID_JSON;
+                }
+
+                string url = string.Format("{0}/{1}/{2}", destDir, project, pidFile);
+                
+                pipeline.LogVerbose("saving PID file {0} with status {1}", url, status);
+
+                lock (activePIDFiles)
+                {
+                    if (!addedPIDCleanup)
+                    {
+                        ConsoleHelper.AtExit(DeleteActivePIDFiles);
+                        addedPIDCleanup = true;
+                    }
+                    activePIDFiles.Add(url);
+                }
+
+                TemporaryFile.GetAndDelete(PID_JSON, tmp => {
+                    File.WriteAllText(tmp, MakePIDContent(pid, status));
+                    SaveFile(tmp, url);
+                });
+            }
+            catch (Exception ex)
+            {
+                pipeline.LogException(ex, "error saving PID file with status " + status);
+            }
+                
+            return pidFile;
+        }
+
+        protected void DeletePID(string destDir, string project, string pidFile)
+        {
+            if (pidFile != null)
+            {
+                DeletePID(string.Format("{0}/{1}/{2}", destDir, project, pidFile));
+            }
+        }
+
+        protected void DeletePID(string url)
+        {
+            if (FileExists(url))
+            {
+                pipeline.LogInfo("deleting PID file {0}", url);
+                if (DeleteFile(url))
+                {
+                    lock (activePIDFiles)
+                    {
+                        activePIDFiles.Remove(url);
+                    }
+                }
+                else
+                {
+                    pipeline.LogError("error deleting PID file {0}", url);
+                }
+            }
+        }
+        
+        protected void DeleteActivePIDFiles()
+        {
+            lock (activePIDFiles)
+            {
+                foreach (var pidURL in activePIDFiles.ToList()) //iterate over copy
+                {
+                    DeletePID(pidURL);
+                }
+            }
+        }
+            
         //if the tileset already exists this will overwrite it
         //however, it will orphan existing files that will not end up getting overwritten
         //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/1026
-        protected void SaveTileset(string tilesetDir, string project, string destDir, string suffix = "")
+        protected void SaveTileset(string tilesetDir, string project, string destDir)
         {
-            destDir = string.Format("{0}/{1}{2}", destDir, project, suffix);
+            destDir = string.Format("{0}/{1}", destDir, project);
             
             pipeline.LogInfo("{0}saving tileset from {1} to {2}", lsopts.DryRun ? "dry " : "", tilesetDir, destDir);
             
@@ -848,17 +978,33 @@ namespace OPS.Landform
                 {
                     throw new Exception(string.Format("local tileset {0} not found", tilesetFile));
                 }
-                
+
+                FileInfo tf = null;
                 foreach (var f in PathHelper.ListFiles(tilesetDir, recursive: false))
                 {
-                    if (f.Name == TILESET_JSON || f.Name == SCENE_JSON || f.Name == STATS_TXT)
+                    if (f.Name == TILESET_JSON)
                     {
-                        SaveFile(f.FullName, string.Format("{0}/{1}{2}_{3}", destDir, project, suffix, f.Name));
+                        tf = f;
+                    }
+                    else if (f.Name == SCENE_JSON || f.Name == STATS_TXT)
+                    {
+                        SaveFile(f.FullName, string.Format("{0}/{1}_{2}", destDir, project, f.Name));
                     }
                     else
                     {
                         SaveFile(f.FullName, string.Format("{0}/{1}", destDir, f.Name));
                     }
+                }
+
+                //write tileset file last so that it can serve as a sentinel that the rest of the tileset is written
+                //it's what gets indexed by OCS and discovered by ASTTRO
+                if (tf != null)
+                {
+                    SaveFile(tf.FullName, string.Format("{0}/{1}_{2}", destDir, project, tf.Name));
+                }
+                else
+                {
+                    pipeline.LogWarn("{0} not found in {1} while saving to {2}", TILESET_JSON, tilesetDir, destDir);
                 }
             }
         }

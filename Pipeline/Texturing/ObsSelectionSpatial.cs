@@ -97,6 +97,7 @@ namespace OPS.Pipeline.Texturing
                                    samplesPerSquareMeter, sampleSpacing);
                     Logger.LogInfo("ObsSelectionSpatial: mesh bounds: {0}, surface bounds: {1}",
                                    meshOp.Bounds.Fmt(), surfaceBounds.Value.Fmt());
+                    Logger.LogInfo("ObsSelectionSpatial: collecting surface samples");
                 }
 
                 samples = new SurfacePointSampler()
@@ -104,6 +105,12 @@ namespace OPS.Pipeline.Texturing
                     .Select(vertex => vertex.Position)
                     .ToList();
 
+                ConsoleHelper.GC(); //this is a memory pinch point
+
+                if (Logger != null)
+                {
+                    Logger.LogInfo("ObsSelectionSpatial: collecting orbital samples");
+                }
                 var orbitalSamples = new SurfacePointSampler()
                     .Sample(mesh.Cutted(surfaceBounds.Value), orbitalSamplesPerSquareMeter, positionsOnly: true)
                     .Select(vertex => vertex.Position)
@@ -115,6 +122,8 @@ namespace OPS.Pipeline.Texturing
                                    Fmt.KMG(samples.Count), Fmt.KMG(orbitalSamples.Count));
                 }
 
+                ConsoleHelper.GC(); //this is a memory pinch point
+
                 samples.AddRange(orbitalSamples);
             }
             else
@@ -125,6 +134,7 @@ namespace OPS.Pipeline.Texturing
                 {
                     Logger.LogInfo("ObsSelectionSpatial samples per square meter: {0}, sample spacing: {1:F3}",
                                    samplesPerSquareMeter, sampleSpacing);
+                    Logger.LogInfo("ObsSelectionSpatial: collecting surface samples");
                 }
 
                 samples = new SurfacePointSampler()
@@ -137,6 +147,8 @@ namespace OPS.Pipeline.Texturing
                     Logger.LogInfo("ObsSelectionSpatial samples: {0}", Fmt.KMG(samples.Count));
                 }
             }
+
+            ConsoleHelper.GC(); //this is a memory pinch point
 
             //we had a bug here https://github.jpl.nasa.gov/OnSight/Landform/issues/1102
             //we were getting way more points than thought we asked for

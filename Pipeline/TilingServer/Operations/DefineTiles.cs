@@ -405,10 +405,10 @@ namespace OPS.Pipeline.TilingServer
                 throw new InvalidDataException("expecting at least one LOD mesh");
             }
 
-            if (lodMeshOps.Count > 1 && lodMeshOps[0].CountVertices() < lodMeshOps[1].CountVertices())
+            if (lodMeshOps.Count > 1 && lodMeshOps[0].VertexCount < lodMeshOps[1].VertexCount)
             {
                 info(string.Format("expecting LOD 0 ({0} verts) to be finer than LOD 1 ({1} verts)",
-                                   lodMeshOps[0].CountVertices(), lodMeshOps[1].CountVertices()));
+                                   lodMeshOps[0].VertexCount, lodMeshOps[1].VertexCount));
             }
 
             var splitCriteria =
@@ -518,9 +518,8 @@ namespace OPS.Pipeline.TilingServer
             info = info ?? (msg => { });
 
             var meshOps = pairs
-                .Where(p => p.Mesh != null)
-                .Select(p => new MeshOperator(p.Mesh, buildFaceTree: true, buildUVFaceTree: false,
-                                              buildVertexTree: !p.Mesh.HasFaces))
+                .Where(p => p.Mesh != null || p.MeshOp != null)
+                .Select(p => p.EnsureMeshOperator())
                 .ToArray();
 
             info($"building tile tree from {meshOps.Length} inputs, " +
@@ -609,6 +608,7 @@ namespace OPS.Pipeline.TilingServer
                     break;
                 }
                 var currentLevelNodes = new ConcurrentBag<SceneNode>();
+                double lastSpew = UTCTime.Now();
                 CoreLimitedParallel.ForEach(previousLevelNodes, node =>
                 {
                     string name = node == root ? "root" : node.Name;
@@ -625,6 +625,13 @@ namespace OPS.Pipeline.TilingServer
                     else
                     {
                         Interlocked.Increment(ref surfaceTiles);
+                    }
+                    double now = UTCTime.Now();
+                    if ((now - lastSpew) > 10)
+                    {
+                        info($"tile tree height {height}, " +
+                             $"{Fmt.KMG(surfaceTiles)} surface tiles, {Fmt.KMG(orbitalTiles)} orbital");
+                        lastSpew = now;
                     }
                     var fsc = sc.FirstOrDefault(c => c is FaceSplitCriteria);
                     maxFaces = fsc != null ? ((FaceSplitCriteria)fsc).maxFaces : -1;
@@ -703,7 +710,7 @@ namespace OPS.Pipeline.TilingServer
                 if (input.ImageWidth < ChunkInput.SPARSE_IMAGE_CHUNK_RES &&
                     input.ImageHeight < ChunkInput.SPARSE_IMAGE_CHUNK_RES)
                 {
-                    image = pipeline.LoadImage(input.ImageUrl);
+                    image = pipeline.LoadImage(input.ImageUrl, noCache: true);
                 }
                 else
                 {

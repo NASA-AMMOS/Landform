@@ -40,34 +40,33 @@ namespace OPS.Geometry
             // Build an octree for both meshes and insert the mesh triangles into them
             BoundingBox combinedBounds = BoundingBoxExtensions.Union(meshA.Bounds(), meshB.Bounds());
 
-            // Build two separate octrees with the same bounds so that each cell can correspond to a cell in the other octree
+            // Build two octrees with the same bounds so that each cell can correspond to a cell in the other octree
+
+            // Insert all the triangles from each mesh into their respective octree
             Octree octreeA = new Octree(combinedBounds);
-            Octree octreeB = new Octree(combinedBounds);
-
-            // List of triangles from each respective mesh, with each triangle held in a wrapper structure that fits in the octree
             List<OctreeNodeContents> triListA = new List<OctreeNodeContents>();
-            List<OctreeNodeContents> triListB = new List<OctreeNodeContents>();
-
-            // Fill each list of triangles with all the triangles from their respective mesh
             foreach (Triangle tri in meshA.Triangles())
             {
                 triListA.Add(new HausdorffTriangle(tri));
             }
+            octreeA.InsertList(triListA);
+            triListA = null;
+
+            Octree octreeB = new Octree(combinedBounds);
+            List<OctreeNodeContents> triListB = new List<OctreeNodeContents>();
             foreach (Triangle tri in meshB.Triangles())
             {
                 triListB.Add(new HausdorffTriangle(tri));
             }
-
-            // Insert all the triangles from each mesh into their respective octree
-            octreeA.InsertList(triListA);
             octreeB.InsertList(triListB);
+            triListB = null;
 
-            // Action function used to cache the traversal path in each voxel triangle to reach its containing octree node cell
+            // Action to cache the traversal path in each voxel triangle to reach its containing octree node cell
             Action<OctreeNode> saveTraversal = (node => {
                 // List of traversal steps (each from 0-7) used to go down through the branches of the tree
                 List<int> path = new List<int>();
 
-                // Walk up the tree, updating the current to the new node and adding the branch index to the traversal path list
+                // Walk up tree, updating current to new node and adding the branch index to the traversal path list
                 OctreeNode current = node;
                 while (current.Parent != null)
                 {

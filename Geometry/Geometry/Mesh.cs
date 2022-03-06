@@ -69,17 +69,17 @@ namespace OPS.Geometry
         /// Creates a mesh using a list of triangles.  Performs a clone on triangle vertices to avoid side effects
         /// in the case that triangles are modified later
         /// </summary>
-        /// <param name="triangles"></param>
-        /// <param name="hasNormals"></param>
-        /// <param name="hasUVs"></param>
-        /// <param name="hasColors"></param>
-        public Mesh(List<Triangle> triangles, bool hasNormals = false, bool hasUVs = false, bool hasColors = false,
-                    Action<string> warn = null)
+        public Mesh(IEnumerable<Triangle> triangles,
+                    bool hasNormals = false, bool hasUVs = false, bool hasColors = false, Action<string> warn = null)
         {
             SetProperties(hasNormals, hasUVs, hasColors);
             SetTriangles(triangles);
         }
 
+        /// <summary>
+        /// Copies the data from the triangles.  Cleans the mesh, including removing invalid and duplicate faces, and
+        /// importantly, merging spatially duplicate vertices, as every input triangle is initially independent.
+        /// </summary>
         public void SetTriangles(IEnumerable<Triangle> triangles, bool normalize = true, Action<string> warn = null)
         {
             Faces = new List<Face>(triangles.Count());
@@ -99,9 +99,6 @@ namespace OPS.Geometry
         /// <summary>
         /// Determines what values in the vertex structure are considered to have valid data
         /// </summary>
-        /// <param name="hasNormals"></param>
-        /// <param name="hasUVs"></param>
-        /// <param name="hasColors"></param>
         public void SetProperties(bool hasNormals, bool hasUVs, bool hasColors)
         {
             HasNormals = hasNormals;
@@ -112,21 +109,6 @@ namespace OPS.Geometry
         public void SetProperties(Mesh other)
         {
             SetProperties(other.HasNormals, other.HasUVs, other.HasColors);
-        }
-
-        /// <summary>
-        /// Returns an array of the three vertices held by the given face
-        /// </summary>
-        /// <param name="f"></param>
-        /// <returns></returns>
-        public Vertex[] FaceToVertexArray(Face f)
-        {
-            return new Vertex[] { Vertices[f.P0], Vertices[f.P1], Vertices[f.P2] };
-        }
-
-        public Triangle FaceToTriangle(Face f)
-        {
-            return new Triangle(Vertices[f.P0], Vertices[f.P1], Vertices[f.P2]);
         }
 
         public struct FaceStats
@@ -149,7 +131,7 @@ namespace OPS.Geometry
             stats.AvgArea = 0;
             foreach (Face face in Faces)
             {
-                double area = new Triangle(Vertices[face.P0], Vertices[face.P1], Vertices[face.P2]).Area();
+                double area = new IndirectTriangle(this, face).Area();
                 stats.MinArea = Math.Min(area, stats.MinArea);
                 stats.MaxArea = Math.Max(area, stats.MaxArea);
                 stats.AvgArea += area;
@@ -162,19 +144,39 @@ namespace OPS.Geometry
         }
 
         /// <summary>
-        /// Returns a list of triangles for this mesh. Triangles each contain thier own
-        /// clone of vertices so modifications to the triangles or mesh will not have side effects on the other
+        /// Returns a list of triangles for this mesh.
+        /// Writes to the triangle vertex data will write through to the vertices of this mesh.
         /// </summary>
-        /// <returns></returns>
-        public List<Triangle> Triangles()
+        public IEnumerable<Triangle> Triangles()
         {
-            List<Triangle> triangles = new List<Triangle>(Faces.Count);
-            foreach (Face f in Faces)
+            foreach (Face face in Faces)
             {
-                Triangle t = new Triangle(Vertices[f.P0], Vertices[f.P1], Vertices[f.P2]);
-                triangles.Add(t);
+                yield return new IndirectTriangle(this, face);
             }
-            return triangles;
+        }
+
+        /// <summary>
+        /// Returns a triangl corresponding to a face of this mesh.
+        /// Writes to the triangle vertex data will write through to the vertices of this mesh.
+        /// </summary>
+        public Triangle FaceToTriangle(Face face)
+        {
+            return new IndirectTriangle(this, face);
+        }
+
+        public Triangle FaceToTriangle(int faceIndex)
+        {
+            return FaceToTriangle(Faces[faceIndex]);
+        }
+
+        /// <summary>
+        /// Returns an array of the three vertices held by the given face
+        /// </summary>
+        /// <param name="f"></param>
+        /// <returns></returns>
+        public Vertex[] FaceToVertexArray(Face f)
+        {
+            return new Vertex[] { Vertices[f.P0], Vertices[f.P1], Vertices[f.P2] };
         }
 
         public HashSet<int> VertexIndicesReferencedByFaces()

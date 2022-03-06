@@ -171,6 +171,9 @@ namespace OPS.Landform
 
         [Option(HelpText = "Write delta range images: a visualization of the 3d distance between the points in one image projected into and compared to the points in another image", Default = false)]
         public bool DeltaRangeImages { get; set;}
+
+        [Option(HelpText = "Disable LRU image cache (longer runtime but lower memory footprint)", Default = false)]
+        public bool DisableImageCache { get; set;}
     } 
 
     public class ObservationProducts : GeometryCommand
@@ -262,6 +265,12 @@ namespace OPS.Landform
 
         private bool ParseArgumentsAndLoadCaches()
         {
+            if (options.DisableImageCache)
+            {
+                pipeline.LogInfo("disabling LRU image cache");
+                pipeline.SetImageCacheCapacity(0);
+            }
+
             if (options.NoSave)
             {
                 throw new Exception("--nosave not implemented for this command");
@@ -631,7 +640,8 @@ namespace OPS.Landform
             {
                 if (options.UseBlendedTextures && obs.Texture.BlendedGuid != Guid.Empty)
                 {
-                    img = pipeline.GetDataProduct<PngDataProduct>(project, obs.Texture.BlendedGuid).Image;
+                    img =
+                        pipeline.GetDataProduct<PngDataProduct>(project, obs.Texture.BlendedGuid, noCache: true).Image;
                 }
                 else
                 {

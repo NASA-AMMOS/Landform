@@ -216,17 +216,17 @@ namespace OPS.Pipeline
             UploadFile(file, CheckUrl(url, constrainToStorage));
         }
 
-        public override void DeleteFile(string url, bool ignoreErrors = true)
+        public override bool DeleteFile(string url, bool ignoreErrors = true, bool constrainToStorage = true)
         {
-            url = CheckUrl(url);
-            GetStorageHelper(url).DeleteObject(url, ignoreErrors, Logger);
+            url = CheckUrl(url, constrainToStorage);
+            return GetStorageHelper(url).DeleteObject(url, ignoreErrors, Logger);
         }
 
-        public override void DeleteFiles(string url, string globPattern = "*", bool recursive = true,
-                                         bool ignoreErrors = true)
+        public override bool DeleteFiles(string url, string globPattern = "*", bool recursive = true,
+                                         bool ignoreErrors = true, bool constrainToStorage = true)
         {
-            url = CheckUrl(url, preserveTrailingSlash: true);
-            GetStorageHelper(url).DeleteObjects(url, globPattern, recursive, ignoreErrors, Logger);
+            url = CheckUrl(url, constrainToStorage: constrainToStorage, preserveTrailingSlash: true);
+            return GetStorageHelper(url).DeleteObjects(url, globPattern, recursive, ignoreErrors, Logger);
         }
 
         public override bool FileExists(string url, bool constrainToStorage = false)

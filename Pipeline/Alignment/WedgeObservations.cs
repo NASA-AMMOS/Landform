@@ -429,6 +429,9 @@ namespace OPS.Pipeline
 
             public MeshReconstructionMethod ReconstructionMethod = MeshReconstructionMethod.Organized;
 
+            public bool NoCacheTextureImages = false;
+            public bool NoCacheGeometryImages = false;
+
             public MeshOptions Clone()
             {
                 return (MeshOptions) MemberwiseClone();
@@ -467,7 +470,7 @@ namespace OPS.Pipeline
                 pipeline.LogVerbose("loading points {0}", Points.Url);
                 try
                 {
-                    pointsRaw = pipeline.LoadImage(Points.Url);
+                    pointsRaw = pipeline.LoadImage(Points.Url, noCache: opts.NoCacheGeometryImages);
                 }
                 catch (Exception ex)
                 {
@@ -496,7 +499,7 @@ namespace OPS.Pipeline
 
                 try
                 {
-                    pointsRaw = pipeline.LoadImage(Range.Url);
+                    pointsRaw = pipeline.LoadImage(Range.Url, noCache: opts.NoCacheGeometryImages);
                 }
                 catch (Exception ex)
                 {
@@ -541,7 +544,7 @@ namespace OPS.Pipeline
                 }
                 try
                 {
-                    NormalsImage = (new PDSImage(pipeline.LoadImage(Normals.Url)))
+                    NormalsImage = (new PDSImage(pipeline.LoadImage(Normals.Url, noCache: opts.NoCacheGeometryImages)))
                         .ConvertNormals(normScale, PointsImage, opts.NormalFilter);
                 }
                 catch (Exception ex)
@@ -586,7 +589,7 @@ namespace OPS.Pipeline
             {
                 try
                 {
-                    TextureImage = pipeline.LoadImage(Texture.Url);
+                    TextureImage = pipeline.LoadImage(Texture.Url, noCache: opts.NoCacheTextureImages);
                 }
                 catch (Exception ex)
                 {
@@ -736,7 +739,7 @@ namespace OPS.Pipeline
             //(and will likely still be in the pipeline image memcache)
             if (!mesh.HasUVs && opts.ApplyTexture && TextureImage == null)
             {
-                TextureImage = pipeline.LoadImage(Texture.Url);
+                TextureImage = pipeline.LoadImage(Texture.Url, noCache: opts.NoCacheTextureImages);
             }
 
             var xform = frameCache.GetObservationTransform(meshObs, opts.LoadedFrame, opts.UsePriors, opts.OnlyAligned);
@@ -883,7 +886,9 @@ namespace OPS.Pipeline
             Image img = null;
             try
             {
-                img = pipeline.LoadImage(obs.Url);
+                img = pipeline
+                    .LoadImage(obs.Url,
+                               noCache: obs == Texture ? opts.NoCacheTextureImages : opts.NoCacheGeometryImages);
                 PDSImage.CheckCameraFrame(img, "MeshObservations.BuildFrustumHull");
             }
             catch (Exception ex)

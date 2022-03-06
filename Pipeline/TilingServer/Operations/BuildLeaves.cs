@@ -107,7 +107,8 @@ namespace OPS.Pipeline.TilingServer
             TextureProjector textureProjector = null;
             if (project.TextureProjectorGuid != Guid.Empty && inputNeedsUVs)
             {
-                textureProjector = pipeline.GetDataProduct<TextureProjector>(project, project.TextureProjectorGuid);
+                textureProjector =
+                    pipeline.GetDataProduct<TextureProjector>(project, project.TextureProjectorGuid, noCache: true);
             }
 
             // Reconstruct a mesh for each input using only the chunks that overlap with leaves that we are building

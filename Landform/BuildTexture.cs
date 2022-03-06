@@ -80,10 +80,19 @@ namespace OPS.Landform
                 }
                 else
                 {
-                    RunPhase("check/build observation image masks", BuildObservationImageMasks);
-                    RunPhase("build observation frustum hulls", BuildObsHulls);
+                    RunPhase("check or generate observation image masks", BuildObservationImageMasks);
+                    RunPhase("check or generate observation frustum hulls", BuildObservationImageHulls);
+                    if (!options.OnlyIndex && options.Colorize)
+                    {
+                        RunPhase("check or generate observation image stats", BuildObservationImageStats);
+                    }
+
+                    //conserve memory: we will (probably) want the textures later, but we can reload them at that point
+                    RunPhase("clear LRU image cache", ClearImageCache);
+
                     RunPhase("build occlusion datastructures", BuildSceneCaster);
                     RunPhase("build acceleration datastructures", BuildMeshOperator);
+
                     RunPhase("initialize backproject strategy", InitBackprojectStrategy);
                     RunPhase("backproject observations", BackprojectObservations);
                     if (!options.NoIndex)
@@ -94,10 +103,6 @@ namespace OPS.Landform
 
                 if (!options.OnlyIndex)
                 {
-                    if (options.Colorize)
-                    {
-                        RunPhase("checking/computing observation image stats", BuildObservationImageStats);
-                    }
                     RunPhase(string.Format("generate {0} backproject texture", options.TextureVariant),
                              () => { sceneTexture = BuildBackprojectTexture(options.TextureVariant); });
                 }

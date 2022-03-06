@@ -329,51 +329,15 @@ namespace OPS.Landform
             return tilingProject;
         }
 
-        protected void SaveTile(MeshImagePair mip, string tileName, bool local, bool cloud, bool isLeaf)
+        protected void SaveTileMesh(string tileName, Mesh mesh, bool hasImage)
         {
-            string imgName = mip.Image != null ? tileName + imageExt : null;
-
-            if (local)
+            string imgName = hasImage ? tileName + imageExt : null;
+            if (localSave)
             {
-                if (mip.Image != null)
-                {
-                    SaveImage(mip.Image, tileName);
-                }
-                if (mip.Index != null)
-                {
-                    string path =
-                        Path.Combine(localOutputPath,
-                                     tileName + TilingDefaults.INDEX_FILE_SUFFIX + TilingDefaults.INDEX_FILE_EXT);
-                    Tile3DBuilder.SaveTileIndex(mip.Index, path,
-                                                msg => pipeline.LogVerbose($"{msg} for tile {tileName}"));
-                }
-                SaveMesh(mip.Mesh, tileName, imgName);
+                SaveMesh(mesh, tileName, imgName);
             }
-
-            if (cloud)
+            if (cloudSave)
             {
-                if (mip.Image != null)
-                {
-                    TemporaryFile.GetAndDelete(imageExt, tmpFile =>
-                    {
-                        mip.Image.Save<byte>(tmpFile);
-                        string imgUrl = pipeline.GetStorageUrl(outputFolder, project.Name, imgName);
-                        pipeline.SaveFile(tmpFile, imgUrl);
-                    });
-                }
-
-                if (mip.Index != null)
-                {
-                    TemporaryFile.GetAndDelete(TilingDefaults.INDEX_FILE_EXT, tmpFile =>
-                    {
-                        Tile3DBuilder.SaveTileIndex(mip.Index, tmpFile,
-                                                    msg => pipeline.LogWarn($"{msg} for tile {tileName}"));
-                        string indexName = tileName + TilingDefaults.INDEX_FILE_SUFFIX + TilingDefaults.INDEX_FILE_EXT;
-                        string indexUrl = pipeline.GetStorageUrl(outputFolder, project.Name, indexName);
-                        pipeline.SaveFile(tmpFile, indexUrl);
-                    });
-                }
-
                 TemporaryFile.GetAndDelete(meshExt, tmpFile =>
                 {
                     mesh.Save(tmpFile, imgName);
@@ -381,7 +345,7 @@ namespace OPS.Landform
                     string meshUrl = pipeline.GetStorageUrl(outputFolder, project.Name, meshName);
                     pipeline.SaveFile(tmpFile, meshUrl);
 
-                    if (mip.Image != null)
+                    if (hasImage)
                     {
                         string mtlFile = Path.GetFileNameWithoutExtension(tmpFile) + ".mtl";
                         if (meshExt.ToLower() == ".obj" && File.Exists(mtlFile))
@@ -394,10 +358,95 @@ namespace OPS.Landform
                     }
                 });
             }
-
-            if (mip.Index != null && tilingOpts.WriteDebug)
+            if (!localSave && !cloudSave)
             {
-                SaveImage(Backproject.GenerateIndexPreviewImage(mip.Index), tileName + "_indexPreview");
+                throw new InvalidOperationException("neither local nor cloud save enabled");
+            }
+        }
+
+        protected void SaveTileMesh(string tileName, Mesh mesh)
+        {
+            SaveTileMesh(tileName, mesh, false);
+        }
+
+        protected Mesh LoadTileMesh(string tileName)
+        {
+            if (localSave)
+            {
+                return Mesh.Load(Path.Combine(localOutputPath, tileName + meshExt));
+            }
+            else if (cloudSave)
+            {
+                string url = pipeline.GetStorageUrl(outputFolder, project.Name, tileName + meshExt);
+                return Mesh.Load(pipeline.GetFileCached(url, "meshes"));
+            }
+            else
+            {
+                throw new InvalidOperationException("neither local nor cloud save enabled");
+            }
+        }
+
+        protected bool TileMeshExists(string tileName)
+        {
+            string fn = tileName + meshExt;
+            return
+                (localSave && File.Exists(Path.Combine(localOutputPath, fn))) ||
+                (cloudSave && pipeline.FileExists(pipeline.GetStorageUrl(outputFolder, project.Name, fn)));
+        }
+
+        protected void SaveTileImage(string tileName, Image image, Image index)
+        {
+            if (localSave)
+            {
+                if (image != null)
+                {
+                    SaveImage(image, tileName);
+                }
+                if (index != null)
+                {
+                    string path =
+                        Path.Combine(localOutputPath,
+                                     tileName + TilingDefaults.INDEX_FILE_SUFFIX + TilingDefaults.INDEX_FILE_EXT);
+                    Tile3DBuilder.SaveTileIndex(index, path, msg => pipeline.LogVerbose($"${msg} for tile {tileName}"));
+                }
+            }
+            if (cloudSave)
+            {
+                if (image != null)
+                {
+                    TemporaryFile.GetAndDelete(imageExt, tmpFile =>
+                    {
+                        image.Save<byte>(tmpFile);
+                        string imgUrl = pipeline.GetStorageUrl(outputFolder, project.Name, tileName + imageExt);
+                        pipeline.SaveFile(tmpFile, imgUrl);
+                    });
+                }
+                if (index != null)
+                {
+                    TemporaryFile.GetAndDelete(TilingDefaults.INDEX_FILE_EXT, tmpFile =>
+                    {
+                        Tile3DBuilder.SaveTileIndex(index, tmpFile,
+                                                    msg => pipeline.LogWarn($"${msg} for tile {tileName}"));
+                        string indexName = tileName + TilingDefaults.INDEX_FILE_SUFFIX + TilingDefaults.INDEX_FILE_EXT;
+                        string indexUrl = pipeline.GetStorageUrl(outputFolder, project.Name, indexName);
+                        pipeline.SaveFile(tmpFile, indexUrl);
+                    });
+                }
+            }
+        }
+
+        protected void SaveTileImage(string tileName, Image image)
+        {
+            SaveTileImage(tileName, image, null);
+        }
+
+        protected void SaveTileContent(string tileName, MeshImagePair mip, bool isLeaf)
+        {
+            SaveTileImage(tileName, mip.Image, mip.Index);
+
+            if (mip.Mesh != null)
+            {
+                SaveTileMesh(tileName, mip.Mesh, mip.Image != null);
             }
 
             //each tile name is of the form ABCDE... where
@@ -478,7 +527,7 @@ namespace OPS.Landform
                 var mip = new MeshImagePair(leafMesh);
                 if (pipeline.FileExists(imgUrl))
                 {
-                    mip.Image = pipeline.LoadImage(imgUrl);
+                    mip.Image = pipeline.LoadImage(imgUrl, noCache: true);
                 }
                 var mipStats = new MeshImagePairStats(mip);
                 mipStats.HasIndex = tileList.HasIndexImages && pipeline.FileExists(idxUrl);
@@ -524,7 +573,9 @@ namespace OPS.Landform
                 {
                     parentTileTextureMode = TextureMode.Bake;
                     if (tileList.TextureMode == TextureMode.Clip && canProjectUVs &&
-                        pipeline.GetDataProduct<TextureProjector>(project, sceneMesh.TextureProjectorGuid).TextureGuid
+                        pipeline
+                        .GetDataProduct<TextureProjector>(project, sceneMesh.TextureProjectorGuid, noCache: true)
+                        .TextureGuid
                         != Guid.Empty)
                     {
                         parentTileTextureMode = TextureMode.Clip;
@@ -699,6 +750,7 @@ namespace OPS.Landform
                         executive.Quit();
                         throw ex;
                     }
+                    CheckGarbage();
                 }
             }
             while (tp != null && !tp.FinishedRunning);

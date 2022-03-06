@@ -257,8 +257,8 @@ namespace OPS.Util
                     {
                         logger.InfoFormat("drive {0} ({1}) ready, label \"{2}\", format {3}, {4} accessible, " +
                                           "{5} free, {6} total", d.Name, d.DriveType, d.VolumeLabel, d.DriveFormat,
-                                          Fmt.DiskBytes(d.AvailableFreeSpace), Fmt.DiskBytes(d.TotalFreeSpace),
-                                          Fmt.DiskBytes(d.TotalSize));
+                                          Fmt.Bytes(d.AvailableFreeSpace), Fmt.Bytes(d.TotalFreeSpace),
+                                          Fmt.Bytes(d.TotalSize));
                     }
                     else
                     {

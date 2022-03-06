@@ -98,7 +98,7 @@ namespace OPS.Pipeline
         private LRUCache<string, Image> imageCache; //indexed by URL
         private LRUCache<Guid, DataProduct> dataProductCache;
 
-        public Dictionary<string, long> InitMSPerPhase = new Dictionary<string, long>();
+        public Dictionary<string, string> InitPhaseInfo = new Dictionary<string, string>();
 
         //these are generally used to initialize the database
         //
@@ -211,8 +211,11 @@ namespace OPS.Pipeline
                 var msStart = stopwatch.ElapsedMilliseconds;
                 func();
                 var msEnd = stopwatch.ElapsedMilliseconds;
-                var ms = InitMSPerPhase[phase] = msEnd - msStart;
-                LogInfo("{0}: {1:F3}s, total {2:F3}s", phase, 0.001 * ms, 0.001 * msEnd);
+                var ms = msEnd - msStart;
+                ConsoleHelper.GC();
+                string mem = ConsoleHelper.GetMemoryUsage();
+                LogInfo("{0}: {1}, total {2}, {3}", phase, Fmt.HMS(ms), Fmt.HMS(msEnd), mem);
+                InitPhaseInfo[phase] = string.Format("{0} {1}", Fmt.HMS(ms), mem);
             }
             catch
             {
@@ -238,6 +241,18 @@ namespace OPS.Pipeline
                               dataProductCache.Capacity, dataProductCache.GetStats());
         }
 
+        public virtual void ClearCaches(bool clearImageCache = true, bool clearDataProductCache = true)
+        {
+            if (clearImageCache)
+            {
+                imageCache.Clear();
+            }
+            if (clearDataProductCache)
+            {
+                dataProductCache.Clear();
+            }
+        }
+
         //****************** Image Fetch API *****************
 
         private ConcurrentDictionary<string, Exception> imageLoadExceptions =
@@ -246,7 +261,22 @@ namespace OPS.Pipeline
         private ConcurrentDictionary<string, Object> imageLoadLocks =
             new ConcurrentDictionary<string, Object>();
 
+        public void SetImageCacheCapacity(int capacity)
+        {
+            imageCache.Capacity = capacity;
+        }
+
         public Image LoadImage(string url, IImageConverter converter = null)
+        {
+            return LoadImage(url, converter, false);
+        }
+
+        public Image LoadImage(string url, bool noCache)
+        {
+            return LoadImage(url, null, noCache);
+        }
+
+        public Image LoadImage(string url, IImageConverter converter, bool noCache)
         {
             Image image = imageCache[url];
             if (image != null)
@@ -264,7 +294,10 @@ namespace OPS.Pipeline
                         string f = GetImageFile(url);
                         image = converter != null ? Image.Load(f, converter) : Image.Load(f);
                         AddAnyUserMask(url, image);
-                        imageCache[url] = image;
+                        if (!noCache)
+                        {
+                            imageCache[url] = image;
+                        }
                     }
                     catch (Exception ex)
                     {
@@ -429,17 +462,21 @@ namespace OPS.Pipeline
         /// <summary>
         /// Delete a persisted file.
         /// </summary>
-        /// <param name="url">URL of file to delete, must start with StorageURL/Venue</param>
-        public abstract void DeleteFile(string url, bool ignoreErrors = true);
+        /// <param name="url">URL of file to delete, if constrainToStorage = true must start with
+        /// StorageURL/Venue</param>
+        /// <returns>false if delete failed</returns>
+        public abstract bool DeleteFile(string url, bool ignoreErrors = true, bool constrainToStorage = true);
 
         /// <summary>
         /// Delete persisted files.
         ///
         /// See SearchFiles() for semantics of url, globPattern, and recursive.
         /// </summary>
-        /// <param name="url">base URL of files to delete, must start with StorageURL/Venue</param>
-        public abstract void DeleteFiles(string url, string globPattern = "*", bool recursive = true,
-                                         bool ignoreErrors = true);
+        /// <param name="url">base URL of files to delete, if constrainToStorage = true must start with
+        /// StorageURL/Venue</param>
+        /// <returns>false if any operation failed</returns>
+        public abstract bool DeleteFiles(string url, string globPattern = "*", bool recursive = true,
+                                         bool ignoreErrors = true, bool constrainToStorage = true);
 
         /// <summary>
         /// Check if a file exists in persisted storage.
@@ -477,6 +514,11 @@ namespace OPS.Pipeline
         private ConcurrentDictionary<string, Object> dataProductLoadLocks =
             new ConcurrentDictionary<string, Object>();
 
+        public void SetDataProductCacheCapacity(int capacity)
+        {
+            dataProductCache.Capacity = capacity;
+        }
+
         protected virtual bool EnableDataProductDiskCache()
         {
             return true;
@@ -487,30 +529,34 @@ namespace OPS.Pipeline
         /// </summary>
         /// <typeparam name="T">Type of data product</typeparam>
         /// <param name="path">path to product collection, must start with StorageURL/Venue</param>
-        /// <param name="guid">data product GUID</param>
+        /// <param name="guidStr">data product GUID</param>
         /// <param name="cacheFolder">if nonempty then use local disk cache</param>
-        public T GetDataProduct<T>(string path, string guid, string cacheFolder = null) where T : DataProduct, new()
+        public T GetDataProduct<T>(string path, string guidStr, string cacheFolder = null, bool noCache = false)
+            where T : DataProduct, new()
         {
-            DataProduct product = dataProductCache[new Guid(guid)];
+            Guid guid = new Guid(guidStr);
+
+            DataProduct product = dataProductCache[guid];
+
             if (product != null && product is T)
             {
                 return (T) product;
             }
 
-            var lockObj = dataProductLoadLocks.GetOrAdd(guid, _ => new Object());
+            var lockObj = dataProductLoadLocks.GetOrAdd(guidStr, _ => new Object());
             lock (lockObj) //prevent multiple threads from trying to load the same product simultaneously
             {
-                product = dataProductCache[new Guid(guid)];
+                product = dataProductCache[guid];
                 if (product == null || !(product is T))
                 {
                     product = null;
 
-                    string url = Path.Combine(path, guid).Replace('\\','/');
+                    string url = Path.Combine(path, guidStr).Replace('\\','/');
                     CheckStorageUrl(url);
                     
                     if (EnableDataProductDiskCache() && !string.IsNullOrEmpty(cacheFolder))
                     {
-                        var cacheFile = DownloadCachePath(cacheFolder, guid);
+                        var cacheFile = DownloadCachePath(cacheFolder, guidStr);
                         if (!File.Exists(cacheFile))
                         {
                             GetFile(url, file =>
@@ -535,27 +581,30 @@ namespace OPS.Pipeline
                     {
                         GetFile(url, f => product = DataProduct.Load<T>(File.ReadAllBytes(f)));
                     }
-
-                    dataProductCache[product.Guid] = product;
+                    if (!noCache)
+                    {
+                        dataProductCache[product.Guid] = product;
+                    }
                 }
             }
-            dataProductLoadLocks.TryRemove(guid, out Object ignore);
+            dataProductLoadLocks.TryRemove(guidStr, out Object ignore);
             return (T) product;
         }
 
-        public T GetDataProduct<T>(string path, Guid guid, string cacheFolder = null) where T : DataProduct, new()
+        public T GetDataProduct<T>(string path, Guid guid, string cacheFolder = null, bool noCache = false)
+            where T : DataProduct, new()
         {
-            return GetDataProduct<T>(path, guid.ToString(), cacheFolder);
+            return GetDataProduct<T>(path, guid.ToString(), cacheFolder, noCache);
         }
 
-        public T GetDataProduct<T>(Project project, Guid guid) where T : DataProduct, new()
+        public T GetDataProduct<T>(Project project, Guid guid, bool noCache = false) where T : DataProduct, new()
         {
-            return GetDataProduct<T>(project.ProductPath, guid, project.Name);
+            return GetDataProduct<T>(project.ProductPath, guid, project.Name, noCache);
         }
 
-        public T GetDataProduct<T>(TilingProject project, Guid guid) where T : DataProduct, new()
+        public T GetDataProduct<T>(TilingProject project, Guid guid, bool noCache = false) where T : DataProduct, new()
         {
-            return GetDataProduct<T>(project.ProductPath, guid, project.Name);
+            return GetDataProduct<T>(project.ProductPath, guid, project.Name, noCache);
         }
 
         /// <summary>
@@ -564,7 +613,7 @@ namespace OPS.Pipeline
         /// <param name="path">path to product collection, must start with StorageURL/Venue</param>
         /// <param name="product">DataProduct object</param>
         /// <param name="cacheFolder">if non-empty then also save to local disk cache</param>
-        public void SaveDataProduct(string path, DataProduct product, string cacheFolder = null)
+        public void SaveDataProduct(string path, DataProduct product, string cacheFolder = null, bool noCache = false)
         {
             if (product.Guid == Guid.Empty)
             {
@@ -575,7 +624,10 @@ namespace OPS.Pipeline
             string url = Path.Combine(path, guid).Replace('\\','/');
             CheckStorageUrl(url);
 
-            dataProductCache[product.Guid] = product;
+            if (!noCache)
+            {
+                dataProductCache[product.Guid] = product;
+            }
 
             if (!FileExists(url))
             {
@@ -603,9 +655,9 @@ namespace OPS.Pipeline
             }
         }
 
-        public void SaveDataProduct(Project project, DataProduct product)
+        public void SaveDataProduct(Project project, DataProduct product, bool noCache = false)
         {
-            SaveDataProduct(project.ProductPath, product, project.Name);
+            SaveDataProduct(project.ProductPath, product, project.Name, noCache);
         }
 
         protected virtual void SaveDataProductImpl(string file, string url)

@@ -850,6 +850,17 @@ namespace OPS.Geometry
             return box;
         }
 
+        public static BoundingBox Extend(ref BoundingBox box, BoundingBox other)
+        {
+            box.Min.X = Math.Min(box.Min.X, other.Min.X);
+            box.Min.Y = Math.Min(box.Min.Y, other.Min.Y);
+            box.Min.Z = Math.Min(box.Min.Z, other.Min.Z);
+            box.Max.X = Math.Max(box.Max.X, other.Max.X);
+            box.Max.Y = Math.Max(box.Max.Y, other.Max.Y);
+            box.Max.Z = Math.Max(box.Max.Z, other.Max.Z);
+            return box;
+        }
+
         /// <summary>
         /// Returns true if the given triangle intersects with a bounding box
         /// </summary>
@@ -909,13 +920,13 @@ namespace OPS.Geometry
 
             //front (+y)
             Vector3 fw = new Vector3(0, 1, 0);
-            tt.Add(new Triangle(new Vertex(c[0], fw, color), new Vertex(c[1], fw, color), new Vertex(c[5], fw, color)));
-            tt.Add(new Triangle(new Vertex(c[5], fw, color), new Vertex(c[4], fw, color), new Vertex(c[0], fw, color)));
+            tt.Add(new Triangle(new Vertex(c[3], fw, color), new Vertex(c[7], fw, color), new Vertex(c[6], fw, color)));
+            tt.Add(new Triangle(new Vertex(c[6], fw, color), new Vertex(c[2], fw, color), new Vertex(c[3], fw, color)));
 
             //back (-y)
             Vector3 bk = new Vector3(0, -1, 0);
-            tt.Add(new Triangle(new Vertex(c[3], bk, color), new Vertex(c[7], bk, color), new Vertex(c[6], bk, color)));
-            tt.Add(new Triangle(new Vertex(c[6], bk, color), new Vertex(c[2], bk, color), new Vertex(c[3], bk, color)));
+            tt.Add(new Triangle(new Vertex(c[0], bk, color), new Vertex(c[1], bk, color), new Vertex(c[5], bk, color)));
+            tt.Add(new Triangle(new Vertex(c[5], bk, color), new Vertex(c[4], bk, color), new Vertex(c[0], bk, color)));
 
             //right (+x)
             Vector3 rt = new Vector3(1, 0, 0);

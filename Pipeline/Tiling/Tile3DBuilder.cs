@@ -155,7 +155,7 @@ namespace OPS.Pipeline
                     pipeline.LogWarn("no {0} found for tile {1}", what, tile.Name);
                     return null;
                 }
-                return pipeline.LoadImage(url);
+                return pipeline.LoadImage(url, noCache: true);
             }
 
             //MeshImagePair may have been replaced with MeshImagePairStats to save memory

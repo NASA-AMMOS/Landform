@@ -266,9 +266,19 @@ namespace OPS.Landform
 
         private int downloadedFiles, deletedFiles, deletedDirectories;
 
+        private int totalTrimmedUrls;
+        private long totalTrimmedBytes;
+
         //ordered by last access time (oldest to newest)
         //includes files that were already present in the output directory iff options.AccountExisting was set
         private Queue<FileInfo> lruDownloads = new Queue<FileInfo>();
+
+        //local paths of files that we've downloaded so far in this run
+        //or that we skipped because we were going to download them but they already existed locally
+        //already downloaded paths are skipped when deleting LRU downloads
+        //if sufficient space can not be freed then further downloads will be trimmed
+        //this makes sense when, as is typical, the requested downloads are ordered by decreasing priority
+        private HashSet<string> alreadyDownloaded = new HashSet<string>();
 
         private SiteDrive[] acceptedSiteDrives;
         private RoverProductCamera[] acceptedCameras;
@@ -538,9 +548,9 @@ namespace OPS.Landform
             return StringHelper.NormalizeSlashes(path).Replace('/', Path.DirectorySeparatorChar);
         }
 
-        private long LocalBytes(string path)
+        private long LocalBytes(string path, long def = -1)
         {
-            return File.Exists(path) ? (new FileInfo(path)).Length : -1;
+            return File.Exists(path) ? (new FileInfo(path)).Length : def;
         }
 
         private long LocalMSSinceEpoch(string path)
@@ -1124,7 +1134,7 @@ namespace OPS.Landform
         //if the set of downloads exceeds maxNewBytes, then keep the newest subset that fits
         //this intentionally does not account disk usage of existing downloads
         //which is handled separately in DownloadFiles() and DeleteLRUDownloads()
-        private List<string> TrimDownloads(List<string> urls, long maxNewBytes, out long newBytes)
+        private List<string> TrimDownloads(string what, List<string> urls, long maxNewBytes, out long newBytes)
         {
             newBytes = 0;
             if (maxBytes <= 0)
@@ -1153,12 +1163,23 @@ namespace OPS.Landform
                         trimmed.Add(url);
                         newBytes += nb;
                     }
-                    else if (ShouldTrace(url))
+                    else
                     {
-                        logger.InfoFormat("trimmed download {0}: {1} to download + {2} > {3}",
-                                          url, Fmt.DiskBytes(newBytes), Fmt.DiskBytes(nb), Fmt.DiskBytes(maxNewBytes));
+                        totalTrimmedUrls++;
+                        totalTrimmedBytes += nb;
+                        if (ShouldTrace(url))
+                        {
+                            logger.InfoFormat("trimmed download {0}: {1} to download + {2} > {3}", url,
+                                              Fmt.Bytes(newBytes), Fmt.Bytes(nb), Fmt.Bytes(maxNewBytes));
+                        }
                     }
                 }
+            }
+            int nt = urls.Count - trimmed.Count;
+            if (nt > 0)
+            {
+                logger.InfoFormat("trimmed {0} downloads from {1}, downloading {2} new bytes", nt, what,
+                                  Fmt.Bytes(newBytes));
             }
             return trimmed;
         }
@@ -1171,6 +1192,7 @@ namespace OPS.Landform
             var localPath = LocalPath(url);    
             if (options.DryRun)
             {
+                alreadyDownloaded.Add(localPath);
                 logger.InfoFormat("DRY download {0} -> {1}", url, localPath);
                 return 0;
             }
@@ -1217,6 +1239,7 @@ namespace OPS.Landform
             });
             if (File.Exists(localPath))
             {
+                alreadyDownloaded.Add(localPath);
                 downloadedFiles++;
                 return new FileInfo(localPath).Length;
             }
@@ -1234,7 +1257,7 @@ namespace OPS.Landform
             if (maxBytes > 0 && remoteBytes > maxBytes)
             {
                 logger.InfoFormat("not downloading {0}: {1} bytes > max download {2}",
-                                  url, Fmt.DiskBytes(remoteBytes), Fmt.DiskBytes(maxBytes));
+                                  url, Fmt.Bytes(remoteBytes), Fmt.Bytes(maxBytes));
                 return false;
             }
             string localPath = LocalPath(url);
@@ -1243,8 +1266,8 @@ namespace OPS.Landform
             if (maxBytes > 0 && newBytes > 0 && !options.DeleteLRU && (diskBytes + batchBytes + newBytes) > maxBytes)
             {
                 logger.InfoFormat("not downloading {0}: {1} + {2} bytes > max download {3}",
-                                  url, Fmt.DiskBytes(diskBytes + batchBytes), Fmt.DiskBytes(newBytes),
-                                  Fmt.DiskBytes(maxBytes));
+                                  url, Fmt.Bytes(diskBytes + batchBytes), Fmt.Bytes(newBytes),
+                                  Fmt.Bytes(maxBytes));
                 return false;
             }
             if (localBytes >= 0 && newBytes == 0 && !options.Overwrite)
@@ -1258,17 +1281,18 @@ namespace OPS.Landform
                     {
                         logger.InfoFormat("not downloading {0}: local file {1} already downloaded ({2} = {2} bytes)" +
                                           "local timestamp {3} >= remote timestamp {4}",
-                                          url, localPath, Fmt.DiskBytes(localBytes),
+                                          url, localPath, Fmt.Bytes(localBytes),
                                           UTCTime.MSSinceEpochToDate(localModified),
                                           UTCTime.MSSinceEpochToDate(remoteModified));
                     }
+                    alreadyDownloaded.Add(localPath);
                     return false;
                 }
             }
             if (remoteBytes >= 0)
             {
-                logger.InfoFormat("downloading {0} ({1} bytes){2}", url, Fmt.DiskBytes(remoteBytes),
-                                  localBytes >= 0 ? $", overwriting {localPath} ({Fmt.DiskBytes(localBytes)} bytes)" :
+                logger.InfoFormat("downloading {0} ({1} bytes){2}", url, Fmt.Bytes(remoteBytes),
+                                  localBytes >= 0 ? $", overwriting {localPath} ({Fmt.Bytes(localBytes)} bytes)" :
                                   "");
                 batchBytes += newBytes;
             }
@@ -1300,7 +1324,7 @@ namespace OPS.Landform
                 if ((++i)%100 == 0)
                 {
                     logger.InfoFormat("collected info for batch of {0}/{1} downloads, downloading {2} files, {3} bytes",
-                                      i, urls.Count, batch.Count, Fmt.DiskBytes(batchBytes));
+                                      i, urls.Count, batch.Count, Fmt.Bytes(batchBytes));
                 }
             }
             
@@ -1326,7 +1350,7 @@ namespace OPS.Landform
                 //the reason we don't want to delete files that we will be re-downloading
                 //is that we have already subtracted their existing size from batchBytes
                 var keep = new HashSet<string>(urls.Select(url => LocalPath(url)));
-                //keep.ExceptWith(batch.Select(url => LocalPath(url)));
+                keep.UnionWith(alreadyDownloaded);
                 DeleteLRUDownloads(batchBytes, keep);
             }
 
@@ -1335,9 +1359,7 @@ namespace OPS.Landform
                 long freeBytes = Math.Max(0, maxBytes - diskBytes);
                 if (freeBytes < batchBytes)
                 {
-                    var trimmed = TrimDownloads(batch.ToList(), freeBytes, out batchBytes);
-                    logger.InfoFormat("trimmed {0} downloads from batch, downloading {1} new bytes",
-                                      batch.Count - trimmed.Count, Fmt.DiskBytes(batchBytes));
+                    var trimmed = TrimDownloads("batch", batch.ToList(), freeBytes, out batchBytes);
                     batch.Clear();
                     batch.UnionWith(trimmed);
                 }
@@ -1349,7 +1371,7 @@ namespace OPS.Landform
                 return;
             }
 
-            logger.InfoFormat("downloading batch of {0} files, {1} bytes", batch.Count, Fmt.DiskBytes(batchBytes));
+            logger.InfoFormat("downloading batch of {0} files, {1} bytes", batch.Count, Fmt.Bytes(batchBytes));
 
             var newLocalFiles = new ConcurrentDictionary<string, string>(); //bad experiences with ConcurrentBag
             var sw = Stopwatch.StartNew();
@@ -1377,7 +1399,7 @@ namespace OPS.Landform
                     double ts = 0.001 * sw.ElapsedMilliseconds;
                     string msg = string.Format("batch {0:f2}% {1}/{2} {3}/s: ({4} active downloads) {5} {6}",
                                                (done + failed) * 100.0 / total,
-                                               Fmt.DiskBytes(db), Fmt.DiskBytes(batchBytes), Fmt.DiskBytes(db / ts),
+                                               Fmt.Bytes(db), Fmt.Bytes(batchBytes), Fmt.Bytes(db / ts),
                                                np, bytes >= 0 ? "downloaded" : "failed to download", url);
                     if (bytes >= 0)
                     {
@@ -1393,8 +1415,8 @@ namespace OPS.Landform
 
             long dbc = downloadedBytes - batchStartBytes;
             logger.InfoFormat("batch complete, downloaded {0} bytes, {1} files, {2} failed, elapsed time {3}, {4}/s",
-                              Fmt.DiskBytes(dbc), done, failed, Fmt.HMS(sw),
-                              Fmt.DiskBytes(dbc / (0.001 * sw.ElapsedMilliseconds)));
+                              Fmt.Bytes(dbc), done, failed, Fmt.HMS(sw),
+                              Fmt.Bytes(dbc / (0.001 * sw.ElapsedMilliseconds)));
 
             AccountDownloads(newLocalFiles.Values.Select(path => new FileInfo(path)));
         }
@@ -1431,7 +1453,7 @@ namespace OPS.Landform
             }
 
             logger.InfoFormat("deleting least-recently used downloads, current disk usage {0}, target {1}",
-                              Fmt.DiskBytes(diskBytes), Fmt.DiskBytes(target));
+                              Fmt.Bytes(diskBytes), Fmt.Bytes(target));
 
             var lru = lruDownloads;
             HashSet<string> deleted = null;
@@ -1449,7 +1471,7 @@ namespace OPS.Landform
                 if (lru.Count == 0)
                 {
                     logger.WarnFormat("no more LRU downloads to delete, but current disk usage {0} > {1}",
-                                      Fmt.DiskBytes(diskBytes), Fmt.DiskBytes(target));
+                                      Fmt.Bytes(diskBytes), Fmt.Bytes(target));
                     break;
                 }
                 var file = lru.Dequeue(); //removes from beginning of queue (oldest)
@@ -1460,9 +1482,9 @@ namespace OPS.Landform
                     {
                         logger.InfoFormat("deleting least-recently used file {0} ({1} bytes, last access {2}), " +
                                           "{3}/{4} bytes currently free, target min free bytes {5}",
-                                          file.FullName, Fmt.DiskBytes(bytes), file.LastAccessTime,
-                                          Fmt.DiskBytes(maxBytes - diskBytes), //may be negative
-                                          Fmt.DiskBytes(maxBytes), Fmt.DiskBytes(minFreeBytes));
+                                          file.FullName, Fmt.Bytes(bytes), file.LastAccessTime,
+                                          Fmt.Bytes(maxBytes - diskBytes), //may be negative
+                                          Fmt.Bytes(maxBytes), Fmt.Bytes(minFreeBytes));
                     }
                     file.Delete();
                     diskBytes -= bytes;
@@ -1501,9 +1523,9 @@ namespace OPS.Landform
                 logger.InfoFormat("deleted {0} LRU files ({1} cumulative) with last access times {2} to {3}, " +
                                   "{4} bytes ({5} cumulative), {6}/{7} bytes free",
                                   Fmt.KMG(ndf), Fmt.KMG(deletedFiles), first.Value, last.Value,
-                                  Fmt.DiskBytes(ndb), Fmt.DiskBytes(deletedBytes),
-                                  Fmt.DiskBytes(maxBytes - diskBytes), //may be negative
-                                  Fmt.DiskBytes(maxBytes));
+                                  Fmt.Bytes(ndb), Fmt.Bytes(deletedBytes),
+                                  Fmt.Bytes(maxBytes - diskBytes), //may be negative
+                                  Fmt.Bytes(maxBytes));
             }
 
             if (deletedDirectories > 0)
@@ -1523,15 +1545,15 @@ namespace OPS.Landform
                 if (maxBytes > 0 && options.AccountExisting && Directory.Exists(options.OutputDir))
                 {
                     logger.InfoFormat("indexing existing downloads, disk usage limit {0} bytes",
-                                      Fmt.DiskBytes(maxBytes));
+                                      Fmt.Bytes(maxBytes));
                     AccountDownloads(PathHelper.ListFiles(options.OutputDir, recursive: true));
                     logger.InfoFormat("found {0} existing downloads, total {1} bytes",
-                                      Fmt.KMG(lruDownloads.Count), Fmt.DiskBytes(diskBytes));
+                                      Fmt.KMG(lruDownloads.Count), Fmt.Bytes(diskBytes));
                 }
                 else if (maxBytes > 0)
                 {
                     logger.InfoFormat("download limit {0} bytes, not accounting existing downloads",
-                                      Fmt.DiskBytes(maxBytes));
+                                      Fmt.Bytes(maxBytes));
                 }
                 
                 if (options.Raw)
@@ -1543,8 +1565,17 @@ namespace OPS.Landform
                     RunSearch();
                 }
 
-                logger.InfoFormat("total downloaded {0} files ({1} bytes), total time: {2}",
-                                  Fmt.DiskBytes(downloadedFiles), Fmt.DiskBytes(downloadedBytes), Fmt.HMS(stopwatch));
+                logger.InfoFormat("total {0} URLs trimmed to limit disk usage ({1} bytes)",
+                                  totalTrimmedUrls, Fmt.Bytes(totalTrimmedBytes));
+
+                logger.InfoFormat("total {0} requested files downloaded or already present ({1} bytes)",
+                                  alreadyDownloaded.Count,
+                                  Fmt.Bytes(alreadyDownloaded.Sum(path => LocalBytes(path, 0))));
+
+                logger.InfoFormat("total {0} downloaded files ({1} bytes)",
+                                  Fmt.Bytes(downloadedFiles), Fmt.Bytes(downloadedBytes));
+
+                logger.InfoFormat("total time {0}", Fmt.HMS(stopwatch));
             }
             catch (Exception ex)
             {
@@ -1693,8 +1724,7 @@ namespace OPS.Landform
                     {
                         logger.InfoFormat("trimming {0} urls for sol {1} under {2}",
                                           Fmt.KMG(urlsBySol[sol].Count), sol, location);
-                        filtered = TrimDownloads(filtered, maxBytes, out long newBytes);
-                        logger.InfoFormat("downloading {0} new bytes after trimming", Fmt.DiskBytes(newBytes));
+                        filtered = TrimDownloads("sol " + sol, filtered, maxBytes, out long newBytes);
                     }
                     urlsBySol[sol] = filtered;
                 }
@@ -1711,11 +1741,15 @@ namespace OPS.Landform
                                                            includeVersion: false, includeStereoEye: false))
                             .Select(ids => ids.Distinct().OrderBy(id => id.FullId).ToList())
                             .ToList();
-                        logger.InfoFormat("-- fetching {0} product ids for sol {1} under {2} --",
-                                          groups.Select(g => g.Count).Sum(), sol, location);
+                        logger.InfoFormat("-- fetching {0} product ids for sol {1} under {2} ({3} new bytes) --",
+                                          groups.Select(g => g.Count).Sum(), sol, location,
+                                          Fmt.Bytes(urlsBySol[sol]
+                                                        .Sum(url => RemoteBytes(url) - LocalBytes(LocalPath(url), 0))));
                         groups.ForEach(g => g.ForEach(id => logger.Info(id.FullId)));
                     }
                 }
+
+                logger.InfoFormat("-- beginning downloads for {0} sols --", sols.Count);
                 
                 foreach (var sol in sols) //in descending order
                 {

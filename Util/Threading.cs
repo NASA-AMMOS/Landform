@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.Linq;
 using System.Text;
 using System.Threading;
@@ -205,6 +206,14 @@ namespace OPS.Util
         public static void ForEach<T>(IEnumerable<T> list, Action<T> action)
         {
             Parallel.ForEach<T>(list, new ParallelOptions() { MaxDegreeOfParallelism = maxParallelism }, action);
+        }
+
+        public static void ForEachNoPartition<T>(IEnumerable<T> list, Action<T> action)
+        {
+            //https://stackoverflow.com/a/16427390
+            Parallel.ForEach<T>(Partitioner.Create(list, EnumerablePartitionerOptions.NoBuffering),
+                                new ParallelOptions() { MaxDegreeOfParallelism = maxParallelism },
+                                action);
         }
 
         public static void ForEach<T>(IEnumerable<T> list, Action<T, ParallelLoopState, long> action)

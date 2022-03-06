@@ -43,7 +43,7 @@ namespace OPS.Cloud
         public int ApproxReceiveCount = -1;
     }
 
-    public class MessageQueue
+    public class MessageQueue : IDisposable
     {
         public const int DEF_TIMEOUT_SEC = 30;
         public const String DEF_FIFO_QUEUE_MESSAGE_GROUP_ID = "the_group_id";
@@ -151,6 +151,12 @@ namespace OPS.Cloud
                 }
                 throw;
             }
+        }
+
+        public void Dispose()
+        {
+            client.Dispose();
+            client = null;
         }
 
         public void Purge()

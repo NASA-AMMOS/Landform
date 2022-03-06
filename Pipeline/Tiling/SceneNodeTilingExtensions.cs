@@ -319,11 +319,12 @@ namespace OPS.Pipeline
                 if (project.TextureProjectorGuid != Guid.Empty &&
                     (project.TextureMode == TextureMode.Clip || project.AtlasMode == AtlasMode.Project))
                 {
-                    textureProjector = pipeline.GetDataProduct<TextureProjector>(project, project.TextureProjectorGuid);
+                    textureProjector =
+                        pipeline.GetDataProduct<TextureProjector>(project, project.TextureProjectorGuid, noCache: true);
                     var texGuid = textureProjector.TextureGuid;
                     if (project.TextureMode == TextureMode.Clip && texGuid != Guid.Empty)
                     {
-                        textureImage = pipeline.GetDataProduct<PngDataProduct>(project, texGuid).Image;
+                        textureImage = pipeline.GetDataProduct<PngDataProduct>(project, texGuid, noCache: true).Image;
                     }
                 }
 

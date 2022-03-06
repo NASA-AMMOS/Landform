@@ -307,7 +307,9 @@ namespace OPS.Landform
                 GenerateNormals = !bcopts.NoGenerateNormals,
                 MeshDecimator = bcopts.MeshDecimator,
                 AlwaysReconstruct = !useMeshRDRs,
-                ReconstructionMethod = bcopts.ReconstructionMethod
+                ReconstructionMethod = bcopts.ReconstructionMethod,
+                NoCacheTextureImages = !applyTexture,
+                NoCacheGeometryImages = true
             };
         }
 
@@ -431,7 +433,7 @@ namespace OPS.Landform
                         Image img = null;
                         if (bcopts.BEVColoring == BirdsEyeView.ColorMode.Texture && obs.Texture != null)
                         {
-                            img = pipeline.LoadImage(obs.Texture.Url);
+                            img = pipeline.LoadImage(obs.Texture.Url, noCache: true);
                             int ibs = WedgeObservations.AutoDecimate(obs.Texture, bcopts.DecimateWedgeImages,
                                                                      bcopts.TargetWedgeImageResolution);
                             if (ibs > 1)
@@ -578,8 +580,10 @@ namespace OPS.Landform
                     bool renderBEV = includeBEVs && !bevs.ContainsKey(siteDrive);
                     bool renderDEM = includeDEMs && !dems.ContainsKey(siteDrive);
 
-                    Mesh mesh = null;
-                    Image img = null;
+                    if (!wedgeMeshes.ContainsKey(siteDrive))
+                    {
+                        throw new Exception("no wedges to render BEV/DEM");
+                    }
 
                     //ensure inputs are in a canonical order particularly for BEVBlending = Over
                     var inputs = wedgeMeshes[siteDrive]
@@ -594,19 +598,20 @@ namespace OPS.Landform
                         if (bad.Count > 0)
                         {
                             pipeline.LogWarn("{0} wedges missing UVs or texture image, " +
-                                             "excluding from BEV for site drive {1}: {2}",
+                                             "excluding from BEV/DEM for site drive {1}: {2}",
                                              bad.Count, siteDrive, String.Join(", ", bad.Select(inp => inp.Item1)));
                             inputs = inputs.Where(inp => inp.Item2.HasUVs && inp.Item3 != null).ToList();
                         }
                     }
 
                     var pairs = inputs.Select(inp => new Tuple<Mesh, Image>(inp.Item2, inp.Item3)).ToArray();
-
                     if (pairs.Length == 0)
                     {
-                        throw new Exception("no wedges to render BEV");
+                        throw new Exception("no wedges to render BEV/DEM");
                     }
                     
+                    Mesh mesh = null;
+                    Image img = null;
                     if (renderBEV && bcopts.BEVColoring == BirdsEyeView.ColorMode.Texture)
                     {
                         var pair = MeshMerge.MergeMeshesAndTextures(pairs);
@@ -617,6 +622,12 @@ namespace OPS.Landform
                     {
                         mesh = MeshMerge.MergeWithCommonAttributes(pairs.Select(pr => pr.Item1).ToArray());
                     }
+
+                    //this is a memory pinch point
+                    wedgeMeshes.TryRemove(siteDrive, out _); //https://stackoverflow.com/a/49415372/4970315
+                    inputs = null;
+                    pairs = null;
+                    CheckGarbage(immediate: true);
 
                     if (renderBEV)
                     {
@@ -826,14 +837,18 @@ namespace OPS.Landform
 
                         Image mask = null;
                         if (includeBEVs || includeDEMs) {
-                            mask = pipeline.GetDataProduct<TiffDataProduct>(project, rec.MaskGuid).Image;
+                            mask = pipeline
+                                .GetDataProduct<TiffDataProduct>(project, rec.MaskGuid, noCache: true)
+                                .Image;
                             pipeline.LogInfo("loaded {0}x{1} BEV/DEM mask for site drive {2}",
                                              mask.Width, mask.Height, siteDrive);
                         }
 
                         if (includeBEVs)
                         {
-                            var bev = pipeline.GetDataProduct<TiffDataProduct>(project, rec.BEVGuid).Image;
+                            var bev = pipeline
+                                .GetDataProduct<TiffDataProduct>(project, rec.BEVGuid, noCache: true)
+                                .Image;
                             bev.UnionMask(mask, new float[] { 1 });
                             bevs[siteDrive] = bev;
                             pipeline.LogInfo("loaded {0}x{1} BEV for site drive {2}", bev.Width, bev.Height, siteDrive);
@@ -841,7 +856,9 @@ namespace OPS.Landform
 
                         if (includeDEMs)
                         {
-                            var dem = pipeline.GetDataProduct<TiffDataProduct>(project, rec.DEMGuid).Image;
+                            var dem = pipeline
+                                .GetDataProduct<TiffDataProduct>(project, rec.DEMGuid, noCache: true)
+                                .Image;
                             dem.UnionMask(mask, new float[] { 1 });
                             dems[siteDrive] = dem;
                             pipeline.LogInfo("loaded {0}x{1} DEM for site drive {2}", dem.Width, dem.Height, siteDrive);

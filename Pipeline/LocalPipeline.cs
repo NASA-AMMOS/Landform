@@ -119,12 +119,13 @@ namespace OPS.Pipeline
         /// <summary>
         /// url can be either a file:// URL or a disk path
         /// </summary>
-        public override void DeleteFile(string url, bool ignoreErrors = true)
+        public override bool DeleteFile(string url, bool ignoreErrors = true, bool constrainToStorage = true)
         {
-            string file = UrlToFile(CheckUrl(url));
+            string file = UrlToFile(CheckUrl(url, constrainToStorage));
             try
             {
                 File.Delete(file);
+                return true;
             }
             catch (Exception ex)
             {
@@ -135,6 +136,7 @@ namespace OPS.Pipeline
                 else
                 {
                     LogWarn("error deleting file {0}: {1}", file, ex.Message);
+                    return false;
                 }
             }
         }
@@ -142,10 +144,11 @@ namespace OPS.Pipeline
         /// <summary>
         /// url can be either a file:// URL or a disk path
         /// </summary>
-        public override void DeleteFiles(string url, string globPattern = "*", bool recursive = true,
-                                         bool ignoreErrors = true)
+        public override bool DeleteFiles(string url, string globPattern = "*", bool recursive = true,
+                                         bool ignoreErrors = true, bool constrainToStorage = true)
         {
-            url = CheckUrl(url, constrainToStorage: true, preserveTrailingSlash: true);
+            bool ok = true;
+            url = CheckUrl(url, constrainToStorage: constrainToStorage, preserveTrailingSlash: true);
             try
             {
                 foreach (var u in SearchFiles(url, globPattern, recursive, constrainToStorage: true))
@@ -163,6 +166,7 @@ namespace OPS.Pipeline
                         }
                         else
                         {
+                            ok = false;
                             LogWarn("error deleting file {0}: {1}", f, ex.Message);
                         }
                     }
@@ -176,9 +180,11 @@ namespace OPS.Pipeline
                 }
                 else
                 {
+                    ok = false;
                     LogWarn("error listing files under " + url);
                 }
             }
+            return ok;
         }
 
         /// <summary>
@@ -442,6 +448,7 @@ namespace OPS.Pipeline
         private void InitializeDatabase(bool quiet, bool alignment, bool tiling)
         {
             double startSec = UTCTime.Now();
+            double lastSpew = startSec;
             int nt = 0, ni = 0;
             foreach (var t in InitTableTypes(quiet, alignment, tiling))
             {
@@ -449,7 +456,8 @@ namespace OPS.Pipeline
                 var ti = GetTableInfo(t, expectExists: false);
                 var baseUrl = GetDatabaseTableUrl(ti);
                 int nti = 0;
-                foreach (var url in SearchFiles(baseUrl, recursive: true, constrainToStorage: true))
+                var urls = SearchFiles(baseUrl, recursive: true, constrainToStorage: true).ToList();
+                foreach (var url in urls) 
                 {
                     if (url.ToLower().EndsWith(".json"))
                     {
@@ -472,6 +480,15 @@ namespace OPS.Pipeline
                                      StringHelper.CollapseWhitespace(json));
                         }
                         dbCache.AddOrUpdate(key, _ => json, (_, __) => json);
+                        double now = UTCTime.Now();
+                        if ((now - lastSpew) > 10)
+                        {
+                            LogInfo("initialized {0} database tables ({1} items), " +
+                                    "loading {2} table ({3}/{4} items, {5:f2}%)",
+                                    nt - 1, Fmt.KMG(ni), t.Name, Fmt.KMG(nti), Fmt.KMG(urls.Count),
+                                    100 * ((double)nti) / urls.Count);
+                            lastSpew = now;
+                        }
                     }
                 }
                 if (!quiet)

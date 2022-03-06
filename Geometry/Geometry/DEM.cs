@@ -560,8 +560,7 @@ namespace OPS.Geometry
                        testR > r && testR < r + height && testC > c && testC < c + width)
                     {
                         double dist = double.MaxValue;
-                        List<Triangle> tris = mesh.Triangles();
-                        foreach (Triangle t in tris)
+                        foreach (Triangle t in mesh.Triangles())
                         {
                             double tmp = t.SquaredDistance(v.Value);
                             dist = Math.Min(tmp, dist);

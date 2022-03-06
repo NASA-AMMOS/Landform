@@ -67,6 +67,8 @@ namespace OPS.Pipeline.AlignmentServer
 
         public Guid MaskGuid; //combines rover mask, user mask, invalid/missing pixels, and border
 
+        public Guid HullGuid; //camera model frustum hull
+
         public Guid FeaturesGuid;
 
         public Guid BlurredGuid;
@@ -98,6 +100,8 @@ namespace OPS.Pipeline.AlignmentServer
         public int Version;
 
         public int Index;
+
+        public double HullFarClip;
 
         [DynamoDBProperty("CameraModel", typeof(CameraModelConverter))]
         [JsonConverter(typeof(CameraModelConverter))]
@@ -141,6 +145,7 @@ namespace OPS.Pipeline.AlignmentServer
             this.Name = name;
             this.Url = url;
             this.MaskGuid = Guid.Empty;
+            this.HullGuid = Guid.Empty;
             this.FeaturesGuid = Guid.Empty;
             this.BlurredGuid = Guid.Empty;
             this.BlendedGuid = Guid.Empty;

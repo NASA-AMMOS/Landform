@@ -73,6 +73,25 @@ namespace OPS.Pipeline
         //sorted in order of preference (best last)
         [ConfigEnvironmentVariable("LANDFORM_ALLOWED_PRODUCERS")]
         public string AllowedProducers { get; set; } = "OPGS";  //"OPGS,ASU"
+
+        //SSM service watchdog process name, empty to disable
+        [ConfigEnvironmentVariable("LANDFORM_WATCHDOG_SSM_PROCESS")]
+        public string WatchdogSSMProcess { get; set; } = "amazon-ssm-agent"; 
+
+        //SSM service watchdog restart command, {venue} will be replaced, empty to disable
+        [ConfigEnvironmentVariable("LANDFORM_WATCHDOG_SSM_COMMAND")]
+        public string WatchdogSSMCommand { get; set; } =
+            "powershell -Command \"& { Restart-Service AmazonSSMAgent }\"";
+
+        //CloudWatch service watchdog process name, empty to disable
+        [ConfigEnvironmentVariable("LANDFORM_WATCHDOG_CLOUDWATCH_PROCESS")]
+        public string WatchdogCloudWatchProcess { get; set; } = "amazon-cloudwatch-agent"; 
+
+        //CloudWatch service watchdog restart command, {venue} and {cwagentctl} will be replaced, empty to disable
+        [ConfigEnvironmentVariable("LANDFORM_WATCHDOG_CLOUDWATCH_COMMAND")]
+        public string WatchdogCloudWatchCommand { get; set; } =
+            //"powershell -Command \"& {cwagentctl} -a fetch-config -m ec2 -s -c ssm:/m20/{venue}/ids/landform/cloudwatch\"";
+            "powershell -Command \"& {cwagentctl} -a fetch-config -m ec2 -s -c file:C:\\landform\\config_files\\amazon-cloudwatch-agent.json\"";
     }
     
     public class MissionM2020 : MissionSpecific
@@ -812,6 +831,30 @@ namespace OPS.Pipeline
         public override List<RoverProductProducer> GetAllowedProducers()
         {
             return GetAllowedProducers(MissionM2020Config.Instance.AllowedProducers);
+        }
+
+        public override string GetSSMProcess()
+        {
+            return MissionM2020Config.Instance.WatchdogSSMProcess;
+        }
+
+        public override string GetSSMCommand()
+        {
+            //https://docs.aws.amazon.com/systems-manager/latest/userguide/sysman-install-win.html
+            return MissionM2020Config.Instance.WatchdogSSMCommand.Replace("{venue}", venue);
+        }
+
+        public override string GetCloudWatchProcess()
+        {
+            return MissionM2020Config.Instance.WatchdogCloudWatchProcess;
+        }
+
+        public override string GetCloudWatchCommand()
+        {
+            //https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/install-CloudWatch-Agent-on-EC2-Instance-fleet.html#start-CloudWatch-Agent-EC2-fleet
+            string cmd = MissionM2020Config.Instance.WatchdogCloudWatchCommand.Replace("{venue}", venue);
+            return cmd.Replace("{cwagentctl}",
+                               "'C:\\Program Files\\Amazon\\AmazonCloudWatchAgent\\amazon-cloudwatch-agent-ctl.ps1'");
         }
     }
 

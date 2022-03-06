@@ -174,7 +174,7 @@ namespace OPS.Pipeline
 
             foreach (var obs in observations.Where(obs => obs.StatsGuid != Guid.Empty))
             {
-                var stats = pipeline.GetDataProduct<ImageStats>(project, obs.StatsGuid);
+                var stats = pipeline.GetDataProduct<ImageStats>(project, obs.StatsGuid, noCache: true);
                 lumaMeds.Add(stats.LuminanceMedian);
                 lumaMADs.Add(stats.LuminanceMedianAbsoluteDeviation);
                 if (stats.Bands > 2)
@@ -218,7 +218,8 @@ namespace OPS.Pipeline
                                               int inpaintMissing = 4, int inpaintGutter = -1,
                                               bool fallbackToOriginal = true, Image orbitalTexture = null,
                                               float[] missingColor = null, double preadjustLuminance = 0,
-                                              double colorizeHue = -1)
+                                              double colorizeHue = -1, bool reverseAccessOrder = false,
+                                              bool disableCaches = false)
         {
             missingColor = missingColor ?? TexturingDefaults.BACKPROJECT_NO_OBSERVATION_COLOR;
 
@@ -248,13 +249,21 @@ namespace OPS.Pipeline
             var results = backprojectResults.ToList();
 
             //group by source texture for perfomance (load the image once for all pixels needed from it)
-            var groupedWinners =
+            //in order of observation name for cache optimization
+            var winners =
                 results
                 .Where(pair => pair.Value.Obs != null &&
                        (pair.Value.Obs is RoverObservation ||
                         (pair.Value.Obs.IsOrbitalImage && orbitalTexture != null)))
-                .ToList()
-                .GroupBy(pair => pair.Value.Obs.Name);
+                .OrderBy(pair => pair.Value.Obs.Name)
+                .ToList();
+
+            if (reverseAccessOrder)
+            {
+                winners.Reverse();
+            }
+
+            var groupedWinners = winners.GroupBy(pair => pair.Value.Obs.Name); //preserves order
 
             double lumaMed = -1, lumaMAD = -1;
             if (preadjustLuminance > 0)
@@ -292,18 +301,21 @@ namespace OPS.Pipeline
                     {
                         Interlocked.Increment(ref stats.NumFallbacks);
                     }
-                    img = pipeline.LoadImage(obs.Url);
+                    img = pipeline.LoadImage(obs.Url, noCache: disableCaches);
                 }
                 else
                 {
                     checkProject(obs);
-                    img = pipeline.GetDataProduct<PngDataProduct>(project, obs.GetTextureVariantGuid(variant)).Image;
+                    img = pipeline
+                        .GetDataProduct<PngDataProduct>(project, obs.GetTextureVariantGuid(variant),
+                                                        noCache: disableCaches)
+                        .Image;
                 }
 
                 if (preadjustLuminance > 0 && lumaMed >= 0 && obs.StatsGuid != Guid.Empty)
                 {
                     checkProject(obs);
-                    var st = pipeline.GetDataProduct<ImageStats>(project, obs.StatsGuid);
+                    var st = pipeline.GetDataProduct<ImageStats>(project, obs.StatsGuid, noCache: disableCaches);
                     img = new Image(img); //don't mutate cached image
                     img.AdjustLuminanceDistribution(st.LuminanceMedian, st.LuminanceMedianAbsoluteDeviation,
                                                     lumaMed, lumaMAD, preadjustLuminance);
@@ -853,7 +865,7 @@ namespace OPS.Pipeline
         }
 
         public static void DebugWriteCoverageImage(Options opts, SceneCaster debugTileOcclusion, Observation obs,
-                                                    Matrix obsToMesh)
+                                                   Matrix obsToMesh)
         {
             Image srcImg = opts.pipeline.LoadImage(obs.Url);
 
@@ -1274,19 +1286,33 @@ namespace OPS.Pipeline
      
         public static IDictionary<string, ConvexHull> //indexed by observation name
             BuildFrustumHulls(PipelineCore pipeline, FrameCache frameCache, string outputFrame, bool usePriors,
-                              bool onlyAligned, IEnumerable<RoverObservation> imgObservations, double farClip = 20)
+                              bool onlyAligned, IEnumerable<RoverObservation> imgObservations, Project project,
+                              bool rebuild = false, bool noSave = false, double farClip = 20)
         {
             int no = imgObservations.Count();
 
-            pipeline.LogInfo("building frustum hulls for {0} observations", no);
+            pipeline.LogInfo("building{0} frustum hulls for {1} observations", rebuild ? "" : " or loading", no);
 
             var obsToHull = new ConcurrentDictionary<string, ConvexHull>();
 
-            int nh = 0;
-            CoreLimitedParallel.ForEach(imgObservations, obs =>
+            int np = 0, nc = 0, nl = 0, nf = 0;
+            CoreLimitedParallel.ForEachNoPartition(imgObservations, obs =>
             {
-                Interlocked.Increment(ref nh);
-                pipeline.LogDebug("building frustum hull for observation {0}, {1}/{2}", obs.Name, nh, no);
+                if (!rebuild && obs.HullGuid != Guid.Empty && obs.HullFarClip == farClip)
+                {
+                    var meshProd = pipeline.GetDataProduct<PlyGZDataProduct>(project, obs.HullGuid, noCache: true);
+                    var loadedHull = ConvexHull.FromConvexMesh(meshProd.Mesh);
+                    obsToHull.AddOrUpdate(obs.Name, _ => loadedHull, (_, __) => loadedHull);
+                    Interlocked.Increment(ref nc);
+                    Interlocked.Increment(ref nl);
+                    return;
+                }
+
+                Interlocked.Increment(ref np);
+
+                pipeline.LogDebug("computing frustum hull for observation {0}, processing {1} in parallel, " +
+                                  "completed {2}/{3}", obs.Name, np, nc, no);
+
                 var meshObs = new WedgeObservations() { Texture = obs };
                 var opts = new WedgeObservations.MeshOptions()
                 { Frame = outputFrame, UsePriors = usePriors, OnlyAligned = onlyAligned };
@@ -1295,14 +1321,26 @@ namespace OPS.Pipeline
                 if (hull != null)
                 {
                     obsToHull.AddOrUpdate(obs.Name, _ => hull, (_, __) => hull);
+                    if (!noSave)
+                    {
+                        var hullProd = new PlyGZDataProduct(hull.Mesh);
+                        pipeline.SaveDataProduct(project, hullProd, noCache: true);
+                        obs.HullGuid = hullProd.Guid;
+                        obs.HullFarClip = farClip;
+                        obs.Save(pipeline);
+                    }
+                    Interlocked.Increment(ref nc);
                 }
                 else
                 {
+                    Interlocked.Increment(ref nf);
                     pipeline.LogWarn("failed to build convex hull for observation {0}", obs.Name);
                 }
+
+                Interlocked.Decrement(ref np);
             });
 
-            pipeline.LogInfo("built convex hulls for {0} observations", obsToHull.Count);
+            pipeline.LogInfo("built convex hulls for {0} observations, {1} cached, {2} failed", nc - nl, nl, nf);
 
             return obsToHull;
         }
