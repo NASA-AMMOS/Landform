@@ -2559,26 +2559,21 @@ namespace OPS.Landform
         /// enforces options.MaxSiteDrivesPerSol
         /// Returns messages sorted first by decreasing sol, then by decreasing number of wedges.
         /// </summary>
-        private List<ContextualMeshMessage> CoalesceMessages(List<ContextualMeshMessage> newMsgsOldestToNewest)
+        private List<ContextualMeshMessage> CoalesceMessages(List<ContextualMeshMessage> newMsgsOldestToNewest,
+                                                             string what, MessageQueue queue, string rdrDir)
         {
             if (newMsgsOldestToNewest.Count == 0)
             {
                 return newMsgsOldestToNewest;
             }
 
-            string rdrDir = newMsgsOldestToNewest[0].rdrDir;
-            if (newMsgsOldestToNewest.Any(msg => msg.rdrDir != rdrDir))
-            {
-                throw new ArgumentException("all new messages must have same RDR dir");
-            }
-                 
-            pipeline.LogInfo("coalescing {0} new messages with existing", newMsgsOldestToNewest.Count);
+            pipeline.LogInfo("coalescing {0} new {1} messages with existing", newMsgsOldestToNewest.Count, what);
 
             //keep at most one message per (primarySol, primarySiteDrive) pair
             //ContextualMeshMessage defines its GetHashCode() and Equals() by (primarySol, primarySiteDrive)
             var keepers = new HashSet<ContextualMeshMessage>();
 
-            void keepNewest(List<ContextualMeshMessage> msgs, string what)
+            void keepNewest(List<ContextualMeshMessage> msgs, string kind)
             {
                 for (int i = msgs.Count - 1; i >= 0; i--) //iterate newest -> oldest
                 {
@@ -2588,8 +2583,8 @@ namespace OPS.Landform
                     }
                     else
                     {
-                        pipeline.LogInfo("{0} contextual mesh message superceded by a newer one, dropping: {1}",
-                                         what, DescribeMessage(msgs[i], verbose: true));
+                        pipeline.LogInfo("{0} {1} mesh message superceded by a newer one, dropping: {2}",
+                                         kind, what, DescribeMessage(msgs[i], verbose: true));
                     }
                 }
             }
@@ -2602,43 +2597,30 @@ namespace OPS.Landform
             //really there should be no dupes among the old messages
             //but just in case, keep them in order
             int oldMsgsCount = 0;
-            void reapExisting(MessageQueue queue, string what)
+            var oldMsgsOldestToNewest = new List<ContextualMeshMessage>();
+            while (true)
             {
-                var oldMsgsOldestToNewest = new List<ContextualMeshMessage>();
-                while (true)
+                var msg = queue.DequeueOne<ContextualMeshMessage>() as ContextualMeshMessage;
+                if (msg == null)
                 {
-                    var msg = queue.DequeueOne<ContextualMeshMessage>() as ContextualMeshMessage;
-                    if (msg == null)
-                    {
-                        break;
-                    }
-                    if (msg.rdrDir == rdrDir)
-                    {
-                        queue.DeleteMessage(msg);
-                        oldMsgsOldestToNewest.Add(msg);
-                    }
+                    break;
                 }
-                pipeline.LogInfo("dequeued {0} {1} messages from {2}", oldMsgsOldestToNewest.Count, what, queue.Name);
-                
-                keepNewest(oldMsgsOldestToNewest, what);
-
-                oldMsgsCount += oldMsgsOldestToNewest.Count;
+                if (msg.rdrDir == rdrDir)
+                {
+                    queue.DeleteMessage(msg);
+                    oldMsgsOldestToNewest.Add(msg);
+                }
             }
+            pipeline.LogInfo("dequeued {0} {1} messages from {2}", oldMsgsOldestToNewest.Count, what, queue.Name);
+            
+            keepNewest(oldMsgsOldestToNewest, "old");
+            
+            oldMsgsCount += oldMsgsOldestToNewest.Count;
 
-            if (workerQueue != null)
-            {
-                reapExisting(workerQueue, "existing");
-            }
-
-            if (orbitalWorkerQueue != null)
-            {
-                reapExisting(orbitalWorkerQueue, "existing orbital only");
-            }
-
-            if (options.MaxSiteDrivesPerSol > 0)
+            if (options.MaxSiteDrivesPerSol > 0 && keepers.Any(msg => !msg.orbitalOnly))
             {
                 var msgsBySol = new Dictionary<int, List<ContextualMeshMessage>>();
-                foreach (var msg in keepers)
+                foreach (var msg in keepers.Where(msg => !msg.orbitalOnly))
                 {
                     if (!msgsBySol.ContainsKey(msg.primarySol))
                     {
@@ -2666,12 +2648,14 @@ namespace OPS.Landform
                     }   
                     msgsBySol[sol] = filtered;
                 }
+                var oo = keepers.Where(msg => msg.orbitalOnly).ToList();
                 keepers.Clear();
+                keepers.UnionWith(oo);
                 keepers.UnionWith(msgsBySol.Values.SelectMany(msgs => msgs));
             }
 
-            pipeline.LogInfo("kept {0} coalesced messages from {1} old and {2} new",
-                             keepers.Count, oldMsgsCount, newMsgsOldestToNewest.Count);
+            pipeline.LogInfo("kept {0} {1} coalesced messages from {2} old and {3} new",
+                             keepers.Count, what, oldMsgsCount, newMsgsOldestToNewest.Count);
 
             //yes, OrderByDescending() is stable
             //https://stackoverflow.com/questions/1209935/orderby-and-orderbydescending-are-stable
@@ -2696,7 +2680,7 @@ namespace OPS.Landform
             try
             {
                 //remove duplicates and order descending by sol, then sitedrive, then num wedges
-                coalesced = CoalesceMessages(coalesced);
+                coalesced = CoalesceMessages(coalesced, what, queue, rdrDir);
             }
             catch (Exception ex)
             {
