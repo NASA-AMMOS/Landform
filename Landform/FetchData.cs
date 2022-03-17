@@ -1059,6 +1059,7 @@ namespace OPS.Landform
             //enforce mission specific wedge and texture count limits
             if (mission != null)
             {
+                var idToURL = new Dictionary<RoverProductId, string>();
                 foreach (var url in filtered)
                 {
                     var id = RoverProductId.Parse(GetProductIDString(url), mission); //all ids should parse now
@@ -1071,7 +1072,8 @@ namespace OPS.Landform
                             {
                                 sdLists[sd] = new SiteDriveList(mission, new ThunkLogger(logger));
                             }
-                            sdLists[sd].Add(id, url);
+                            sdLists[sd].Add(id, url); //SiteDriveList doesn't accept UVW or MXY
+                            idToURL[id] = url;
                         }
                         else if (ShouldTrace(url))
                         {
@@ -1079,33 +1081,44 @@ namespace OPS.Landform
                                               "previously dropped sitedrive exceeded wedge or texture limits", url);
                         }
                     }
-                }
-                var idToURL = new Dictionary<RoverProductId, string>();
-                foreach (var sdl in sdLists.Values)
-                {
-                    foreach (var id in sdl.IDToURL.Keys)
+                    else
                     {
-                        idToURL[id] = sdl.IDToURL[id];
+                        idToURL[id] = url;
                     }
                 }
+                //at this point idToUrl contains an entry for everything in filtered
+                //but filtered is typically for one sol only (and sols are typically processed in descendingorder)
+                //sdLists is cumulative, only contains RAS and XYZ products, and doesn't contain already dropped SDs
+                int numDropped = 0;
                 void droppedProduct(RoverProductId id)
                 {
-                    var url = idToURL[id];
-                    if (ShouldTrace(url))
-                    {
-                        logger.InfoFormat("filtered {0}: exceeded wedge or texture limits", url);
+                    if (idToURL.ContainsKey(id)) {
+                        numDropped++;
+                        var url = idToURL[id];
+                        if (ShouldTrace(url))
+                        {
+                            logger.InfoFormat("filtered {0}: exceeded wedge or texture limits", url);
+                        }
                     }
                 }
                 void droppedSiteDrive(SiteDrive sd)
                 {
                     droppedSiteDrives.Add(sd);
                 }
+                //SiteDriveList.ApplyMissionLimits() mutates idToURL to remove dropped products
+                //and sdLists to remove dropped sitedrives and products within sitedrives
+                //note that products that are in sdLists but not idToURL may be dropped
+                //e.g. products from newer sols than the one currently being filtered
+                //so we only bookeep dropped products that are in the current sol, i.e. in idToURL
+                //if a product is dropped here in an already processed sol we've already downloaded it, so too bad
+                //but fetch filtering is just an optimization anyway
+                //ingest does its own filtering too
                 SiteDriveList.ApplyMissionLimits(sdLists, idToURL, droppedProduct, droppedProduct, droppedSiteDrive);
-                var sdFiltered = new List<string>(idToURL.Values);
-                if (sdFiltered.Count < filtered.Count)
-                {
+                if (numDropped > 0) {
                     int countWas = filtered.Count;
-                    filtered = sdFiltered;
+                    filtered = new List<string>(idToURL.Values);
+                    //SiteDriveList.ApplyMissionLimits() already removed auxiliary products like UVW and RNE
+                    //but it didn't handle orphan masks
                     filterProductIDGroups(); //attempt to cull orphan masks
                     logger.InfoFormat("filtered {0}->{1} products by wedge and texture limits",
                                       countWas, filtered.Count);
