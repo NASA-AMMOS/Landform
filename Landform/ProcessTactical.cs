@@ -116,6 +116,9 @@ namespace OPS.Landform
         [Option(Default = false, HelpText = "Don't require PDS version of texture to be available")]
         public bool NoRequirePDSTexture { get; set; }
 
+        [Option(HelpText = "Don't convert non-PDS input texture from SRGB to linear RGB", Default = false)]
+        public bool NoConvertSRGBToLinearRGB { get; set; }
+
         [Option(Default = 150*1000*1000, HelpText = "Skip downloading OBJ LOD meshes greater than this size if smaller ones are available (non-positive disables)")]
         public long MaxOBJBytes { get; set; }
 
@@ -1091,6 +1094,7 @@ namespace OPS.Landform
                     SavePID(destDir, project, "leaves", pidFile);
                     BuildTilingInput(project, "--mission", fullMissionStr, "--meshframe", "tactical", "--inputmesh",
                                      meshFile, "--inputtexture", imageFile, loadLODs, "--fixuplods", fixupLODs,
+                                     options.NoConvertSRGBToLinearRGB ? "--noconvertsrgbtolinearrgb" : null,
                                      noTextureProjection, noAlignToCam, synthesizeExtraLODs, noLimitTreeHeightToLODs);
                     
                     SavePID(destDir, project, "tileset", pidFile);

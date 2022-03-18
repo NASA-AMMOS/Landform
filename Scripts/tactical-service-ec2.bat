@@ -220,6 +220,9 @@ if not "%LANDFORM_TACTICAL_AUTO_SCALE_GROUP%"=="" (
     set idleopts=%idleopts% --autoscalegroup=%LANDFORM_TACTICAL_AUTO_SCALE_GROUP%
 )
 
+set convertsrgb=
+if not "%LANDFORM_TACTICAL_NO_CONVERT_SRGB_TO_LINEAR_RGB%"=="" set convertsrgb=--noconvertsrgbtolinearrgb
+
 rem --- end service specific ---
 
 set stdopts=--configdir=%cfgdir% --configfolder=%cfgfolder% --logdir=%logdir% --logfile=%logfile% --tempdir=%tmpdir%
@@ -235,7 +238,7 @@ set tilingopts=%tilingopts% %poweroftwotextures% %skirtmode% %noindices% %embedi
 
 set tacticalopts=%meshregex% %mesheye% %meshgeom% %noloadlods% %fixuplods% %tileres% %preferpds% %requirepds% %objopts%
 set tacticalopts=%tacticalopts% %notextureprojection% %noaligntocamera% %synthesizeextralods% %nolimittreeheighttolods%
-set tacticalopts=%tacticalopts% %enforcemaxfacespertile% %tilingopts%
+set tacticalopts=%tacticalopts% %enforcemaxfacespertile% %requirepds% %tilingopts%
 
 set appsdir=%bindir%\ExternalApps
 if exist %appsdir%\opengl32-for-ivcat.dll (
