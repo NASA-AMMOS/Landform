@@ -147,6 +147,9 @@ namespace OPS.Landform
 
         [Option(HelpText = "Max texture stretch, 0 for none, 1 for unlimited", Default = TilingDefaults.MAX_TEXTURE_STRETCH)]
         public override double MaxTextureStretch { get; set; }
+
+        [Option(HelpText = "Don't convert non-PDS input texture from SRGB to linear RGB", Default = false)]
+        public bool NoConvertSRGBToLinearRGB { get; set; }
     }
 
     public class BuildTilingInput : TilingCommand
@@ -314,6 +317,31 @@ namespace OPS.Landform
             if (options.MaxTreeHeight > 0)
             {
                 maxTreeHeight = options.MaxTreeHeight;
+            }
+
+            //allow specifying e.g. --inputtexture=foo.png but use e.g. foo.IMG for metadata if it exists
+            var pdsExts = StringHelper.ParseExts(mission.GetPDSExts(), bothCases: true);
+            if (!string.IsNullOrEmpty(options.InputTexture) && pdsExts.Any(ext => options.InputTexture.EndsWith(ext)))
+            {
+                inputTexturePDS = options.InputTexture;
+                pipeline.LogInfo("input texture is PDS: {0}", options.InputTexture);
+            }
+            else
+            {
+                foreach (var ext in pdsExts)
+                {
+                    var pdsFile = Path.ChangeExtension(options.InputTexture, ext);
+                    if (File.Exists(pdsFile))
+                    {
+                        inputTexturePDS = pdsFile;
+                        pipeline.LogInfo("found PDS version of input texture {0}: {1}",
+                                         options.InputTexture, inputTexturePDS);
+                        break;
+                    }
+                }
+                if (inputTexturePDS == null) {
+                    pipeline.LogInfo("no available PDS version of input texture {0}", options.InputTexture);
+                }
             }
 
             return true;
@@ -572,25 +600,6 @@ namespace OPS.Landform
                 return;
             }
             
-            //allow specifying e.g. --inputtexture=foo.png but use e.g. foo.IMG for metadata if it exists
-            var pdsExts = StringHelper.ParseExts(mission.GetPDSExts(), bothCases: true);
-            if (pdsExts.Any(ext => options.InputTexture.EndsWith(ext)))
-            {
-                inputTexturePDS = options.InputTexture;
-            }
-            else
-            {
-                foreach (var ext in pdsExts)
-                {
-                    var pdsFile = Path.ChangeExtension(options.InputTexture, ext);
-                    if (File.Exists(pdsFile))
-                    {
-                        inputTexturePDS = pdsFile;
-                        break;
-                    }
-                }
-            }
-
             if (string.IsNullOrEmpty(inputTexturePDS))
             {
                 pipeline.LogInfo("cannot project texture, --inputtexture not PDS and has no PDS sibling");
@@ -690,9 +699,15 @@ namespace OPS.Landform
         {
             if (!string.IsNullOrEmpty(options.InputTexture))
             {
-                string texPath = !string.IsNullOrEmpty(inputTexturePDS) ? inputTexturePDS : options.InputTexture;
+                //can't use TextureProjectionEnabled() until sceneTexture is loaded, so use meshToCamera.HasValue here
+                string texPath = (!string.IsNullOrEmpty(inputTexturePDS) && meshToCamera.HasValue) ?
+                    inputTexturePDS : options.InputTexture;
                 pipeline.LogInfo("loading input texture from {0}", texPath);
                 sceneTexture = pipeline.LoadImage(texPath, noCache: true);
+                if (string.IsNullOrEmpty(inputTexturePDS) && !options.NoConvertSRGBToLinearRGB) {
+                    pipeline.LogInfo("converting non-PDS scene texture from SRGB to linear RGB");
+                    sceneTexture = sceneTexture.SRGBToLinearRGB();
+                }
             }
             else if (project != null && sceneMesh != null)
             {
