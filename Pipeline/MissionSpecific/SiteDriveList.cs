@@ -224,7 +224,7 @@ namespace OPS.Pipeline
                 }
                 else if (mission.IsMastcam(id.Camera))
                 {
-                    if (numMastcamTextures > maxMastcamTextures)
+                    if (numMastcamTextures >= maxMastcamTextures)
                     {
                         numDroppedMastcamTextures++;
                         drop = true;
