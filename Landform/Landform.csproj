@@ -211,9 +211,9 @@
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\Alignment\Alignment.csproj">
+    <ProjectReference Include="..\ImageFeatures\ImageFeatures.csproj">
       <Project>{AE1B74CC-7CBB-4AAF-9BE6-68534D61D264}</Project>
-      <Name>Alignment</Name>
+      <Name>ImageFeatures</Name>
     </ProjectReference>
     <ProjectReference Include="..\Cloud\Cloud.csproj">
       <Project>{52a91b3e-1d95-4715-a7ad-2840b2f9c6ac}</Project>

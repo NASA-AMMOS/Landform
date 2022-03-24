@@ -17,7 +17,7 @@ using OPS.Util;
 using OPS.Imaging;
 using OPS.Imaging.Emgu;
 using OPS.Geometry;
-using OPS.Alignment;
+using OPS.ImageFeatures;
 using OPS.Pipeline;
 using OPS.Pipeline.AlignmentServer;
 

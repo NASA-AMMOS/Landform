@@ -56,11 +56,11 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MathExtensionsTest", "MathE
 		{46759719-42D9-473B-A8AD-0848A33BDAC6} = {46759719-42D9-473B-A8AD-0848A33BDAC6}
 	EndProjectSection
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Alignment", "Alignment\Alignment.csproj", "{AE1B74CC-7CBB-4AAF-9BE6-68534D61D264}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ImageFeatures", "ImageFeatures\ImageFeatures.csproj", "{AE1B74CC-7CBB-4AAF-9BE6-68534D61D264}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ImagingEmguTest", "ImagingEmguTest\ImagingEmguTest.csproj", "{C943DEA6-FAA6-434B-A7FB-6EC8C621F4EC}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AlignmentTest", "AlignmentTest\AlignmentTest.csproj", "{6B99D0F6-F813-42E8-A217-856E7E8DD3F7}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ImageFeaturesTest", "ImageFeaturesTest\ImageFeaturesTest.csproj", "{6B99D0F6-F813-42E8-A217-856E7E8DD3F7}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RayTrace", "RayTrace\RayTrace.csproj", "{0E8C60BB-4A68-480F-895A-2B326AEC002C}"
 	ProjectSection(ProjectDependencies) = postProject
