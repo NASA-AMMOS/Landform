@@ -116,8 +116,6 @@ namespace OPS.Landform
 
         protected int maxTileResolution;
         protected bool withTextures;
-        protected bool localSave;
-        protected bool cloudSave;
 
         protected TilingProject tilingProject;
         protected string tilesetFolder;
@@ -242,19 +240,9 @@ namespace OPS.Landform
 
             withTextures = !tilingOpts.NoTextures && maxTileResolution != 0;
 
-            localSave = tilingOpts.WriteDebug || (!tilingOpts.NoSave && pipeline is LocalPipeline);
-            cloudSave = !tilingOpts.NoSave && pipeline is CloudPipeline;
-
             string texMsg = withTextures ? (" and " + tilingOpts.ImageFormat + " textures") : "";
-            if (localSave)
-            {
-                pipeline.LogInfo("saving {0} tile meshes{1} to {2}", tilingOpts.MeshFormat, texMsg, localOutputPath);
-            }
-            if (cloudSave)
-            {
-                var storageUrl = pipeline.GetStorageUrl(outputFolder, project.Name);
-                pipeline.LogInfo("uploading {0} tile meshes{1} to {2}", tilingOpts.MeshFormat, texMsg, storageUrl);
-            }
+            pipeline.LogInfo("{0}saving {1} tile meshes{2} to {3}",
+                             tilingOpts.NoSave ? "not " : "", tilingOpts.MeshFormat, texMsg, localOutputPath);
 
             if (sceneMesh == null)
             {
@@ -331,36 +319,9 @@ namespace OPS.Landform
 
         protected void SaveTileMesh(string tileName, Mesh mesh, bool hasImage)
         {
-            string imgName = hasImage ? tileName + imageExt : null;
-            if (localSave)
+            if (!tilingOpts.NoSave)
             {
-                SaveMesh(mesh, tileName, imgName);
-            }
-            if (cloudSave)
-            {
-                TemporaryFile.GetAndDelete(meshExt, tmpFile =>
-                {
-                    mesh.Save(tmpFile, imgName);
-                    string meshName = tileName + meshExt;
-                    string meshUrl = pipeline.GetStorageUrl(outputFolder, project.Name, meshName);
-                    pipeline.SaveFile(tmpFile, meshUrl);
-
-                    if (hasImage)
-                    {
-                        string mtlFile = Path.GetFileNameWithoutExtension(tmpFile) + ".mtl";
-                        if (meshExt.ToLower() == ".obj" && File.Exists(mtlFile))
-                        {
-                            string mtlName = tileName + ".mtl";
-                            string mtlUrl = pipeline.GetStorageUrl(outputFolder, project.Name, mtlName);
-                            pipeline.SaveFile(mtlFile, mtlUrl);
-                            PathHelper.DeleteWithRetry(mtlFile, pipeline.Logger);
-                        }
-                    }
-                });
-            }
-            if (!localSave && !cloudSave)
-            {
-                throw new InvalidOperationException("neither local nor cloud save enabled");
+                SaveMesh(mesh, tileName, hasImage ? tileName + imageExt : null);
             }
         }
 
@@ -371,32 +332,18 @@ namespace OPS.Landform
 
         protected Mesh LoadTileMesh(string tileName)
         {
-            if (localSave)
-            {
-                return Mesh.Load(Path.Combine(localOutputPath, tileName + meshExt));
-            }
-            else if (cloudSave)
-            {
-                string url = pipeline.GetStorageUrl(outputFolder, project.Name, tileName + meshExt);
-                return Mesh.Load(pipeline.GetFileCached(url, "meshes"));
-            }
-            else
-            {
-                throw new InvalidOperationException("neither local nor cloud save enabled");
-            }
+            return Mesh.Load(Path.Combine(localOutputPath, tileName + meshExt));
         }
 
         protected bool TileMeshExists(string tileName)
         {
             string fn = tileName + meshExt;
-            return
-                (localSave && File.Exists(Path.Combine(localOutputPath, fn))) ||
-                (cloudSave && pipeline.FileExists(pipeline.GetStorageUrl(outputFolder, project.Name, fn)));
+            return File.Exists(Path.Combine(localOutputPath, fn));
         }
 
         protected void SaveTileImage(string tileName, Image image, Image index)
         {
-            if (localSave)
+            if (!tilingOpts.NoSave)
             {
                 if (image != null)
                 {
@@ -408,29 +355,6 @@ namespace OPS.Landform
                         Path.Combine(localOutputPath,
                                      tileName + TilingDefaults.INDEX_FILE_SUFFIX + TilingDefaults.INDEX_FILE_EXT);
                     Tile3DBuilder.SaveTileIndex(index, path, msg => pipeline.LogVerbose($"${msg} for tile {tileName}"));
-                }
-            }
-            if (cloudSave)
-            {
-                if (image != null)
-                {
-                    TemporaryFile.GetAndDelete(imageExt, tmpFile =>
-                    {
-                        image.Save<byte>(tmpFile);
-                        string imgUrl = pipeline.GetStorageUrl(outputFolder, project.Name, tileName + imageExt);
-                        pipeline.SaveFile(tmpFile, imgUrl);
-                    });
-                }
-                if (index != null)
-                {
-                    TemporaryFile.GetAndDelete(TilingDefaults.INDEX_FILE_EXT, tmpFile =>
-                    {
-                        Tile3DBuilder.SaveTileIndex(index, tmpFile,
-                                                    msg => pipeline.LogWarn($"${msg} for tile {tileName}"));
-                        string indexName = tileName + TilingDefaults.INDEX_FILE_SUFFIX + TilingDefaults.INDEX_FILE_EXT;
-                        string indexUrl = pipeline.GetStorageUrl(outputFolder, project.Name, indexName);
-                        pipeline.SaveFile(tmpFile, indexUrl);
-                    });
                 }
             }
         }
@@ -640,17 +564,15 @@ namespace OPS.Landform
                              tilingProject.TextureProjectorGuid != Guid.Empty ? "enabled" : "disabled");
 
             var tilesetUrl = pipeline.GetStorageUrl(tilesetFolder, project.Name);
-            pipeline.LogInfo("{0} {1}/{2} tiles to {3}", pipeline is CloudPipeline ? "uploading" : "saving",
+            pipeline.LogInfo("saving {0}/{1} tiles to {2}", 
                              tilingProject.TilesetMeshFormat, tilingProject.TilesetImageFormat, tilesetUrl);
             if (!string.IsNullOrEmpty(tilingOpts.ExportMeshFormat))
             {
-                pipeline.LogInfo("also {0} {1} tile meshes to {2}", pipeline is CloudPipeline ? "uploading" : "saving",
-                                 tilingProject.ExportMeshFormat, tilesetUrl);
+                pipeline.LogInfo("also saving {0} tile meshes to {1}", tilingProject.ExportMeshFormat, tilesetUrl);
             }
             if (!string.IsNullOrEmpty(tilingOpts.ExportImageFormat))
             {
-                pipeline.LogInfo("also {0} {1} tile images to {2}", pipeline is CloudPipeline ? "uploading" : "saving",
-                                 tilingProject.ExportImageFormat, tilesetUrl);
+                pipeline.LogInfo("also saving {0} tile images to {1}", tilingProject.ExportImageFormat, tilesetUrl);
             }
         }
 

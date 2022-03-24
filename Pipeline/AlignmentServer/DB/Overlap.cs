@@ -2,8 +2,6 @@
 using System.Collections.Generic;
 using OPS.Cloud;
 using System.Linq;
-using Amazon.DynamoDBv2.Model;
-using Amazon.DynamoDBv2.DataModel;
 
 namespace OPS.Pipeline.AlignmentServer
 {
@@ -35,22 +33,16 @@ namespace OPS.Pipeline.AlignmentServer
     /// Overlaps are versioned, so only one worker can create them and they can only be edited if you have the newest version
     /// Overlaps are versioned because a Match is not deterministic. if a task is started based on a match then another MatchPairs worker overwrites that match, that's an inconsistent state.
     /// </summary>
-    [DynamoDBTable("Overlaps")]
-    [DynamoDBReadCapacity(5, 50)]
-    [DynamoDBWriteCapacity(5, 50)]
     public class Overlap
     {
-        [DynamoDBRangeKey]
-        [DynamoDBGlobalSecondaryIndexRangeKey("OverlapObservationNameOneIndex", "OverlapObservationNameTwoIndex")]
+        [DBRangeKey]
         public string ProjectName;
 
-        [DynamoDBHashKey]
+        [DBHashKey]
         public string CombinedName;
 
-        [DynamoDBGlobalSecondaryIndexHashKey("OverlapObservationNameOneIndex")]
         public string ObservationNameOne;
 
-        [DynamoDBGlobalSecondaryIndexHashKey("OverlapObservationNameTwoIndex")]
         public string ObservationNameTwo;
 
         public enum StatusType
@@ -61,16 +53,14 @@ namespace OPS.Pipeline.AlignmentServer
         }
         public StatusType Status;
 
-        //set during creation to verify that only one worker can successfully create a single overlap item in Dynamo
+        //set during creation to verify that only one worker can successfully create a single overlap item 
         public bool Uploaded;
 
         //set on computing a match to cache the result; if empty, check status to determine whether to compute
         public Guid MatchGuid;
 
-        [DynamoDBVersion]
         public int? VersionNumber;
 
-        //Constructor required by DynamoDb but should not be called otherwise
         public Overlap() { }
 
         /// <summary>
@@ -104,30 +94,14 @@ namespace OPS.Pipeline.AlignmentServer
         {
             //create an overlap without setting Uploaded
             Overlap newOverlap = new Overlap(projectName, obs1, obs2);
-            try
-            {
-                pipeline.SaveDatabaseItem(newOverlap, quiet: true, ignoreErrors: false);
-            }
-            catch (ConditionalCheckFailedException)
-            {
-                //another worker has already uploaded and updated this overlap
-                return null;
-            }
+            pipeline.SaveDatabaseItem(newOverlap, ignoreErrors: false);
 
             newOverlap.Uploaded = true;
 
-            try
-            {
-                pipeline.SaveDatabaseItem(newOverlap, quiet: true, ignoreErrors: false);
-            }
-            catch (ConditionalCheckFailedException)
-            {
-                //another worker updated this overlap before we could
-                return null;
-            }
+            pipeline.SaveDatabaseItem(newOverlap, ignoreErrors: false);
 
             //return Overlap with most recent version number
-            return pipeline.LoadDatabaseItem<Overlap>(newOverlap.CombinedName, projectName, consistent: true);
+            return pipeline.LoadDatabaseItem<Overlap>(newOverlap.CombinedName, projectName);
         }
 
         /// <summary>
@@ -136,14 +110,7 @@ namespace OPS.Pipeline.AlignmentServer
         /// <param name="pipeline"></param>
         public bool TrySave(PipelineCore pipeline)
         {
-            try
-            {
-                pipeline.SaveDatabaseItem(this);
-            }
-            catch (ConditionalCheckFailedException)
-            {
-                return false;
-            }
+            pipeline.SaveDatabaseItem(this);
             return true;
         }
 
@@ -167,13 +134,7 @@ namespace OPS.Pipeline.AlignmentServer
         {
             foreach (var prop in new[] { "ObservationNameOne", "ObservationNameTwo" })
             {
-                var entries = pipeline.ScanDatabase<Overlap>(new Dictionary<string, string>()
-                                                             {
-                                                                 { "ProjectName", projectName },
-                                                                 { prop, obsName }
-                                                             },
-                                                             indexName: "Overlap" + prop + "Index");
-                foreach (var o in entries)
+                foreach (var o in pipeline.ScanDatabase<Overlap>("ProjectName", projectName, prop, obsName))
                 {
                     yield return o;
                 }

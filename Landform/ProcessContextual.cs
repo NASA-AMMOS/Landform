@@ -1600,8 +1600,7 @@ namespace OPS.Landform
             string venueDir = storageDir + "/" + venue;
             string solDir = StringHelper.ReplaceIntWildcards(rdrDir, primarySol);
             string fetchDir = !string.IsNullOrEmpty(options.FetchDir) ? options.FetchDir : storageDir + "/" + FETCH_DIR;
-            string ingestDir =
-                (rdrDir.StartsWith("s3://") && !(pipeline is CloudPipeline)) ? (fetchDir + "/rdrs") : solDir;
+            string ingestDir = rdrDir.StartsWith("s3://") ? (fetchDir + "/rdrs") : solDir;
             string destDir = GetDestDir(solDir);
 
             var orbitalCfg = OrbitalConfig.Instance;
@@ -1647,7 +1646,7 @@ namespace OPS.Landform
 
                 string tilesetDir = venueDir + "/" + TilingCommand.TILESET_DIR + "/" + project;
 
-                if (!options.NoFetch && !orbitalOnly && rdrDir.StartsWith("s3://") && !(pipeline is CloudPipeline) &&
+                if (!options.NoFetch && !orbitalOnly && rdrDir.StartsWith("s3://") &&
                     options.StartPhase <= Phase.fetch && options.EndPhase >= Phase.fetch)
                 {
                     string searchLocations = rdrDir + "/";

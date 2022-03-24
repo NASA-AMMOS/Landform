@@ -52,26 +52,17 @@ namespace OPS.Pipeline
     /**
      * PipelineCore abstracts system and AWS interaction APIs for use in Landform pipeline stages.
      *
-     * Implementations include CloudPipeline and LocalPipeline.
+     * Currently there is only a LocalPipeline implementation which uses local disk storage.  Historically there was a
+     * CloudPipeline implementation wich used cloud storage (e.g. S3 and DynamoDB).
      *
      * The following API surfaces are exposed:
-     *
-     * + Image Fetch API - load images. For CloudPipeline this is backed by S3. For LocalPipeline it's files on disk.
-     *
-     * + Storage API - load, store, scan, and delete files. For CloudPipeline this is backed by S3 and a local
-     * disk cache. For LocalPipeline it's files on disk.
-     * 
-     * + Data Product API - load and store GUID-tagged data products. For CloudPipeline this is backed by S3 and a local
-     * disk cache. For LocalPipeline it's files on disk.
-     *
-     * + Database API - load, store, and scan database tables. For CloudPipeline this uses DynamoDB under the hood. For
-     * LocalPipeline it's an in-memory threadsafe object database backed by json files on disk.
-     *
-     * + Logging API - logging functions
-     *
-     * + Disk Cache API - functions to interact with and clean up the disk cach
-     *
-     * + Message Queue API - interact with message queues
+     * - Image Fetch API - load images.
+     * - Storage API - load, store, scan, and delete files.
+     * - Data Product API - load and store GUID-tagged data products.
+     * - Database API - load, store, and scan database tables.
+     * - Logging API - logging functions
+     * - Disk Cache API - functions to interact with and clean up the disk cach
+     * - Message Queue API - interact with message queues
      **/
     public abstract class PipelineCore
         : IImageLoader, OPS.Util.ILogger //Microsoft.Extensions.Logging and log4net.Core also have ILogger interfaces
@@ -91,8 +82,6 @@ namespace OPS.Pipeline
 
         public string UserMasksDirectory { get; private set; }
 
-        public virtual bool LegacyCompat { get { return false; } }
-
         public bool Quiet, Verbose, Debug, StackTraces;
 
         private LRUCache<string, Image> imageCache; //indexed by URL
@@ -102,35 +91,32 @@ namespace OPS.Pipeline
 
         //these are generally used to initialize the database
         //
-        //though what that involves depends on what database implementation is in use (cloud vs local)
-        //
         //at present it's important that the objects stored in a table are of the specific type listed here
-        //specifically for the local pipeline database implementation
         //which is why we specify RoverObservation instead of just Observation here
         //
         //if this constraint ever becomes undesirable it could be worked around in several ways
-        //e.g. use Json.NET autoTypes in the local database implementation
+        //e.g. use Json.NET autoTypes in the database implementation
         //or make this table be a mapping to the actual item type
         //or add an annotation on e.g. the Observation class that specifies the item type as e.g. RoverObservation
         protected readonly Type[] tableTypes = new Type[]
-            {
-                typeof(Project),
-                typeof(Frame),
-                typeof(FrameTransform),
-                typeof(Observation), //general observations including orbital
-                typeof(RoverObservation), //surface observations
-                typeof(BirdsEyeView),
-                typeof(BirdsEyeViewFeatures),
-                typeof(SceneHeightmap),
-                typeof(SceneMesh),
-                typeof(FeatureMatches),
-                typeof(SpatialMatches),
-                typeof(Overlap),
-                typeof(TilingProject),
-                typeof(TilingInput),
-                typeof(TilingNode),
-                typeof(TilingInputChunk),
-            };
+        {
+            typeof(Project),
+            typeof(Frame),
+            typeof(FrameTransform),
+            typeof(Observation), //general observations including orbital
+            typeof(RoverObservation), //surface observations
+            typeof(BirdsEyeView),
+            typeof(BirdsEyeViewFeatures),
+            typeof(SceneHeightmap),
+            typeof(SceneMesh),
+            typeof(FeatureMatches),
+            typeof(SpatialMatches),
+            typeof(Overlap),
+            typeof(TilingProject),
+            typeof(TilingInput),
+            typeof(TilingNode),
+            typeof(TilingInputChunk),
+        };
 
         public PipelineCore(PipelineCoreOptions options, Config config, string storageUrl, string venue,
                             ILog logger = null, bool quietInit = false,
@@ -669,33 +655,27 @@ namespace OPS.Pipeline
 
         //****************** Database API *****************
 
-        protected Type[] InitTableTypes(bool quiet, bool alignment, bool tiling)
+        protected Type[] GetDatabaseTableTypes(bool quiet, bool alignment, bool tiling)
         {
             Func<Type, bool> isTiling = t => t.Name.StartsWith("Tiling");
             var tables = tableTypes.Where(t => (alignment && !isTiling(t)) || (tiling && isTiling(t))).ToArray();
             if (!quiet && tables.Length > 0)
             {
-                LogInfo("initializing {0} database tables for {1}...", tables.Length,
+                LogInfo("using {0} database tables for {1}...", tables.Length,
                         alignment && tiling ? "alignment and tiling" : alignment ? "alignment" : "tiling");
             }
             return tables;
         }
 
-        public abstract void SaveDatabaseItem<T>(T obj, bool ignoreNulls = true, bool ignoreErrors = false,
-                                                 bool quiet = false);
+        public abstract void SaveDatabaseItem<T>(T obj, bool ignoreNulls = true, bool ignoreErrors = false);
 
         public abstract T LoadDatabaseItem<T>(string key, string secondaryKey = null, bool ignoreNulls = true,
-                                              bool ignoreErrors = false, bool quiet = false, bool consistent = false)
+                                              bool ignoreErrors = false)
             where T : class;
 
-        public abstract void DeleteDatabaseItem<T>(T obj, bool ignoreErrors = false, bool quiet = false);
+        public abstract void DeleteDatabaseItem<T>(T obj, bool ignoreErrors = false);
 
-        /// <summary>
-        /// table name is usually inferred from an annotation on type T  
-        /// </summary>
-        public abstract IEnumerable<T> ScanDatabase<T>(Dictionary<string, string> conditions,
-                                                       string indexName = null, bool quiet = false,
-                                                       string tableName = null);
+        public abstract IEnumerable<T> ScanDatabase<T>(Dictionary<string, string> conditions);
 
         public IEnumerable<T> ScanDatabase<T>(params string[] conditions)
         {

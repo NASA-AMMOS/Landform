@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using Amazon.DynamoDBv2.DataModel;
 using log4net;
 using Newtonsoft.Json;
 using Microsoft.Xna.Framework;
@@ -21,15 +20,12 @@ namespace OPS.Pipeline.TilingServer
         public SceneNodeTilingNode(TilingNode node) { this.TilingNode = node; }
     }
 
-    [DynamoDBTable("TilingNode")]
-    [DynamoDBReadCapacity(100, 200)]
-    [DynamoDBWriteCapacity(15, 50)] //increased write capacity from 5 to 15 to reduce backoffs in node creation/deletion
     public class TilingNode
     {
-        [DynamoDBHashKey]
+        [DBHashKey]
         public string Id;
 
-        [DynamoDBRangeKey]
+        [DBRangeKey]
         public string ProjectName;
 
         public string ParentId;
@@ -54,11 +50,9 @@ namespace OPS.Pipeline.TilingServer
 
         public double? GeometricError;
 
-        [DynamoDBProperty("Stats", typeof(MeshImagePairStatsConverter))]
         [JsonConverter(typeof(MeshImagePairStatsConverter))]
         public MeshImagePairStats Stats;
 
-        //This constructor must be public for DynamoDB but should not be used
         public TilingNode() { }
 
         protected TilingNode(string id, string projectName, string parentId, bool isLeaf, int depth)
@@ -111,9 +105,6 @@ namespace OPS.Pipeline.TilingServer
 
             if (ids != null)
             {
-                //DynamoDB Scan() can cause throughput exceptions
-                //https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/bp-query-scan.html
-                //for new projects we can avoid it here because we save the tile ids in the project record
                 List<TilingNode> nodes = new List<TilingNode>();
                 foreach (var id in ids)
                 {
@@ -132,7 +123,7 @@ namespace OPS.Pipeline.TilingServer
 
         public void Save(PipelineCore pipeline)
         {
-            DBUtil.ExponentialBackoff(() => pipeline.SaveDatabaseItem(this));
+            pipeline.SaveDatabaseItem(this);
         }
 
         public void Delete(PipelineCore pipeline, bool ignoreErrors = true, ISet<string> keepMeshes = null)

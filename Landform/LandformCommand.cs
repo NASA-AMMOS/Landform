@@ -83,14 +83,7 @@ namespace OPS.Landform
 
             StartStopwatch();
 
-            if (lcopts.Cloud)
-            {
-                pipeline = new CloudPipeline(lcopts, initQueues: false);
-            }
-            else
-            {
-                pipeline = new LocalPipeline(lcopts);
-            }
+            pipeline = new LocalPipeline(lcopts);
 
             RunPhase("scan for user image masks", () => pipeline.InitUserMasks());
 
@@ -150,11 +143,6 @@ namespace OPS.Landform
             if (!string.IsNullOrEmpty(localOutputPath))
             {
                 pipeline.LogInfo("local output path: {0}", localOutputPath);
-            }
-
-            if (!string.IsNullOrEmpty(outputFolder) && pipeline is CloudPipeline && project != null)
-            {
-                pipeline.LogInfo("cloud output path: {0}", pipeline.GetStorageUrl(outputFolder, project.Name));
             }
         }
 
@@ -224,12 +212,6 @@ namespace OPS.Landform
                 pipeline.LogInfo("deleting any prior results under {0}", localOutputPath);
                 Directory.Delete(localOutputPath, true);
             }
-            if ((pipeline is CloudPipeline) && project != null)
-            {
-                string url = StringHelper.EnsureTrailingSlash(pipeline.GetStorageUrl(outputFolder, project.Name));
-                pipeline.LogInfo("deleting any prior results under {0}", url);
-                pipeline.DeleteFiles(url);
-            }
         }
 
         protected virtual bool ParseArguments(string outDir)
@@ -284,17 +266,6 @@ namespace OPS.Landform
             if (url.StartsWith("."))
             {
                 url = defaultFilename + url;
-            }
-            if (pipeline is CloudPipeline)
-            {
-                if (!url.Contains("://"))
-                {
-                    url = pipeline.GetStorageUrl(outDir, project.Name, url);
-                }
-                else if (!url.StartsWith(pipeline.StorageUrlWithVenue))
-                {
-                    throw new Exception(string.Format("output URL {0} outside cloud storage area", url));
-                }
             }
             return url;
         }

@@ -11,9 +11,7 @@ namespace OPS.Landform
         static int Main(string[] args)
         {
             if (!CommandHelper.Configure(args, typeof(Landform), typeof(PipelineCore),
-                                         () => CommandHelper.HasFlag(args, "cloud") ?
-                                         CloudPipelineConfig.Instance.ConfigFilePath() :
-                                         LocalPipelineConfig.Instance.ConfigFilePath()))
+                                         () => LocalPipelineConfig.Instance.ConfigFilePath()))
             {
                 return 1;
             }
@@ -30,9 +28,6 @@ namespace OPS.Landform
 
             var verbs = new Dictionary<Type, Type>()
                 {
-                    { typeof(ConfigureCloudOptions), typeof(ConfigureCloud) },
-                    { typeof(StartWorkerOptions), typeof(StartWorker) },
-
                     { typeof(ConfigureLocalOptions), typeof(ConfigureLocal) },
 
                     { typeof(FetchDataOptions), typeof(FetchData) },

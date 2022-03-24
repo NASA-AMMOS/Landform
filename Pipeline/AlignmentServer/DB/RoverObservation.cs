@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using Amazon.DynamoDBv2.DataModel;
 using Newtonsoft.Json;
 using OPS.Cloud;
 using OPS.Imaging;
@@ -10,9 +9,6 @@ namespace OPS.Pipeline.AlignmentServer
     /// <summary>
     /// An observation with extra metadata specific to Mars rovers
     /// </summary>
-    [DynamoDBTable("RoverObservations")]
-    [DynamoDBReadCapacity(50, 100)]
-    [DynamoDBWriteCapacity(50, 100)]
     public class RoverObservation : Observation
     {
         public int Site;
@@ -31,11 +27,9 @@ namespace OPS.Pipeline.AlignmentServer
         //but that would introduce a redundancy with Observation.CameraModel.Linear, so avoiding for now
         //public RoverProductGeometry Geometry;
 
-        [DynamoDBIgnore]
         [JsonIgnore]
         public SiteDrive SiteDrive { get { return new SiteDrive(Site, Drive); } }
 
-        [DynamoDBIgnore]
         [JsonIgnore]
         public string StereoFrameName
         {
@@ -86,7 +80,6 @@ namespace OPS.Pipeline.AlignmentServer
             }
         }
 
-        //This constructor must be public for DynamoDb but should not be used
         public RoverObservation() { }
 
         protected RoverObservation(Frame frame, string name, string url, CameraModel cameraModel,

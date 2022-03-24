@@ -1,31 +1,26 @@
 ﻿using System;
-using Amazon.DynamoDBv2.DataModel;
 using Microsoft.Xna.Framework;
 using Newtonsoft.Json;
 using OPS.Geometry;
 
 namespace OPS.Pipeline.AlignmentServer
 {
-    [DynamoDBTable("SpatialIndex")]
     public class SpatialIndex
     {
-        [DynamoDBHashKey]
+        [DBHashKey]
         public string Id;
 
-        [DynamoDBRangeKey]
+        [DBRangeKey]
         public string ProjectName;
         
-        [DynamoDBProperty(Converter = typeof(Vector3Converter))]
         [JsonConverter(typeof(Vector3Converter))]
         public Vector3 Center;
 
-        [DynamoDBProperty(Converter = typeof(Vector3Converter))]
         [JsonConverter(typeof(Vector3Converter))]
         public Vector3 Size;
         
         public int MaxPrecision;
 
-        [DynamoDBIgnore]
         [JsonIgnore]
         public BoundingBox Bounds
         {
@@ -40,7 +35,6 @@ namespace OPS.Pipeline.AlignmentServer
             }
         }
 
-        [DynamoDBIgnore]
         [JsonIgnore]
         public Geohash Geohash
         {

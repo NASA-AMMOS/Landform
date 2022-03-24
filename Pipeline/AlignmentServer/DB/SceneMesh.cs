@@ -4,7 +4,6 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
-using Amazon.DynamoDBv2.DataModel;
 using OPS.Util;
 using OPS.Cloud;
 using OPS.Imaging;
@@ -15,15 +14,12 @@ namespace OPS.Pipeline.AlignmentServer
 {
     public enum MeshVariant { Default = 0, Shrinkwrap = 1, Sky = 2 }
 
-    [DynamoDBTable("SceneMeshes")]
-    [DynamoDBReadCapacity(50, 100)]
-    [DynamoDBWriteCapacity(50, 100)]
     public class SceneMesh
     {
-        [DynamoDBRangeKey]
+        [DBRangeKey]
         public string ProjectName;
 
-        [DynamoDBHashKey]
+        [DBHashKey]
         public string Name;
 
         public MeshVariant Variant;
@@ -54,7 +50,6 @@ namespace OPS.Pipeline.AlignmentServer
             }
         }
 
-        //This constructor must be public for DynamoDb but should not be used
         public SceneMesh() { }
 
         protected SceneMesh(string projectName, MeshVariant variant = MeshVariant.Default,

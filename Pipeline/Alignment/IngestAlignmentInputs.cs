@@ -16,8 +16,10 @@ using OPS.Pipeline.AlignmentServer;
 
 namespace OPS.Pipeline
 {
-    public class IngestAlignmentInputs : PipelineRoutine
+    public class IngestAlignmentInputs
     {
+        public readonly PipelineCore pipeline;
+
         public class BaseUrl
         {
             public readonly string Url;
@@ -62,8 +64,8 @@ namespace OPS.Pipeline
                                      string orbitalDEM = null, string orbitalImage = null,
                                      bool noSurface = false, bool noOrbital = false,
                                      bool noProgress = false)
-            : base(pipeline)
         {
+            this.pipeline = pipeline;
             this.project = project;
             this.mission = mission;
 

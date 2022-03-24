@@ -4,18 +4,16 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using OPS.Cloud;
-using Amazon.DynamoDBv2.DataModel;
 using Microsoft.Xna.Framework;
 
 namespace OPS.Pipeline.AlignmentServer
 {
-    [DynamoDBTable("FrameGeohashes")]
     public class FrameGeohash
     {
-        [DynamoDBHashKey]
+        [DBHashKey]
         public string Id;
 
-        [DynamoDBRangeKey]
+        [DBRangeKey]
         public string ProjectName;
         
         public string SpatialIndexId;

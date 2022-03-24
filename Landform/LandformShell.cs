@@ -275,15 +275,11 @@ namespace OPS.Landform
 
             PathHelper.DumpFilesystemStats(pipeline.Logger);
 
-            var cp = pipeline as CloudPipeline;
-
             awsProfile = !string.IsNullOrEmpty(lsopts.AWSProfile) ? lsopts.AWSProfile :
-                cp != null && !string.IsNullOrEmpty(cp.AWSProfile) ? cp.AWSProfile :
                 mission != null ? mission.GetDefaultAWSProfile() : null;
             pipeline.LogInfo("AWS profile: {0}", awsProfile);
 
             awsRegion = !string.IsNullOrEmpty(lsopts.AWSRegion) ? lsopts.AWSRegion :
-                cp != null && !string.IsNullOrEmpty(cp.AWSRegion) ? cp.AWSRegion :
                 mission != null ? mission.GetDefaultAWSRegion() : null;
             pipeline.LogInfo("AWS region: {0}", awsRegion);
 
@@ -399,7 +395,7 @@ namespace OPS.Landform
 
         public static bool FileExists(PipelineCore pipeline, Func<StorageHelper> storageHelper, string url)
         {
-            if (url.StartsWith("s3://") && !(pipeline is CloudPipeline))
+            if (url.StartsWith("s3://"))
             {
                 return storageHelper().FileExists(url);
             }
@@ -411,7 +407,7 @@ namespace OPS.Landform
 
         public static bool DeleteFile(PipelineCore pipeline, Func<StorageHelper> storageHelper, string url)
         {
-            if (url.StartsWith("s3://") && !(pipeline is CloudPipeline))
+            if (url.StartsWith("s3://"))
             {
                 return storageHelper().DeleteObject(url);
             }
@@ -423,7 +419,7 @@ namespace OPS.Landform
 
         public static long FileSize(PipelineCore pipeline, Func<StorageHelper> storageHelper, string url)
         {
-            if (url.StartsWith("s3://") && !(pipeline is CloudPipeline))
+            if (url.StartsWith("s3://"))
             {
                 return storageHelper().FileSize(url);
             }
@@ -437,7 +433,7 @@ namespace OPS.Landform
                                                       string url, string globPattern = "", bool recursive = false,
                                                       bool ignoreCase = false)
         {
-            if (url.StartsWith("s3://") && !(pipeline is CloudPipeline))
+            if (url.StartsWith("s3://"))
             {
                 return storageHelper().SearchObjects(url, "*/" + globPattern, recursive, ignoreCase);
             }
@@ -457,7 +453,7 @@ namespace OPS.Landform
 
             pipeline.LogInfo("{0}getting {1}", dryRun ? "dry " : "", url);
 
-            if (url.StartsWith("s3://") && !(pipeline is CloudPipeline) && !dryRun)
+            if (url.StartsWith("s3://") && !dryRun)
             {
                 path = pipeline.DownloadCachePath(cacheDir, filename);
                 if (!File.Exists(path))
@@ -511,7 +507,7 @@ namespace OPS.Landform
             }
             if (!dryRun)
             {
-                if (url.StartsWith("s3://") && !(pipeline is CloudPipeline))
+                if (url.StartsWith("s3://"))
                 {
                     storageHelper().UploadFile(file, url);
                 }

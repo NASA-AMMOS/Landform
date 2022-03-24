@@ -293,11 +293,6 @@ namespace OPS.Pipeline.TilingServer
 
                 tilingNode.Save(pipeline);
 
-                if (pipeline is CloudPipeline)
-                {
-                    Thread.Sleep(10); //throttle to reduce chance of exponential backoff
-                }
-
                 spew("saved", ++numSaved, 500);
             }
 

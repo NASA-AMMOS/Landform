@@ -1,12 +1,10 @@
 ﻿using System;
-using Amazon.DynamoDBv2.DataModel;
-using Amazon.DynamoDBv2.DocumentModel;
 using MathNet.Numerics.LinearAlgebra;
 using Newtonsoft.Json;
 
 namespace OPS.Pipeline
 {
-    public class VectorNConverter : JsonConverter, IPropertyConverter
+    public class VectorNConverter : JsonConverter
     {
         public override bool CanRead { get { return true; } } 
         public override bool CanWrite { get { return true; } } 
@@ -24,16 +22,6 @@ namespace OPS.Pipeline
         public override object ReadJson(JsonReader reader, Type type, object existing, JsonSerializer serializer)
         {
             return CreateVector.DenseOfArray(serializer.Deserialize<double[]>(reader));
-        }
-
-        public object FromEntry(DynamoDBEntry entry)
-        {
-            return CreateVector.DenseOfArray(JsonConvert.DeserializeObject<double[]>(entry.AsString()));
-        }
-
-        public DynamoDBEntry ToEntry(object value)
-        {
-            return JsonConvert.SerializeObject(((Vector<double>)value).ToArray());
         }
     }
 }

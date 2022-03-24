@@ -4,22 +4,18 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
-using Amazon.DynamoDBv2.DataModel;
 using OPS.Cloud;
 using OPS.Alignment;
 using OPS.Pipeline;
 
 namespace OPS.Pipeline.AlignmentServer
 {
-    [DynamoDBTable("BirdsEyeViewFeatures")]
-    [DynamoDBReadCapacity(50, 100)]
-    [DynamoDBWriteCapacity(50, 100)]
     public class BirdsEyeViewFeatures
     {
-        [DynamoDBRangeKey]
+        [DBRangeKey]
         public string ProjectName;
 
-        [DynamoDBHashKey]
+        [DBHashKey]
         public string Name;
 
         public FeatureDetector.DetectorType DetectorType;
@@ -47,7 +43,6 @@ namespace OPS.Pipeline.AlignmentServer
             }
         }
 
-        //This constructor must be public for DynamoDb but should not be used
         public BirdsEyeViewFeatures() { }
 
         protected BirdsEyeViewFeatures(string projectName, string name, Guid featuresGuid,

@@ -1,18 +1,22 @@
 using System;
-using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using System.Collections;
+using System.Collections.Generic;
 using OPS.Geometry;
 using OPS.Pipeline.AlignmentServer;
 
 namespace OPS.Pipeline
 {
-    public class InitializeAlignmentProject : PipelineRoutine
+    public class InitializeAlignmentProject
     {
         public const string DATA_PRODUCT_DIR = "alignment/products";
 
-        public InitializeAlignmentProject(PipelineCore pipeline) : base(pipeline) { }
+        public readonly PipelineCore pipeline;
+
+        public InitializeAlignmentProject(PipelineCore pipeline)
+        {
+            this.pipeline = pipeline;
+        }
 
         public Project Initialize(string projectName, string mission, string meshFrame,
                                   string productPath, string inputPath, bool recreateIfExists = false)

@@ -30,13 +30,12 @@ namespace OPS.Pipeline
             this.pipeline = pipeline;
         }
 
-        public static PipelineExecutive MakeExecutive(PipelineCore pipeline, ExecutionMode mode,
-                                                      bool supportAlignment = false)
+        public static PipelineExecutive MakeExecutive(PipelineCore pipeline, ExecutionMode mode)
         {
             switch (mode)
             {
-                case ExecutionMode.Immediate: return new ImmediateExecutive(pipeline, supportAlignment);
-                case ExecutionMode.Deferred: return new DeferredExecutive(pipeline, supportAlignment);
+                case ExecutionMode.Immediate: return new ImmediateExecutive(pipeline);
+                case ExecutionMode.Deferred: return new DeferredExecutive(pipeline);
                 case ExecutionMode.None: return null;
                 default: throw new ArgumentException("unknown execution mode: " + mode);
             }
@@ -60,6 +59,19 @@ namespace OPS.Pipeline
             }
             return stateMachines[msg.ProjectName];
         }
+
+        protected TypeDispatcher MakeDispatcher(PipelineCore pipeline)
+        {
+            var ret = new TypeDispatcher()
+                .Case((DefineTilesMessage m) => new DefineTiles(pipeline, m).Process())
+                .Case((ChunkInputMessage m) => new ChunkInput(pipeline, m).Process())
+                .Case((BuildLeavesMessage m) => new BuildLeaves(pipeline, m).Process())
+                .Case((BuildParentMessage m) => new BuildParent(pipeline, m).Process())
+                .Case((BuildTilesetJsonMessage m) => new BuildTilesetJson(pipeline, m).Process());
+
+            ret.Unhandled = (t, x) => throw new Exception("unknown worker message type: " + t);
+            return ret;
+        }
     }
 
     //single threaded executive - should be used for small workflows only
@@ -73,7 +85,7 @@ namespace OPS.Pipeline
         public bool ThrowOnMasterError = true;
         public bool ThrowOnWorkerError = true;
 
-        public ImmediateExecutive(PipelineCore pipeline, bool supportAlignment = false) : base(pipeline)
+        public ImmediateExecutive(PipelineCore pipeline) : base(pipeline)
         {
             pipeline.EnqueuedToMaster += msg => {
 
@@ -102,7 +114,7 @@ namespace OPS.Pipeline
                 return false; //now discard message
             };
 
-            var workerDispatcher = StartWorker.MakeDispatcher(pipeline, supportAlignment);
+            var workerDispatcher = MakeDispatcher(pipeline);
             pipeline.EnqueuedToWorkers += msg => {
                 try
                 {
@@ -147,7 +159,7 @@ namespace OPS.Pipeline
 
         private const int THROTTLE_MS = 50;
 
-        public DeferredExecutive(PipelineCore pipeline, bool supportAlignment = false) : base(pipeline)
+        public DeferredExecutive(PipelineCore pipeline) : base(pipeline)
         {
             if (!(pipeline is LocalPipeline))
             {
@@ -159,7 +171,7 @@ namespace OPS.Pipeline
 
             masterTask = Task.Run(() => MasterLoop()); //lambda needed to compile
 
-            workerDispatcher = StartWorker.MakeDispatcher(pipeline, supportAlignment);
+            workerDispatcher = MakeDispatcher(pipeline);
 
             workerTasks = new Task[CoreLimitedParallel.GetMaxCores()];
             for (int i = 0; i < workerTasks.Length; i++)

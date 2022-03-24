@@ -469,15 +469,11 @@ namespace OPS.Landform
             pdsExts = StringHelper.ParseExts(options.PDSRDRExts);
             pipeline.LogInfo("PDS extensions: {0}", string.Join(", ", pdsExts));
 
-            var cp = pipeline as CloudPipeline;
-
             awsProfile = !string.IsNullOrEmpty(options.AWSProfile) ? options.AWSProfile :
-                cp != null && !string.IsNullOrEmpty(cp.AWSProfile) ? cp.AWSProfile :
                 mission.GetDefaultAWSProfile();
             pipeline.LogInfo("AWS profile: {0}", awsProfile);
 
             awsRegion = !string.IsNullOrEmpty(options.AWSRegion) ? options.AWSRegion :
-                cp != null && !string.IsNullOrEmpty(cp.AWSRegion) ? cp.AWSRegion :
                 mission.GetDefaultAWSRegion();
             pipeline.LogInfo("AWS region: {0}", awsRegion);
 

@@ -1,7 +1,6 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
 using System.Diagnostics;
-using Amazon.DynamoDBv2.DataModel;
 using OPS.Util;
 using OPS.Pipeline.TilingServer;
 

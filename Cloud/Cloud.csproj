@@ -37,9 +37,6 @@
     <Reference Include="AWSSDK.Core, Version=3.3.0.0, Culture=neutral, PublicKeyToken=885c28607f98e604, processorArchitecture=MSIL">
       <HintPath>..\packages\AWSSDK.Core.3.7.2.5\lib\net45\AWSSDK.Core.dll</HintPath>
     </Reference>
-    <Reference Include="AWSSDK.DynamoDBv2, Version=3.3.0.0, Culture=neutral, PublicKeyToken=885c28607f98e604, processorArchitecture=MSIL">
-      <HintPath>..\packages\AWSSDK.DynamoDBv2.3.7.0.54\lib\net45\AWSSDK.DynamoDBv2.dll</HintPath>
-    </Reference>
     <Reference Include="AWSSDK.EC2, Version=3.3.0.0, Culture=neutral, PublicKeyToken=885c28607f98e604, processorArchitecture=MSIL">
       <HintPath>..\packages\AWSSDK.EC2.3.7.23\lib\net45\AWSSDK.EC2.dll</HintPath>
     </Reference>
@@ -91,8 +88,6 @@
     <Compile Include="CloudException.cs" />
     <Compile Include="Compute\ComputeHelper.cs" />
     <Compile Include="Credentials.cs" />
-    <Compile Include="Database\DBUtil.cs" />
-    <Compile Include="Database\DynamoDBMetadata.cs" />
     <Compile Include="Messaging\MessageQueue.cs" />
     <Compile Include="Messaging\S3EventMessage.cs" />
     <Compile Include="Messaging\SNSMessageWrapper.cs" />
@@ -125,7 +120,6 @@
   </ItemGroup>
   <ItemGroup>
     <Analyzer Include="..\packages\AWSSDK.AutoScaling.3.7.5.5\analyzers\dotnet\cs\AWSSDK.AutoScaling.CodeAnalysis.dll" />
-    <Analyzer Include="..\packages\AWSSDK.DynamoDBv2.3.7.0.54\analyzers\dotnet\cs\AWSSDK.DynamoDBv2.CodeAnalysis.dll" />
     <Analyzer Include="..\packages\AWSSDK.EC2.3.7.23\analyzers\dotnet\cs\AWSSDK.EC2.CodeAnalysis.dll" />
     <Analyzer Include="..\packages\AWSSDK.S3.3.7.1.25\analyzers\dotnet\cs\AWSSDK.S3.CodeAnalysis.dll" />
     <Analyzer Include="..\packages\AWSSDK.SimpleSystemsManagement.3.7.4.12\analyzers\dotnet\cs\AWSSDK.SimpleSystemsManagement.CodeAnalysis.dll" />
