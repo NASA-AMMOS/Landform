@@ -1,11 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-
-namespace JPLOPS.Imaging
+﻿namespace JPLOPS.Imaging
 {
     /// <summary>
     /// Image converters are used when reading or writing images from files

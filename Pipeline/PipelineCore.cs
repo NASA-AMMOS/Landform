@@ -4,7 +4,6 @@ using System.Collections.Concurrent;
 using System.IO;
 using System.Linq;
 using System.Diagnostics;
-using System.Security.Cryptography;
 using log4net;
 using CommandLine;
 using JPLOPS.Util;

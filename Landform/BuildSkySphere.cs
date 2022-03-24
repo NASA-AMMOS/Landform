@@ -12,7 +12,6 @@ using JPLOPS.Geometry;
 using JPLOPS.Pipeline;
 using JPLOPS.Pipeline.Texturing;
 using JPLOPS.Pipeline.AlignmentServer;
-using JPLOPS.Pipeline.TilingServer;
 
 /// <summary>
 /// Creates a sky tileset to display behind the terrain.

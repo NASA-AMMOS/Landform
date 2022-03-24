@@ -1,12 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-using JPLOPS.MathExtensions;
-using Microsoft.Xna.Framework;
-using JPLOPS.Geometry;
+﻿using Microsoft.Xna.Framework;
 
 namespace JPLOPS.Geometry
 {

@@ -1,13 +1,6 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
 using CommandLine;
-using JPLOPS.Geometry;
-using JPLOPS.Imaging;
 using JPLOPS.Pipeline;
-using JPLOPS.Pipeline.AlignmentServer;
-using JPLOPS.Pipeline.TilingServer;
 
 /// <summary>
 /// Creates a Landform tiling project corresponding to a Landform alignment project, and then creates a tileset.

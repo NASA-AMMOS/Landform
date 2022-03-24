@@ -5,10 +5,8 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
 using System.Linq;
-using System.Text;
 using System.Threading;
 using System.IO;
-using System.Diagnostics;
 using Microsoft.Xna.Framework;
 using JPLOPS.Util;
 using JPLOPS.MathExtensions;
@@ -16,7 +14,6 @@ using JPLOPS.Imaging;
 using JPLOPS.Geometry;
 using JPLOPS.Pipeline.AlignmentServer;
 using JPLOPS.RayTrace;
-using JPLOPS.Pipeline;
 using JPLOPS.Pipeline.Texturing;
 
 namespace JPLOPS.Pipeline

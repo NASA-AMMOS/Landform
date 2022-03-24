@@ -1,15 +1,10 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
 using Newtonsoft.Json;
 using JPLOPS.Util;
-using JPLOPS.Cloud;
 using JPLOPS.Imaging;
 using JPLOPS.Geometry;
-using JPLOPS.Pipeline;
 
 namespace JPLOPS.Pipeline.AlignmentServer
 {

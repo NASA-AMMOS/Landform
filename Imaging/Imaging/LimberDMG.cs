@@ -2,10 +2,6 @@
 //#define PRE_G65_TUNING
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using log4net;
 using JPLOPS.Util;
 
 //https://github.jpl.nasa.gov/OnSight/Landform/wiki/Composite-Image-Stitching-aka-DMG

@@ -1,5 +1,4 @@
 using System;
-using Microsoft.Xna.Framework;
 using Newtonsoft.Json;
 using JPLOPS.Imaging;
 

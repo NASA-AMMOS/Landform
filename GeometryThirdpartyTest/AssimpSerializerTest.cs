@@ -1,7 +1,5 @@
-﻿using System;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
+﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
 using JPLOPS.Geometry.Experimental;
-using Microsoft.Xna.Framework;
 using System.IO;
 using JPLOPS.Geometry;
 

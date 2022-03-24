@@ -1,9 +1,5 @@
-﻿using System;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
+﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
 using JPLOPS.Imaging;
-using System.Linq;
-using System.Collections.Generic;
-using Microsoft.Xna.Framework;
 
 namespace ImagingTest.Imaging
 {

@@ -1,15 +1,8 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
-using System.Collections.Concurrent;
 using System.Linq;
-using System.Text;
-using System.Diagnostics;
-using log4net;
 using MathNet.Numerics.LinearAlgebra;
 using Microsoft.Xna.Framework;
-using JPLOPS.MathExtensions;
-using JPLOPS.Util;
 using JPLOPS.Imaging;
 using JPLOPS.Geometry;
 

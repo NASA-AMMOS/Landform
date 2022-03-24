@@ -1,16 +1,9 @@
 ﻿using JPLOPS.Geometry;
 using JPLOPS.Imaging;
-using JPLOPS.Pipeline;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
-using RTree;
-using log4net;
-using System.Threading;
-using static JPLOPS.Geometry.Triangle;
 
 namespace JPLOPS.Pipeline
 {

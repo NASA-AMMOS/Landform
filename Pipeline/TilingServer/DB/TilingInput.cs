@@ -1,7 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using log4net;
-using JPLOPS.Cloud;
 
 
 namespace JPLOPS.Pipeline.TilingServer

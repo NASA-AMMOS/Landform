@@ -1,6 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
 using JPLOPS.Util;
 using Microsoft.Xna.Framework;
 using Newtonsoft.Json;

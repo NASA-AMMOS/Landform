@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Threading;
 using log4net;
 using Microsoft.Xna.Framework;
 using Newtonsoft.Json;
@@ -10,8 +9,6 @@ using Newtonsoft.Json.Linq;
 using JPLOPS.MathExtensions;
 using JPLOPS.Util;
 using JPLOPS.Geometry;
-using JPLOPS.Pipeline;
-using JPLOPS.Pipeline.Texturing;
 
 namespace JPLOPS.Pipeline.TilingServer
 {

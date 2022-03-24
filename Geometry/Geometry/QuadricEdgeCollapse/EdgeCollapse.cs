@@ -1,14 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 using Microsoft.Xna.Framework;
-using JPLOPS.Geometry;
 
 using Priority_Queue;
-using System.Collections;
 using System.Runtime.CompilerServices;
 
 namespace JPLOPS.Geometry

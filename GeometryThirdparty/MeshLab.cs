@@ -1,14 +1,5 @@
 ﻿using log4net;
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using JPLOPS.Util;
-using System.IO;
-using Microsoft.Xna.Framework;
-using JPLOPS.MathExtensions;
-using System.Text.RegularExpressions;
 
 namespace JPLOPS.Geometry
 {

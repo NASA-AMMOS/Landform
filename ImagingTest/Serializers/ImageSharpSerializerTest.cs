@@ -1,6 +1,5 @@
 //#define ENABLE_GDAL_JPG_PNG_BMP
 
-using System;
 using System.IO;
 using JPLOPS.Imaging;
 using JPLOPS.Test;

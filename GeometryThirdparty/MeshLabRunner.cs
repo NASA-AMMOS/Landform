@@ -1,12 +1,4 @@
-﻿using log4net;
-using JPLOPS.Util;
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
+﻿
 #if ENABLE_MESHLAB
 namespace OPS.Geometry
 {

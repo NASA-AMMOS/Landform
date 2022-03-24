@@ -1,15 +1,10 @@
 using System;
 using System.Collections.Generic;
-using System.Collections.Concurrent;
 using System.Linq;
-using System.Text;
-using System.IO;
 using Microsoft.Xna.Framework;
-using System.Diagnostics;
 using RTree;
 using JPLOPS.MathExtensions;
 using JPLOPS.Util;
-using JPLOPS.Imaging;
 
 namespace JPLOPS.Geometry
 {

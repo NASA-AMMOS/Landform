@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Collections.Concurrent;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 using System.IO;
 using System.Net;
@@ -10,13 +9,10 @@ using System.Threading;
 using System.Diagnostics;
 using System.Text.RegularExpressions;
 using Amazon.S3;
-using Microsoft.Xna.Framework;
 using CommandLine;
 using log4net;
 using JPLOPS.Util;
 using JPLOPS.Cloud;
-using JPLOPS.Imaging;
-using JPLOPS.Geometry;
 using JPLOPS.Pipeline;
 
 ///<summary>

@@ -5,11 +5,9 @@ using System.Linq;
 using log4net;
 using Newtonsoft.Json;
 using Microsoft.Xna.Framework;
-using JPLOPS.Cloud;
 using JPLOPS.Geometry;
 using JPLOPS.Imaging;
 using JPLOPS.Util;
-using JPLOPS.Pipeline.AlignmentServer;
 
 namespace JPLOPS.Pipeline.TilingServer
 {

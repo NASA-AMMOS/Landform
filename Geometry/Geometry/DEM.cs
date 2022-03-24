@@ -1,8 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using log4net;
 using Microsoft.Xna.Framework;
 using JPLOPS.Imaging;
 using JPLOPS.Util;

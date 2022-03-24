@@ -1,13 +1,8 @@
 ﻿using System;
 using System.IO;
-using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
-using log4net;
 using Microsoft.Xna.Framework;
-using JPLOPS.MathExtensions;
 using JPLOPS.Util;
 using JPLOPS.Imaging;
 

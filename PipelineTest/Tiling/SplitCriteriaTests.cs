@@ -1,10 +1,6 @@
 ﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
 using JPLOPS.Pipeline;
-using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using JPLOPS.Geometry;
 using JPLOPS.Imaging;
 using Microsoft.Xna.Framework;

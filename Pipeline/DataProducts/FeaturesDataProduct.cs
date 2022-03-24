@@ -1,5 +1,4 @@
 using JPLOPS.ImageFeatures;
-using JPLOPS.Cloud;
 
 namespace JPLOPS.Pipeline
 {

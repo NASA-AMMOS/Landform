@@ -3,15 +3,11 @@ using System.IO;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
 using RTree;
 using JPLOPS.Util;
 using JPLOPS.MathExtensions;
 using JPLOPS.RayTrace;
-using JPLOPS.Imaging;
 using JPLOPS.Geometry;
 
 namespace JPLOPS.Pipeline.Texturing

@@ -1,24 +1,15 @@
 using System;
 using System.Linq;
-using System.Collections;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
-using System.Diagnostics;
-using System.Threading;
-using System.Threading.Tasks;
-using System.Text.RegularExpressions;
 using System.IO;
 using CommandLine;
-using log4net;
-using Newtonsoft.Json;
-using Microsoft.Xna.Framework;
 using JPLOPS.Util;
 using JPLOPS.Cloud;
 using JPLOPS.Imaging;
 using JPLOPS.Geometry;
 using JPLOPS.Pipeline.AlignmentServer;
 using JPLOPS.Pipeline;
-using JPLOPS.Landform;
 
 /// <summary>
 /// Utility to create or update a tileset scene manifest.

@@ -1,12 +1,6 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Microsoft.Xna.Framework;
-using JPLOPS.Cloud;
 using JPLOPS.ImageFeatures;
-using JPLOPS.Pipeline;
 
 namespace JPLOPS.Pipeline.AlignmentServer
 {

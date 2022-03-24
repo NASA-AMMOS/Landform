@@ -1,14 +1,8 @@
-﻿using log4net;
-using System;
-using System.Collections.Generic;
-using System.Collections.Concurrent; 
-using System.IO;
+﻿using System;
+using System.Collections.Concurrent;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
 using JPLOPS.Util;
-using JPLOPS.Imaging;
 using JPLOPS.Geometry;
 
 namespace JPLOPS.Pipeline.TilingServer

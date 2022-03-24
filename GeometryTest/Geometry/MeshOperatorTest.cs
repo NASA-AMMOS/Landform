@@ -1,11 +1,9 @@
 ﻿using System;
-using System.Text;
 using System.Linq;
 using System.Collections.Generic;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Microsoft.Xna.Framework;
 using JPLOPS.Geometry;
-using JPLOPS.Imaging;
 
 namespace GeometryTest
 {

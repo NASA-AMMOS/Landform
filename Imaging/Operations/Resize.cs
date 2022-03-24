@@ -1,8 +1,5 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
-using System.Linq;
-using Microsoft.Xna.Framework;
 using JPLOPS.MathExtensions;
 using JPLOPS.Util;
 

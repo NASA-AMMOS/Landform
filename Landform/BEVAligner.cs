@@ -1,23 +1,20 @@
 using System;
 using System.IO;
 using System.Linq;
-using System.Collections;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
 using System.Threading;
-using System.Diagnostics;
 using Microsoft.Xna.Framework;
 using CommandLine;
 using Emgu.CV;
 using Emgu.CV.Util;
-using Emgu.CV.CvEnum;
 using Emgu.CV.Structure;
 using Emgu.CV.Features2D;
 using JPLOPS.Util;
 using JPLOPS.Imaging;
 using JPLOPS.Imaging.Emgu;
-using JPLOPS.Geometry;
 using JPLOPS.ImageFeatures;
+using JPLOPS.Geometry;
 using JPLOPS.Pipeline;
 using JPLOPS.Pipeline.AlignmentServer;
 

@@ -7,7 +7,6 @@ using Amazon.SQS;
 using Amazon.SQS.Model;
 using Newtonsoft.Json;
 using JPLOPS.Util;
-using JPLOPS.MathExtensions;
 
 namespace JPLOPS.Cloud
 {

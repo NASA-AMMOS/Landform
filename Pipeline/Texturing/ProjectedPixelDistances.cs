@@ -2,14 +2,12 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Threading;
 using Microsoft.Xna.Framework;
 using JPLOPS.Util;
 using JPLOPS.Imaging;
 using JPLOPS.Geometry;
 using JPLOPS.RayTrace;
 using JPLOPS.Pipeline.AlignmentServer;
-using JPLOPS.Pipeline.Texturing;
 
 namespace JPLOPS.Pipeline
 {

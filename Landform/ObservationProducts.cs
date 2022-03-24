@@ -1,17 +1,13 @@
 using System;
 using System.Linq;
-using System.Collections;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
-using System.Diagnostics;
 using System.Threading;
 using CommandLine;
-using Microsoft.Xna.Framework;
 using JPLOPS.Util;
 using JPLOPS.Imaging;
 using JPLOPS.Geometry;
 using JPLOPS.Pipeline;
-using JPLOPS.Pipeline.AlignmentServer;
 
 ///<summary>
 /// Utility to create debug products for observation meshes and images.

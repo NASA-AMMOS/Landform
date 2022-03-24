@@ -1,4 +1,3 @@
-using System;
 using JPLOPS.Geometry;
 
 namespace JPLOPS.Pipeline

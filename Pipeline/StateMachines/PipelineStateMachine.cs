@@ -2,7 +2,6 @@
 using System.Linq;
 using System.Collections.Generic;
 using JPLOPS.Util;
-using JPLOPS.Cloud;
 using JPLOPS.Geometry;
 using JPLOPS.Pipeline.TilingServer;
 

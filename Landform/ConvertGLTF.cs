@@ -4,7 +4,6 @@ using System.Linq;
 using CommandLine;
 using log4net;
 using JPLOPS.Util;
-using JPLOPS.Imaging;
 using JPLOPS.Geometry;
 using JPLOPS.Geometry.GLTF;
 

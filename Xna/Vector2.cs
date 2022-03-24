@@ -4,7 +4,6 @@
 
 using System;
 using System.Diagnostics;
-using System.Globalization;
 using System.Runtime.Serialization;
 
 namespace Microsoft.Xna.Framework

@@ -1,16 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Microsoft.Xna.Framework;
 using MathNet.Numerics.LinearAlgebra;
-using log4net;
 using JPLOPS.Util;
 using JPLOPS.Geometry;
 using JPLOPS.Imaging;
-using JPLOPS.Imaging.Emgu;
-using JPLOPS.MathExtensions;
 
 namespace JPLOPS.ImageFeatures
 {

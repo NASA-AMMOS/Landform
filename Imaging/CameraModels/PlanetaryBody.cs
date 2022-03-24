@@ -1,12 +1,6 @@
 using System;
-using System.Collections.Generic;
-using System.Collections.Concurrent;
-using System.Linq;
 using Microsoft.Xna.Framework;
-using Newtonsoft.Json;
-using OSGeo.GDAL;
 using OSGeo.OSR;
-using JPLOPS.Util;
 using JPLOPS.MathExtensions;
 
 namespace JPLOPS.Imaging

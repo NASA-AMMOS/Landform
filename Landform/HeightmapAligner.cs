@@ -3,10 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using Microsoft.Xna.Framework;
 using CommandLine;
-using JPLOPS.Util;
-using JPLOPS.Imaging;
-using JPLOPS.Geometry;
 using JPLOPS.ImageFeatures;
+using JPLOPS.Geometry;
 using JPLOPS.Pipeline;
 using JPLOPS.Pipeline.AlignmentServer;
 

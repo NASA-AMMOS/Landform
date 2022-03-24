@@ -1,8 +1,4 @@
-﻿using System;
-using System.Linq;
-using System.Collections.Generic;
-using log4net;
-using JPLOPS.Cloud;
+﻿using System.Collections.Generic;
 using JPLOPS.Pipeline.TilingServer;
 
 namespace JPLOPS.Pipeline

@@ -1,14 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
 using JPLOPS.MathExtensions;
 
 namespace JPLOPS.Geometry
 {
-   public enum BoxAxis { X, Y, Z };
+    public enum BoxAxis { X, Y, Z };
 
     /// Also see Microsoft.Xna.Framework.Extensions and OPS.MathExtensions.XNAExtensions
     public static class BoundingBoxExtensions

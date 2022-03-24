@@ -1,11 +1,9 @@
 using System;
-using System.IO;
 using System.Linq;
 using System.Collections.Generic;
 using CommandLine;
 using Microsoft.Xna.Framework;
 using JPLOPS.Util;
-using JPLOPS.MathExtensions;
 using JPLOPS.Imaging;
 using JPLOPS.Geometry;
 using JPLOPS.Pipeline;

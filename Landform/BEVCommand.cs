@@ -1,17 +1,14 @@
 using System;
 using System.Linq;
-using System.Collections;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
 using System.Threading;
-using System.Diagnostics;
 using Microsoft.Xna.Framework;
 using CommandLine;
 using JPLOPS.MathExtensions;
 using JPLOPS.Util;
 using JPLOPS.Imaging;
 using JPLOPS.Geometry;
-using JPLOPS.ImageFeatures;
 using JPLOPS.Pipeline;
 using JPLOPS.Pipeline.AlignmentServer;
 

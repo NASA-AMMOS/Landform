@@ -1,7 +1,3 @@
-using System;
-using Microsoft.Xna.Framework;
-using JPLOPS.Util;
-using JPLOPS.MathExtensions;
 using JPLOPS.Geometry;
 using JPLOPS.Pipeline.Texturing;
 

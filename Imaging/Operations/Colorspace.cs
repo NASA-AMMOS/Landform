@@ -1,9 +1,7 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using ColorMine.ColorSpaces;
-using Microsoft.Xna.Framework;
 using JPLOPS.Util;
 using JPLOPS.MathExtensions;
 

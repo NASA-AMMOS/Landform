@@ -1,12 +1,5 @@
 ﻿using Microsoft.Xna.Framework;
-using JPLOPS.Cloud;
 using JPLOPS.Util;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using log4net;
 
 namespace JPLOPS.Pipeline.TilingServer
 {

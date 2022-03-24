@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using Newtonsoft.Json;
-using JPLOPS.Cloud;
 using JPLOPS.Imaging;
 
 namespace JPLOPS.Pipeline.AlignmentServer

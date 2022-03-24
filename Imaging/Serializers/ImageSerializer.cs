@@ -1,11 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using JPLOPS.Util;
-
-namespace JPLOPS.Imaging
+﻿namespace JPLOPS.Imaging
 {
     /// <summary>
     /// Image serializers are responsible for reading and saving Images

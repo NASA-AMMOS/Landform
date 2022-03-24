@@ -1,12 +1,4 @@
-﻿using System;
-using System.Text;
-using System.Collections.Generic;
-using System.IO;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
-using JPLOPS.Geometry;
-using JPLOPS.Util;
-using JPLOPS.Test;
-
+﻿
 #if ENABLE_MESHLAB
 namespace GeometryThirdpartyTest
 {

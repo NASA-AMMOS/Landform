@@ -1,10 +1,6 @@
 using System;
 using System.Net;
-using System.Collections.Generic;
-using System.Collections.Concurrent;
-using System.Linq;
 using Amazon;
-using Amazon.Runtime;
 using Amazon.SimpleSystemsManagement;
 using Amazon.SimpleSystemsManagement.Model;
 

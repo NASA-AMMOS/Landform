@@ -1,10 +1,7 @@
-using System;
 using System.Collections.Generic;
-using System.Linq;
 using Newtonsoft.Json;
 using Microsoft.Xna.Framework;
 using JPLOPS.MathExtensions;
-using JPLOPS.Pipeline.TilingServer;
 
 namespace JPLOPS.Pipeline
 {

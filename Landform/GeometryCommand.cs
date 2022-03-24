@@ -1,16 +1,10 @@
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Diagnostics;
 using CommandLine;
 using Microsoft.Xna.Framework;
 using JPLOPS.Util;
 using JPLOPS.MathExtensions;
 using JPLOPS.Geometry;
-using JPLOPS.Pipeline.AlignmentServer;
 using JPLOPS.Pipeline;
-using JPLOPS.Pipeline.Texturing;
 
 namespace JPLOPS.Landform
 {

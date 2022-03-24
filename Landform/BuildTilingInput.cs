@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading;
-using System.Text;
 using System.Text.RegularExpressions;
 using CommandLine;
 using Microsoft.Xna.Framework;
@@ -12,9 +11,7 @@ using JPLOPS.Geometry;
 using JPLOPS.Imaging;
 using JPLOPS.Pipeline;
 using JPLOPS.Pipeline.AlignmentServer;
-using JPLOPS.Pipeline.Texturing;
 using JPLOPS.Pipeline.TilingServer;
-using JPLOPS.RayTrace;
 using JPLOPS.Util;
 
 /// <summary>

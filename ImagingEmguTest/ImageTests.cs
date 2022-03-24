@@ -1,5 +1,4 @@
-﻿using System;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
+﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
 using JPLOPS.Imaging;
 using JPLOPS.Imaging.Emgu;
 using System.IO;

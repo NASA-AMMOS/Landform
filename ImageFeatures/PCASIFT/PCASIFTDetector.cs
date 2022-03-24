@@ -1,10 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
-using Microsoft.Xna.Framework;
 using Emgu.CV;
 using Emgu.CV.Structure;
-using Emgu.CV.XFeatures2D;
 using JPLOPS.Imaging;
 using JPLOPS.Imaging.Emgu;
 

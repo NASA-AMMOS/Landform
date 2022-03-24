@@ -1,14 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Diagnostics;
 using System.IO;
-using System.Threading.Tasks;
 using log4net;
 using Emgu.CV;
 using Emgu.CV.Structure;
-using JPLOPS.Imaging.Emgu;
-using JPLOPS.Util;
 
 namespace JPLOPS.ImageFeatures
 {

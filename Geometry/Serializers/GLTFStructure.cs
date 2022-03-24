@@ -1,6 +1,5 @@
 ﻿using System;
 using System.IO;
-using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Collections.Generic;
@@ -8,7 +7,6 @@ using Microsoft.Xna.Framework;
 using Newtonsoft.Json;
 using JPLOPS.Util;
 using JPLOPS.MathExtensions;
-using JPLOPS.Imaging;
 
 namespace JPLOPS.Geometry.GLTF
 {

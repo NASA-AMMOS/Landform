@@ -1,10 +1,8 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Diagnostics;
 using System.IO;
-using System.Threading.Tasks;
 using log4net;
 using Emgu.CV.Structure;
 using MathNet.Numerics.LinearAlgebra;

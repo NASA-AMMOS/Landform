@@ -1,7 +1,5 @@
 ﻿using System;
 using System.Threading;
-using System.Collections.Generic;
-using System.Linq;
 using JPLOPS.Util;
 
 namespace JPLOPS.Geometry
