@@ -77,23 +77,18 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="AlignmentUtils.cs" />
-    <Compile Include="DEMAligner.cs" />
     <Compile Include="ImageFeatures\FeatureDescriptor.cs" />
+    <Compile Include="ImageFeatures\FeatureDetector.cs" />
     <Compile Include="ImageFeatures\FeatureDetectorBase.cs" />
     <Compile Include="ImageFeatures\ImageFeature.cs" />
     <Compile Include="ImageFeatures\MatchFilters\DescriptorDistanceFilter.cs" />
     <Compile Include="ImageFeatures\Matching\CascadeHashingMatcher.cs" />
-    <Compile Include="Components\AdjustedNode.cs" />
-    <Compile Include="EpipolarGeometry\EpipolarTransformDecomposition.cs" />
+    <Compile Include="ImageFeatures\MatchFilters\EpipolarTransformDecomposition.cs" />
     <Compile Include="ImageFeatures\MatchFilters\GTMFilter.cs" />
     <Compile Include="ImageFeatures\Matching\BruteForceMatcher.cs" />
-    <Compile Include="BundleAdjuster\BundleAdjuster.cs" />
-    <Compile Include="Components\BundleSceneComponents.cs" />
-    <Compile Include="BundleAdjuster\Problem.cs" />
-    <Compile Include="BundleAdjuster\Structures.cs" />
     <Compile Include="ImageFeatures\MatchFilters\KnownGeometryFilter.cs" />
     <Compile Include="ImageFeatures\Matching\EmguSIFTMatcher.cs" />
+    <Compile Include="ImageFeatures\Matching\FeatureMatch.cs" />
     <Compile Include="ImageFeatures\Matching\ImagePairCorrespondence.cs" />
     <Compile Include="ImageFeatures\Matching\KnownGeometryMatcher.cs" />
     <Compile Include="ImageFeatures\PCASIFT\PCAConstants.cs" />
@@ -103,23 +98,20 @@
     <Compile Include="ImageFeatures\PCASIFT\PCASIFTFeature.cs" />
     <Compile Include="ImageFeatures\PCASIFT\PCASIFTIO.cs" />
     <Compile Include="ImageFeatures\PCASIFT\PCASIFTUtil.cs" />
-    <Compile Include="ImageFeatures\Interfaces\IFeatureDetector.cs" />
     <Compile Include="ImageFeatures\SIFT\BRIEFDescriptor.cs" />
     <Compile Include="ImageFeatures\SIFT\FASTDetector.cs" />
     <Compile Include="ImageFeatures\SIFT\SIFTDescriptor.cs" />
     <Compile Include="ImageFeatures\MatchFilters\MoisanStivalFilter.cs" />
     <Compile Include="ImageFeatures\SIFT\SIFTDetector.cs" />
     <Compile Include="ImageFeatures\SIFT\SIFTFeature.cs" />
-    <Compile Include="ImageFeatures\Interfaces\IMatchFilter.cs" />
-    <Compile Include="ImageFeatures\Interfaces\IFeatureMatcher.cs" />
+    <Compile Include="ImageFeatures\MatchFilters\IMatchFilter.cs" />
+    <Compile Include="ImageFeatures\Matching\IFeatureMatcher.cs" />
     <Compile Include="ImageFeatures\MatchFilters\MoisanStivalEpipolar.cs" />
     <Compile Include="ImageFeatures\PCASIFT\PCAKeypointProjector.cs" />
     <Compile Include="ImageFeatures\PCASIFT\PCASIFTTrain.cs" />
-    <Compile Include="Routines\EpipolarLineFinder.cs" />
-    <Compile Include="Routines\FeatureLinearizer.cs" />
+    <Compile Include="ImageFeatures\EpipolarLineFinder.cs" />
+    <Compile Include="ImageFeatures\MatchFilters\FeatureLinearizer.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="AlignmentScene.cs" />
-    <Compile Include="Routines\FrustumOverlapDetector.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Cloud\Cloud.csproj">
@@ -165,20 +157,11 @@
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
-    <Content Include="ExternalApps\CeresBundler.exe">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="ExternalApps\libglog.dll">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="ExternalApps\main.asm">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
     <Content Include="License-LGPL.txt" />
-    <Content Include="TrainingSpaces\default.txt">
+    <Content Include="ImageFeatures\PCASIFT\defaultTraining.txt">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
-    <Content Include="TrainingSpaces\spaceOne.txt">
+    <Content Include="ImageFeatures\PCASIFT\alternateTraining.txt">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>

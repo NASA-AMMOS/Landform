@@ -16,15 +16,6 @@ namespace OPS.Alignment
             this.maxDistance = maxDistance;
         }
 
-        public ImagePairCorrespondence Filter(AlignmentScene scene, ImagePairCorrespondence matches)
-        {
-            var modelUrl = matches.ModelImageUrl;
-            var dataUrl = matches.DataImageUrl;
-            var modelFeatures = scene.DetectedFeatures[modelUrl];
-            var dataFeatures = scene.DetectedFeatures[dataUrl];
-            return Filter(modelFeatures, dataFeatures, matches);
-        }
-
         public ImagePairCorrespondence Filter(ImageFeature[] modelFeatures, ImageFeature[] dataFeatures,
                                               ImagePairCorrespondence matches)
         {

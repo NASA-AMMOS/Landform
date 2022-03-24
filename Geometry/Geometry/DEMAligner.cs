@@ -4,9 +4,8 @@ using System.Linq;
 using Microsoft.Xna.Framework;
 using OPS.Util;
 using OPS.Imaging;
-using OPS.Geometry;
 
-namespace OPS.Alignment
+namespace OPS.Geometry
 {
     public class DEMAligner
     {
@@ -61,8 +60,8 @@ namespace OPS.Alignment
         public Action<string> Verbose;
         
         //optional debug mesh callbacks
-        public Action<Mesh> SavePriorMatchMesh;
-        public Action<Mesh> SaveAdjustedMatchMesh;
+        public Action<Vector3[], Vector3[]> SavePriorMatchMesh;
+        public Action<Vector3[], Vector3[]> SaveAdjustedMatchMesh;
 
         /// <summary>
         /// Returns adjustment such that (demToWorld * adjustment) improves alignment of dem to scenes in world.
@@ -97,17 +96,10 @@ namespace OPS.Alignment
                 return null;
             }
 
-            Mesh makeMatchMesh()
-            {
-                var modelPts = samples.Select(s => s.ScenePoint).ToArray();
-                var dataPts = samples.Select(s => s.DEMPoint).ToArray();
-                return AlignmentUtils.MakeMatchMesh(modelPts, dataPts);
-                
-            }
-
             if (SavePriorMatchMesh != null)
             {
-                SavePriorMatchMesh(makeMatchMesh());
+                SavePriorMatchMesh(samples.Select(s => s.ScenePoint).ToArray(),
+                                   samples.Select(s => s.DEMPoint).ToArray());
             }
 
             if (samples.Count < MinSamples)
@@ -226,7 +218,8 @@ namespace OPS.Alignment
 
             if (SaveAdjustedMatchMesh != null)
             {
-                SaveAdjustedMatchMesh(makeMatchMesh());
+                SaveAdjustedMatchMesh(samples.Select(s => s.ScenePoint).ToArray(),
+                                      samples.Select(s => s.DEMPoint).ToArray());
             }
 
             return ArrayToTransform(adjustment);

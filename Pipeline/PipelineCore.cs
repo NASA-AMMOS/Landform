@@ -111,7 +111,6 @@ namespace OPS.Pipeline
             typeof(SceneMesh),
             typeof(FeatureMatches),
             typeof(SpatialMatches),
-            typeof(Overlap),
             typeof(TilingProject),
             typeof(TilingInput),
             typeof(TilingNode),

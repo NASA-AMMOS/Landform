@@ -20,13 +20,6 @@ namespace OPS.Alignment
         //set to 1 to disable filtering by this ratio
         public double MaxDistanceRatio = 0.9;
 
-        public ImagePairCorrespondence Match(AlignmentScene scene, string modelUrl, string dataUrl)
-        {
-            var modelFeatures = scene.DetectedFeatures[modelUrl]; 
-            var dataFeatures = scene.DetectedFeatures[dataUrl];
-            return new ImagePairCorrespondence(modelUrl, dataUrl, Match(modelFeatures, dataFeatures));
-        }
-
         public IEnumerable<FeatureMatch> Match(ImageFeature[] modelFeatures, ImageFeature[] dataFeatures)
         {
             if (modelFeatures.Length < 1 || dataFeatures.Length < 1) yield break;

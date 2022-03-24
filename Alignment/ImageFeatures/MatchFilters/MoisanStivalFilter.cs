@@ -34,17 +34,6 @@ namespace OPS.Alignment
             this.imageToNode = imageToNode;
         }
 
-        public ImagePairCorrespondence Filter(AlignmentScene scene, ImagePairCorrespondence matches)
-        {
-            var modelUrl = matches.ModelImageUrl;
-            var dataUrl = matches.DataImageUrl;
-            var modelFeatures = scene.DetectedFeatures[modelUrl];
-            var dataFeatures = scene.DetectedFeatures[dataUrl];
-            var modelNode = scene.ObservationUrlToNode[modelUrl];
-            var dataNode = scene.ObservationUrlToNode[dataUrl];
-            return Filter(modelFeatures, dataFeatures, matches, modelNode, dataNode);
-        }
-
         public ImagePairCorrespondence Filter(ImageFeature[] modelFeatures, ImageFeature[] dataFeatures,
                                               ImagePairCorrespondence matches)
         {

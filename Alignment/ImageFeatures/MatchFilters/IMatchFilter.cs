@@ -12,14 +12,6 @@ namespace OPS.Alignment
     /// </summary>
     public interface IMatchFilter
     {
-        /// <summary>
-        /// Return a reduced subset of matches given an existing
-        /// correspondence.
-        /// </summary>
-        /// <param name="matches">Set of matches to filter</param>
-        /// <returns>Hopefully better set of matches</returns>
-        ImagePairCorrespondence Filter(AlignmentScene scene, ImagePairCorrespondence matches);
-
         ImagePairCorrespondence Filter(ImageFeature[] modelFeatures, ImageFeature[] dataFeatures,
                                        ImagePairCorrespondence matches);
     }

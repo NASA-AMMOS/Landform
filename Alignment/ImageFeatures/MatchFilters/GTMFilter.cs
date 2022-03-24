@@ -363,18 +363,6 @@ namespace OPS.Alignment
             this.K = k;
         }
 
-        /// <summary>
-        /// Filter matches based on transforms of clusters of points
-        /// </summary>
-        /// <param name="matches"></param>
-        /// <returns></returns>
-        public ImagePairCorrespondence Filter(AlignmentScene scene, ImagePairCorrespondence matches)
-        {
-            var modelFeatures = scene.DetectedFeatures[matches.ModelImageUrl];
-            var dataFeatures = scene.DetectedFeatures[matches.DataImageUrl];
-            return Filter(modelFeatures, dataFeatures, matches);
-        }
-
         public ImagePairCorrespondence Filter(ImageFeature[] modelFeatures, ImageFeature[] dataFeatures,
                                               ImagePairCorrespondence matches)
         {

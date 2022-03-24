@@ -26,13 +26,6 @@ namespace OPS.Alignment
         //set to 0 to disable uniqueness filtering
         public double MinUniquenessRatio = 0.8;
 
-        public ImagePairCorrespondence Match(AlignmentScene scene, string modelUrl, string dataUrl)
-        {
-            var modelFeatures = scene.DetectedFeatures[modelUrl];
-            var dataFeatures = scene.DetectedFeatures[dataUrl];
-            return Match(modelFeatures, dataFeatures, modelUrl, dataUrl);
-        }
-
         public ImagePairCorrespondence Match(ImageFeature[] modelFeatures, ImageFeature[] dataFeatures,
                                              string modelUrl, string dataUrl)
         {

@@ -169,9 +169,6 @@ namespace OPS.Landform
         [Option(HelpText = "Threshold tilt and elevation images at this level", Default = 0)]
         public double ThresholdImages { get; set; }
 
-        [Option(HelpText = "Write delta range images: a visualization of the 3d distance between the points in one image projected into and compared to the points in another image", Default = false)]
-        public bool DeltaRangeImages { get; set;}
-
         [Option(HelpText = "Disable LRU image cache (longer runtime but lower memory footprint)", Default = false)]
         public bool DisableImageCache { get; set;}
     } 
@@ -205,7 +202,6 @@ namespace OPS.Landform
                 options.NormalsImages = false;
                 options.CurvatureImages = false;
                 options.ElevationImages = false;
-                options.DeltaRangeImages = false;
             }
 
             if (options.AllTheThings)
@@ -217,7 +213,6 @@ namespace OPS.Landform
                 options.NormalsImages = true;
                 options.CurvatureImages = true;
                 options.ElevationImages = true;
-                options.DeltaRangeImages = true;
             }
 
             options.StatsOnly |= options.DryRun;
@@ -232,7 +227,6 @@ namespace OPS.Landform
                 options.NormalsImages = false;
                 options.CurvatureImages = false;
                 options.ElevationImages = false;
-                options.DeltaRangeImages = false;
             }
         }
 
@@ -568,29 +562,6 @@ namespace OPS.Landform
                     catch (Exception ex)
                     {
                         pipeline.LogWarn("error creating uncertainty inflated hull mesh: " + ex.Message);
-                    }
-                }
-                
-                if (options.DeltaRangeImages && obs.Points != null)
-                {
-                    foreach (var otherObs in wedgeObservations)
-                    {
-                        try
-                        {
-                            if (obs != otherObs && otherObs.Points != null &&
-                                Overlap.Find(pipeline, project.Name, otherObs.Texture.Name, obs.Texture.Name) != null)
-                            {
-                                Image deltaRange = DeltaRangeImage.Create(pipeline, masker, otherObs, obs, frameCache,
-                                                                          options.UsePriors, options.OnlyAligned);
-                                string name = sdPrefix + "DeltaRange/" + otherObs.Name + "_in_" + obs.Name;
-                                SaveFloatTIFF(deltaRange, name);
-                                SaveImage(DeltaRangeImage.CreatePreview(deltaRange), name + "_preview");
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            pipeline.LogWarn("error creating delta range image: " + ex.Message);
-                        }
                     }
                 }
                 

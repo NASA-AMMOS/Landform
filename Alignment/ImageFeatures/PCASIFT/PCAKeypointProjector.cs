@@ -22,20 +22,11 @@ namespace OPS.Alignment
 
         private static readonly ILog logger = LogManager.GetLogger(typeof(PCAKeypointProjector));
 
-
-        public static string DefaultTrainingSpace
-        {
-            get
-            {
-                return Path.Combine(Util.PathHelper.GetApplicationPath(), @"TrainingSpaces\default.txt");
-            }
-        }
-
         /// <summary>
         /// Initializes a new instance of the <see cref="T:OPS.Alignment.PCA_KeypointDetector"/> class.
         /// </summary>
         /// <param name="file">File containing mean and eigenspace computed from training set.</param>
-        public PCAKeypointProjector(string file, bool textFile = false)
+        public PCAKeypointProjector(string file, bool textFile = true)
         {
             if (File.Exists(file))
             {
@@ -86,12 +77,18 @@ namespace OPS.Alignment
             }
         }
 
+        private static string GetDefaultTrainingFile()
+        {
+            return Path.Combine(Util.PathHelper.GetApplicationPath(), "ImageFeatures/PCASIFT/defaultTraining.txt");
+        }
+
+        public PCAKeypointProjector() : this(GetDefaultTrainingFile(), true) { }
+
         public PCAKeypointProjector(float[] avgs, float[,] eigs)
         {
             this.avgs = avgs;
             this.eigs = eigs;
         }
-
 
         public PCAKeypointProjector Clone()
         {

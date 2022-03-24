@@ -10,7 +10,7 @@ using OPS.Imaging.Emgu;
 
 namespace OPS.Alignment
 {
-    public abstract class FeatureDetectorBase : IFeatureDetector
+    public abstract class FeatureDetectorBase
     {
         public abstract Feature2D MakeDetector();
 

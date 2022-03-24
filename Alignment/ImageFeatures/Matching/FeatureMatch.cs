@@ -14,8 +14,27 @@ using OPS.Geometry;
 
 namespace OPS.Alignment
 {
-    public class AlignmentUtils
+    public class FeatureMatch
     {
+        public int DataIndex;
+        public int ModelIndex;
+
+        public double DescriptorDistance;
+
+        public override int GetHashCode()
+        {
+            return HashCombiner.Combine(DataIndex, ModelIndex);
+        }
+
+        public override bool Equals(object obj)
+        {
+            if (obj == null || !(obj is FeatureMatch))
+            {
+                return false;
+            }
+            return this.DataIndex == ((FeatureMatch)obj).DataIndex && this.ModelIndex == ((FeatureMatch)obj).ModelIndex;
+        }
+
         public static Image DrawMatches(Image modelImg, Image dataImg, ImageFeature[] modelFeatures,
                                         ImageFeature[] dataFeatures, KeyValuePair<int, int>[] dataToModel,
                                         string modelName = null, string dataName = null, bool stretch = true)

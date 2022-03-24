@@ -36,7 +36,6 @@ namespace OPS.Landform
 
                     { typeof(BEVAlignerOptions), typeof(BEVAligner) },
                     { typeof(HeightmapAlignerOptions), typeof(HeightmapAligner) },
-                    { typeof(AgisoftAlignerOptions), typeof(AgisoftAligner) },
 
                     { typeof(BuildGeometryOptions), typeof(BuildGeometry) },
                     { typeof(BuildSkySphereOptions), typeof(BuildSkySphere) },

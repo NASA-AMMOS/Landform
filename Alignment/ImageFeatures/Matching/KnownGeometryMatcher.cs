@@ -23,15 +23,6 @@ namespace OPS.Alignment
         //from the epipolar line of the data feature in the model image
         public double MaxPixelsToEpipolarLine = 10;
 
-        public ImagePairCorrespondence Match(AlignmentScene scene, string modelUrl, string dataUrl)
-        {
-            var modelFeatures = scene.DetectedFeatures[modelUrl];
-            var dataFeatures = scene.DetectedFeatures[dataUrl];
-            var modelNode = scene.ObservationUrlToNode[modelUrl];
-            var dataNode = scene.ObservationUrlToNode[dataUrl];
-            return Match(modelFeatures, dataFeatures, modelUrl, dataUrl, modelNode, dataNode);
-        }
-
         public ImagePairCorrespondence Match(ImageFeature[] modelFeatures, ImageFeature[] dataFeatures,
                                              string modelUrl, string dataUrl, SceneNode modelNode, SceneNode dataNode)
         {

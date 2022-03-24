@@ -19,7 +19,7 @@ namespace OPS.Alignment
 
         static PCASIFTDetector()
         {
-            projector = new PCAKeypointProjector(PCAKeypointProjector.DefaultTrainingSpace);
+            projector = new PCAKeypointProjector();
         }
 
         public override IEnumerable<ImageFeature> Detect(Image image, Image mask = null)

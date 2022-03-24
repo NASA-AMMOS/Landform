@@ -14,10 +14,6 @@ using OPS.MathExtensions;
 
 namespace OPS.Alignment
 {
-    /// <summary>
-    /// Filter for pruning feature matches based on a priori known geometry of a scene. 
-    /// Takes as input a scene graph with (optional) uncertainty information on transforms.
-    /// </summary>
     public class KnownGeometryFilter : IMatchFilter
     {
         public const double DEF_MAHALANOBIS_THRESHOLD = 4;
@@ -61,17 +57,6 @@ namespace OPS.Alignment
         {
             this.logger = logger;
             this.imageToNode = imageToNode;
-        }
-
-        public ImagePairCorrespondence Filter(AlignmentScene scene, ImagePairCorrespondence matches)
-        {
-            var modelUrl = matches.ModelImageUrl;
-            var dataUrl = matches.DataImageUrl;
-            var modelFeatures = scene.DetectedFeatures[modelUrl];
-            var dataFeatures = scene.DetectedFeatures[dataUrl];
-            var modelNode = scene.ObservationUrlToNode[modelUrl];
-            var dataNode = scene.ObservationUrlToNode[dataUrl];
-            return Filter(modelFeatures, dataFeatures, matches, modelNode, dataNode);
         }
 
         public ImagePairCorrespondence Filter(ImageFeature[] modelFeatures, ImageFeature[] dataFeatures,

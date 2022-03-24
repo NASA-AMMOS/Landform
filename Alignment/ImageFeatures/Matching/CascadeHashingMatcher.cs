@@ -37,13 +37,6 @@ namespace OPS.Alignment
         //maximum number of candidates in hamming distance KNN
         public readonly int MaximumKnnCandidates = 10;
 
-        public ImagePairCorrespondence Match(AlignmentScene scene, string modelUrl, string dataUrl)
-        {
-            var modelFeatures = scene.DetectedFeatures[modelUrl]; 
-            var dataFeatures = scene.DetectedFeatures[dataUrl];
-            return new ImagePairCorrespondence(modelUrl, dataUrl, Match(modelFeatures, dataFeatures));
-        }
-
         public IEnumerable<FeatureMatch> Match(ImageFeature[] modelFeatures, ImageFeature[] dataFeatures)
         {
             if (modelFeatures.Length < 1 || dataFeatures.Length < 1) yield break;

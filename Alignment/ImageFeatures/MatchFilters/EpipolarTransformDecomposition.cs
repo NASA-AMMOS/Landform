@@ -115,21 +115,5 @@ namespace OPS.Alignment
 
             return bestTransform;
         }
-
-        public static Matrix ExtractTransform(AlignmentScene scene, ImagePairCorrespondence match, EpipolarMatrix e)
-        {
-            if (match.FundamentalMatrix == null)
-            {
-                throw new Exception("Match must have computed essential matrix");
-            }
-
-            var modelPoints = match.DataToModel
-                .Select(d2m => scene.DetectedFeatures[match.ModelImageUrl][d2m.Value].Location)
-                .ToArray();
-            var dataFeatures = match.DataToModel
-                .Select(d2m => scene.DetectedFeatures[match.DataImageUrl][d2m.Key].Location)
-                .ToArray();
-            return ExtractTransform(e, modelPoints, dataFeatures, out bool[] ignoredMask);
-        }
     }
 }
