@@ -240,13 +240,6 @@ set tacticalopts=%meshregex% %mesheye% %meshgeom% %noloadlods% %fixuplods% %tile
 set tacticalopts=%tacticalopts% %notextureprojection% %noaligntocamera% %synthesizeextralods% %nolimittreeheighttolods%
 set tacticalopts=%tacticalopts% %enforcemaxfacespertile% %requirepds% %tilingopts%
 
-set appsdir=%bindir%\ExternalApps
-if exist %appsdir%\opengl32-for-ivcat.dll (
-@echo on
-move /Y %appsdir%\opengl32-for-ivcat.dll %appsdir%\opengl32.dll
-@echo off
-)
-
 rem note %quiet% must always be last, it's a redirect not an option
 
 @echo on

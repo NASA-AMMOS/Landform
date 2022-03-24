@@ -294,13 +294,6 @@ set tilingopts=%tilingopts% %maxtexturestretch% %poweroftwotextures% %colorize% 
 set contextualopts=%maxfetch% %fetchdir% %nocombinedmanifest% %orbitalopts% %skyopts% %minmaxopts%
 set contextualopts=%contextualopts% %tilingopts% %allowunmasked% %solblacklist% %extentopts%
 
-set appsdir=%bindir%\ExternalApps
-if exist %appsdir%\opengl32-for-ivcat.dll (
-@echo on
-move /Y %appsdir%\opengl32-for-ivcat.dll %appsdir%\opengl32.dll
-@echo off
-)
-
 rem note %quiet% must always be last, it's a redirect not an option
 
 @echo on

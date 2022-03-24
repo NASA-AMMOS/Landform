@@ -1,5 +1,4 @@
-﻿//#define USE_IVCAT
-using System;
+﻿using System;
 using System.IO;
 using System.Net;
 using System.Collections.Generic;
@@ -24,7 +23,7 @@ namespace JPLOPS.Geometry
     ///   
     /// https://bitbucket.org/Coin3D/coin
     ///
-    /// Our legacy implementation (USE_IVCAT) converts binary files to ASCII with ivcat.exe and then parses the ASCII.
+    /// Our legacy implementation converted binary files to ASCII with ivcat.exe and then parses the ASCII.
     /// This is problematic for a few reasons, see
     ///
     /// https://github.jpl.nasa.gov/OnSight/Landform/issues/745
@@ -168,17 +167,7 @@ namespace JPLOPS.Geometry
                                                bool onlyGetImageFilename = false)
         {
             List<Mesh> lodMeshes = null;
-#if USE_IVCAT            
-            string ivcat = Path.Combine(PathHelper.GetApplicationPath(), "ExternalApps", "ivcat.exe");
-            TemporaryFile.GetAndDelete(".iva", tmpFile =>
-            {
-                string args = string.Format("-o \"{0}\" \"{1}\"", tmpFile, filename);
-                (new ProgramRunner(ivcat, args)).Run(); //OK if input file is already ASCII
-                lodMeshes = ParseASCII(tmpFile, onlyGetImageFilename);
-            });
-#else
             lodMeshes = Parse(filename, onlyGetImageFilename);
-#endif
             imageFilename = textureFile;
             return lodMeshes;
         }
