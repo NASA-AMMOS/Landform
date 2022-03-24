@@ -15,12 +15,6 @@ namespace JPLOPS.Landform
                 return 1;
             }
 
-            //MeshSerializers in the OPS.Geometry subproject will auto-register themselves
-            //in the static initializer for the OPS.Geometry.MeshSerializers SerializerMap
-            //however there are also some additional MeshSerializers in OPS.GeometryThirdParty
-            //and we also want those to add themselves to the OPS.Geometry.MeshSerializers SerializerMap
-            JPLOPS.Geometry.ThirdPartyMeshSerializers.Register();
-
             //use centralized version from OPS.Pipeline
             //not GdalConfiguration which is auto-added to this subproject by nuget
             JPLOPS.Pipeline.GdalConfiguration.ConfigureGdal();
