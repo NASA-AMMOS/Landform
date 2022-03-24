@@ -132,7 +132,6 @@
     <Compile Include="Serializers\ImageSharpSerializer.cs" />
     <Compile Include="Serializers\PPMSerializer.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="Serializers\DDSSerializer.cs" />
     <Compile Include="Serializers\FITSSerializer.cs" />
     <Compile Include="Serializers\GDALSerializer.cs" />
     <Compile Include="Serializers\GDALWriteOptions.cs" />
@@ -163,12 +162,6 @@
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
-    <Content Include="ExternalApps\crunch.exe">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="ExternalApps\crunch_x64.exe">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
     <Content Include="GdalConfiguration.vb" />
   </ItemGroup>
   <ItemGroup />
