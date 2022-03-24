@@ -10,14 +10,14 @@ using System.Threading;
 using System.Threading.Tasks;
 using CommandLine;
 using Amazon.SQS.Model;
-using OPS.Util;
-using OPS.Cloud;
-using OPS.Pipeline;
-using OPS.Imaging;
-using OPS.Geometry;
-using OPS.Pipeline.AlignmentServer;
+using JPLOPS.Util;
+using JPLOPS.Cloud;
+using JPLOPS.Pipeline;
+using JPLOPS.Imaging;
+using JPLOPS.Geometry;
+using JPLOPS.Pipeline.AlignmentServer;
 
-namespace OPS.Landform
+namespace JPLOPS.Landform
 {
     public enum MessageType { Generic, S3Event, SNSWrappedS3Event }
 

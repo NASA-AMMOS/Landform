@@ -4,10 +4,10 @@ using System.Linq;
 using System.IO;
 using CommandLine;
 using log4net;
-using OPS.Util;
-using OPS.Pipeline;
+using JPLOPS.Util;
+using JPLOPS.Pipeline;
 
-namespace OPS.Landform
+namespace JPLOPS.Landform
 {
     public class ConfigureBaseOptions : CommandHelper.BaseOptions
     {

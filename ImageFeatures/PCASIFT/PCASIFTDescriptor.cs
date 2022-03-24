@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace OPS.ImageFeatures
+namespace JPLOPS.ImageFeatures
 {
     public class PCASIFTDescriptor : FeatureDescriptor<float>
     {

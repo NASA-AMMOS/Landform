@@ -7,10 +7,10 @@ using System.Threading.Tasks;
 using log4net;
 using Emgu.CV;
 using Emgu.CV.Structure;
-using OPS.Imaging.Emgu;
-using OPS.Util;
+using JPLOPS.Imaging.Emgu;
+using JPLOPS.Util;
 
-namespace OPS.ImageFeatures
+namespace JPLOPS.ImageFeatures
 {
     /// <summary>
     /// PCA Keypoint Projector class.

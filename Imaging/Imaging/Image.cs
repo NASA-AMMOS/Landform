@@ -5,10 +5,10 @@ using System.Text;
 using System.IO;
 using System.Threading;
 using Microsoft.Xna.Framework;
-using OPS.MathExtensions;
-using OPS.Util;
+using JPLOPS.MathExtensions;
+using JPLOPS.Util;
 
-namespace OPS.Imaging
+namespace JPLOPS.Imaging
 {
     /// <summary>
     /// This is the primary image class.  It stores data in a floating point format

@@ -8,7 +8,7 @@ using System.Xml;
 using System.Net;
 using System.Collections.Concurrent;
 using Microsoft.Xna.Framework;
-namespace OPS.Pipeline
+namespace JPLOPS.Pipeline
 {
     public class MSLLegacyManifest
     {

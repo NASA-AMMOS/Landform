@@ -8,15 +8,15 @@ using System.Diagnostics;
 using log4net;
 using Microsoft.Xna.Framework;
 using Newtonsoft.Json;
-using OPS.MathExtensions;
-using OPS.Util;
-using OPS.Imaging;
-using OPS.Geometry;
-using OPS.ImageFeatures;
-using OPS.Pipeline;
-using OPS.Pipeline.AlignmentServer;
+using JPLOPS.MathExtensions;
+using JPLOPS.Util;
+using JPLOPS.Imaging;
+using JPLOPS.Geometry;
+using JPLOPS.ImageFeatures;
+using JPLOPS.Pipeline;
+using JPLOPS.Pipeline.AlignmentServer;
 
-namespace OPS.Pipeline
+namespace JPLOPS.Pipeline
 {
     public enum NormalScale { None, Confidence, PointScale };
 

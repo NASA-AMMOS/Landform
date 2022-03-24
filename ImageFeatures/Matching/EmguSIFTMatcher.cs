@@ -8,9 +8,9 @@ using Emgu.CV.Cuda;
 using Emgu.CV.Features2D;
 using Emgu.CV.Structure;
 using Emgu.CV.Util;
-using OPS.Util;
+using JPLOPS.Util;
 
-namespace OPS.ImageFeatures
+namespace JPLOPS.ImageFeatures
 {
     public class EmguSIFTMatcher : IFeatureMatcher
     {

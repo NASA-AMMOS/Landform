@@ -1,6 +1,6 @@
 ﻿using System;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using OPS.Util;
+using JPLOPS.Util;
 
 namespace UtilTest
 {

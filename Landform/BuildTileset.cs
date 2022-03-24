@@ -3,11 +3,11 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using CommandLine;
-using OPS.Geometry;
-using OPS.Imaging;
-using OPS.Pipeline;
-using OPS.Pipeline.AlignmentServer;
-using OPS.Pipeline.TilingServer;
+using JPLOPS.Geometry;
+using JPLOPS.Imaging;
+using JPLOPS.Pipeline;
+using JPLOPS.Pipeline.AlignmentServer;
+using JPLOPS.Pipeline.TilingServer;
 
 /// <summary>
 /// Creates a Landform tiling project corresponding to a Landform alignment project, and then creates a tileset.
@@ -51,7 +51,7 @@ using OPS.Pipeline.TilingServer;
 /// Landform.exe build-tileset windjana
 ///
 /// </summary>
-namespace OPS.Landform
+namespace JPLOPS.Landform
 {
     [Verb("build-tileset", HelpText = "builds a tileset from pre-built tiles")]
     public class BuildTilesetOptions : TilingCommandOptions

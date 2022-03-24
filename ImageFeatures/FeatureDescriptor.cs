@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Emgu.CV;
 
-namespace OPS.ImageFeatures
+namespace JPLOPS.ImageFeatures
 {
     /// <summary>
     /// Base class for all feature descriptor types.

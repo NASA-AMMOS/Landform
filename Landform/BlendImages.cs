@@ -9,15 +9,15 @@ using System.Diagnostics;
 using System.Threading;
 using CommandLine;
 using Microsoft.Xna.Framework;
-using OPS.Util;
-using OPS.MathExtensions;
-using OPS.Imaging;
-using OPS.RayTrace;
-using OPS.Geometry;
-using OPS.Pipeline;
-using OPS.Pipeline.AlignmentServer;
-using OPS.Pipeline.TilingServer;
-using OPS.Pipeline.Texturing;
+using JPLOPS.Util;
+using JPLOPS.MathExtensions;
+using JPLOPS.Imaging;
+using JPLOPS.RayTrace;
+using JPLOPS.Geometry;
+using JPLOPS.Pipeline;
+using JPLOPS.Pipeline.AlignmentServer;
+using JPLOPS.Pipeline.TilingServer;
+using JPLOPS.Pipeline.Texturing;
 
 /// <summary>
 /// Creates blended observation images, implementing the blend-images stage in the Landform contextual mesh workflow.
@@ -93,7 +93,7 @@ using OPS.Pipeline.Texturing;
 /// Landform.exe blend-images windjana
 ///
 /// </summary>
-namespace OPS.Landform
+namespace JPLOPS.Landform
 {
     public enum BlendStrategy { None, Auto, Barycentric, Inpaint };
 

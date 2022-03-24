@@ -4,9 +4,9 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
-using OPS.Util;
+using JPLOPS.Util;
 
-namespace OPS.Imaging
+namespace JPLOPS.Imaging
 {
     /// <summary>
     /// A generic image container class that supports many different 

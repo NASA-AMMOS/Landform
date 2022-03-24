@@ -2,9 +2,9 @@
 using System.Linq;
 using System.Collections.Generic;
 using Microsoft.Xna.Framework;
-using OPS.Util;
+using JPLOPS.Util;
 
-namespace OPS.Geometry
+namespace JPLOPS.Geometry
 {
     public enum MeshReconstructionMethod
     {

@@ -6,11 +6,11 @@ using System.Threading;
 using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 using Newtonsoft.Json;
-using OPS.Util;
-using OPS.MathExtensions;
-using OPS.Imaging;
+using JPLOPS.Util;
+using JPLOPS.MathExtensions;
+using JPLOPS.Imaging;
 
-namespace OPS.Geometry.GLTF
+namespace JPLOPS.Geometry.GLTF
 {
     /// <summary>
     /// Structures for serializing gltf files as JSON.

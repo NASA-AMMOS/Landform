@@ -4,10 +4,10 @@ using System.Collections.Generic;
 using System.Linq;
 using ColorMine.ColorSpaces;
 using Microsoft.Xna.Framework;
-using OPS.Util;
-using OPS.MathExtensions;
+using JPLOPS.Util;
+using JPLOPS.MathExtensions;
 
-namespace OPS.Imaging
+namespace JPLOPS.Imaging
 {
     public static class Colorspace
     {

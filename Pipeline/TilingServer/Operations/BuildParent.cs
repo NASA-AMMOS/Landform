@@ -5,13 +5,13 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using OPS.Util;
-using OPS.Imaging;
-using OPS.Geometry;
+using JPLOPS.Util;
+using JPLOPS.Imaging;
+using JPLOPS.Geometry;
 using Microsoft.Xna.Framework;
 using System.Collections.Concurrent;
 
-namespace OPS.Pipeline.TilingServer
+namespace JPLOPS.Pipeline.TilingServer
 {
 
     public class BuildParentMessage : PipelineMessage

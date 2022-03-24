@@ -1,11 +1,11 @@
 using System;
 using Microsoft.Xna.Framework;
-using OPS.Util;
-using OPS.MathExtensions;
-using OPS.Geometry;
-using OPS.Pipeline.Texturing;
+using JPLOPS.Util;
+using JPLOPS.MathExtensions;
+using JPLOPS.Geometry;
+using JPLOPS.Pipeline.Texturing;
 
-namespace OPS.Pipeline
+namespace JPLOPS.Pipeline
 {
     public class TexturingDefaults
     {

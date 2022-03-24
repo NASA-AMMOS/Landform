@@ -5,10 +5,10 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Collections;
-using OPS.Imaging;
-using OPS.MathExtensions;
+using JPLOPS.Imaging;
+using JPLOPS.MathExtensions;
 
-namespace OPS.ImageFeatures
+namespace JPLOPS.ImageFeatures
 {
     /// <summary>
     /// Represents a node in a GTM graph

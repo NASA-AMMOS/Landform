@@ -2,7 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 
-namespace OPS.Util
+namespace JPLOPS.Util
 {
     /// <summary>
     /// based on https://stackoverflow.com/questions/7252186/switch-case-on-type-c-sharp/7301514#7301514

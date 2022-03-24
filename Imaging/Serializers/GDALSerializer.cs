@@ -21,9 +21,9 @@ using System.IO;
 using OSGeo.GDAL;
 using log4net;
 using Microsoft.Xna.Framework;
-using OPS.MathExtensions;
+using JPLOPS.MathExtensions;
 
-namespace OPS.Imaging
+namespace JPLOPS.Imaging
 {    
     /// <summary>
     /// Reads all image types supported by GDAL

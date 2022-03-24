@@ -4,10 +4,10 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
-using OPS.Geometry;
-using OPS.Imaging;
+using JPLOPS.Geometry;
+using JPLOPS.Imaging;
 
-namespace OPS.ImageFeatures
+namespace JPLOPS.ImageFeatures
 {
     /// <summary>
     /// Class for finding epipolar lines in (potentially) non-linear images.

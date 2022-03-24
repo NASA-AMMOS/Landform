@@ -4,8 +4,8 @@ using System.Collections.Generic;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using MathNet.Numerics.LinearAlgebra;
 using Microsoft.Xna.Framework;
-using OPS.Geometry;
-using OPS.Pipeline.AlignmentServer;
+using JPLOPS.Geometry;
+using JPLOPS.Pipeline.AlignmentServer;
 
 namespace FrameCacheTest
 {

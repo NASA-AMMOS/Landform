@@ -6,9 +6,9 @@ using System.Collections.Concurrent;
 using System.IO;
 using CommandLine;
 using log4net;
-using OPS.Util;
-using OPS.Pipeline;
-using OPS.Pipeline.AlignmentServer;
+using JPLOPS.Util;
+using JPLOPS.Pipeline;
+using JPLOPS.Pipeline.AlignmentServer;
 
 /// <summary>
 /// Ingests observation RDRs and orbital assets and creates a Landform alignment project.
@@ -68,7 +68,7 @@ using OPS.Pipeline.AlignmentServer;
 ///    --orbitalimage=out/MSL/orbital/out_clean_25cm.iGrid.ClipToDEM.tif
 ///
 /// </summary>
-namespace OPS.Landform
+namespace JPLOPS.Landform
 {
     [Verb("ingest", HelpText = "ingest mission data")]
     public class IngestOptions : LandformCommandOptions

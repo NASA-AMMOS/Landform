@@ -1,6 +1,6 @@
 ﻿using Microsoft.Xna.Framework;
-using OPS.Cloud;
-using OPS.Util;
+using JPLOPS.Cloud;
+using JPLOPS.Util;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -8,7 +8,7 @@ using System.Text;
 using System.Threading.Tasks;
 using log4net;
 
-namespace OPS.Pipeline.TilingServer
+namespace JPLOPS.Pipeline.TilingServer
 {
     public class TilingInputChunk
     {

@@ -1,7 +1,7 @@
 using System;
 using Microsoft.Xna.Framework;
 
-namespace OPS.MathExtensions
+namespace JPLOPS.MathExtensions
 {
     /// <summary>
     /// Acts as a Vector3 but with integer instead of double values

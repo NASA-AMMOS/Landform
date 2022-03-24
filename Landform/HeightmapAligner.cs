@@ -3,12 +3,12 @@ using System.Collections.Generic;
 using System.Linq;
 using Microsoft.Xna.Framework;
 using CommandLine;
-using OPS.Util;
-using OPS.Imaging;
-using OPS.Geometry;
-using OPS.ImageFeatures;
-using OPS.Pipeline;
-using OPS.Pipeline.AlignmentServer;
+using JPLOPS.Util;
+using JPLOPS.Imaging;
+using JPLOPS.Geometry;
+using JPLOPS.ImageFeatures;
+using JPLOPS.Pipeline;
+using JPLOPS.Pipeline.AlignmentServer;
 
 /// <summary>
 /// Align sitedrive heightmaps to each other and optionally to an orbital DEM.
@@ -41,7 +41,7 @@ using OPS.Pipeline.AlignmentServer;
 /// Landform.exe heightmap-align windjana --basesitedrive 0311472
 ///
 /// </summary>
-namespace OPS.Landform
+namespace JPLOPS.Landform
 {
     [Verb("heightmap-align", HelpText = "")]
     public class HeightmapAlignerOptions : BEVCommandOptions

@@ -1,10 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
 using log4net;
-using OPS.Cloud;
+using JPLOPS.Cloud;
 
 
-namespace OPS.Pipeline.TilingServer
+namespace JPLOPS.Pipeline.TilingServer
 {
     public class TilingInput
     {

@@ -8,7 +8,7 @@ using log4net.Appender;
 using log4net.Layout;
 using log4net.Core;
 
-namespace OPS.Util
+namespace JPLOPS.Util
 {
     public interface ILogger
     {

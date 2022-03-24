@@ -3,9 +3,9 @@ using System.Collections.Generic;
 using System.Linq;
 using Microsoft.Xna.Framework;
 using Sharp3DBinPacking;
-using OPS.MathExtensions;
+using JPLOPS.MathExtensions;
 
-namespace OPS.Geometry
+namespace JPLOPS.Geometry
 {
     public class NaiveAtlas
     {

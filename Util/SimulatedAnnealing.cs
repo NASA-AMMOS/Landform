@@ -2,7 +2,7 @@
 using System.Linq;
 using System.Collections.Generic;
 
-namespace OPS.Util
+namespace JPLOPS.Util
 {
     public class SimulatedAnnealingOptions
     {

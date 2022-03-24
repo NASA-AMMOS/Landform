@@ -3,11 +3,11 @@ using System.Collections.Generic;
 using System.Linq;
 using Microsoft.Xna.Framework;
 using Newtonsoft.Json;
-using OPS.MathExtensions;
-using OPS.Imaging;
-using OPS.Pipeline.AlignmentServer;
+using JPLOPS.MathExtensions;
+using JPLOPS.Imaging;
+using JPLOPS.Pipeline.AlignmentServer;
 
-namespace OPS.Pipeline
+namespace JPLOPS.Pipeline
 {
     public class TextureProjector : JsonDataProduct
     {

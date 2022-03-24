@@ -5,7 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.IO;
 
-namespace OPS.Geometry.Experimental
+namespace JPLOPS.Geometry.Experimental
 {
     /// <summary>
     /// Mesh import and export routines using Assimp library

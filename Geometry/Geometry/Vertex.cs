@@ -3,9 +3,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using Microsoft.Xna.Framework;
-using OPS.MathExtensions;
+using JPLOPS.MathExtensions;
 
-namespace OPS.Geometry
+namespace JPLOPS.Geometry
 {
     public class Vertex : ICloneable
     {

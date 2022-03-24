@@ -1,10 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
 using Newtonsoft.Json;
-using OPS.Cloud;
-using OPS.Imaging;
+using JPLOPS.Cloud;
+using JPLOPS.Imaging;
 
-namespace OPS.Pipeline.AlignmentServer
+namespace JPLOPS.Pipeline.AlignmentServer
 {
     /// <summary>
     /// An observation with extra metadata specific to Mars rovers

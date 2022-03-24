@@ -5,7 +5,7 @@ using System.Linq;
 using System.Reflection;
 using Newtonsoft.Json;
 
-namespace OPS.Util
+namespace JPLOPS.Util
 {
     /// <summary>
     /// Use this attribute on properties in subclasses of Config to indicate

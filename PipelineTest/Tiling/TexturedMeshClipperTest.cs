@@ -1,13 +1,13 @@
 ﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
-using OPS.Geometry;
+using JPLOPS.Geometry;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using OPS.Imaging;
+using JPLOPS.Imaging;
 using System.IO;
-using OPS.Pipeline;
+using JPLOPS.Pipeline;
 using Microsoft.Xna.Framework;
 
 namespace PipelineTest

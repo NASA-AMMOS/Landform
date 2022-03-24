@@ -5,12 +5,12 @@ using System.Text;
 using System.Threading.Tasks;
 using MathNet.Numerics.LinearAlgebra;
 using Microsoft.Xna.Framework;
-using OPS.Util;
-using OPS.Imaging;
-using OPS.Geometry;
-using OPS.MathExtensions;
+using JPLOPS.Util;
+using JPLOPS.Imaging;
+using JPLOPS.Geometry;
+using JPLOPS.MathExtensions;
 
-namespace OPS.ImageFeatures
+namespace JPLOPS.ImageFeatures
 {
     public class KnownGeometryMatcher : IFeatureMatcher
     {

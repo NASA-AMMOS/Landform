@@ -5,13 +5,13 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using CommandLine;
-using OPS.Util;
-using OPS.Pipeline;
-using OPS.Imaging;
-using OPS.Geometry;
-using OPS.Pipeline.AlignmentServer;
+using JPLOPS.Util;
+using JPLOPS.Pipeline;
+using JPLOPS.Imaging;
+using JPLOPS.Geometry;
+using JPLOPS.Pipeline.AlignmentServer;
 
-namespace OPS.Landform
+namespace JPLOPS.Landform
 {
     public class LandformCommandOptions : PipelineCoreOptions
     {

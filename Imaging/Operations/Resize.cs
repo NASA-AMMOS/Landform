@@ -3,10 +3,10 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using Microsoft.Xna.Framework;
-using OPS.MathExtensions;
-using OPS.Util;
+using JPLOPS.MathExtensions;
+using JPLOPS.Util;
 
-namespace OPS.Imaging
+namespace JPLOPS.Imaging
 {
     public static class ResizeOps
     {

@@ -7,12 +7,12 @@ using Emgu.CV.Util;
 using Emgu.CV.CvEnum;
 using Emgu.CV.Structure;
 using Emgu.CV.Features2D;
-using OPS.Util;
-using OPS.Imaging;
-using OPS.Imaging.Emgu;
-using OPS.Geometry;
+using JPLOPS.Util;
+using JPLOPS.Imaging;
+using JPLOPS.Imaging.Emgu;
+using JPLOPS.Geometry;
 
-namespace OPS.ImageFeatures
+namespace JPLOPS.ImageFeatures
 {
     public class FeatureMatch
     {

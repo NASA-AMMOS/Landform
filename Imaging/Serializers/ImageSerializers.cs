@@ -1,6 +1,6 @@
-﻿using OPS.Util;
+﻿using JPLOPS.Util;
 
-namespace OPS.Imaging
+namespace JPLOPS.Imaging
 {
     public class ImageSerializers : SerializerMap<ImageSerializer>
     {

@@ -3,10 +3,10 @@ using System.Collections.Generic;
 using System.Linq;
 using Newtonsoft.Json;
 using Microsoft.Xna.Framework;
-using OPS.MathExtensions;
-using OPS.Pipeline.TilingServer;
+using JPLOPS.MathExtensions;
+using JPLOPS.Pipeline.TilingServer;
 
-namespace OPS.Pipeline
+namespace JPLOPS.Pipeline
 {
     public class TileList : JsonDataProduct
     {

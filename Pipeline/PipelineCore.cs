@@ -7,12 +7,12 @@ using System.Diagnostics;
 using System.Security.Cryptography;
 using log4net;
 using CommandLine;
-using OPS.Util;
-using OPS.Imaging;
-using OPS.Pipeline.AlignmentServer;
-using OPS.Pipeline.TilingServer;
+using JPLOPS.Util;
+using JPLOPS.Imaging;
+using JPLOPS.Pipeline.AlignmentServer;
+using JPLOPS.Pipeline.TilingServer;
 
-namespace OPS.Pipeline
+namespace JPLOPS.Pipeline
 {
     public class PipelineCoreOptions : CommandHelper.BaseOptions
     {
@@ -31,7 +31,7 @@ namespace OPS.Pipeline
 
     //TODO: refactor so that local codepath does not have cloud dependencies
     //https://github.jpl.nasa.gov/OnSight/Landform/issues/596
-    public class PipelineMessage : OPS.Cloud.QueueMessage
+    public class PipelineMessage : JPLOPS.Cloud.QueueMessage
     {
         public string ProjectName;
 
@@ -65,7 +65,7 @@ namespace OPS.Pipeline
      * - Message Queue API - interact with message queues
      **/
     public abstract class PipelineCore
-        : IImageLoader, OPS.Util.ILogger //Microsoft.Extensions.Logging and log4net.Core also have ILogger interfaces
+        : IImageLoader, JPLOPS.Util.ILogger //Microsoft.Extensions.Logging and log4net.Core also have ILogger interfaces
     {
         public const int DEF_IMAGE_MEM_CACHE = 100;
         public const int DEF_DATA_PRODUCT_MEM_CACHE = 100;

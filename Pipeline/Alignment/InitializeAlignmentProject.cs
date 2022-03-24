@@ -2,10 +2,10 @@ using System;
 using System.Linq;
 using System.Collections;
 using System.Collections.Generic;
-using OPS.Geometry;
-using OPS.Pipeline.AlignmentServer;
+using JPLOPS.Geometry;
+using JPLOPS.Pipeline.AlignmentServer;
 
-namespace OPS.Pipeline
+namespace JPLOPS.Pipeline
 {
     public class InitializeAlignmentProject
     {

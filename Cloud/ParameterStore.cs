@@ -8,7 +8,7 @@ using Amazon.Runtime;
 using Amazon.SimpleSystemsManagement;
 using Amazon.SimpleSystemsManagement.Model;
 
-namespace OPS.Cloud
+namespace JPLOPS.Cloud
 {
     public class ParameterStore : IDisposable
     {

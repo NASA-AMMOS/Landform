@@ -6,13 +6,13 @@ using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
 using MathNet.Numerics.LinearAlgebra;
 using log4net;
-using OPS.Util;
-using OPS.Geometry;
-using OPS.Imaging;
-using OPS.Imaging.Emgu;
-using OPS.MathExtensions;
+using JPLOPS.Util;
+using JPLOPS.Geometry;
+using JPLOPS.Imaging;
+using JPLOPS.Imaging.Emgu;
+using JPLOPS.MathExtensions;
 
-namespace OPS.ImageFeatures
+namespace JPLOPS.ImageFeatures
 {
     public class KnownGeometryFilter : IMatchFilter
     {

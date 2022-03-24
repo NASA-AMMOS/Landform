@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 using MathNet.Numerics.LinearAlgebra;
 using log4net;
 
-namespace OPS.ImageFeatures
+namespace JPLOPS.ImageFeatures
 {
     public class DescriptorDistanceFilter : IMatchFilter
     {

@@ -6,12 +6,12 @@ using System.Threading.Tasks;
 using System.Collections.Concurrent;
 using Microsoft.Xna.Framework;
 using Embree;
-using OPS.MathExtensions;
-using OPS.Util;
-using OPS.Imaging;
-using OPS.Geometry;
+using JPLOPS.MathExtensions;
+using JPLOPS.Util;
+using JPLOPS.Imaging;
+using JPLOPS.Geometry;
 
-namespace OPS.RayTrace
+namespace JPLOPS.RayTrace
 {
     /// <summary>
     /// Class for executing raycasts using Embree raycast engine
@@ -38,7 +38,7 @@ namespace OPS.RayTrace
         /// <summary>
         /// Create and build a new scene for one mesh.
         /// </summary>
-        public SceneCaster(OPS.Geometry.Mesh mesh, Image texture, Matrix transform) : this()
+        public SceneCaster(JPLOPS.Geometry.Mesh mesh, Image texture, Matrix transform) : this()
         {
             AddMesh(mesh, texture, transform);
             Build();
@@ -47,7 +47,7 @@ namespace OPS.RayTrace
         /// <summary>
         /// Create and build a new scene for one mesh.
         /// </summary>
-        public SceneCaster(OPS.Geometry.Mesh mesh, Image texture = null) : this(mesh, texture, Matrix.Identity) { }
+        public SceneCaster(JPLOPS.Geometry.Mesh mesh, Image texture = null) : this(mesh, texture, Matrix.Identity) { }
 
         /// <summary>
         /// Add a mesh to the scene.  Note that meshes are stored by reference and any modification to the mesh between
@@ -57,7 +57,7 @@ namespace OPS.RayTrace
         /// <param name="mesh">Mesh to add.  If this mesh has UVs then so will HitData objects.</param>
         /// <param name="texture">Optional texture, if null HitData objects will not have a texture.</param>
         /// <param name="transform">This mesh's transform in the scene</param>
-        public void AddMesh(OPS.Geometry.Mesh mesh, Image texture, Matrix transform)
+        public void AddMesh(JPLOPS.Geometry.Mesh mesh, Image texture, Matrix transform)
         {
             if (sceneBuilt)
             {
@@ -67,7 +67,7 @@ namespace OPS.RayTrace
             scene.Add(model);
         }
 
-        public void AddMesh(OPS.Geometry.Mesh mesh, Image texture = null)
+        public void AddMesh(JPLOPS.Geometry.Mesh mesh, Image texture = null)
         {
             AddMesh(mesh, texture, Matrix.Identity);
         }

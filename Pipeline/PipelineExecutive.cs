@@ -4,10 +4,10 @@ using System.Threading.Tasks;
 using System.Diagnostics;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
-using OPS.Util;
-using OPS.Pipeline.TilingServer;
+using JPLOPS.Util;
+using JPLOPS.Pipeline.TilingServer;
 
-namespace OPS.Pipeline
+namespace JPLOPS.Pipeline
 {
     public enum ExecutionMode { Immediate, Deferred, None }
 

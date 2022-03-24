@@ -4,14 +4,14 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using Microsoft.Xna.Framework;
-using OPS.Util;
-using OPS.Imaging;
-using OPS.Geometry;
-using OPS.RayTrace;
-using OPS.Pipeline.AlignmentServer;
-using OPS.Pipeline.Texturing;
+using JPLOPS.Util;
+using JPLOPS.Imaging;
+using JPLOPS.Geometry;
+using JPLOPS.RayTrace;
+using JPLOPS.Pipeline.AlignmentServer;
+using JPLOPS.Pipeline.Texturing;
 
-namespace OPS.Pipeline
+namespace JPLOPS.Pipeline
 {
     //a measure of texture quality for a set of observations
     //using how far the pixels are apart (in meters) when projected onto a specific mesh

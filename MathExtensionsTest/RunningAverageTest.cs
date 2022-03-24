@@ -1,8 +1,8 @@
 ﻿using System;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System.Linq;
-using OPS.MathExtensions;
-using OPS.Test;
+using JPLOPS.MathExtensions;
+using JPLOPS.Test;
 
 namespace MathExtensionsTest
 {

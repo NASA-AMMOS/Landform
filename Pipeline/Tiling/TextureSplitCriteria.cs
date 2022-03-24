@@ -5,12 +5,12 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
-using OPS.Util;
-using OPS.Geometry;
-using OPS.Imaging;
-using OPS.RayTrace;
+using JPLOPS.Util;
+using JPLOPS.Geometry;
+using JPLOPS.Imaging;
+using JPLOPS.RayTrace;
 
-namespace OPS.Pipeline
+namespace JPLOPS.Pipeline
 {
     public class CameraInstance
     {

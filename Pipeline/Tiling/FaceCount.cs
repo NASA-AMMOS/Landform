@@ -2,11 +2,11 @@ using System;
 using System.Linq;
 using System.Collections.Generic;
 using Newtonsoft.Json;
-using OPS.Util;
-using OPS.Geometry;
-using OPS.Imaging;
+using JPLOPS.Util;
+using JPLOPS.Geometry;
+using JPLOPS.Imaging;
 
-namespace OPS.Pipeline
+namespace JPLOPS.Pipeline
 {
     public class FaceCount : NodeComponent
     {

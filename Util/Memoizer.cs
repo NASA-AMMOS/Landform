@@ -5,7 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace OPS.Util
+namespace JPLOPS.Util
 {
     public class Memoizer<InT, OutT>
     {

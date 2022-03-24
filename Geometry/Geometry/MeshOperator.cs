@@ -7,11 +7,11 @@ using System.Threading.Tasks;
 using System.Diagnostics;
 using Microsoft.Xna.Framework;
 using RTree;
-using OPS.Util;
-using OPS.MathExtensions;
-using OPS.Imaging;
+using JPLOPS.Util;
+using JPLOPS.MathExtensions;
+using JPLOPS.Imaging;
 
-namespace OPS.Geometry
+namespace JPLOPS.Geometry
 {
     //potentially huge lists of these things are thrown around in backproject
     //let's keep memory usage down by making it a class (reference type) not a struct (value type)

@@ -7,11 +7,11 @@ using Emgu.CV;
 using Emgu.CV.Structure;
 using Emgu.CV.CvEnum;
 using Emgu.CV.Util;
-using OPS.Util;
-using OPS.Imaging;
-using OPS.Imaging.Emgu;
+using JPLOPS.Util;
+using JPLOPS.Imaging;
+using JPLOPS.Imaging.Emgu;
 
-namespace OPS.ImageFeatures
+namespace JPLOPS.ImageFeatures
 {
     /// <summary>
     /// As described in ASIFT: A NEW FRAMEWORK FOR FULLY AFFINE INVARIANT IMAGE COMPARISON

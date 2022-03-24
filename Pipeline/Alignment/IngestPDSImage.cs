@@ -6,12 +6,12 @@ using System.Linq;
 using System.Threading;
 using MathNet.Numerics.LinearAlgebra;
 using Microsoft.Xna.Framework;
-using OPS.Util;
-using OPS.Geometry;
-using OPS.Imaging;
-using OPS.Pipeline.AlignmentServer;
+using JPLOPS.Util;
+using JPLOPS.Geometry;
+using JPLOPS.Imaging;
+using JPLOPS.Pipeline.AlignmentServer;
 
-namespace OPS.Pipeline
+namespace JPLOPS.Pipeline
 {
     public class IngestPDSImage : IngestImage
     {

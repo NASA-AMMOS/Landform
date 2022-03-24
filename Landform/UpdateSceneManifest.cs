@@ -12,13 +12,13 @@ using CommandLine;
 using log4net;
 using Newtonsoft.Json;
 using Microsoft.Xna.Framework;
-using OPS.Util;
-using OPS.Cloud;
-using OPS.Imaging;
-using OPS.Geometry;
-using OPS.Pipeline.AlignmentServer;
-using OPS.Pipeline;
-using OPS.Landform;
+using JPLOPS.Util;
+using JPLOPS.Cloud;
+using JPLOPS.Imaging;
+using JPLOPS.Geometry;
+using JPLOPS.Pipeline.AlignmentServer;
+using JPLOPS.Pipeline;
+using JPLOPS.Landform;
 
 /// <summary>
 /// Utility to create or update a tileset scene manifest.
@@ -94,7 +94,7 @@ using OPS.Landform;
 ///       --rdrdir s3://bucket/path/sol/#####/ids/rdr
 ///
 /// </summary>
-namespace OPS.Landform
+namespace JPLOPS.Landform
 {
     [Verb("update-scene-manifest", HelpText = "update scene manifest")]
     public class UpdateSceneManifestOptions : GeometryCommandOptions

@@ -5,10 +5,10 @@ using Microsoft.Xna.Framework;
 using Emgu.CV;
 using Emgu.CV.Structure;
 using Emgu.CV.XFeatures2D;
-using OPS.Imaging;
-using OPS.Imaging.Emgu;
+using JPLOPS.Imaging;
+using JPLOPS.Imaging.Emgu;
 
-namespace OPS.ImageFeatures
+namespace JPLOPS.ImageFeatures
 {
     /// <summary>
     /// http://www.cs.ubc.ca/~lowe/papers/ijcv04.pdf

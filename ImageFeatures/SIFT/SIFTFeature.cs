@@ -8,7 +8,7 @@ using Microsoft.Xna.Framework;
 using Emgu.CV;
 using Emgu.CV.Structure;
 
-namespace OPS.ImageFeatures
+namespace JPLOPS.ImageFeatures
 {
     public class SIFTFeature : ImageFeature
     {

@@ -5,14 +5,14 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
-using OPS.Util;
-using OPS.MathExtensions;
-using OPS.RayTrace;
-using OPS.Imaging;
-using OPS.Geometry;
-using OPS.Pipeline.AlignmentServer;
+using JPLOPS.Util;
+using JPLOPS.MathExtensions;
+using JPLOPS.RayTrace;
+using JPLOPS.Imaging;
+using JPLOPS.Geometry;
+using JPLOPS.Pipeline.AlignmentServer;
 
-namespace OPS.Pipeline.Texturing
+namespace JPLOPS.Pipeline.Texturing
 {
     // a strategy that tests all observations for each pixel
     // will return the highest quality pixel for every output pixel

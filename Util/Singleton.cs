@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace OPS.Util
+namespace JPLOPS.Util
 {
     public abstract class Singleton<T> where T : Singleton<T>, new()
     {

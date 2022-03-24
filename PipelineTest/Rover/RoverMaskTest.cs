@@ -1,7 +1,7 @@
 ﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Microsoft.Xna.Framework;
-using OPS.Imaging;
-using OPS.Pipeline;
+using JPLOPS.Imaging;
+using JPLOPS.Pipeline;
 using System;
 using System.Collections.Generic;
 using System.IO;

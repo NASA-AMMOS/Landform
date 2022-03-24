@@ -3,10 +3,10 @@ using System.IO;
 using System.Linq;
 using CommandLine;
 using log4net;
-using OPS.Util;
-using OPS.Imaging;
-using OPS.Geometry;
-using OPS.Geometry.GLTF;
+using JPLOPS.Util;
+using JPLOPS.Imaging;
+using JPLOPS.Geometry;
+using JPLOPS.Geometry.GLTF;
 
 /// <summary>
 /// Utility to convert meshes to/from glTF, GLB, and B3DM. 
@@ -21,7 +21,7 @@ using OPS.Geometry.GLTF;
 ///  LandformUtil.exe convert-gltf out/windjana/tilesets/0630_0311472/0.b3dm
 ///  LandformUtil.exe convert-gltf foo.ply --texture foo.jpg --outputpath foo.b3dm
 /// </summary>
-namespace OPS.Landform
+namespace JPLOPS.Landform
 {
     [Verb("convert-gltf", HelpText = "Convert IV meshes to different format")]
     public class ConvertGLTFOptions

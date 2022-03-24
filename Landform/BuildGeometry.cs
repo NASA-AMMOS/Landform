@@ -7,12 +7,12 @@ using System.Threading;
 using CommandLine;
 using Microsoft.Xna.Framework;
 using RTree;
-using OPS.Util;
-using OPS.MathExtensions;
-using OPS.Geometry;
-using OPS.Imaging;
-using OPS.Pipeline;
-using OPS.Pipeline.AlignmentServer;
+using JPLOPS.Util;
+using JPLOPS.MathExtensions;
+using JPLOPS.Geometry;
+using JPLOPS.Imaging;
+using JPLOPS.Pipeline;
+using JPLOPS.Pipeline.AlignmentServer;
 using System.IO;
 
 /// <summary>
@@ -98,7 +98,7 @@ using System.IO;
 /// Landform.exe build-geometry windjana
 ///
 /// </summary>
-namespace OPS.Landform
+namespace JPLOPS.Landform
 {
     [Verb("build-geometry", HelpText = "create scene mesh from point clouds")]
     public class BuildGeometryOptions : GeometryCommandOptions

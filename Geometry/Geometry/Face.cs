@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 
-namespace OPS.Geometry
+namespace JPLOPS.Geometry
 {
     public struct Face
     {

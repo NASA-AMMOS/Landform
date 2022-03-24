@@ -11,7 +11,7 @@ using System.Runtime.InteropServices;
 using System.ComponentModel;
 using log4net;
 
-namespace OPS.Util
+namespace JPLOPS.Util
 {
     /// <summary>
     /// This class consolidates common path operations

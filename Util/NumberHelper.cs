@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Threading;
 
-namespace OPS.Util
+namespace JPLOPS.Util
 {
     public class NumberHelper
     {

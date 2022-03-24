@@ -3,9 +3,9 @@ using System.Text;
 using System.Linq;
 using System.Collections.Generic;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using OPS.Geometry;
+using JPLOPS.Geometry;
 using Microsoft.Xna.Framework;
-using OPS.Test;
+using JPLOPS.Test;
 
 namespace GeometryTest
 {

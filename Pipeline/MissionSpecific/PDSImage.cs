@@ -8,12 +8,12 @@ using System.Diagnostics;
 using log4net;
 using MathNet.Numerics.LinearAlgebra;
 using Microsoft.Xna.Framework;
-using OPS.MathExtensions;
-using OPS.Util;
-using OPS.Imaging;
-using OPS.Geometry;
+using JPLOPS.MathExtensions;
+using JPLOPS.Util;
+using JPLOPS.Imaging;
+using JPLOPS.Geometry;
 
-namespace OPS.Pipeline
+namespace JPLOPS.Pipeline
 {
     public class PDSImage
     {

@@ -1,13 +1,13 @@
 ﻿using Microsoft.Xna.Framework;
-using OPS.Geometry;
-using OPS.Imaging;
+using JPLOPS.Geometry;
+using JPLOPS.Imaging;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace OPS.RayTrace
+namespace JPLOPS.RayTrace
 {
     /// <summary>
     /// Represents the data returned on a ray collision

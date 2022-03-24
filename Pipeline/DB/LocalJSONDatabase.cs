@@ -7,9 +7,9 @@ using System.Collections.Concurrent;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.IO;
-using OPS.Util;
+using JPLOPS.Util;
 
-namespace OPS.Pipeline
+namespace JPLOPS.Pipeline
 {
     //this originated as a quick and dirty local alternative to DynamoDB
     //it is now the only game in town

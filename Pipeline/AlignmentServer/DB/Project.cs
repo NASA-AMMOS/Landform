@@ -3,10 +3,10 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using OPS.Cloud;
-using OPS.Pipeline;
+using JPLOPS.Cloud;
+using JPLOPS.Pipeline;
 
-namespace OPS.Pipeline.AlignmentServer
+namespace JPLOPS.Pipeline.AlignmentServer
 {
     /// <summary>
     /// A project specifies a container for a 3D reconstruction consiting of mutliple observations

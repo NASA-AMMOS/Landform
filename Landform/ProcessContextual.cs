@@ -11,12 +11,12 @@ using System.Threading.Tasks;
 using System.Text;
 using System.Text.RegularExpressions;
 using CommandLine;
-using OPS.Util;
-using OPS.Cloud;
-using OPS.Pipeline;
-using OPS.Imaging;
-using OPS.Geometry;
-using OPS.Pipeline.AlignmentServer;
+using JPLOPS.Util;
+using JPLOPS.Cloud;
+using JPLOPS.Pipeline;
+using JPLOPS.Imaging;
+using JPLOPS.Geometry;
+using JPLOPS.Pipeline.AlignmentServer;
 
 /// <summary>
 /// Landform contextual mesh tileset workflow service and tool.
@@ -168,7 +168,7 @@ using OPS.Pipeline.AlignmentServer;
 /// add --dryrun for dry run
 /// add --notileset --nocombinedmanifest --nocleanup to just ingest and leave database
 /// </summary>
-namespace OPS.Landform
+namespace JPLOPS.Landform
 {
     [Verb("process-contextual", HelpText = "process contextual meshes")]
     public class ProcessContextualOptions : LandformServiceOptions

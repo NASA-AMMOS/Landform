@@ -1,6 +1,6 @@
 using System;
 
-namespace OPS.Imaging
+namespace JPLOPS.Imaging
 {
     public class BinaryImage
     {

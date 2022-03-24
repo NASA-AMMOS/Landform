@@ -4,10 +4,10 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using OPS.Util;
-using OPS.Geometry;
+using JPLOPS.Util;
+using JPLOPS.Geometry;
 
-namespace OPS.Pipeline
+namespace JPLOPS.Pipeline
 {
     public class PlyGZDataProduct : DataProduct
     {

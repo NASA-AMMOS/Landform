@@ -1,6 +1,6 @@
-﻿using OPS.Geometry;
-using OPS.Imaging;
-using OPS.Pipeline;
+﻿using JPLOPS.Geometry;
+using JPLOPS.Imaging;
+using JPLOPS.Pipeline;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -10,9 +10,9 @@ using Microsoft.Xna.Framework;
 using RTree;
 using log4net;
 using System.Threading;
-using static OPS.Geometry.Triangle;
+using static JPLOPS.Geometry.Triangle;
 
-namespace OPS.Pipeline
+namespace JPLOPS.Pipeline
 {
     /// <summary>
     /// Container for Triangle that also stores its corresponding texture

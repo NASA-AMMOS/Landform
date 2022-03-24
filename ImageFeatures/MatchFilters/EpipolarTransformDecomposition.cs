@@ -4,11 +4,11 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
-using OPS.Geometry;
-using OPS.MathExtensions;
+using JPLOPS.Geometry;
+using JPLOPS.MathExtensions;
 using MathNet.Numerics.LinearAlgebra;
 
-namespace OPS.ImageFeatures
+namespace JPLOPS.ImageFeatures
 {
     public class EpipolarTransformDecomposition
     {

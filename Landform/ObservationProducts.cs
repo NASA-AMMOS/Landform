@@ -7,11 +7,11 @@ using System.Diagnostics;
 using System.Threading;
 using CommandLine;
 using Microsoft.Xna.Framework;
-using OPS.Util;
-using OPS.Imaging;
-using OPS.Geometry;
-using OPS.Pipeline;
-using OPS.Pipeline.AlignmentServer;
+using JPLOPS.Util;
+using JPLOPS.Imaging;
+using JPLOPS.Geometry;
+using JPLOPS.Pipeline;
+using JPLOPS.Pipeline.AlignmentServer;
 
 ///<summary>
 /// Utility to create debug products for observation meshes and images.
@@ -53,7 +53,7 @@ using OPS.Pipeline.AlignmentServer;
 ///
 /// Landform.exe observation-products windjana --statsonly
 ///</summary>
-namespace OPS.Landform
+namespace JPLOPS.Landform
 {
     [Verb("observation-products", HelpText = "create observation mesh and image products")]
     public class ObservationProductsOptions : GeometryCommandOptions

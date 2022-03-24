@@ -2,11 +2,11 @@
 using System.Linq;
 using System.Collections.Generic;
 using Newtonsoft.Json;
-using OPS.Cloud;
-using OPS.Imaging;
-using OPS.Util;
+using JPLOPS.Cloud;
+using JPLOPS.Imaging;
+using JPLOPS.Util;
 
-namespace OPS.Pipeline.AlignmentServer
+namespace JPLOPS.Pipeline.AlignmentServer
 {
     public enum TextureVariant { Original, Blurred, Blended, SkyBlended };
 

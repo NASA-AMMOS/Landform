@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace OPS.MathExtensions
+namespace JPLOPS.MathExtensions
 {
     /// <summary>
     /// Computes basic statistics for a set of numbers

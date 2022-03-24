@@ -4,10 +4,10 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-using OPS.Geometry;
+using JPLOPS.Geometry;
 using Microsoft.Xna.Framework;
 
-namespace OPS.Geometry
+namespace JPLOPS.Geometry
 {
     public interface OctreeNodeContents
     {

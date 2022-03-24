@@ -6,7 +6,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace OPS.Util
+namespace JPLOPS.Util
 {
     //https://stackoverflow.com/questions/13042045
     public class InterlockedExtensions

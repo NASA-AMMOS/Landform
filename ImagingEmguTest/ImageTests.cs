@@ -1,11 +1,11 @@
 ﻿using System;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using OPS.Imaging;
-using OPS.Imaging.Emgu;
+using JPLOPS.Imaging;
+using JPLOPS.Imaging.Emgu;
 using System.IO;
 using Emgu.CV.Structure;
 using Emgu.CV;
-using OPS.Test;
+using JPLOPS.Test;
 
 namespace ImagingEmguTest
 {

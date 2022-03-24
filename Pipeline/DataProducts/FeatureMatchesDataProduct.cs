@@ -1,7 +1,7 @@
-using OPS.ImageFeatures;
-using OPS.Cloud;
+using JPLOPS.ImageFeatures;
+using JPLOPS.Cloud;
 
-namespace OPS.Pipeline
+namespace JPLOPS.Pipeline
 {
     public class FeatureMatchesDataProduct : JsonDataProduct
     {

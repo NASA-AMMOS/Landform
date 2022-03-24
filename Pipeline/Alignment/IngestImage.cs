@@ -1,8 +1,8 @@
 ﻿using System;
 using System.Linq;
-using OPS.Pipeline.AlignmentServer;
+using JPLOPS.Pipeline.AlignmentServer;
 
-namespace OPS.Pipeline
+namespace JPLOPS.Pipeline
 {
     public abstract class IngestImage
     {

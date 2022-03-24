@@ -1,7 +1,7 @@
 using System;
-using OPS.Geometry;
+using JPLOPS.Geometry;
 
-namespace OPS.Pipeline
+namespace JPLOPS.Pipeline
 {
     public enum TextureMode
     {

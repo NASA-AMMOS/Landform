@@ -1,12 +1,12 @@
 ﻿using Microsoft.Xna.Framework;
-using OPS.Imaging;
+using JPLOPS.Imaging;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace OPS.Geometry
+namespace JPLOPS.Geometry
 {
     public static class MeshToHeightMap
     {

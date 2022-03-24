@@ -13,13 +13,13 @@ using Emgu.CV.Util;
 using Emgu.CV.CvEnum;
 using Emgu.CV.Structure;
 using Emgu.CV.Features2D;
-using OPS.Util;
-using OPS.Imaging;
-using OPS.Imaging.Emgu;
-using OPS.Geometry;
-using OPS.ImageFeatures;
-using OPS.Pipeline;
-using OPS.Pipeline.AlignmentServer;
+using JPLOPS.Util;
+using JPLOPS.Imaging;
+using JPLOPS.Imaging.Emgu;
+using JPLOPS.Geometry;
+using JPLOPS.ImageFeatures;
+using JPLOPS.Pipeline;
+using JPLOPS.Pipeline.AlignmentServer;
 
 /// <summary>
 /// Align sitedrives to each other using features detected in birds-eye-view renders.
@@ -55,7 +55,7 @@ using OPS.Pipeline.AlignmentServer;
 /// Landform.exe bev-align windjana --fixsitedrives 0311472
 ///
 /// </summary>
-namespace OPS.Landform
+namespace JPLOPS.Landform
 {
     public enum AlignmentMode { Pairwise, Simultaneous, None };
 

@@ -5,7 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace OPS.Geometry
+namespace JPLOPS.Geometry
 {
     // Written with much help from this page:
     // http://programyourfaceoff.blogspot.com/2012/01/gjk-algorithm.html

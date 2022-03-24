@@ -6,7 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using log4net;
-using OPS.Util;
+using JPLOPS.Util;
 
 //https://github.jpl.nasa.gov/OnSight/Landform/wiki/Composite-Image-Stitching-aka-DMG
 //https://github.jpl.nasa.gov/OnSight/Landform/wiki/DMG---a-brief-history
@@ -32,7 +32,7 @@ using OPS.Util;
 //second run outputs:
 //mesh_region_shrink_tex_blended_composite_lab_blended.tif -> mesh_region_shrink_blended_composite_blended.tif
 
-namespace OPS.Imaging
+namespace JPLOPS.Imaging
 {
     /// <summary>
     /// Poisson solver for image stitching

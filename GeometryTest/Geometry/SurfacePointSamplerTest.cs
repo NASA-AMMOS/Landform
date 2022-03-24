@@ -5,7 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Microsoft.Xna.Framework;
-using OPS.Geometry;
+using JPLOPS.Geometry;
 
 namespace GeometryTest.Geometry
 {

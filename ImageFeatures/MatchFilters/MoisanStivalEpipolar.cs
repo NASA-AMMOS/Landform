@@ -6,10 +6,10 @@ using System.Threading.Tasks;
 using Emgu.CV;
 using log4net;
 using Microsoft.Xna.Framework;
-using OPS.Util;
-using OPS.Geometry;
+using JPLOPS.Util;
+using JPLOPS.Geometry;
 
-namespace OPS.ImageFeatures
+namespace JPLOPS.ImageFeatures
 {
     /// <summary>
     /// Based on "A probabilistic criterion to detect rigid point matches between two images and estimate the fundamental matrix", L. Moisan, B. Stival

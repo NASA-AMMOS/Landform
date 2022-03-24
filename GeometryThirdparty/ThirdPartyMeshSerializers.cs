@@ -1,4 +1,4 @@
-namespace OPS.Geometry
+namespace JPLOPS.Geometry
 {
     public class ThirdPartyMeshSerializers
     {

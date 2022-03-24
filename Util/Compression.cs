@@ -2,7 +2,7 @@ using System;
 using System.IO;
 using System.IO.Compression;
 
-namespace OPS.Util
+namespace JPLOPS.Util
 {
     public class Compression
     {

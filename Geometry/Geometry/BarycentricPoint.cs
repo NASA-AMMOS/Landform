@@ -4,11 +4,11 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-using OPS.MathExtensions;
+using JPLOPS.MathExtensions;
 using Microsoft.Xna.Framework;
-using OPS.Geometry;
+using JPLOPS.Geometry;
 
-namespace OPS.Geometry
+namespace JPLOPS.Geometry
 {
     /// <summary>
     /// Class to store barycentric coordinates of a point within a triangle

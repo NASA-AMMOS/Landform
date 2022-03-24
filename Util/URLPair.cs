@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace OPS.Util
+namespace JPLOPS.Util
 {
     /// <summary>
     /// An unordered pair of URLs

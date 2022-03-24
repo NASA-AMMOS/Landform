@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 using System.IO;
 using Microsoft.Xna.Framework;
 
-namespace OPS.Geometry
+namespace JPLOPS.Geometry
 {
     public class STLSerializer : MeshSerializer
     {

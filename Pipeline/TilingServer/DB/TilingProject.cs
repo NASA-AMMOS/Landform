@@ -7,13 +7,13 @@ using log4net;
 using Microsoft.Xna.Framework;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using OPS.MathExtensions;
-using OPS.Util;
-using OPS.Geometry;
-using OPS.Pipeline;
-using OPS.Pipeline.Texturing;
+using JPLOPS.MathExtensions;
+using JPLOPS.Util;
+using JPLOPS.Geometry;
+using JPLOPS.Pipeline;
+using JPLOPS.Pipeline.Texturing;
 
-namespace OPS.Pipeline.TilingServer
+namespace JPLOPS.Pipeline.TilingServer
 {
     public class TilingProject
     {

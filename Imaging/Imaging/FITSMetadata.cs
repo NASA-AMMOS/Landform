@@ -7,7 +7,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.IO;
 
-namespace OPS.Imaging
+namespace JPLOPS.Imaging
 {
     public class FITSMetadata : RawMetadata
     {

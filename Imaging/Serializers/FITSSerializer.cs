@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 using nom.tam.fits;
 
 
-namespace OPS.Imaging
+namespace JPLOPS.Imaging
 {
     /// <summary>
     /// Class for reading FITS astronomy images

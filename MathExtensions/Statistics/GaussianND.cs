@@ -5,11 +5,11 @@ using System.Text;
 using System.Threading.Tasks;
 using MathNet.Numerics.LinearAlgebra;
 using MathNet.Numerics.LinearAlgebra.Double;
-using OPS.Util;
+using JPLOPS.Util;
 
 using Xna = Microsoft.Xna.Framework;
 
-namespace OPS.MathExtensions
+namespace JPLOPS.MathExtensions
 {
     /// <summary>
     /// A multivariate normal distribution.

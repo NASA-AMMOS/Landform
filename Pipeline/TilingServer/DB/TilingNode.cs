@@ -5,13 +5,13 @@ using System.Linq;
 using log4net;
 using Newtonsoft.Json;
 using Microsoft.Xna.Framework;
-using OPS.Cloud;
-using OPS.Geometry;
-using OPS.Imaging;
-using OPS.Util;
-using OPS.Pipeline.AlignmentServer;
+using JPLOPS.Cloud;
+using JPLOPS.Geometry;
+using JPLOPS.Imaging;
+using JPLOPS.Util;
+using JPLOPS.Pipeline.AlignmentServer;
 
-namespace OPS.Pipeline.TilingServer
+namespace JPLOPS.Pipeline.TilingServer
 {
     public class SceneNodeTilingNode : NodeComponent
     {

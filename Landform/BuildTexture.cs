@@ -5,10 +5,10 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
 using CommandLine;
-using OPS.Util;
-using OPS.Imaging;
-using OPS.Geometry;
-using OPS.Pipeline;
+using JPLOPS.Util;
+using JPLOPS.Imaging;
+using JPLOPS.Geometry;
+using JPLOPS.Pipeline;
 
 /// <summary>
 /// Generate a full-scene texture by backprojecting observation images in a Landform alignment project.
@@ -30,7 +30,7 @@ using OPS.Pipeline;
 /// Landform.exe build-texture windjana windjana-textured.ply
 ///
 /// </summary>
-namespace OPS.Landform
+namespace JPLOPS.Landform
 {
     [Verb("build-texture", HelpText = "backproject a mesh texture and/or index image")]
     public class BuildTextureOptions : TextureCommandOptions

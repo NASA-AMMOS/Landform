@@ -7,11 +7,11 @@ using System.Collections.Concurrent;
 using System.Linq;
 using Microsoft.Xna.Framework;
 using RTree;
-using OPS.Util;
-using OPS.MathExtensions;
+using JPLOPS.Util;
+using JPLOPS.MathExtensions;
 
 //ported from onsight/terraintools sha 840d24d65f8cc05653e7b8155156cb8bb6d31a75 ClevererCombinePointClouds
-namespace OPS.Geometry
+namespace JPLOPS.Geometry
 {
     public class CleverCombine
     {

@@ -6,9 +6,9 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using CommandLine;
 using log4net;
-using OPS.Cloud;
-using OPS.Util;
-using OPS.Pipeline;
+using JPLOPS.Cloud;
+using JPLOPS.Util;
+using JPLOPS.Pipeline;
 
 /// <summary>
 /// Utility to benchmark S3 performance.
@@ -19,7 +19,7 @@ using OPS.Pipeline;
 ///   --maxfiles=10
 ///
 /// </summary>
-namespace OPS.Landform
+namespace JPLOPS.Landform
 {
     [Verb("benchmarks3", HelpText = "Run benchmark to test S3 speeds")]
     public class BenchmarkS3Options

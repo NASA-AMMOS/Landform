@@ -4,15 +4,15 @@ using System.Linq;
 using System.Threading;
 using Microsoft.Xna.Framework;
 using CommandLine;
-using OPS.Util;
-using OPS.MathExtensions;
-using OPS.RayTrace;
-using OPS.Imaging;
-using OPS.Geometry;
-using OPS.Pipeline;
-using OPS.Pipeline.Texturing;
-using OPS.Pipeline.AlignmentServer;
-using OPS.Pipeline.TilingServer;
+using JPLOPS.Util;
+using JPLOPS.MathExtensions;
+using JPLOPS.RayTrace;
+using JPLOPS.Imaging;
+using JPLOPS.Geometry;
+using JPLOPS.Pipeline;
+using JPLOPS.Pipeline.Texturing;
+using JPLOPS.Pipeline.AlignmentServer;
+using JPLOPS.Pipeline.TilingServer;
 
 /// <summary>
 /// Creates a sky tileset to display behind the terrain.
@@ -68,7 +68,7 @@ using OPS.Pipeline.TilingServer;
 /// Landform.exe build-sky-sphere windjana
 ///
 /// </summary>
-namespace OPS.Landform
+namespace JPLOPS.Landform
 {
     public enum SkyMode { Box, Sphere, TopoSphere, Auto };
 

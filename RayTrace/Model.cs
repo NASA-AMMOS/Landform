@@ -5,9 +5,9 @@ using System.Text;
 using System.Threading.Tasks;
 using Embree;
 using Microsoft.Xna.Framework;
-using OPS.Imaging;
+using JPLOPS.Imaging;
 
-namespace OPS.RayTrace
+namespace JPLOPS.RayTrace
 {
     /// <summary>
     /// Class representing a model that can be raycasted against
@@ -17,7 +17,7 @@ namespace OPS.RayTrace
         private readonly Embree.Geometry geometry;
         private EmbreeMatrix transform;
         private Matrix inverseTranspose; // needed for normal correction 
-        private readonly OPS.Geometry.Mesh mesh;
+        private readonly JPLOPS.Geometry.Mesh mesh;
         private readonly Image texture;
         
         /// <summary>
@@ -33,7 +33,7 @@ namespace OPS.RayTrace
         /// <summary>
         /// Return the mesh associated with this model
         /// </summary>
-        public OPS.Geometry.Mesh Mesh { get { return mesh; } }
+        public JPLOPS.Geometry.Mesh Mesh { get { return mesh; } }
 
         /// <summary>
         /// Returns the texture associated with this model if there is one
@@ -53,7 +53,7 @@ namespace OPS.RayTrace
         /// <param name="transform">Transform of this mesh in the scene</param>
         /// <param name="sceneFlags"></param>
         /// <param name="traversalFlags"></param>
-        public Model(Device device, OPS.Geometry.Mesh mesh, Image texture, Matrix transform, SceneFlags sceneFlags,
+        public Model(Device device, JPLOPS.Geometry.Mesh mesh, Image texture, Matrix transform, SceneFlags sceneFlags,
                      TraversalFlags traversalFlags)
         {
             this.Enabled = true;

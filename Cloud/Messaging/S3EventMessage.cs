@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
 using Newtonsoft.Json;
-using OPS.Util;
+using JPLOPS.Util;
 
-namespace OPS.Cloud
+namespace JPLOPS.Cloud
 {
     //https://docs.aws.amazon.com/AmazonS3/latest/dev/notification-content-structure.html
     public class S3User

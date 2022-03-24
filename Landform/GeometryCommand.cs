@@ -5,14 +5,14 @@ using System.Text;
 using System.Diagnostics;
 using CommandLine;
 using Microsoft.Xna.Framework;
-using OPS.Util;
-using OPS.MathExtensions;
-using OPS.Geometry;
-using OPS.Pipeline.AlignmentServer;
-using OPS.Pipeline;
-using OPS.Pipeline.Texturing;
+using JPLOPS.Util;
+using JPLOPS.MathExtensions;
+using JPLOPS.Geometry;
+using JPLOPS.Pipeline.AlignmentServer;
+using JPLOPS.Pipeline;
+using JPLOPS.Pipeline.Texturing;
 
-namespace OPS.Landform
+namespace JPLOPS.Landform
 {
     public class GeometryCommandOptions : WedgeCommandOptions
     {

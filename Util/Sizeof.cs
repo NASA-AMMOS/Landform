@@ -5,7 +5,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
 
-namespace OPS.Util
+namespace JPLOPS.Util
 {
     //https://stackoverflow.com/questions/8173239
     public class Sizeof

@@ -4,9 +4,9 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using OPS.Geometry;
+using JPLOPS.Geometry;
 using System.IO;
-using OPS.Util;
+using JPLOPS.Util;
 
 #if ENABLE_MESHLAB
 namespace GeometryThirdpartyTest

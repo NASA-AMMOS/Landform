@@ -4,7 +4,7 @@ using System.Linq;
 using MathNet.Numerics.LinearAlgebra;
 using Microsoft.Xna.Framework;
 
-namespace OPS.MathExtensions
+namespace JPLOPS.MathExtensions
 {
     public static class MathNetXna
     {

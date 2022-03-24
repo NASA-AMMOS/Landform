@@ -3,11 +3,11 @@ using System.Collections.Generic;
 using System.Linq;
 using MathNet.Numerics.LinearAlgebra;
 using Newtonsoft.Json;
-using OPS.Cloud;
-using OPS.Geometry;
+using JPLOPS.Cloud;
+using JPLOPS.Geometry;
 
 
-namespace OPS.Pipeline.AlignmentServer
+namespace JPLOPS.Pipeline.AlignmentServer
 {
     public enum TransformSource
     {

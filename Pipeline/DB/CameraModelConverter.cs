@@ -1,9 +1,9 @@
 using System;
 using Microsoft.Xna.Framework;
 using Newtonsoft.Json;
-using OPS.Imaging;
+using JPLOPS.Imaging;
 
-namespace OPS.Pipeline
+namespace JPLOPS.Pipeline
 {
     public class CameraModelConverter : JsonConverter
     {

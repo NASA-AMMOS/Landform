@@ -4,8 +4,8 @@ using System.Linq;
 using System.IO;
 using CommandLine;
 using log4net;
-using OPS.Util;
-using OPS.Pipeline;
+using JPLOPS.Util;
+using JPLOPS.Pipeline;
 
 /// <summary>
 /// Utility to write ~/.landform/landform-local.json
@@ -16,7 +16,7 @@ using OPS.Pipeline;
 ///
 /// Landform.exe configure-local --venue=landform-local --storagedir=c:/Users/$USERNAME/Documents/landform-storage
 /// </summary>
-namespace OPS.Landform
+namespace JPLOPS.Landform
 {
     [Verb("configure-local", HelpText = "Configures Landform local")]
     public class ConfigureLocalOptions : ConfigureBaseOptions

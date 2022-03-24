@@ -1,5 +1,5 @@
 ﻿using Microsoft.Xna.Framework;
-using OPS.Util;
+using JPLOPS.Util;
 using System;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
@@ -8,7 +8,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace OPS.Imaging
+namespace JPLOPS.Imaging
 {
     /// <summary>
     /// Stores an Image as array of smaller chunk Images

@@ -7,15 +7,15 @@ using System.Linq;
 using System.Reflection;
 using System.Threading;
 using CommandLine;
-using OPS.Util;
-using OPS.Cloud;
-using OPS.Imaging;
-using OPS.Geometry;
-using OPS.Pipeline;
-using OPS.Pipeline.AlignmentServer;
-using OPS.Pipeline.TilingServer;
+using JPLOPS.Util;
+using JPLOPS.Cloud;
+using JPLOPS.Imaging;
+using JPLOPS.Geometry;
+using JPLOPS.Pipeline;
+using JPLOPS.Pipeline.AlignmentServer;
+using JPLOPS.Pipeline.TilingServer;
 
-namespace OPS.Landform
+namespace JPLOPS.Landform
 {
     public class LandformShellOptions : LandformCommandOptions
     {

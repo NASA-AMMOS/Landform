@@ -4,13 +4,13 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using OPS.Util;
+using JPLOPS.Util;
 using System.IO;
 using Microsoft.Xna.Framework;
-using OPS.MathExtensions;
+using JPLOPS.MathExtensions;
 using System.Text.RegularExpressions;
 
-namespace OPS.Geometry
+namespace JPLOPS.Geometry
 {
     /// <summary>
     /// Exposes mesh operations that are implemented in MeshLab

@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
 using System.Text.RegularExpressions;
 
-namespace OPS.Imaging
+namespace JPLOPS.Imaging
 {
     public class VICMetadataException : Exception
     {

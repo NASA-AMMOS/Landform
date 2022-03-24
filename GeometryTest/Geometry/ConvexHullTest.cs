@@ -6,8 +6,8 @@ using System.IO;
 using System.Threading.Tasks;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Microsoft.Xna.Framework;
-using OPS.Geometry;
-using OPS.Imaging;
+using JPLOPS.Geometry;
+using JPLOPS.Imaging;
 
 namespace GeometryTest
 {

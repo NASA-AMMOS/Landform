@@ -11,10 +11,10 @@ using System.Xml;
 using Microsoft.Xna.Framework;
 using RestSharp;
 using RestSharp.Authenticators;
-using OPS.Util;
-using OPS.Imaging;
+using JPLOPS.Util;
+using JPLOPS.Imaging;
 
-namespace OPS.Pipeline
+namespace JPLOPS.Pipeline
 {
     public class PlacesConfig : SingletonConfig<PlacesConfig>
     {

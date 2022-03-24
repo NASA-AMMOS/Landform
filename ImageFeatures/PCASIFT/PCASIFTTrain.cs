@@ -10,10 +10,10 @@ using Emgu.CV.Structure;
 using MathNet.Numerics.LinearAlgebra;
 using MathNet.Numerics.LinearAlgebra.Factorization;
 using MathNet.Numerics.Statistics;
-using OPS.Util;
-using OPS.Imaging.Emgu;
+using JPLOPS.Util;
+using JPLOPS.Imaging.Emgu;
 
-namespace OPS.ImageFeatures
+namespace JPLOPS.ImageFeatures
 {
     /// <summary>
     /// PCA Training Class.

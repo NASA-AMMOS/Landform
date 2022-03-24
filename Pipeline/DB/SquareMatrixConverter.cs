@@ -2,7 +2,7 @@
 using MathNet.Numerics.LinearAlgebra;
 using Newtonsoft.Json;
 
-namespace OPS.Pipeline
+namespace JPLOPS.Pipeline
 {
     public class SquareMatrixConverter : JsonConverter
     {

@@ -5,12 +5,12 @@ using System.Collections;
 using System.Collections.Generic;
 using Newtonsoft.Json;
 using Microsoft.Xna.Framework;
-using OPS.Util;
-using OPS.Cloud;
-using OPS.Imaging;
-using OPS.Pipeline.AlignmentServer;
+using JPLOPS.Util;
+using JPLOPS.Cloud;
+using JPLOPS.Imaging;
+using JPLOPS.Pipeline.AlignmentServer;
 
-namespace OPS.Pipeline
+namespace JPLOPS.Pipeline
 {
     public class SceneManifestVector3Converter : JsonConverter
     {

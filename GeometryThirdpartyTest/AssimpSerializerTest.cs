@@ -1,9 +1,9 @@
 ﻿using System;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using OPS.Geometry.Experimental;
+using JPLOPS.Geometry.Experimental;
 using Microsoft.Xna.Framework;
 using System.IO;
-using OPS.Geometry;
+using JPLOPS.Geometry;
 
 namespace GeometryThirdpartyTest
 {

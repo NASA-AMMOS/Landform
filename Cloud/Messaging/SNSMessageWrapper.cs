@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using Newtonsoft.Json;
 
-namespace OPS.Cloud
+namespace JPLOPS.Cloud
 {
     //https://docs.aws.amazon.com/sns/latest/dg/sns-message-and-json-formats.html
     public class SNSMessageWrapper : QueueMessage

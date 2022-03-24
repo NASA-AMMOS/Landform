@@ -5,7 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
 
-namespace OPS.Imaging
+namespace JPLOPS.Imaging
 {
     public class PDSCameraModelParser
     {

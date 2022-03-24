@@ -6,12 +6,12 @@ using System.IO;
 using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
 using Newtonsoft.Json;
-using OPS.Geometry;
-using OPS.Util;
-using OPS.Imaging;
-using OPS.Pipeline.AlignmentServer;
+using JPLOPS.Geometry;
+using JPLOPS.Util;
+using JPLOPS.Imaging;
+using JPLOPS.Pipeline.AlignmentServer;
 
-namespace OPS.Pipeline
+namespace JPLOPS.Pipeline
 {
     public static class Tile3DBuilder
     {

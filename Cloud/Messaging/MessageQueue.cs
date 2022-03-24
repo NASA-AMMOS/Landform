@@ -6,10 +6,10 @@ using Amazon.Runtime;
 using Amazon.SQS;
 using Amazon.SQS.Model;
 using Newtonsoft.Json;
-using OPS.Util;
-using OPS.MathExtensions;
+using JPLOPS.Util;
+using JPLOPS.MathExtensions;
 
-namespace OPS.Cloud
+namespace JPLOPS.Cloud
 {
     public class QueueMessage
     {

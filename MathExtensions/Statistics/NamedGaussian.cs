@@ -5,7 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using MathNet.Numerics.LinearAlgebra;
 
-namespace OPS.MathExtensions
+namespace JPLOPS.MathExtensions
 {
     public class NamedGaussian : GaussianND
     {

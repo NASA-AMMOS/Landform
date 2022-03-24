@@ -5,9 +5,9 @@ using System.Text;
 using System.Threading.Tasks;
 using MathNet.Numerics.LinearAlgebra;
 using log4net;
-using OPS.Util;
+using JPLOPS.Util;
 
-namespace OPS.ImageFeatures
+namespace JPLOPS.ImageFeatures
 {
     /// <summary>
     /// Given two images and a list of features in each and 

@@ -8,13 +8,13 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
 using RTree;
-using OPS.Util;
-using OPS.MathExtensions;
-using OPS.RayTrace;
-using OPS.Imaging;
-using OPS.Geometry;
+using JPLOPS.Util;
+using JPLOPS.MathExtensions;
+using JPLOPS.RayTrace;
+using JPLOPS.Imaging;
+using JPLOPS.Geometry;
 
-namespace OPS.Pipeline.Texturing
+namespace JPLOPS.Pipeline.Texturing
 {
     public enum SpatialSelectionMode
     {

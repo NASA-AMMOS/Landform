@@ -4,9 +4,9 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
-using OPS.Imaging;
+using JPLOPS.Imaging;
 
-namespace OPS.Imaging
+namespace JPLOPS.Imaging
 {
     public static class Inpainter
     {

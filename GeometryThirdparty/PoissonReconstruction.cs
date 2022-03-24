@@ -7,11 +7,11 @@ using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using log4net;
 using Microsoft.Xna.Framework;
-using OPS.MathExtensions;
-using OPS.Util;
-using OPS.Imaging;
+using JPLOPS.MathExtensions;
+using JPLOPS.Util;
+using JPLOPS.Imaging;
 
-namespace OPS.Geometry
+namespace JPLOPS.Geometry
 {
     public class PoissonConfig : SingletonConfig<PoissonConfig>
     {

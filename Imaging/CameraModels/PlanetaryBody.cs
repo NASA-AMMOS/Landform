@@ -6,10 +6,10 @@ using Microsoft.Xna.Framework;
 using Newtonsoft.Json;
 using OSGeo.GDAL;
 using OSGeo.OSR;
-using OPS.Util;
-using OPS.MathExtensions;
+using JPLOPS.Util;
+using JPLOPS.MathExtensions;
 
-namespace OPS.Imaging
+namespace JPLOPS.Imaging
 {
     public abstract class PlanetaryBody
     {

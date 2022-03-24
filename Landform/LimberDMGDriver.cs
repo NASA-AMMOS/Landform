@@ -4,9 +4,9 @@ using System.Linq;
 using System.Diagnostics;
 using System.Collections.Generic;
 using CommandLine;
-using OPS.Imaging;
-using OPS.Geometry;
-using OPS.Pipeline.AlignmentServer;
+using JPLOPS.Imaging;
+using JPLOPS.Geometry;
+using JPLOPS.Pipeline.AlignmentServer;
 
 /// <summary>
 /// Utility to run LimberDMG on an image.
@@ -26,7 +26,7 @@ using OPS.Pipeline.AlignmentServer;
 ///   --flagsimage mesh_region_shrink_tex_orbital_adjust_limberflags.tif --legacyinvalidindices --outputformat=png
 ///   --mesh mesh_region_shrink.obj
 /// </summary>
-namespace OPS.Landform
+namespace JPLOPS.Landform
 {
     [Verb("limber-dmg", HelpText = "run Limber DMG")]
     public class LimberDMGOptions

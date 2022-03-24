@@ -3,13 +3,13 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using OPS.Util;
-using OPS.Cloud;
-using OPS.Imaging;
-using OPS.Pipeline.AlignmentServer;
+using JPLOPS.Util;
+using JPLOPS.Cloud;
+using JPLOPS.Imaging;
+using JPLOPS.Pipeline.AlignmentServer;
 using Microsoft.Xna.Framework;
 
-namespace OPS.Pipeline
+namespace JPLOPS.Pipeline
 {
     public class MissionMSLConfig : SingletonConfig<MissionMSLConfig>
     {

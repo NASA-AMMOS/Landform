@@ -4,11 +4,11 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Priority_Queue;
-using OPS.Geometry;
+using JPLOPS.Geometry;
 using Microsoft.Xna.Framework;
 using System.Diagnostics;
 
-namespace OPS.Geometry
+namespace JPLOPS.Geometry
 {
     /// <summary>
     /// Computes the distance between the surfaces of two meshes

@@ -3,10 +3,10 @@ using System.IO;
 using System.Linq;
 using CommandLine;
 using log4net;
-using OPS.Util;
-using OPS.Imaging;
-using OPS.Geometry;
-using OPS.Pipeline;
+using JPLOPS.Util;
+using JPLOPS.Imaging;
+using JPLOPS.Geometry;
+using JPLOPS.Pipeline;
 
 /// <summary>
 /// Utility to convert IV meshes to other formats.
@@ -28,7 +28,7 @@ using OPS.Pipeline;
 ///  LandformUtil.exe convert-pds out/windjana/meshes
 ///  LandformUtil.exe convert-iv out/windjana/meshes --alllods
 /// </summary>
-namespace OPS.Landform
+namespace JPLOPS.Landform
 {
     [Verb("convert-iv", HelpText = "Convert IV meshes to different format")]
     public class ConvertIVOptions

@@ -2,8 +2,8 @@
 using Emgu.CV.Structure;
 using Emgu.CV.XFeatures2D;
 using Microsoft.Xna.Framework;
-using OPS.Imaging;
-using OPS.Imaging.Emgu;
+using JPLOPS.Imaging;
+using JPLOPS.Imaging.Emgu;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -11,7 +11,7 @@ using System.IO;
 using System.Linq;
 
 
-namespace OPS.ImageFeatures
+namespace JPLOPS.ImageFeatures
 {
 
     /// <summary>

@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace OPS.Cloud
+namespace JPLOPS.Cloud
 {
     /// <summary>
     /// Represents an S3 url and can convert between the url form and a bucketname/prefix

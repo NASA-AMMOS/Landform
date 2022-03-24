@@ -3,7 +3,7 @@ using Microsoft.Xna.Framework;
 using Newtonsoft.Json;
 
 
-namespace OPS.Geometry
+namespace JPLOPS.Geometry
 {
     /// <summary>
     /// Represents a 3D rotation as an axis of rotation multiplied by an angle.

@@ -7,11 +7,11 @@ using System.Text;
 using System.Diagnostics;
 using Microsoft.Xna.Framework;
 using Newtonsoft.Json;
-using OPS.MathExtensions;
-using OPS.Util;
-using OPS.Imaging;
+using JPLOPS.MathExtensions;
+using JPLOPS.Util;
+using JPLOPS.Imaging;
 
-namespace OPS.Geometry
+namespace JPLOPS.Geometry
 {
     public class Rasterizer
     {

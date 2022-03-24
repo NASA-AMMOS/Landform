@@ -4,12 +4,12 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
-using OPS.Geometry;
+using JPLOPS.Geometry;
 
 // Reimplemented Oct tree on triangles for fast nearest neighbor lookup on meshes
 // From https://github.jpl.nasa.gov/OpsLab/SidekickPipeline/blob/dmc-again/OccluderGen/octree.hxx#L583
 
-namespace OPS.Geometry
+namespace JPLOPS.Geometry
 {
 
     /// <summary>

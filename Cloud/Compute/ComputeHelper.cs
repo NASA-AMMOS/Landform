@@ -9,9 +9,9 @@ using Amazon.EC2;
 using Amazon.EC2.Model;
 using Amazon.AutoScaling;
 using Amazon.AutoScaling.Model;
-using OPS.Util;
+using JPLOPS.Util;
 
-namespace OPS.Cloud
+namespace JPLOPS.Cloud
 {
     public class ComputeHelper : IDisposable
     {

@@ -1,7 +1,7 @@
 using System;
-using OPS.Util;
+using JPLOPS.Util;
 
-namespace OPS.Pipeline
+namespace JPLOPS.Pipeline
 {
     public class PipelineOperation : ILogger
     {

@@ -6,10 +6,10 @@ using Emgu.CV.Structure;
 using Emgu.CV.Features2D;
 using Emgu.CV.XFeatures2D;
 using Emgu.CV.Util;
-using OPS.Imaging;
-using OPS.Imaging.Emgu;
+using JPLOPS.Imaging;
+using JPLOPS.Imaging.Emgu;
 
-namespace OPS.ImageFeatures
+namespace JPLOPS.ImageFeatures
 {
     public class FASTDetector : FeatureDetectorBase
     {

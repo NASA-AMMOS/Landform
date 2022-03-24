@@ -3,7 +3,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Microsoft.Xna.Framework;
 using System.IO;
 using System.Collections.Generic;
-using OPS.Geometry;
+using JPLOPS.Geometry;
 
 namespace GeometryTest
 {

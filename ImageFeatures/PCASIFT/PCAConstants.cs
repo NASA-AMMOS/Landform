@@ -1,5 +1,5 @@
 ﻿
-namespace OPS.ImageFeatures
+namespace JPLOPS.ImageFeatures
 {
     class PCAConstants
     {

@@ -8,12 +8,12 @@ using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
 using CommandLine;
-using OPS.Util;
-using OPS.Cloud;
-using OPS.Pipeline;
-using OPS.Imaging;
-using OPS.Geometry;
-using OPS.Pipeline.AlignmentServer;
+using JPLOPS.Util;
+using JPLOPS.Cloud;
+using JPLOPS.Pipeline;
+using JPLOPS.Imaging;
+using JPLOPS.Geometry;
+using JPLOPS.Pipeline.AlignmentServer;
 
 /// <summary>
 /// Landform tactical mesh tileset workflow service and tool.
@@ -78,7 +78,7 @@ using OPS.Pipeline.AlignmentServer;
 /// Landform.exe process-tactical --mission=M2020 --inputpath=s3://m20-ids-g-data-g66bt/ods/dev/sol/ --recursivesearch
 ///
 /// </summary>
-namespace OPS.Landform
+namespace JPLOPS.Landform
 {
     [Verb("process-tactical", HelpText = "process tactical meshes into tilesets")]
     public class ProcessTacticalOptions : LandformServiceOptions

@@ -1,11 +1,11 @@
-﻿using OPS.Imaging;
+﻿using JPLOPS.Imaging;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace OPS.ImageFeatures
+namespace JPLOPS.ImageFeatures
 {
     /// <summary>
     /// Interface for image correspondence filters.

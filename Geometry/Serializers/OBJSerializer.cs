@@ -8,9 +8,9 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Diagnostics;
 using Microsoft.Xna.Framework;
-using OPS.Util;
+using JPLOPS.Util;
 
-namespace OPS.Geometry
+namespace JPLOPS.Geometry
 {
 
     public class OBJSerializerException : MeshSerializerException {

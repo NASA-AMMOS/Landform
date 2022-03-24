@@ -6,7 +6,7 @@ using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Security.Cryptography;
 
-namespace OPS.Util
+namespace JPLOPS.Util
 {
     public class StringHelper
     {

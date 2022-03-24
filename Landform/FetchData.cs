@@ -13,11 +13,11 @@ using Amazon.S3;
 using Microsoft.Xna.Framework;
 using CommandLine;
 using log4net;
-using OPS.Util;
-using OPS.Cloud;
-using OPS.Imaging;
-using OPS.Geometry;
-using OPS.Pipeline;
+using JPLOPS.Util;
+using JPLOPS.Cloud;
+using JPLOPS.Imaging;
+using JPLOPS.Geometry;
+using JPLOPS.Pipeline;
 
 ///<summary>
 /// Download files from S3 or http(s).
@@ -69,7 +69,7 @@ using OPS.Pipeline;
 ///   --withpng --useunifiedmeshes=false --onlymeshproducts --onlyforeye=Left
 ///
 ///<Summary>
-namespace OPS.Landform
+namespace JPLOPS.Landform
 {
     [Verb("fetch", HelpText = "Download data products from S3")]
     public class FetchDataOptions

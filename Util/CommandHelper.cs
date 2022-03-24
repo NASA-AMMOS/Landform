@@ -6,7 +6,7 @@ using System.Reflection;
 using CommandLine;
 using log4net;
 
-namespace OPS.Util
+namespace JPLOPS.Util
 {
     public class CommandHelper
     {

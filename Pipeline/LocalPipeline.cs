@@ -10,10 +10,10 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using log4net;
 using CommandLine;
-using OPS.Util;
-using OPS.Imaging;
+using JPLOPS.Util;
+using JPLOPS.Imaging;
 
-namespace OPS.Pipeline
+namespace JPLOPS.Pipeline
 {
     public class LocalPipeline : PipelineCore
     {

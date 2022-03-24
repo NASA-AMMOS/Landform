@@ -14,9 +14,9 @@ using Amazon.S3.Transfer;
 using Amazon.S3.IO;
 using Amazon.Runtime;
 using log4net;
-using OPS.Util;
+using JPLOPS.Util;
 
-namespace OPS.Cloud
+namespace JPLOPS.Cloud
 {
     /// <summary>
     /// Interface with S3 data store

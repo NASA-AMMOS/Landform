@@ -4,10 +4,10 @@ using System.Linq;
 using System.Text;
 using System.Diagnostics;
 using Microsoft.Xna.Framework;
-using OPS.MathExtensions;
-using OPS.Util;
+using JPLOPS.MathExtensions;
+using JPLOPS.Util;
 
-namespace OPS.Geometry
+namespace JPLOPS.Geometry
 {
     /// <summary>
     /// The Triangle structure exists to simplify implementing some mesh operations.

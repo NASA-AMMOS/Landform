@@ -3,10 +3,10 @@ using System.IO;
 using System.Text;
 using System.Collections;
 using System.Collections.Generic;
-using OPS.Geometry;
-using OPS.Util;
+using JPLOPS.Geometry;
+using JPLOPS.Util;
 
-namespace OPS.Pipeline.TilingServer
+namespace JPLOPS.Pipeline.TilingServer
 {
     public class BuildTilesetJsonMessage : PipelineMessage
     {

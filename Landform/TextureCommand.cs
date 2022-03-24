@@ -11,17 +11,17 @@ using System.Threading;
 using CommandLine;
 using Microsoft.Xna.Framework;
 using ColorMine.ColorSpaces;
-using OPS.Util;
-using OPS.MathExtensions;
-using OPS.Imaging;
-using OPS.RayTrace;
-using OPS.Geometry;
-using OPS.Pipeline;
-using OPS.Pipeline.Texturing;
-using OPS.Pipeline.AlignmentServer;
-using OPS.Pipeline.TilingServer;
+using JPLOPS.Util;
+using JPLOPS.MathExtensions;
+using JPLOPS.Imaging;
+using JPLOPS.RayTrace;
+using JPLOPS.Geometry;
+using JPLOPS.Pipeline;
+using JPLOPS.Pipeline.Texturing;
+using JPLOPS.Pipeline.AlignmentServer;
+using JPLOPS.Pipeline.TilingServer;
 
-namespace OPS.Landform
+namespace JPLOPS.Landform
 {
     public class TextureCommandOptions : GeometryCommandOptions
     {

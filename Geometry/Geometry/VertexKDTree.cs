@@ -7,10 +7,10 @@ using System.Threading.Tasks;
 using log4net;
 using Microsoft.Xna.Framework;
 using Supercluster.KDTree;
-using OPS.MathExtensions;
-using OPS.Util;
+using JPLOPS.MathExtensions;
+using JPLOPS.Util;
 
-namespace OPS.Geometry
+namespace JPLOPS.Geometry
 {
     /// <summary>
     /// Accelerated datastructure for spatial quries of vertices

@@ -8,7 +8,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 
-namespace OPS.Util
+namespace JPLOPS.Util
 {
     public class ConsoleHelper
     {

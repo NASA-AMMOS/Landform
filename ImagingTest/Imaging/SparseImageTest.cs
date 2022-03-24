@@ -1,6 +1,6 @@
 ﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
-using OPS.Imaging;
-using OPS.Test;
+using JPLOPS.Imaging;
+using JPLOPS.Test;
 using System;
 using System.Collections.Generic;
 using System.IO;
