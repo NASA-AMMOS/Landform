@@ -1970,39 +1970,48 @@ namespace OPS.Landform
             {
                 pipeline.LogInfo("recursively searching {0} for {1}", dir, what);
                 int nu = 0, na = 0, nw = 0, nt = 0, ns = 0;
-                foreach (var s3Url in storageHelper.SearchObjects(dir, regex, recursive: true, patternIsRegex: true))
+                try
                 {
-                    nu++;
-                    string url = StringHelper.NormalizeUrl(s3Url);
-                    if (AcceptBucketPath(url))
+                    foreach (var s3Url in storageHelper.SearchObjects(dir, regex, recursive: true,
+                                                                      patternIsRegex: true))
                     {
-                        na++;
-                        var idStr = StringHelper.GetLastUrlPathSegment(url, stripExtension: true);
-                        var id = RoverProductId.Parse(idStr, mission, throwOnFail: false);
-                        bool acceptedWedge = wedgeRegex.IsMatch(url) && FilterWedge(id, url) == null;
-                        bool acceptedTexture = !acceptedWedge && textureRegex != null && textureRegex.IsMatch(url) &&
-                            FilterTexture(id, url) == null;
-                        if (acceptedWedge || acceptedTexture)
+                        nu++;
+                        string url = StringHelper.NormalizeUrl(s3Url);
+                        if (AcceptBucketPath(url))
                         {
-                            var sd = (id as OPGSProductId).SiteDrive;
-                            if (!ret.ContainsKey(sd))
+                            na++;
+                            var idStr = StringHelper.GetLastUrlPathSegment(url, stripExtension: true);
+                            var id = RoverProductId.Parse(idStr, mission, throwOnFail: false);
+                            bool acceptedWedge = wedgeRegex.IsMatch(url) && FilterWedge(id, url) == null;
+                            bool acceptedTexture =
+                                !acceptedWedge && textureRegex != null && textureRegex.IsMatch(url) &&
+                                FilterTexture(id, url) == null;
+                            if (acceptedWedge || acceptedTexture)
                             {
-                                ret[sd] = MakeList(rdrDir, sd);
-                                ns++;
-                            }
-                            if (ret[sd].Add(url) == null)
-                            {
-                                if (acceptedWedge)
+                                var sd = (id as OPGSProductId).SiteDrive;
+                                if (!ret.ContainsKey(sd))
                                 {
-                                    nw++;
+                                    ret[sd] = MakeList(rdrDir, sd);
+                                    ns++;
                                 }
-                                if (acceptedTexture)
+                                if (ret[sd].Add(url) == null)
                                 {
-                                    nt++;
+                                    if (acceptedWedge)
+                                    {
+                                        nw++;
+                                    }
+                                    if (acceptedTexture)
+                                    {
+                                        nt++;
+                                    }
                                 }
                             }
                         }
                     }
+                }
+                catch (Exception ex)
+                {
+                    pipeline.LogException(ex, $"error searching for sitedrives under {dir}");
                 }
                 pipeline.LogInfo("found {0} wedges, {1} textures, {2} new sitedrives from {3} URLs ({4} accepted)",
                                  nw, nt, ns, nu, na);
@@ -2251,43 +2260,51 @@ namespace OPS.Landform
 
                 foreach (string dir in solDirs)
                 {
-                    pipeline.LogInfo("recursively searching {0} for {1}", dir, what);
-                    foreach (var s3Url in storageHelper.SearchObjects(dir, regex, recursive: true,
-                                                                      patternIsRegex: true))
+                    try
                     {
-                        string url = StringHelper.NormalizeUrl(s3Url);
-                        if (AcceptBucketPath(url))
+                        pipeline.LogInfo("recursively searching {0} for {1}", dir, what);
+                        foreach (var s3Url in storageHelper.SearchObjects(dir, regex, recursive: true,
+                                                                          patternIsRegex: true))
                         {
-                            var idStr = StringHelper.GetLastUrlPathSegment(url, stripExtension: true);
-                            var id = RoverProductId.Parse(idStr, mission, throwOnFail: false);
-                            bool acceptedWedge = wedgeRegex != null && wedgeRegex.IsMatch(url) &&
-                                FilterWedge(id, url) == null && !wedgeURLs.Contains(url);
-                            bool acceptedTexture = !acceptedWedge && textureRegex != null && textureRegex.IsMatch(url)
-                                && FilterTexture(id, url) == null && !textureURLs.Contains(url);
-                            if (acceptedWedge || acceptedTexture)
+                            string url = StringHelper.NormalizeUrl(s3Url);
+                            if (AcceptBucketPath(url))
                             {
-                                var sd = (id as OPGSProductId).SiteDrive;
-                                if (!ret.ContainsKey(sd))
+                                var idStr = StringHelper.GetLastUrlPathSegment(url, stripExtension: true);
+                                var id = RoverProductId.Parse(idStr, mission, throwOnFail: false);
+                                bool acceptedWedge = wedgeRegex != null && wedgeRegex.IsMatch(url) &&
+                                    FilterWedge(id, url) == null && !wedgeURLs.Contains(url);
+                                bool acceptedTexture =
+                                    !acceptedWedge && textureRegex != null && textureRegex.IsMatch(url)
+                                    && FilterTexture(id, url) == null && !textureURLs.Contains(url);
+                                if (acceptedWedge || acceptedTexture)
                                 {
-                                    ret[sd] = new Stamped<SiteDriveList>(MakeList(rdrDir, sd));
-                                    additionalSitedrives++;
-                                }
-                                var sdl = ret[sd].Value;
-                                int nw = sdl.NumWedges, nt = sdl.NumTextures;
-                                if (acceptedWedge && sdl.Add(url) == null && sdl.NumWedges > nw)
-                                {
-                                    //this new URL might still get filtered out below
-                                    //e.g. if it's an older version of something that's already in the list
-                                    pipeline.LogVerbose("found additional wedge {0} in sitedrive {1}", url, sd);
-                                    additionalWedges++;
-                                }
-                                else if (acceptedTexture && sdl.Add(url) == null && sdl.NumTextures > nt)
-                                {
-                                    pipeline.LogVerbose("found additional texture {0} in sitedrive {1}", url, sd);
-                                    additionalTextures++;
+                                    var sd = (id as OPGSProductId).SiteDrive;
+                                    if (!ret.ContainsKey(sd))
+                                    {
+                                        ret[sd] = new Stamped<SiteDriveList>(MakeList(rdrDir, sd));
+                                        additionalSitedrives++;
+                                    }
+                                    var sdl = ret[sd].Value;
+                                    int nw = sdl.NumWedges, nt = sdl.NumTextures;
+                                    if (acceptedWedge && sdl.Add(url) == null && sdl.NumWedges > nw)
+                                    {
+                                        //this new URL might still get filtered out below
+                                        //e.g. if it's an older version of something that's already in the list
+                                        pipeline.LogVerbose("found additional wedge {0} in sitedrive {1}", url, sd);
+                                        additionalWedges++;
+                                    }
+                                    else if (acceptedTexture && sdl.Add(url) == null && sdl.NumTextures > nt)
+                                    {
+                                        pipeline.LogVerbose("found additional texture {0} in sitedrive {1}", url, sd);
+                                        additionalTextures++;
+                                    }
                                 }
                             }
                         }
+                    }
+                    catch (Exception ex)
+                    {
+                        pipeline.LogException(ex, $"error searching for {what} under {dir}");
                     }
                 }
 

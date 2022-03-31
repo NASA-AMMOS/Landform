@@ -6,6 +6,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Text.RegularExpressions;
 using System.IO;
+using System.Net;
 using Amazon;
 using Amazon.S3;
 using Amazon.S3.Model;
@@ -190,7 +191,8 @@ namespace OPS.Cloud
             var regex =
                 patternIsRegex ? new Regex(pattern, opts) : StringHelper.WildcardToRegularExpression(pattern, opts);
             var client = GetClient(s3url);
-            var request = new ListObjectsV2Request { BucketName = location.BucketName };
+            var request = new ListObjectsV2Request { BucketName = location.BucketName,
+                                                     Encoding = new EncodingType("url") };
             if (location.Path.Length > 0)
             {
                 request.Prefix = location.Path;
@@ -199,17 +201,19 @@ namespace OPS.Cloud
             {
                 request.Delimiter = "/";
             }
-            ListObjectsV2Response response;
+            ListObjectsV2Response response = null;
             do
             {
                 response = client.ListObjectsV2(request);
                 if (folders)
                 {
+                    //CommonPrefixes should be plain text even when URL encoding is used
                     foreach (string pfx in response.CommonPrefixes)
                     {
                         if (regex.IsMatch(pfx))
                         {
                             string url = new S3Url(location.BucketName, pfx).Url;
+                            //https://github.jpl.nasa.gov/OnSight/Landform/issues/1232
                             if (filter == null || filter(url))
                             {
                                 yield return url;
@@ -221,9 +225,14 @@ namespace OPS.Cloud
                 {
                     foreach (S3Object entry in response.S3Objects)
                     {
-                        if (regex.IsMatch(entry.Key))
+                        //bucket name have only of lowercase letters, numbers, dots, and hyphens
+                        //but key can have any UTF-8 characters
+                        //certain of those cause AmazonUnmarshallingException unless URL encoding is used
+                        //https://github.jpl.nasa.gov/OnSight/Landform/issues/1232
+                        string key = WebUtility.UrlDecode(entry.Key);
+                        if (regex.IsMatch(key))
                         {
-                            string url = new S3Url(location.BucketName, entry.Key).Url;
+                            string url = new S3Url(location.BucketName, key).Url;
                             if (filter == null || filter(url))
                             {
                                 if (metadata != null)
