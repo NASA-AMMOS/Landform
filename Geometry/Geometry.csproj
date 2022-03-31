@@ -9,7 +9,7 @@
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>Geometry</RootNamespace>
     <AssemblyName>Geometry</AssemblyName>
-    <TargetFrameworkVersion>v4.6.2</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <TargetFrameworkProfile />
   </PropertyGroup>
@@ -33,38 +33,38 @@
     <Prefer32Bit>false</Prefer32Bit>
   </PropertyGroup>
   <ItemGroup>
+    <Reference Include="log4net, Version=2.0.14.0, Culture=neutral, PublicKeyToken=669e0ddf0bb1aa2a, processorArchitecture=MSIL">
+      <HintPath>..\packages\log4net.2.0.14\lib\net45\log4net.dll</HintPath>
+    </Reference>
+    <Reference Include="MathNet.Numerics, Version=4.15.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\MathNet.Numerics.4.15.0\lib\net461\MathNet.Numerics.dll</HintPath>
+    </Reference>
     <Reference Include="MIConvexHull, Version=1.1.19.1018, Culture=neutral, PublicKeyToken=2644b6f8be52c998, processorArchitecture=MSIL">
       <HintPath>..\packages\MIConvexHull.1.1.19.1019\lib\netstandard2.0\MIConvexHull.dll</HintPath>
     </Reference>
     <Reference Include="netstandard" />
-    <Reference Include="log4net, Version=2.0.8.0, Culture=neutral, PublicKeyToken=669e0ddf0bb1aa2a, processorArchitecture=MSIL">
-      <HintPath>..\packages\log4net.2.0.8\lib\net45-full\log4net.dll</HintPath>
-      <Private>True</Private>
+    <Reference Include="Newtonsoft.Json, Version=13.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
+      <HintPath>..\packages\Newtonsoft.Json.13.0.1\lib\net45\Newtonsoft.Json.dll</HintPath>
     </Reference>
-    <Reference Include="MathNet.Numerics, Version=4.4.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\MathNet.Numerics.4.4.0\lib\net461\MathNet.Numerics.dll</HintPath>
-    </Reference>
-    <Reference Include="Newtonsoft.Json, Version=12.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
-      <HintPath>..\packages\Newtonsoft.Json.12.0.3\lib\net45\Newtonsoft.Json.dll</HintPath>
-    </Reference>
-    <Reference Include="Priority Queue, Version=4.1.1.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\OptimizedPriorityQueue.4.1.1\lib\net45\Priority Queue.dll</HintPath>
-      <Private>True</Private>
+    <Reference Include="PriorityQueue, Version=5.0.0.0, Culture=neutral, PublicKeyToken=5e136dbf0437dacd, processorArchitecture=MSIL">
+      <HintPath>..\packages\OptimizedPriorityQueue.5.1.0\lib\net45\PriorityQueue.dll</HintPath>
     </Reference>
     <Reference Include="RTree, Version=1.1.0.0, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>..\packages\RTree.1.1.0\lib\netstandard2.0\RTree.dll</HintPath>
     </Reference>
     <Reference Include="Sharp3DBinPacking, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\Sharp3DBinPacking.1.2.0\lib\net45\Sharp3DBinPacking.dll</HintPath>
+      <HintPath>..\packages\Sharp3DBinPacking.2.0.0\lib\net45\Sharp3DBinPacking.dll</HintPath>
     </Reference>
     <Reference Include="Supercluster.KDTree, Version=1.0.4.0, Culture=neutral, PublicKeyToken=4423da5f8ba350cf, processorArchitecture=MSIL">
       <HintPath>..\packages\Supercluster.KDTree.1.0.4\lib\Supercluster.KDTree.dll</HintPath>
       <Private>True</Private>
     </Reference>
     <Reference Include="System" />
+    <Reference Include="System.Configuration" />
     <Reference Include="System.Core" />
     <Reference Include="System.Numerics" />
     <Reference Include="System.Runtime.Serialization" />
+    <Reference Include="System.Web" />
     <Reference Include="System.Xml.Linq" />
     <Reference Include="System.Data.DataSetExtensions" />
     <Reference Include="System.Data" />

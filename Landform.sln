@@ -6,6 +6,9 @@ MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Pipeline", "Pipeline\Pipeline.csproj", "{C45F0CD6-C998-47EC-B67C-AD77196B06A0}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Imaging", "Imaging\Imaging.csproj", "{C3EC3AB5-8DFD-4DAA-9833-246F0DB6A805}"
+	ProjectSection(ProjectDependencies) = postProject
+		{8C7C8A71-0A4B-4D75-9CB2-32803BD8F86F} = {8C7C8A71-0A4B-4D75-9CB2-32803BD8F86F}
+	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ImagingTest", "ImagingTest\ImagingTest.csproj", "{94D07323-456B-41DC-8FAC-7C1C77605E50}"
 EndProject

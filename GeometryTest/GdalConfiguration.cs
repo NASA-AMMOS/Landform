@@ -35,7 +35,7 @@ using System.Runtime.InteropServices;
 using Gdal = OSGeo.GDAL.Gdal;
 using Ogr = OSGeo.OGR.Ogr;
 
-namespace JPLOPS.Imaging
+namespace GeometryTest
 {
     public static partial class GdalConfiguration
     {

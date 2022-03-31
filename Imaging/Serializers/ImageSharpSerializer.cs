@@ -74,7 +74,7 @@ namespace JPLOPS.Imaging
                 {
                     if (md.BitDepth == PngBitDepth.Bit8)
                     {
-                        using (var raw = SixLabors.ImageSharp.Image.Load<Gray8>(filename))
+                        using (var raw = SixLabors.ImageSharp.Image.Load<L8>(filename))
                         {
                             var img = new JPLOPS.Imaging.Image(1, raw.Width, raw.Height);
                             for (int r = 0; r < raw.Height; r++)
@@ -89,7 +89,7 @@ namespace JPLOPS.Imaging
                     }
                     else if (md.BitDepth == PngBitDepth.Bit16)
                     {
-                        using (var raw = SixLabors.ImageSharp.Image.Load<Gray16>(filename))
+                        using (var raw = SixLabors.ImageSharp.Image.Load<L16>(filename))
                         {
                             var img = new JPLOPS.Imaging.Image(1, raw.Width, raw.Height);
                             for (int r = 0; r < raw.Height; r++)
@@ -152,13 +152,13 @@ namespace JPLOPS.Imaging
                 {
                     if (typeof(T) == typeof(byte))
                     {
-                        using (var raw = new SixLabors.ImageSharp.Image<Gray8>(image.Width, image.Height))
+                        using (var raw = new SixLabors.ImageSharp.Image<L8>(image.Width, image.Height))
                         {
                             for (int r = 0; r < raw.Height; r++)
                             {
                                 for (int c = 0; c < raw.Width; c++)
                                 {
-                                    raw[c, r] = new Gray8((byte)image[0, r, c]);
+                                    raw[c, r] = new L8((byte)image[0, r, c]);
                                 }
                             }
                             raw.Save(filename, new PngEncoder()
@@ -168,13 +168,13 @@ namespace JPLOPS.Imaging
                     }
                     else if (typeof(T) == typeof(ushort))
                     {
-                        using (var raw = new SixLabors.ImageSharp.Image<Gray16>(image.Width, image.Height))
+                        using (var raw = new SixLabors.ImageSharp.Image<L16>(image.Width, image.Height))
                         {
                             for (int r = 0; r < raw.Height; r++)
                             {
                                 for (int c = 0; c < raw.Width; c++)
                                 {
-                                    raw[c, r] = new Gray16((ushort)image[0, r, c]);
+                                    raw[c, r] = new L16((ushort)image[0, r, c]);
                                 }
                             }
                             raw.Save(filename, new PngEncoder()
