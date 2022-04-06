@@ -36,7 +36,7 @@ if [ $# -lt 1 ]; then
     exit 1
 fi
 
-if [[ `python --version` != *3.?.? ]]; then
+if ! [[ `python --version` =~ "Python 3" ]]; then
     echo "python 3.7+ required"
     exit 1
 fi
