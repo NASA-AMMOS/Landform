@@ -1,8 +1,0 @@
-{
-  "name": "21-stick-export-ply-png",
-  "options": "exportmeshformat=ply&exportimageformat=png",
-  "inputs": [
-    { "mesh": "stick.obj", "texture": "stick.jpg" }
-  ],
-  "maxTime": "1h"
-}

@@ -1,8 +1,0 @@
-{
-  "name": "09-large-mesh",
-  "options": "tilingscheme=QuadY&skirtmode=Y",
-  "inputs": [
-    { "mesh": "hibes_montes_mesh.obj", "texture": "hibes_montes_4km_crop.jpg" }
-  ],
-  "maxTime": "1h"
-}

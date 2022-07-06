@@ -1,8 +1,0 @@
-{
-  "name": "07-position-only",
-  "options": "tilingscheme=Bin&skirtmode=Normal",
-  "inputs": [
-    { "mesh": "itokawa.ply" }
-  ],
-  "maxTime": "1h"
-}

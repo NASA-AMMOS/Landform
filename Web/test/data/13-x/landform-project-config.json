@@ -1,8 +1,0 @@
-{
-  "name": "13-x",
-  "options": "",
-  "inputs": [
-    { "mesh": "x.obj", "texture": "x.lin.png" }
-  ],
-  "maxTime": "6h"
-}
