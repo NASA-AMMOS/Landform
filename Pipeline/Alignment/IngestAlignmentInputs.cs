@@ -257,47 +257,29 @@ namespace JPLOPS.Pipeline
 
             HashSet<string> urls = new HashSet<string>();
 
-            var pdsExts = StringHelper.ParseExts(mission.GetPDSExts())
+            //if there are any LBL files ingest them before IMG
+            //because they will generally refer to other IMG files containing the actual image data
+            //and for each pair (foo.LBL, foo.IMG) we want to mark both URLs as done
+            //because below we're going to also ingest all IMG files
+            //and we can avoid trying to ingest all the foo.IMG that were referred to by foo.LBL
+            //foo.IMG will be a raw PDS data file with no headers and will error out if we try to ingest it anyway
+            var pdsExts = StringHelper.ParseExts(mission.GetPDSExts(prioritizePDSLabelFiles: true))
                 .Select(ext => ext.ToUpper().TrimStart('.'))
                 .ToArray();
-
-            void addRDRs(BaseUrl url, string ext)
+            foreach (var ext in pdsExts)
             {
-                pipeline.LogInfo("{0}ingesting {1} files from {2} for alignment project {3}",
-                                 url.Recursive ? "recursively " : "", ext, url.Url, project.Name);
-                urls.UnionWith(pipeline.SearchFiles(url.Url, "*." + ext, recursive: url.Recursive, ignoreCase: true));
-            }
-                
-            if (mission.AllowPDSLabelFiles() && pdsExts.Contains("LBL"))
-            {
-                //if there are any LBL files ingest them first
-                //because they will generally refer to other IMG files containing the actual image data
-                //and for each pair (foo.LBL, foo.IMG) we want to mark both URLs as done
-                //because below we're going to also ingest all IMG files
-                //and we can avoid trying to ingest all the foo.IMG that were referred to by foo.LBL
-                //foo.IMG will be a raw PDS data file with no headers and will error out if we try to ingest it anyway
+                urls.Clear();
                 foreach (var url in BaseUrls)
                 {
-                    addRDRs(url, "LBL");
+                    pipeline.LogInfo("{0}ingesting {1} files from {2} for alignment project {3}",
+                                     url.Recursive ? "recursively " : "", ext, url.Url, project.Name);
+                    urls.UnionWith(pipeline.SearchFiles(url.Url, "*." + ext, recursive: url.Recursive,
+                                                        ignoreCase: true));
                 }
+                ni = 0;
                 nt = urls.Count();
                 CoreLimitedParallel.ForEach(urls, ingestUrl);
             }
-                
-            urls.Clear();
-            foreach (var url in BaseUrls)
-            {
-                foreach (var ext in pdsExts)
-                {
-                    if (ext != "LBL")
-                    {
-                        addRDRs(url, ext);
-                    }
-                }
-            }
-            nt = urls.Count();
-            ni = 0;
-            CoreLimitedParallel.ForEach(urls, ingestUrl);
 
             AddAlternateExtensions(results);
 

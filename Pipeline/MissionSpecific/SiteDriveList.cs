@@ -438,6 +438,7 @@ namespace JPLOPS.Pipeline
         }
 
         //returns rejection reason iff rejected
+        //returns null if accepted, already present, or an equivalent URL (e.g. VIC vs IMG) is already present
         public string Add(string url)
         {
             var idStr = StringHelper.GetLastUrlPathSegment(url, stripExtension: true);

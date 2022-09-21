@@ -22,6 +22,15 @@ namespace JPLOPS.Pipeline
         [ConfigEnvironmentVariable("LANDFORM_ALLOW_PDS_LABEL_FILES")]
         public bool AllowPDSLabelFiles { get; set; } = false;
 
+        [ConfigEnvironmentVariable("LANDFORM_ALLOW_VIC_FILES")]
+        public bool AllowVICFiles { get; set; } = true;
+
+        [ConfigEnvironmentVariable("LANDFORM_ALLOW_IMG_FILES")]
+        public bool AllowIMGFiles { get; set; } = true;
+
+        [ConfigEnvironmentVariable("LANDFORM_PREFER_IMG_TO_VIC")]
+        public bool PreferIMGToVIC { get; set; } = true;
+
         [ConfigEnvironmentVariable("LANDFORM_ALLOW_LOCATIONS_DB")]
         public bool AllowLocationsDB { get; set; } = false;
 
@@ -408,6 +417,34 @@ namespace JPLOPS.Pipeline
         public virtual bool AllowPDSLabelFiles()
         {
             return MissionConfig.Instance.AllowPDSLabelFiles;
+        }
+
+        /// <summary>
+        /// whether to allow IMG files
+        /// typically IMG are transcoded from VIC
+        /// waiting for the the transcoding may add latency
+        /// but on some missions only the IMG may be persistently stored to S3
+        /// </summary>
+        public virtual bool AllowIMGFiles()
+        {
+            return MissionConfig.Instance.AllowIMGFiles;
+        }
+
+        /// <summary>
+        /// whether to allow VIC files
+        /// on some missions only the IMG may be persistently stored to S3
+        /// </summary>
+        public virtual bool AllowVICFiles()
+        {
+            return MissionConfig.Instance.AllowVICFiles;
+        }
+
+        /// <summary>
+        /// whether to prefer IMG to VIC if both are available
+        /// </summary>
+        public virtual bool PreferIMGToVIC ()
+        {
+            return MissionConfig.Instance.PreferIMGToVIC;
         }
 
         /// <summary>
@@ -1185,14 +1222,26 @@ namespace JPLOPS.Pipeline
         /// Not case sensitive, no leading dots.
         /// In priority order so if a file is available in multiple formats the first one found will be used.
         /// </summary>
-        public virtual string GetPDSExts()
+        public virtual string GetPDSExts(bool disablePDSLabelFiles = false, bool prioritizePDSLabelFiles = false)
         {
-            string exts = "img";
-            if (AllowPDSLabelFiles())
+            string imgExts = AllowIMGFiles() ? "img" : "";
+            if (!disablePDSLabelFiles && AllowPDSLabelFiles())
             {
-                exts += ",lbl";
+                if (prioritizePDSLabelFiles)
+                {
+                    imgExts = "lbl" + (!string.IsNullOrEmpty(imgExts) ? "," : "") + imgExts;
+                }
+                else
+                {
+                    imgExts += (!string.IsNullOrEmpty(imgExts) ? "," : "") + "lbl";
+                }
             }
-            exts += ",vic";
+
+            string vicExts = AllowVICFiles() ? "vic" : "";
+
+            string exts = PreferIMGToVIC() ? imgExts : vicExts;
+            exts += (!string.IsNullOrEmpty(exts) ? "," : "") + (PreferIMGToVIC() ? vicExts : imgExts);
+
             return exts;
         }
 
@@ -1203,7 +1252,8 @@ namespace JPLOPS.Pipeline
         /// </summary>
         public virtual string GetSceneManifestImageRDRExts()
         {
-            return "img,png,jpg";
+            string exts = GetPDSExts(disablePDSLabelFiles: true);
+            return exts + (!string.IsNullOrEmpty(exts) ? "," : "") + "png,jpg";
         }
 
         /// <summary>
