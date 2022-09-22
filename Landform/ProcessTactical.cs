@@ -200,9 +200,12 @@ namespace JPLOPS.Landform
                 }
                 else
                 {
-                    try {
+                    try
+                    {
                         RunPhase("build tileset " + id, () => BuildTacticalTileset(mi));
-                    } catch (Exception ex) {
+                    }
+                    catch (Exception ex)
+                    {
                         pipeline.LogException(ex);
                     }
                 }
@@ -971,7 +974,8 @@ namespace JPLOPS.Landform
                             break;
                         }
                     }
-                    if (mi.image != null) {
+                    if (mi.image != null)
+                    {
                         break;
                     }
                 }
@@ -1011,7 +1015,8 @@ namespace JPLOPS.Landform
                             break;
                         }
                     }
-                    if (mi.image != null) {
+                    if (mi.image != null)
+                    {
                         break;
                     }
                 }
