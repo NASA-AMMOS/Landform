@@ -162,6 +162,8 @@ namespace JPLOPS.Landform
 
         public const int WATCHDOG_PROCESS_RESTART_PERIODS = 12;
 
+        public const int MAX_OPEN_QUEUE_RETRIES = 2;
+
         //there is an interplay between the max message age and the max receive count
         //because each time a message is received it becomes invisible for at least the visibility timeout of the queue
         //which is typically 30s
@@ -709,7 +711,7 @@ namespace JPLOPS.Landform
                              what, name, landformOwned ? "" : "not ");
             bool autoCreateIfLandformOwned = !lvopts.DeleteQueues;
             MessageQueue queue = null;
-            while (true)
+            for (int i = 0; i < MAX_OPEN_QUEUE_RETRIES; i++)
             {
                 try
                 {
