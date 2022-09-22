@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Text.RegularExpressions;
 using CommandLine;
@@ -90,15 +91,19 @@ using JPLOPS.Pipeline.AlignmentServer;
 /// sibling tactical mesh tilesets in the manifest.
 ///
 /// This service can also run in master service mode by specifying --master.  In that mode the service listens for
-/// messages indicating XYZ list files and/or XYZ wedge files have been created or updated.  There is generally one list
-/// file per sitedrive, listing the XYZ wedge RDRs for it.  Once changes have stopped for at least a minimum debounce
-/// period, the master optionally scans for other list and/or wedge files and uses them to develop lists of changed
-/// sitedrives, available sitedrives, and the number of wedges in each sitedrive.  Using PlacesDB to determine distances
-/// between sitedrives, it may then produce one or more contextual mesh messages based on various parameters which limit
-/// the minimum size of a sitedrive for which a contextual mesh is built, the maximum range of sols for which to include
-/// adjacent sitedrives, the maximum distance for adjacent sitedrives, and the maximum number of wedges to include in a
+/// messages indicating XYZ list, XYZ wedge files, wedge texture files, or FDR files have been created or updated.  Once
+/// changes have stopped for at least a minimum debounce period or an EOP or EOX message has been received, the master
+/// optionally scans for other list and/or wedge files and uses them to develop lists of changed sitedrives, available
+/// sitedrives, and the number of wedges in each sitedrive.  Using PlacesDB to determine distances between sitedrives,
+/// it may then produce one or more contextual mesh messages based on various parameters which limit the minimum size of
+/// a sitedrive for which a contextual mesh is built, the maximum range of sols for which to include adjacent
+/// sitedrives, the maximum distance for adjacent sitedrives, and the maximum number of wedges to include in a
 /// contextual mesh.  If PlacesDB is not available then contextual meshes will only be built for single sitedrives, and
 /// cannot combine both orbital and surface data.
+///
+/// Unless --norbital is specified, in master service mode orbital-only contextual meshes will also be built once
+/// changes to FDR files have stopped for at least a minimum debounce period or an EOP, EOX, or EOF message has been
+/// received.  The orbital mesh worker pool may be different from the contextual mesh worker pool.
 ///
 /// By default no management of worker instances is performed.  It is possible to externally manage workers, e.g. by
 /// permanently or manually instantiating them, or with an AWS auto scale group configured to launch workers when SQS
@@ -274,8 +279,26 @@ namespace JPLOPS.Landform
         [Option(Default = ProcessContextual.DEF_TEXTURE_PATTERN, HelpText = "Master service texture filename pattern, case insensitive, null, empty,or \"none\" to reject texture files.  Extension must be .IMG, .VIC or .auto to use mission-specific preferred format.")]
         public string TexturePattern { get; set; }
 
-        [Option(Default = ProcessContextual.DEF_EOP_PATTERN, HelpText = "Master service end-of-processing message pattern, case insensitive, null, empty,or \"none\" to reject EOP messages")]
-        public string EOPPattern { get; set; }
+        [Option(Default = ProcessContextual.DEF_FDR_PATTERN, HelpText = "Master service FDR filename pattern for triggering orbital meshes, case insensitive, null, empty,or \"none\" to reject FDR files (in that case orbital meshes will be triggered on wedge and/or texture files).  Extension must be .IMG, .VIC or .auto to use mission-specific preferred format.")]
+        public string FDRPattern { get; set; }
+
+        [Option(Default = ProcessContextual.DEF_EOP_FILE_PATTERN, HelpText = "Master service end-of-processing file pattern, case insensitive, null, empty,or \"none\" to reject EOP files")]
+        public string EOPFilePattern { get; set; }
+
+        [Option(Default = ProcessContextual.DEF_EOP_MESSAGE_PATTERN, HelpText = "Master service end-of-processing message pattern, case insensitive, null, empty,or \"none\" to reject EOP messages")]
+        public string EOPMessagePattern { get; set; }
+
+        [Option(Default = ProcessContextual.DEF_EOF_FILE_PATTERN, HelpText = "Master service end-of-FDR file pattern, case insensitive, null, empty,or \"none\" to reject EOF files")]
+        public string EOFFilePattern { get; set; }
+
+        [Option(Default = ProcessContextual.DEF_EOF_MESSAGE_PATTERN, HelpText = "Master service end-of-FDR message pattern, case insensitive, null, empty,or \"none\" to reject EOF messages")]
+        public string EOFMessagePattern { get; set; }
+
+        [Option(Default = ProcessContextual.DEF_EOX_FILE_PATTERN, HelpText = "Master service end-of-XYZ file pattern, case insensitive, null, empty,or \"none\" to reject EOX files")]
+        public string EOXFilePattern { get; set; }
+
+        [Option(Default = ProcessContextual.DEF_EOX_MESSAGE_PATTERN, HelpText = "Master service end-of-XYZ message pattern, case insensitive, null, empty,or \"none\" to reject EOX messages")]
+        public string EOXMessagePattern { get; set; }
 
         [Option(Default = false, HelpText = "If using list files (--listpattern is specified) then don't search for sibling list files to detect available sitedrives")]
         public bool NoSearchForAdditionalLists { get; set; }
@@ -378,18 +401,46 @@ namespace JPLOPS.Landform
 
         public const string DEF_WEDGE_PATTERN = "*XYZ*.auto";
         public const string DEF_TEXTURE_PATTERN = "*RAS*.auto";
+        public const string DEF_FDR_PATTERN = "*FDR*.auto";
 
-        //an example EOP message is
-        //EOP at 2021-05-19 05-09-43
-        //however, because we don't know details of the time format (e.g. timezone, 12/24h)
+        //EDRGen notifications
+        //where INST is e.g. fcam, rcam, zcam, ncam, etc
+        //empty S3 file: ids-pipeline/edrgen-status/INST/yyyy-MM-dd hh-mm-ss-INST.xml
+        //sns/sqs message payload: "Edrgen done at yyyy-MM-dd hh-mm-ss"
+
+        //EOF notifications (end-of-FDR)
+        //https://jira.jpl.nasa.gov/browse/MSGDS-7447
+        //empty S3 file: ids-pipeline/eof/yyyy-MM-dd-hh-mm-ss.eof
+        //sns/sqs message payload: "Fdr done at yyyy-MM-dd hh-mm-ss"
+        
+        //EOX notifications (end-of-XYZ)
+        //https://jira.jpl.nasa.gov/browse/MSGDS-7433
+        //empty S3 file: ids-pipeline/eox/yyyy-MM-dd-hh-mm-ss.eox
+        //sns/sqs message payload: "TODO at yyyy-MM-dd hh-mm-ss"
+
+        //EOP notifications
+        //empty S3 file: ids-pipeline/eop/yyyy-MM-dd-hh-mm-ss.eop
+        //(but there can be variations, e.g. kgrimes-manual-yyyyMMdd.eop)
+        //sns/sqs message payload: "EOP at yyyy-MM-dd hh-mm-ss"
+
+        public const string DEF_EOP_FILE_PATTERN = "eop/*.eop"; 
+        public const string DEF_EOF_FILE_PATTERN = "eof/*.eof"; 
+        public const string DEF_EOX_FILE_PATTERN = "eox/*.eox"; //TODO
+
+        //because we don't know details of the time format (e.g. timezone, 12/24h)
         //let's just conservatively look for "EOP"
         //and call the timestamp the time we received it
         //which is more in line with how we timestamp changed RDR URLs anyway
-        public const string DEF_EOP_PATTERN = "*EOP*"; 
+        //note these patterns will be applied case-insensitive
+        public const string DEF_EOP_MESSAGE_PATTERN = "*EOP at*"; 
+        public const string DEF_EOF_MESSAGE_PATTERN = "*Fdr done*"; 
+        public const string DEF_EOX_MESSAGE_PATTERN = "*Xyz done*"; //TODO
 
         protected ProcessContextualOptions options;
 
-        private Regex listRegex, wedgeRegex, textureRegex, eopRegex;
+        private Regex listRegex, wedgeRegex, textureRegex, fdrRegex;
+        private Regex eopFileRegex, eofFileRegex, eoxFileRegex;
+        private Regex eopMessageRegex, eofMessageRegex, eoxMessageRegex;
 
         private int debounceMS;
         private int solRange, maxSDs;
@@ -403,13 +454,16 @@ namespace JPLOPS.Landform
         //when MasterLoop() sees that none have changed for a given RDR directory in at least options.MasterDebounceSec
         //then that directory will be processed and its changed URLs cleared
         //synchronization is by locking this object itself
-        private Dictionary<string, Dictionary<SiteDrive, Dictionary<string, long>>> changedURLs =
+        private Dictionary<string, Dictionary<SiteDrive, Dictionary<string, long>>> changedContextualURLs =
+            new Dictionary<string, Dictionary<SiteDrive, Dictionary<string, long>>>();
+        private Dictionary<string, Dictionary<SiteDrive, Dictionary<string, long>>> changedOrbitalURLs =
             new Dictionary<string, Dictionary<SiteDrive, Dictionary<string, long>>>();
 
-        //if EOP messages are enabled this is the timestamp of the latest EOP message in UTC millisecond
-        //MasterLoop() will process all pending changedURLs when this becomes non-negative
-        //synchronization is by locking changedURLs
+        //if EOP messages are enabled this is the timestamp of the latest EOP message in UTC milliseconds
+        //MasterLoop() will process all pending changed URLs when this becomes non-negative
         private long eopTimestamp = -1;
+        private long eofTimestamp = -1; //orbital meshes can begin processing as soon as FDRs are done
+        private long eoxTimestamp = -1; //contextual meshes can begin processing as soon as XYZ,UVW,MXY,RAS are done
 
         private List<string> workerInstances, orbitalWorkerInstances;
 
@@ -569,6 +623,16 @@ namespace JPLOPS.Landform
             public string eop;
         }
 
+        private class EOFMessage : QueueMessage
+        {
+            public string eof;
+        }
+
+        private class EOXMessage : QueueMessage
+        {
+            public string eox;
+        }
+
         //defines the job of building one contextual mesh
         //can be built from a ContextualMeshMessage (worker service mode) or command line arguments (batch mode)
         private class ContextualMeshParameters
@@ -675,6 +739,14 @@ namespace JPLOPS.Landform
             {
                 return "EOP message: " + ((EOPMessage)msg).eop;
             }
+            else if (msg is EOFMessage)
+            {
+                return "EOF message: " + ((EOFMessage)msg).eof;
+            }
+            else if (msg is EOXMessage)
+            {
+                return "EOX message: " + ((EOXMessage)msg).eox;
+            }
             else if (msg is ContextualMeshMessage)
             {
                 try
@@ -711,10 +783,13 @@ namespace JPLOPS.Landform
         {
             string msg =
                 options.SendMessage.IndexOf("://") >= 0 ? options.SendMessage : File.ReadAllText(options.SendMessage);
-            if (options.Master && eopRegex != null && eopRegex.IsMatch(msg))
+            if (options.Master &&
+                ((eopMessageRegex != null && eopMessageRegex.IsMatch(msg)) ||
+                 (eofMessageRegex != null && eofMessageRegex.IsMatch(msg)) ||
+                 (eoxMessageRegex != null && eoxMessageRegex.IsMatch(msg))))
             {
-                pipeline.LogInfo("{0}sending EOP message to queue {1}",
-                                 options.DryRun ? "dry " : "", messageQueue.Name);
+                pipeline.LogInfo("{0}sending EOP/EOF/EOX message \"{1}\" to queue {2}",
+                                 options.DryRun ? "dry " : "", msg, messageQueue.Name);
                 if (!options.DryRun)
                 {
                     messageQueue.Enqueue(msg);
@@ -744,7 +819,7 @@ namespace JPLOPS.Landform
             {
                 try
                 {
-                    if (msg is EOPMessage)
+                    if (msg is EOPMessage || msg is EOFMessage || msg is EOXMessage)
                     {
                         return true;
                     }
@@ -757,32 +832,38 @@ namespace JPLOPS.Landform
                     bool isList = listRegex != null && listRegex.IsMatch(url);
                     bool isWedge = wedgeRegex != null && wedgeRegex.IsMatch(url);
                     bool isTexture = textureRegex != null && textureRegex.IsMatch(url);
-                    if (!isList && !isWedge && !isTexture)
+                    bool isFDR = fdrRegex != null && fdrRegex.IsMatch(url);
+                    bool isEOP = eopFileRegex != null && eopFileRegex.IsMatch(url);
+                    bool isEOF = eofFileRegex != null && eofFileRegex.IsMatch(url);
+                    bool isEOX = eoxFileRegex != null && eoxFileRegex.IsMatch(url);
+                    if (!isList && !isWedge && !isTexture && !isFDR && !isEOP && !isEOF && !isEOX)
                     {
                         reason = "unhandled file type: " + url;
                         return false;
                     }
-                    if (!AcceptBucketPath(url, allowInternal: isList))
+                    if (!AcceptBucketPath(url, allowInternal: isList || isEOP || isEOF || isEOX))
                     {
                         reason = "rejected bucket path: " + url;
                         return false;
                     }
+                    Func<RoverProductId, string, string> filter = null; //? expression not allowed here until C# 9
                     if (isWedge)
                     {
-                        var idStr = StringHelper.GetLastUrlPathSegment(url, stripExtension: true);
-                        var id = RoverProductId.Parse(idStr, mission, throwOnFail: false);
-                        reason = FilterWedge(id, url);
-                        if (reason != null)
-                        {
-                            reason += ": " + url;
-                            return false;
-                        }
+                        filter = FilterWedge;
                     }
-                    if (isTexture)
+                    else if (isTexture)
+                    {
+                        filter = FilterTexture;
+                    }
+                    else if (isFDR)
+                    {
+                        filter = FilterFDR;
+                    }
+                    if (filter != null)
                     {
                         var idStr = StringHelper.GetLastUrlPathSegment(url, stripExtension: true);
                         var id = RoverProductId.Parse(idStr, mission, throwOnFail: false);
-                        reason = FilterTexture(id, url);
+                        reason = filter(id, url);
                         if (reason != null)
                         {
                             reason += ": " + url;
@@ -816,17 +897,43 @@ namespace JPLOPS.Landform
             }
         }
 
+        private void AddChangedURL(Dictionary<string, Dictionary<SiteDrive, Dictionary<string, long>>> changedURLs,
+                                   string rdrDir, SiteDrive sd, string url)
+        {
+            lock (changedURLs)
+            {
+                if (!changedURLs.ContainsKey(rdrDir))
+                {
+                    changedURLs[rdrDir] = new Dictionary<SiteDrive, Dictionary<string, long>>();
+                }
+                if (!changedURLs[rdrDir].ContainsKey(sd))
+                {
+                    changedURLs[rdrDir][sd] = new Dictionary<string, long>();
+                }
+                changedURLs[rdrDir][sd][url] = (long)UTCTime.NowMS();
+            }
+        }
+
         protected override bool HandleMessage(QueueMessage msg)
         {
             if (options.Master)
             {
                 if (msg is EOPMessage)
                 {
-                    lock (changedURLs)
-                    {
-                        eopTimestamp = (long)UTCTime.NowMS();
-                    }
+                    Interlocked.Exchange(ref eopTimestamp, (long)UTCTime.NowMS());
                     pipeline.LogInfo("received EOP message \"{0}\"", ((EOPMessage)msg).eop.Trim());
+                    return true; //successfully processed, remove message from queue
+                }
+                if (msg is EOFMessage)
+                {
+                    Interlocked.Exchange(ref eofTimestamp, (long)UTCTime.NowMS());
+                    pipeline.LogInfo("received EOF message \"{0}\"", ((EOFMessage)msg).eof.Trim());
+                    return true; //successfully processed, remove message from queue
+                }
+                if (msg is EOXMessage)
+                {
+                    Interlocked.Exchange(ref eoxTimestamp, (long)UTCTime.NowMS());
+                    pipeline.LogInfo("received EOX message \"{0}\"", ((EOXMessage)msg).eox.Trim());
                     return true; //successfully processed, remove message from queue
                 }
                 string url = StringHelper.NormalizeUrl(GetUrlFromMessage(msg)); 
@@ -834,6 +941,24 @@ namespace JPLOPS.Landform
                 {
                     pipeline.LogWarn("file {0} not found", url);
                     return true; //drop message, maybe file was deleted or renamed
+                }
+                if (eopFileRegex != null && eopFileRegex.IsMatch(url))
+                {
+                    Interlocked.Exchange(ref eopTimestamp, (long)UTCTime.NowMS());
+                    pipeline.LogInfo("processed EOP file {0}", url);
+                    return true; //successfully processed, remove message from queue
+                }
+                if (eofFileRegex != null && eofFileRegex.IsMatch(url))
+                {
+                    Interlocked.Exchange(ref eofTimestamp, (long)UTCTime.NowMS());
+                    pipeline.LogInfo("processed EOF file {0}", url);
+                    return true; //successfully processed, remove message from queue
+                }
+                if (eoxFileRegex != null && eoxFileRegex.IsMatch(url))
+                {
+                    Interlocked.Exchange(ref eoxTimestamp, (long)UTCTime.NowMS());
+                    pipeline.LogInfo("processed EOX file {0}", url);
+                    return true; //successfully processed, remove message from queue
                 }
                 var rdrDir = SiteDriveList.GetRDRDir(url);
                 if (rdrDir == null && listRegex != null && listRegex.IsMatch(url))
@@ -856,17 +981,13 @@ namespace JPLOPS.Landform
                     pipeline.LogWarn("failed to parse site drive from URL {0}", url);
                     return true; //drop message
                 }
-                lock (changedURLs)
+                if (!options.NoOrbital && (fdrRegex == null || fdrRegex.IsMatch(url)))
                 {
-                    if (!changedURLs.ContainsKey(rdrDir))
-                    {
-                        changedURLs[rdrDir] = new Dictionary<SiteDrive, Dictionary<string, long>>();
-                    }
-                    if (!changedURLs[rdrDir].ContainsKey(sd.Value))
-                    {
-                        changedURLs[rdrDir][sd.Value] = new Dictionary<string, long>();
-                    }
-                    changedURLs[rdrDir][sd.Value][url] = (long)UTCTime.NowMS();
+                    AddChangedURL(changedOrbitalURLs, rdrDir, sd.Value, url);
+                }
+                if (!options.NoSurface)
+                {
+                    AddChangedURL(changedContextualURLs, rdrDir, sd.Value, url);
                 }
                 return true; //successfully processed, remove message from queue
             }
@@ -894,9 +1015,17 @@ namespace JPLOPS.Landform
 
         protected override QueueMessage AlternateMessageHandler(string msg)
         {
-            if (options.Master && eopRegex != null && eopRegex.IsMatch(msg))
+            if (options.Master && eopMessageRegex != null && eopMessageRegex.IsMatch(msg))
             {
                 return new EOPMessage() { eop = msg };
+            }
+            if (options.Master && eofMessageRegex != null && eofMessageRegex.IsMatch(msg))
+            {
+                return new EOFMessage() { eof = msg };
+            }
+            if (options.Master && eoxMessageRegex != null && eoxMessageRegex.IsMatch(msg))
+            {
+                return new EOXMessage() { eox = msg };
             }
             return null;
         }
@@ -961,6 +1090,13 @@ namespace JPLOPS.Landform
                 pipeline.LogInfo("texture regex: " + textureRegex);
             }
             
+            if (!string.IsNullOrEmpty(options.FDRPattern) &&
+                !string.Equals(options.FDRPattern, "none", StringComparison.OrdinalIgnoreCase))
+            {
+                fdrRegex = MakeURLRegex(ParseRDRExtension(options.FDRPattern, "--fdrpattern"));
+                pipeline.LogInfo("FDR regex: " + fdrRegex);
+            }
+            
             if (options.Master)
             {
                 if (!string.IsNullOrEmpty(options.ListPattern) &&
@@ -970,12 +1106,52 @@ namespace JPLOPS.Landform
                     pipeline.LogInfo("list regex: " + listRegex);
                 }
 
-                if (!string.IsNullOrEmpty(options.EOPPattern) &&
-                    !string.Equals(options.EOPPattern, "none", StringComparison.OrdinalIgnoreCase))
+                if (!string.IsNullOrEmpty(options.EOPFilePattern) &&
+                    !string.Equals(options.EOPFilePattern, "none", StringComparison.OrdinalIgnoreCase))
                 {
-                    eopRegex = StringHelper.WildcardToRegularExpression(options.EOPPattern, fullMatch: true,
-                                                                        opts: RegexOptions.IgnoreCase);
-                    pipeline.LogInfo("EOP regex: " + eopRegex);
+                    eopFileRegex = MakeURLRegex(options.EOPFilePattern);
+                    pipeline.LogInfo("EOP file regex: " + eopFileRegex);
+                }
+
+                if (!string.IsNullOrEmpty(options.EOPMessagePattern) &&
+                    !string.Equals(options.EOPMessagePattern, "none", StringComparison.OrdinalIgnoreCase))
+                {
+                    eopMessageRegex =
+                        StringHelper.WildcardToRegularExpression(options.EOPMessagePattern, fullMatch: true,
+                                                                 opts: RegexOptions.IgnoreCase);
+                    pipeline.LogInfo("EOP message regex: " + eopMessageRegex);
+                }
+
+                if (!string.IsNullOrEmpty(options.EOFFilePattern) &&
+                    !string.Equals(options.EOFFilePattern, "none", StringComparison.OrdinalIgnoreCase))
+                {
+                    eofFileRegex = MakeURLRegex(options.EOFFilePattern);
+                    pipeline.LogInfo("EOF file regex: " + eofFileRegex);
+                }
+
+                if (!string.IsNullOrEmpty(options.EOFMessagePattern) &&
+                    !string.Equals(options.EOFMessagePattern, "none", StringComparison.OrdinalIgnoreCase))
+                {
+                    eofMessageRegex =
+                        StringHelper.WildcardToRegularExpression(options.EOFMessagePattern, fullMatch: true,
+                                                                 opts: RegexOptions.IgnoreCase);
+                    pipeline.LogInfo("EOF message regex: " + eofMessageRegex);
+                }
+
+                if (!string.IsNullOrEmpty(options.EOXFilePattern) &&
+                    !string.Equals(options.EOXFilePattern, "none", StringComparison.OrdinalIgnoreCase))
+                {
+                    eoxFileRegex = MakeURLRegex(options.EOXFilePattern);
+                    pipeline.LogInfo("EOX file regex: " + eoxFileRegex);
+                }
+
+                if (!string.IsNullOrEmpty(options.EOXMessagePattern) &&
+                    !string.Equals(options.EOXMessagePattern, "none", StringComparison.OrdinalIgnoreCase))
+                {
+                    eoxMessageRegex =
+                        StringHelper.WildcardToRegularExpression(options.EOXMessagePattern, fullMatch: true,
+                                                                 opts: RegexOptions.IgnoreCase);
+                    pipeline.LogInfo("EOX message regex: " + eoxMessageRegex);
                 }
 
                 if (!serviceUtilMode || options.DeleteQueues)
@@ -985,9 +1161,18 @@ namespace JPLOPS.Landform
                         throw new Exception("--workerqueuename required with --master");
                     }
                     workerQueue = GetWorkerMessageQueue();
-                    if (!string.IsNullOrEmpty(options.OrbitalWorkerQueueName) && !options.DeleteQueues)
+                    if (workerQueue != null)
+                    {
+                        pipeline.LogInfo("worker queue: {0}", workerQueue.Name);
+                    }
+                    if (!string.IsNullOrEmpty(options.OrbitalWorkerQueueName) && !options.DeleteQueues &&
+                        !options.NoOrbital)
                     {
                         orbitalWorkerQueue = GetOrbitalWorkerMessageQueue();
+                        if (orbitalWorkerQueue != null)
+                        {
+                            pipeline.LogInfo("orbital worker queue: {0}", orbitalWorkerQueue.Name);
+                        }
                     }
                 }
 
@@ -1856,6 +2041,11 @@ namespace JPLOPS.Landform
                 (mission.IsVideoProduct(id, url, videoEDRExists) ? "excluded video product" : null);
         }
 
+        private string FilterFDR(RoverProductId id, string url)
+        {
+            return FilterProduct(id);
+        }
+
         //RRR_[TTTT]SSSDDDD[I][_VV].lis
         //where RRR is e.g. xyz, xym, iv, etc; TTTT is sol; SSS site; DDDD drive; I instrument; VV version
         private static readonly Regex LIST_FILENAME_REGEX =
@@ -2073,7 +2263,7 @@ namespace JPLOPS.Landform
         }
 
         //called by
-        //MasterLoop()
+        //MasterLoop() -> EnqueueContextualMessages()
         private Dictionary<SiteDrive, Stamped<SiteDriveList>>
             LoadSiteDriveLists(string rdrDir, Dictionary<SiteDrive, Dictionary<string, long>> urls)
         {
@@ -2204,7 +2394,7 @@ namespace JPLOPS.Landform
 
             bool reFilter = false;
 
-            if (!options.NoSearchForAdditionalLists && listRegex != null) //handle options.ListPattern=none
+            if (!options.NoSearchForAdditionalLists && listRegex != null)
             {
                 int additionalLists = 0, additionalSitedrives = 0;
 
@@ -2398,18 +2588,9 @@ namespace JPLOPS.Landform
             if ((!changedSDsBySol.ContainsKey(primarySol) || primarySD < changedSDsBySol[primarySol].Max()) &&
                 options.MinPrimarySiteDriveWedges > 0 && primarySDList.NumWedges < options.MinPrimarySiteDriveWedges)
             {
-                if (orbitalWorkerQueue == null)
-                {
-                    pipeline.LogInfo("making orbital only contextual mesh {0} in {1}, {2} < {3} wedges",
-                                     name, rdrDir, primarySDList.NumWedges, options.MinPrimarySiteDriveWedges);
-                    return MakeOrbitalMeshMessage(primarySDList);
-                }
-                else
-                {
-                    pipeline.LogInfo("skipping contextual mesh {0} in {1}, {2} < {3} wedges",
-                                     name, rdrDir, primarySDList.NumWedges, options.MinPrimarySiteDriveWedges);
-                    return null;
-                }
+                pipeline.LogInfo("skipping contextual mesh {0} in {1}, {2} < {3} wedges",
+                                 name, rdrDir, primarySDList.NumWedges, options.MinPrimarySiteDriveWedges);
+                return null;
             }
 
             int maxWedges = mission.GetContextualMeshMaxWedges();
@@ -2700,6 +2881,12 @@ namespace JPLOPS.Landform
         private int EnqueueMessages(List<Stamped<ContextualMeshMessage>> msgs, string what, MessageQueue queue,
                                     string rdrDir)
         {
+            if (queue == null)
+            {
+                pipeline.LogError("cannot enqueue {0} {1} mesh messages, failed to open queue", msgs.Count, what);
+                return 0;
+            }
+
             //default order messages by when the corresponding sitedrive list changed (oldest to newest)
             var coalesced = msgs.OrderBy(sm => sm.Timestamp).Select(sm => sm.Value).ToList();
             try
@@ -2882,21 +3069,189 @@ namespace JPLOPS.Landform
             }
         }
 
+        //urls: RDR directory -> sitedrive -> list or wedge URL -> last changed UTC milliseconds
+        private void EnqueueOrbitalMessages(Dictionary<string, Dictionary<SiteDrive, Dictionary<string, long>>> urls)
+        {
+            foreach (var rdrDir in urls.Keys)
+            {
+                var omsgs = new List<Stamped<ContextualMeshMessage>>();
+                foreach (var sd in urls[rdrDir].Keys.OrderByDescending(sd => sd).ToList())
+                {
+                    if (urls[rdrDir][sd].Count > 0)
+                    {
+                        int sol = urls[rdrDir][sd]
+                            .Max(entry => SiteDriveList.GetSol(entry.Key, RoverProductId.Parse(entry.Key, mission,
+                                                                                               throwOnFail: false)));
+                        if (sol >= 0)
+                        {
+                            long stamp = urls[rdrDir][sd].Max(entry => entry.Value);
+                            var msg = MakeOrbitalMeshMessage(rdrDir, sol, sd);
+                            omsgs.Add(new Stamped<ContextualMeshMessage>(msg, stamp));
+                        }
+                        else
+                        {
+                            pipeline.LogWarn("error getting sol for orbital mesh {0} in {1}, first url {2}",
+                                             sd, rdrDir, urls[rdrDir][sd].First().Key);
+                        }
+                    }
+                }
+                lock (credentialRefreshLock)
+                {
+                    if (EnqueueMessages(omsgs, "orbital", orbitalWorkerQueue ?? workerQueue, rdrDir) > 0 &&
+                        options.AutoStartWorkers && options.WorkerAutoStartSec > 0)
+                    {
+                        StartWorkers(orbitalWorkerInstances, "orbital");
+                    }
+                }
+            }
+        }
+
+        //urls: RDR directory -> sitedrive -> list or wedge URL -> last changed UTC milliseconds
+        private void EnqueueContextualMessages(Dictionary<string, Dictionary<SiteDrive, Dictionary<string, long>>> urls)
+        {
+            foreach (var rdrDir in urls.Keys)
+            {
+                Dictionary<SiteDrive, Stamped<SiteDriveList>> sdLists = null;
+                lock (longRunningCredentialRefereshLock)
+                {
+                    sdLists = LoadSiteDriveLists(rdrDir, urls[rdrDir]);
+                }
+                
+                var changedSDs = urls[rdrDir].Keys
+                    .Where(sd => sdLists.ContainsKey(sd))
+                    .OrderByDescending(sd => sd)
+                    .ToList();
+                
+                if (changedSDs.Count < 1)
+                {
+                    pipeline.LogWarn("failed to load sitedrive lists for RDR dir {0} " +
+                                     "with {1} changed URLs in {2} changed sitedrives {3}",
+                                     rdrDir, urls[rdrDir].Values.Sum(u => u.Count),
+                                     urls[rdrDir].Count, string.Join(",", urls[rdrDir].Keys));
+                    continue;
+                }
+                
+                var allSDs = new Dictionary<SiteDrive, SiteDriveList>();
+                foreach (var entry in sdLists)
+                {
+                    allSDs[entry.Key] = entry.Value.Value;
+                }
+                
+                var changedSDsBySol = new Dictionary<int, List<SiteDrive>>();
+                foreach (var sd in changedSDs)
+                {
+                    int sol = allSDs[sd].MaxSol;
+                    if (!changedSDsBySol.ContainsKey(sol))
+                    {
+                        changedSDsBySol[sol] = new List<SiteDrive>();
+                    }
+                    changedSDsBySol[sol].Add(sd);
+                }
+                
+                if (options.MaxSiteDrivesPerSolPerPass > 0)
+                {
+                    foreach (int sol in new HashSet<int>(changedSDsBySol.Keys))
+                    {
+                        var filtered = changedSDsBySol[sol]
+                            .OrderByDescending(sd => sd)
+                            .Take(options.MaxSiteDrivesPerSolPerPass)
+                            .ToList();
+                        if (filtered.Count < changedSDsBySol[sol].Count)
+                        {
+                            var discarded = changedSDsBySol[sol]
+                                .OrderByDescending(sd => sd)
+                                .Skip(options.MaxSiteDrivesPerSolPerPass)
+                                .ToList();
+                            pipeline.LogInfo("kept {0} highest numbered sitedrives {1} for sol {2} " +
+                                             "changed in this pass, discarded {3} other sitedrives {4}",
+                                             filtered.Count, string.Join(",", filtered), sol,
+                                             discarded.Count, string.Join(",", discarded));
+                        }   
+                        changedSDsBySol[sol] = filtered;
+                    }
+                    changedSDs = changedSDsBySol.Values
+                        .SelectMany(sds => sds)
+                        .OrderByDescending(sd => sd)
+                        .ToList();
+                }
+                
+                //try to connect to PlacesDB just for this pass
+                //rather than having a single long-lived PlacesDB connection
+                //for one thing our PlacesDB interface caches results, and the cache could become stale
+                //also, particularly in certain dev scenarios, PlacesDB availability may be iffy
+                //better to try on each pass rather than once ever
+                var msgs = new List<Stamped<ContextualMeshMessage>>();
+                bool usePlaces = UsePlacesDB();
+                lock (usePlaces ? longRunningCredentialRefereshLock : new Object())
+                {
+                    var placesDB = usePlaces ? InitPlacesDB() : null;
+                    foreach (var changedSD in changedSDs)
+                    {
+                        try
+                        {
+                            var msg = MakeContextualMeshMessage(changedSD, changedSDsBySol, allSDs, placesDB);
+                            if (msg != null)
+                            {
+                                msgs.Add(new Stamped<ContextualMeshMessage>(msg, sdLists[changedSD].Timestamp));
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            pipeline.LogException(ex, "error processing sitedrive " + changedSD);
+                        }
+                    }
+                }
+                lock (credentialRefreshLock)
+                {
+                    if (EnqueueMessages(msgs, "contextual", workerQueue, rdrDir) > 0 &&
+                        options.AutoStartWorkers && options.WorkerAutoStartSec > 0)
+                    {
+                        StartWorkers(workerInstances);
+                    }
+                }
+            }
+        }
+
+        //changedURLs: RDR directory -> sitedrive -> list or wedge URL -> last changed UTC milliseconds
+        Dictionary<string, Dictionary<SiteDrive, Dictionary<string, long>>>
+            ProcessChangedURLs(Dictionary<string, Dictionary<SiteDrive, Dictionary<string, long>>> changedURLs,
+                               bool eop, string eopMsg, string what)
+        {
+            long now = (long)UTCTime.NowMS();
+            var urls = new Dictionary<string, Dictionary<SiteDrive, Dictionary<string, long>>>();
+            lock (changedURLs)
+            {
+                foreach (string rdrDir in changedURLs.Keys)
+                {
+                    long lastChange = changedURLs[rdrDir].Values
+                        .SelectMany(d => d.Values)
+                        .DefaultIfEmpty(-1)
+                        .Max();
+
+                    bool debounceTimeout = lastChange >= 0 && (debounceMS <= 0 || lastChange <= (now - debounceMS));
+
+                    if (eop || debounceTimeout)
+                    {
+                        urls[rdrDir] = changedURLs[rdrDir];
+                        string lastChangeMsg = lastChange >= 0 ?
+                            $", last change at {ToLocalTime(lastChange)}, {(debounceMS / 1000):f3}s debounce" : "";
+                        pipeline.LogInfo("processing RDR dir {0} for new {1} meshes, " +
+                                         "{2} changed sitedrives{3}, {4}", rdrDir, what, urls[rdrDir].Count,
+                                         lastChangeMsg, eop ? eopMsg : "(debounce timeout)");
+                    }
+                }
+                foreach (string rdrDir in urls.Keys)
+                {
+                    changedURLs.Remove(rdrDir);
+                }
+            }
+            return urls;
+        }
+                    
         private void MasterLoop()
         {
             double lastStartSec = -1;
             int targetPeriodSec = MASTER_LOOP_PERIOD_SEC;
-
-            if (workerQueue != null)
-            {
-                pipeline.LogInfo("worker queue: {0}", workerQueue.Name);
-            }
-
-            if (orbitalWorkerQueue != null)
-            {
-                pipeline.LogInfo("orbital worker queue: {0}", orbitalWorkerQueue.Name);
-            }
-
             pipeline.LogInfo("running master loop, period {0}s, debounce {1}s", targetPeriodSec, debounceMS / 1000);
 
             while (!abort)
@@ -2927,191 +3282,42 @@ namespace JPLOPS.Landform
                         }
                     }
 
-                    long now = (long)UTCTime.NowMS();
+                    long eofMS = Interlocked.Exchange(ref eofTimestamp, -1); 
+                    long eoxMS = Interlocked.Exchange(ref eoxTimestamp, -1); 
+                    long eopMS = Interlocked.Exchange(ref eopTimestamp, -1); 
+                    bool gotEOF = eofMS >= 0;
+                    bool gotEOX = eoxMS >= 0;
+                    bool gotEOP = eopMS >= 0;
 
-                    //RDR directory -> sitedrive -> list or wedge URL -> last changed UTC milliseconds
-                    var urlsToProcess = new Dictionary<string, Dictionary<SiteDrive, Dictionary<string, long>>>();
-                    lock (changedURLs)
+                    //don't delay orbital meshes while we collect adjacent sitedrives for contextual meshes
+                    //in practice that can take like ~30min
+                    //https://github.jpl.nasa.gov/OnSight/Landform/issues/1224
+                    if (!options.NoOrbital)
                     {
-                        foreach (string rdrDir in changedURLs.Keys)
+                        var orbitalURLs = ProcessChangedURLs(changedOrbitalURLs, gotEOF || gotEOX || gotEOP,
+                                                             gotEOF ? $"EOF at {ToLocalTime(eofTimestamp)}" :
+                                                             gotEOX ? $"EOX at {ToLocalTime(eoxTimestamp)}" :
+                                                             gotEOP ? $"EOP at {ToLocalTime(eopTimestamp)}" : "",
+                                                             "orbital");
+                        if (orbitalURLs.Count > 0)
                         {
-                            long lastChange = changedURLs[rdrDir].Values
-                                .SelectMany(d => d.Values)
-                                .DefaultIfEmpty(-1)
-                                .Max();
-                            if (eopTimestamp >= 0 ||
-                                (lastChange >= 0 && (debounceMS <= 0 || lastChange <= (now - debounceMS))))
-                            {
-                                urlsToProcess[rdrDir] = changedURLs[rdrDir];
-                                pipeline.LogInfo("processing RDR dir {0}, {1} changed sitedrives{2}{3}",
-                                                 rdrDir, urlsToProcess[rdrDir].Count, lastChange >= 0 ?
-                                                 ($", last change at {ToLocalTime(lastChange)}" +
-                                                  $", {(debounceMS / 1000):f3}s debounce") : "",
-                                                 eopTimestamp > 0 ? $", EOP at {ToLocalTime(eopTimestamp)}" : "");
-
-                            }
-                        }
-                        eopTimestamp = -1;
-                        foreach (string rdrDir in urlsToProcess.Keys)
-                        {
-                            changedURLs.Remove(rdrDir);
-                        }
-                    }
-                    
-                    foreach (var rdrDir in urlsToProcess.Keys)
-                    {
-                        //don't delay orbital meshes while we collect adjacent sitedrives for contextual meshes
-                        //in practice that can take like ~30min
-                        //https://github.jpl.nasa.gov/OnSight/Landform/issues/1224
-                        if (orbitalWorkerQueue != null)
-                        {
-                            var omsgs = new List<Stamped<ContextualMeshMessage>>();
-                            foreach (var sd in urlsToProcess[rdrDir].Keys.OrderByDescending(sd => sd).ToList())
-                            {
-                                var urls = urlsToProcess[rdrDir][sd];
-                                if (urls.Count > 0)
-                                {
-                                    int sol = urls
-                                        .Max(entry => SiteDriveList.GetSol(entry.Key,
-                                                                           RoverProductId.Parse(entry.Key, mission,
-                                                                                                throwOnFail: false)));
-                                    if (sol >= 0)
-                                    {
-                                        long stamp = urls.Max(entry => entry.Value);
-                                        var msg = MakeOrbitalMeshMessage(rdrDir, sol, sd);
-                                        omsgs.Add(new Stamped<ContextualMeshMessage>(msg, stamp));
-                                    }
-                                    else
-                                    {
-                                        pipeline.LogWarn("error getting sol for orbital mesh {0} in {1}, first url {2}",
-                                                         sd, rdrDir, urls.First().Key);
-                                    }
-                                }
-                            }
-                            lock (credentialRefreshLock)
-                            {
-                                if (EnqueueMessages(omsgs, "orbital", orbitalWorkerQueue, rdrDir) > 0 &&
-                                    options.AutoStartWorkers && options.WorkerAutoStartSec > 0)
-                                {
-                                    StartWorkers(orbitalWorkerInstances, "orbital");
-                                }
-                            }
-                        }
-
-                        if (workerQueue == null)
-                        {
-                            pipeline.LogWarn("not enqueing contextual mesh messages for {0}, no worker queue", rdrDir);
-                            continue;
-                        }
-
-                        Dictionary<SiteDrive, Stamped<SiteDriveList>> sdLists = null;
-                        lock (longRunningCredentialRefereshLock)
-                        {
-                            sdLists = LoadSiteDriveLists(rdrDir, urlsToProcess[rdrDir]);
-                        }
-
-                        var changedSDs = urlsToProcess[rdrDir].Keys
-                            .Where(sd => sdLists.ContainsKey(sd))
-                            .OrderByDescending(sd => sd)
-                            .ToList();
-
-                        if (changedSDs.Count < 1)
-                        {
-                            pipeline.LogWarn("failed to load sitedrive lists for RDR dir {0} " +
-                                             "with {1} changed URLs in {2} changed sitedrives {3}",
-                                             rdrDir, urlsToProcess[rdrDir].Values.Sum(urls => urls.Count),
-                                             urlsToProcess[rdrDir].Count, string.Join(",", urlsToProcess[rdrDir].Keys));
-                            continue;
-                        }
-
-                        var allSDs = new Dictionary<SiteDrive, SiteDriveList>();
-                        foreach (var entry in sdLists)
-                        {
-                            allSDs[entry.Key] = entry.Value.Value;
-                        }
-
-                        var changedSDsBySol = new Dictionary<int, List<SiteDrive>>();
-                        foreach (var sd in changedSDs)
-                        {
-                            int sol = allSDs[sd].MaxSol;
-                            if (!changedSDsBySol.ContainsKey(sol))
-                            {
-                                changedSDsBySol[sol] = new List<SiteDrive>();
-                            }
-                            changedSDsBySol[sol].Add(sd);
-                        }
-
-                        if (options.MaxSiteDrivesPerSolPerPass > 0)
-                        {
-                            foreach (int sol in new HashSet<int>(changedSDsBySol.Keys))
-                            {
-                                var filtered = changedSDsBySol[sol]
-                                    .OrderByDescending(sd => sd)
-                                    .Take(options.MaxSiteDrivesPerSolPerPass)
-                                    .ToList();
-                                if (filtered.Count < changedSDsBySol[sol].Count)
-                                {
-                                    var discarded = changedSDsBySol[sol]
-                                        .OrderByDescending(sd => sd)
-                                        .Skip(options.MaxSiteDrivesPerSolPerPass)
-                                        .ToList();
-                                    pipeline.LogInfo("kept {0} highest numbered sitedrives {1} for sol {2} " +
-                                                     "changed in this pass, discarded {3} other sitedrives {4}",
-                                                     filtered.Count, string.Join(",", filtered), sol,
-                                                     discarded.Count, string.Join(",", discarded));
-                                }   
-                                changedSDsBySol[sol] = filtered;
-                            }
-                            changedSDs = changedSDsBySol.Values
-                                .SelectMany(sds => sds)
-                                .OrderByDescending(sd => sd)
-                                .ToList();
-                        }
-
-                        //try to connect to PlacesDB just for this pass
-                        //rather than having a single long-lived PlacesDB connection
-                        //for one thing our PlacesDB interface caches results, and the cache could become stale
-                        //also, particularly in certain dev scenarios, PlacesDB availability may be iffy
-                        //better to try on each pass rather than once ever
-                        var msgs = new List<Stamped<ContextualMeshMessage>>();
-                        bool usePlaces = !options.NoSurface && UsePlacesDB();
-                        lock (usePlaces ? longRunningCredentialRefereshLock : new Object())
-                        {
-                            var placesDB = usePlaces ? InitPlacesDB() : null;
-                            foreach (var changedSD in changedSDs)
-                            {
-                                try
-                                {
-                                    var msg = options.NoSurface ?
-                                        MakeOrbitalMeshMessage(allSDs[changedSD]) :
-                                        MakeContextualMeshMessage(changedSD, changedSDsBySol, allSDs, placesDB);
-                                    if (msg != null)
-                                    {
-                                        msgs.Add(new Stamped<ContextualMeshMessage>(msg, sdLists[changedSD].Timestamp));
-                                    }
-                                }
-                                catch (Exception ex)
-                                {
-                                    pipeline.LogException(ex, "error processing sitedrive " + changedSD);
-                                }
-                            }
-                        }
-                        lock (credentialRefreshLock)
-                        {
-                            if (EnqueueMessages(msgs, "contextual", workerQueue, rdrDir) > 0 &&
-                                options.AutoStartWorkers && options.WorkerAutoStartSec > 0)
-                            {
-                                StartWorkers(workerInstances);
-                            }
+                            EnqueueOrbitalMessages(orbitalURLs);
                         }
                     }
 
-                    if (urlsToProcess.Count > 0)
+                    if (!options.NoSurface)
                     {
-                        pipeline.DeleteDownloadCache();
+                        var contextualURLs = ProcessChangedURLs(changedContextualURLs, gotEOX || gotEOP,
+                                                                gotEOX ? $"EOX at {ToLocalTime(eoxTimestamp)}" :
+                                                                gotEOP ? $"EOP at {ToLocalTime(eopTimestamp)}" : "",
+                                                                "contextual");
+                        if (contextualURLs.Count > 0)
+                        {
+                            EnqueueContextualMessages(contextualURLs);
+                            pipeline.DeleteDownloadCache();
+                            FetchData.ExpireEDRCache(msg => pipeline.LogInfo(msg));
+                        }
                     }
-
-                    FetchData.ExpireEDRCache(msg => pipeline.LogInfo(msg));
                 }
                 catch (Exception masterException)
                 {
