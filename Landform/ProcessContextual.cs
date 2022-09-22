@@ -268,10 +268,10 @@ namespace JPLOPS.Landform
         [Option(Default = null, HelpText = "Master service list filename pattern, case insensitive, e.g. xyz_*.lis, null, empty, or \"none\" to reject list files")]
         public string ListPattern { get; set; }
 
-        [Option(Default = ProcessContextual.DEF_WEDGE_PATTERN, HelpText = "Master service wedge filename pattern, case insensitive, null, empty,or \"none\" to reject wedge files")]
+        [Option(Default = ProcessContextual.DEF_WEDGE_PATTERN, HelpText = "Master service wedge filename pattern, case insensitive, null, empty,or \"none\" to reject wedge files.  Extension must be .IMG, .VIC or .auto to use mission-specific preferred format.")]
         public string WedgePattern { get; set; }
 
-        [Option(Default = ProcessContextual.DEF_TEXTURE_PATTERN, HelpText = "Master service texture filename pattern, case insensitive, null, empty,or \"none\" to reject texture files")]
+        [Option(Default = ProcessContextual.DEF_TEXTURE_PATTERN, HelpText = "Master service texture filename pattern, case insensitive, null, empty,or \"none\" to reject texture files.  Extension must be .IMG, .VIC or .auto to use mission-specific preferred format.")]
         public string TexturePattern { get; set; }
 
         [Option(Default = ProcessContextual.DEF_EOP_PATTERN, HelpText = "Master service end-of-processing message pattern, case insensitive, null, empty,or \"none\" to reject EOP messages")]
@@ -360,7 +360,7 @@ namespace JPLOPS.Landform
         public const int VERSION_INTERLOCK_SEC = 10;
         public const int DEF_ZOMBIE_SEC = 6 * 60 * 60; //6 hours
 
-        //currently up to ~5min gaps in XYZ IMG within one pass
+        //currently up to ~5min gaps in XYZ RDRs within one pass
         //but PlacesDB orbital solutions may not stabilize for up to 25 min after generation
         //of navcam orthomosaics
         public const int DEF_DEBOUNCE_SEC = 30 * 60; //30 minutes
@@ -376,8 +376,8 @@ namespace JPLOPS.Landform
         public const string DEF_MAX_FETCH = "100G";
         public const string DEF_MAX_ORBITAL = "20G";
 
-        public const string DEF_WEDGE_PATTERN = "*XYZ*.IMG";
-        public const string DEF_TEXTURE_PATTERN = "*RAS*.IMG";
+        public const string DEF_WEDGE_PATTERN = "*XYZ*.auto";
+        public const string DEF_TEXTURE_PATTERN = "*RAS*.auto";
 
         //an example EOP message is
         //EOP at 2021-05-19 05-09-43
@@ -901,6 +901,22 @@ namespace JPLOPS.Landform
             return null;
         }
 
+        private string ParseRDRExtension(string filenamePattern, string what)
+        {
+            if (filenamePattern.EndsWith(".auto", StringComparison.OrdinalIgnoreCase))
+            {
+                return filenamePattern.Substring(0, filenamePattern.Length - 5) +
+                    (mission.PreferIMGToVIC() ? ".IMG" : ".VIC");
+            }
+            else if (filenamePattern.EndsWith(".VIC", StringComparison.OrdinalIgnoreCase) ||
+                     filenamePattern.EndsWith(".IMG", StringComparison.OrdinalIgnoreCase))
+            {
+                return filenamePattern;
+            }
+            throw new Exception("invalid extension for " + what + "=\"" + filenamePattern +
+                                "\", must be .IMG, .VIC, or .auto");
+        }
+
         private Regex MakeURLRegex(string filenamePattern)
         {
             string pat =
@@ -934,14 +950,14 @@ namespace JPLOPS.Landform
             if (!string.IsNullOrEmpty(options.WedgePattern) &&
                 !string.Equals(options.WedgePattern, "none", StringComparison.OrdinalIgnoreCase))
             {
-                wedgeRegex = MakeURLRegex(options.WedgePattern);
+                wedgeRegex = MakeURLRegex(ParseRDRExtension(options.WedgePattern, "--wedgepattern"));
                 pipeline.LogInfo("wedge regex: " + wedgeRegex);
             }
             
             if (!string.IsNullOrEmpty(options.TexturePattern) &&
                 !string.Equals(options.TexturePattern, "none", StringComparison.OrdinalIgnoreCase))
             {
-                textureRegex = MakeURLRegex(options.TexturePattern);
+                textureRegex = MakeURLRegex(ParseRDRExtension(options.TexturePattern, "--texturepattern"));
                 pipeline.LogInfo("texture regex: " + textureRegex);
             }
             
