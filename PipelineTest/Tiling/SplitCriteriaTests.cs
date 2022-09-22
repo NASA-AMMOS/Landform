@@ -11,6 +11,12 @@ namespace PipelineTest
     [TestClass()]
     public class SplitCriteriaTests
     {
+        [TestInitialize()]
+        public void Startup()
+        {
+            Embree.RTC.InitEmbree();
+        }
+
         [TestMethod()]
         public void FaceShouldSplitTest()
         {

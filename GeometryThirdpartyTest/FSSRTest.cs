@@ -7,6 +7,7 @@ using JPLOPS.Util;
 namespace GeometryThirdpartyTest
 {
     [TestClass]
+    [DeploymentItem("ExternalApps", "ExternalApps")]
     public class FSSRTest
     {
         [TestInitialize]

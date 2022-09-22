@@ -12,10 +12,14 @@ namespace RayTraceTest
     [TestClass]
     [DeploymentItem("TestData", "TestData")]
     [DeploymentItem("gdal", "gdal")]
-    [DeploymentItem("x86", "x86")]
     [DeploymentItem("x64", "x64")]
     public class SceneCasterTest
     {
+        [TestInitialize()]
+        public void Startup()
+        {
+            Embree.RTC.InitEmbree();
+        }
 
         static Mesh LoadMesh()
         {

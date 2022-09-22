@@ -37,23 +37,23 @@
     <DefineConstants>TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
+    <PlatformTarget>x64</PlatformTarget>
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="Embree.NET, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>..\packages\Embree.NET.1.0.0.1\lib\net40\Embree.NET.dll</HintPath>
-      <Private>True</Private>
     </Reference>
-    <Reference Include="gdalconst_csharp, Version=3.4.2.0, Culture=neutral, PublicKeyToken=db5a52b08dc5b321, processorArchitecture=MSIL">
-      <HintPath>..\packages\GDAL.3.4.2\lib\netstandard2.0\gdalconst_csharp.dll</HintPath>
+    <Reference Include="gdalconst_csharp, Version=3.5.2.0, Culture=neutral, PublicKeyToken=db5a52b08dc5b321, processorArchitecture=MSIL">
+      <HintPath>..\packages\GDAL.3.5.2\lib\netstandard2.0\gdalconst_csharp.dll</HintPath>
     </Reference>
-    <Reference Include="gdal_csharp, Version=3.4.2.0, Culture=neutral, PublicKeyToken=db5a52b08dc5b321, processorArchitecture=MSIL">
-      <HintPath>..\packages\GDAL.3.4.2\lib\netstandard2.0\gdal_csharp.dll</HintPath>
+    <Reference Include="gdal_csharp, Version=3.5.2.0, Culture=neutral, PublicKeyToken=db5a52b08dc5b321, processorArchitecture=MSIL">
+      <HintPath>..\packages\GDAL.3.5.2\lib\netstandard2.0\gdal_csharp.dll</HintPath>
     </Reference>
-    <Reference Include="ogr_csharp, Version=3.4.2.0, Culture=neutral, PublicKeyToken=db5a52b08dc5b321, processorArchitecture=MSIL">
-      <HintPath>..\packages\GDAL.3.4.2\lib\netstandard2.0\ogr_csharp.dll</HintPath>
+    <Reference Include="ogr_csharp, Version=3.5.2.0, Culture=neutral, PublicKeyToken=db5a52b08dc5b321, processorArchitecture=MSIL">
+      <HintPath>..\packages\GDAL.3.5.2\lib\netstandard2.0\ogr_csharp.dll</HintPath>
     </Reference>
-    <Reference Include="osr_csharp, Version=3.4.2.0, Culture=neutral, PublicKeyToken=db5a52b08dc5b321, processorArchitecture=MSIL">
-      <HintPath>..\packages\GDAL.3.4.2\lib\netstandard2.0\osr_csharp.dll</HintPath>
+    <Reference Include="osr_csharp, Version=3.5.2.0, Culture=neutral, PublicKeyToken=db5a52b08dc5b321, processorArchitecture=MSIL">
+      <HintPath>..\packages\GDAL.3.5.2\lib\netstandard2.0\osr_csharp.dll</HintPath>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Numerics" />
@@ -128,11 +128,11 @@
     <PropertyGroup>
       <ErrorText>This project references NuGet package(s) that are missing on this computer. Use NuGet Package Restore to download them.  For more information, see http://go.microsoft.com/fwlink/?LinkID=322105. The missing file is {0}.</ErrorText>
     </PropertyGroup>
+    <Error Condition="!Exists('..\packages\GDAL.Native.3.5.2\build\netstandard2.0\GDAL.Native.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\GDAL.Native.3.5.2\build\netstandard2.0\GDAL.Native.targets'))" />
     <Error Condition="!Exists('..\packages\Embree.NET.1.0.0.1\build\Embree.NET.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\Embree.NET.1.0.0.1\build\Embree.NET.targets'))" />
-    <Error Condition="!Exists('..\packages\GDAL.Native.3.4.2\build\netstandard2.0\GDAL.Native.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\GDAL.Native.3.4.2\build\netstandard2.0\GDAL.Native.targets'))" />
   </Target>
+  <Import Project="..\packages\GDAL.Native.3.5.2\build\netstandard2.0\GDAL.Native.targets" Condition="Exists('..\packages\GDAL.Native.3.5.2\build\netstandard2.0\GDAL.Native.targets')" />
   <Import Project="..\packages\Embree.NET.1.0.0.1\build\Embree.NET.targets" Condition="Exists('..\packages\Embree.NET.1.0.0.1\build\Embree.NET.targets')" />
-  <Import Project="..\packages\GDAL.Native.3.4.2\build\netstandard2.0\GDAL.Native.targets" Condition="Exists('..\packages\GDAL.Native.3.4.2\build\netstandard2.0\GDAL.Native.targets')" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.
   <Target Name="BeforeBuild">

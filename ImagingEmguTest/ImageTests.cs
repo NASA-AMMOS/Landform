@@ -11,7 +11,6 @@ namespace ImagingEmguTest
     [TestClass]
     [DeploymentItem("gdal", "gdal")]
     [DeploymentItem("TestData", "TestData")]
-    [DeploymentItem("x86", "x86")]
     [DeploymentItem("x64", "x64")]
     public class ImageTests
     {

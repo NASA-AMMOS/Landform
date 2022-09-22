@@ -6,7 +6,6 @@ namespace GeometryThirdpartyTest
 {
     [TestClass]
     [DeploymentItem("TestData", "TestData")]
-    [DeploymentItem("ExternalApps", "ExternalApps")]
     public class OpenInventorSerializerTest
     {
         [TestMethod]
