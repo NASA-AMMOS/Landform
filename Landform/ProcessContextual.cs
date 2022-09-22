@@ -12,6 +12,12 @@ using JPLOPS.Pipeline;
 using JPLOPS.Geometry;
 using JPLOPS.Pipeline.AlignmentServer;
 
+//RDR directory -> sitedrive -> list or wedge URL -> last changed UTC milliseconds
+using DictionaryOfChangedURLs =
+    System.Collections.Generic.Dictionary<string,
+        System.Collections.Generic.Dictionary<JPLOPS.Pipeline.SiteDrive,
+            System.Collections.Generic.Dictionary<string, long>>>;
+
 /// <summary>
 /// Landform contextual mesh tileset workflow service and tool.
 ///
@@ -379,6 +385,8 @@ namespace JPLOPS.Landform
 
         public const int MASTER_LOOP_PERIOD_SEC = 10;
 
+        public const int MAX_CONTEXTUAL_PASS_QUEUE_SIZE = 100;
+
         public const int MAX_VERSION = 100;
         public const int VERSION_INTERLOCK_SEC = 10;
         public const int DEF_ZOMBIE_SEC = 6 * 60 * 60; //6 hours
@@ -449,15 +457,14 @@ namespace JPLOPS.Landform
 
         private volatile MessageQueue workerQueue, orbitalWorkerQueue;
 
-        //RDR directory -> sitedrive -> list or wedge URL -> last changed UTC milliseconds
         //list and wedge URLs for which we recently recived ObjectCreated (i.e. changed) messages
         //when MasterLoop() sees that none have changed for a given RDR directory in at least options.MasterDebounceSec
         //then that directory will be processed and its changed URLs cleared
         //synchronization is by locking this object itself
-        private Dictionary<string, Dictionary<SiteDrive, Dictionary<string, long>>> changedContextualURLs =
-            new Dictionary<string, Dictionary<SiteDrive, Dictionary<string, long>>>();
-        private Dictionary<string, Dictionary<SiteDrive, Dictionary<string, long>>> changedOrbitalURLs =
-            new Dictionary<string, Dictionary<SiteDrive, Dictionary<string, long>>>();
+        private DictionaryOfChangedURLs changedContextualURLs = new DictionaryOfChangedURLs();
+        private DictionaryOfChangedURLs changedOrbitalURLs = new DictionaryOfChangedURLs();
+
+        private Queue<DictionaryOfChangedURLs> contextualPassQueue = new Queue<DictionaryOfChangedURLs>();
 
         //if EOP messages are enabled this is the timestamp of the latest EOP message in UTC milliseconds
         //MasterLoop() will process all pending changed URLs when this becomes non-negative
@@ -897,8 +904,7 @@ namespace JPLOPS.Landform
             }
         }
 
-        private void AddChangedURL(Dictionary<string, Dictionary<SiteDrive, Dictionary<string, long>>> changedURLs,
-                                   string rdrDir, SiteDrive sd, string url)
+        private void AddChangedURL(DictionaryOfChangedURLs changedURLs, string rdrDir, SiteDrive sd, string url)
         {
             lock (changedURLs)
             {
@@ -1360,6 +1366,7 @@ namespace JPLOPS.Landform
             if (options.Master)
             {
                 Task.Run(() => MasterLoop());
+                Task.Run(() => ContextualPassLoop());
             }
             base.RunService();
         }
@@ -2026,7 +2033,7 @@ namespace JPLOPS.Landform
         //actually called from
         //ServiceLoop() -> AcceptMessage()
         //ServiceLoop() -> HandleMessage()
-        //MasterLoop() (locks credentialRefreshLock) ->  LoadSiteDriveLists() [-> MakeList()]
+        //EnqueueContextualMessages() (locks credentialRefreshLock) ->  LoadSiteDriveLists() [-> MakeList()]
         //RunBatch() -> BuildContextualTileset() -> MakeParameters() -> FindAllSiteDrives() [-> MakeList()] (no lock)
         private string FilterTexture(RoverProductId id, string url)
         {
@@ -2267,8 +2274,7 @@ namespace JPLOPS.Landform
             return ret;
         }
 
-        //called by
-        //MasterLoop() -> EnqueueContextualMessages()
+        //called by EnqueueContextualMessages()
         private Dictionary<SiteDrive, Stamped<SiteDriveList>>
             LoadSiteDriveLists(string rdrDir, Dictionary<SiteDrive, Dictionary<string, long>> urls)
         {
@@ -2882,7 +2888,7 @@ namespace JPLOPS.Landform
             return coalesced;
         }
 
-        //uses SQS, called only by MasterLoop() while holding credentialRefreshLock
+        //uses SQS, called only while holding credentialRefreshLock
         private int EnqueueMessages(List<Stamped<ContextualMeshMessage>> msgs, string what, MessageQueue queue,
                                     string rdrDir)
         {
@@ -3074,8 +3080,7 @@ namespace JPLOPS.Landform
             }
         }
 
-        //urls: RDR directory -> sitedrive -> list or wedge URL -> last changed UTC milliseconds
-        private void EnqueueOrbitalMessages(Dictionary<string, Dictionary<SiteDrive, Dictionary<string, long>>> urls)
+        private void EnqueueOrbitalMessages(DictionaryOfChangedURLs urls)
         {
             foreach (var rdrDir in urls.Keys)
             {
@@ -3111,8 +3116,7 @@ namespace JPLOPS.Landform
             }
         }
 
-        //urls: RDR directory -> sitedrive -> list or wedge URL -> last changed UTC milliseconds
-        private void EnqueueContextualMessages(Dictionary<string, Dictionary<SiteDrive, Dictionary<string, long>>> urls)
+        private void EnqueueContextualMessages(DictionaryOfChangedURLs urls)
         {
             foreach (var rdrDir in urls.Keys)
             {
@@ -3215,15 +3219,17 @@ namespace JPLOPS.Landform
                     }
                 }
             }
+
+            pipeline.DeleteDownloadCache();
+            FetchData.ExpireEDRCache(msg => pipeline.LogInfo(msg));
         }
 
         //changedURLs: RDR directory -> sitedrive -> list or wedge URL -> last changed UTC milliseconds
-        Dictionary<string, Dictionary<SiteDrive, Dictionary<string, long>>>
-            ProcessChangedURLs(Dictionary<string, Dictionary<SiteDrive, Dictionary<string, long>>> changedURLs,
-                               bool eop, string eopMsg, string what)
+        DictionaryOfChangedURLs ProcessChangedURLs(DictionaryOfChangedURLs changedURLs, bool eop, string eopMsg,
+                                                   string what)
         {
             long now = (long)UTCTime.NowMS();
-            var urls = new Dictionary<string, Dictionary<SiteDrive, Dictionary<string, long>>>();
+            var urls = new DictionaryOfChangedURLs();
             lock (changedURLs)
             {
                 foreach (string rdrDir in changedURLs.Keys)
@@ -3294,9 +3300,6 @@ namespace JPLOPS.Landform
                     bool gotEOX = eoxMS >= 0;
                     bool gotEOP = eopMS >= 0;
 
-                    //don't delay orbital meshes while we collect adjacent sitedrives for contextual meshes
-                    //in practice that can take like ~30min
-                    //https://github.jpl.nasa.gov/OnSight/Landform/issues/1224
                     if (!options.NoOrbital)
                     {
                         var orbitalURLs = ProcessChangedURLs(changedOrbitalURLs, gotEOF || gotEOX || gotEOP,
@@ -3318,9 +3321,24 @@ namespace JPLOPS.Landform
                                                                 "contextual");
                         if (contextualURLs.Count > 0)
                         {
-                            EnqueueContextualMessages(contextualURLs);
-                            pipeline.DeleteDownloadCache();
-                            FetchData.ExpireEDRCache(msg => pipeline.LogInfo(msg));
+                            lock (contextualPassQueue)
+                            {
+                                if (contextualPassQueue.Count < MAX_CONTEXTUAL_PASS_QUEUE_SIZE)
+                                {
+                                    //don't delay orbital meshes while we collect adjacent sitedrives for contextual
+                                    //in practice that can take like ~30min
+                                    //https://github.jpl.nasa.gov/OnSight/Landform/issues/1224
+                                    contextualPassQueue.Enqueue(contextualURLs);
+                                    pipeline.LogInfo("enqueued batch of URLs for contextual processing, queue size {0}",
+                                                 contextualPassQueue.Count);
+                                }
+                                else
+                                {
+                                    pipeline.LogError("failed to enqueue batch of URLs for contextual processing, " +
+                                                      "queue size {0} >= {1}",
+                                                      contextualPassQueue.Count, MAX_CONTEXTUAL_PASS_QUEUE_SIZE);
+                                }
+                            }
                         }
                     }
                 }
@@ -3333,5 +3351,47 @@ namespace JPLOPS.Landform
             }
             pipeline.LogInfo("shutting down, exiting master loop");
         }
+
+        private void ContextualPassLoop()
+        {
+            double lastStartSec = -1;
+            int targetPeriodSec = MASTER_LOOP_PERIOD_SEC;
+            pipeline.LogInfo("running contextual pass loop, period {0}s", targetPeriodSec);
+            while (!abort)
+            {
+                if (lastStartSec >= 0)
+                {
+                    double actualPeriodSec = UTCTime.Now() - lastStartSec;
+                    SleepSec(targetPeriodSec - actualPeriodSec); //negative ignored
+                }
+                lastStartSec = UTCTime.Now();
+
+                try
+                {
+                    DictionaryOfChangedURLs urls = null;
+                    lock (contextualPassQueue)
+                    {
+                        if (contextualPassQueue.Count > 0)
+                        {
+                            urls = contextualPassQueue.Dequeue();
+                            pipeline.LogInfo("dequeued batch of URLs for contextual processing, queue size {0}",
+                                             contextualPassQueue.Count);
+                        }
+                    }
+                    if (urls != null)
+                    {
+                        EnqueueContextualMessages(urls);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    pipeline.LogException(ex, string.Format("error in contextual pass loop, throttling {0}",
+                                                            Fmt.HMS(SERVICE_LOOP_THROTTLE_SEC * 1e3)));
+                    SleepSec(SERVICE_LOOP_THROTTLE_SEC);
+                }
+            }
+            pipeline.LogInfo("shutting down, exiting contextual pass loop");
+        }
     }
 }
+

@@ -204,7 +204,7 @@ namespace JPLOPS.Landform
         /// To prevent RefreshCredentials() from being called while the credentials may be in use, other threads which
         /// require credentials should hold credentialRefreshLock only while needed.  Potentially long running
         /// operations should use longRunningCredentialRefereshLock instead.  The only place that both locks should be
-        /// qcquired simultaneously is in ServiceLoop() before calling RefreshCredentials().  To prevent any chance of
+        /// acquired simultaneously is in ServiceLoop() before calling RefreshCredentials().  To prevent any chance of
         /// deadlock acquisition order should always be:
         /// credentialRefreshLock[, longRunningCredentialRefereshLock], deleteMessageLock.
         ///
