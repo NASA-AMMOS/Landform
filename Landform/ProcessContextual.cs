@@ -1372,6 +1372,11 @@ namespace JPLOPS.Landform
             }
         }
 
+        protected override bool UseMessageStopwatch()
+        {
+            return false;
+        }
+
         public static string MakeSolRanges(HashSet<int> sols)
         {
             var ranges = new List<int[]>();

@@ -650,6 +650,11 @@ namespace JPLOPS.Landform
             return false;
         }
 
+        protected virtual bool UseMessageStopwatch()
+        {
+            return true;
+        }
+
         protected virtual QueueMessage MakeRecycledMessage(QueueMessage msg)
         {
             throw new NotImplementedException("cannot make recycled messages");
@@ -1064,6 +1069,7 @@ namespace JPLOPS.Landform
             int throttleMS = GetDequeueThrottleMS();
             int maxAgeSec = GetMaxMessageAgeSec();
             int maxReceiveCount = GetMaxReceiveCount();
+            bool messageStopwatch = UseMessageStopwatch();
             pipeline.LogInfo("running service loop on queue {0}, throttle {1}ms", messageQueue.Name, throttleMS);
 
             if (!string.IsNullOrEmpty(selfEC2InstanceID) && lvopts.IdleShutdownSec > 0 &&
@@ -1156,7 +1162,10 @@ namespace JPLOPS.Landform
 
                         if (accepted && !tooOld)
                         {
-                            StartStopwatch();
+                            if (messageStopwatch)
+                            {
+                                StartStopwatch();
+                            }
                             
                             currentMessage = msg;
                             messageStartSec = (uint)UTCTime.Now();
@@ -1196,7 +1205,10 @@ namespace JPLOPS.Landform
                                 pipeline.LogException(deleteException, "deleting message");
                             }
 
-                            StopStopwatch(brief: true);
+                            if (messageStopwatch)
+                            {
+                                StopStopwatch(brief: true);
+                            }
                         }
                         else //not accepted or too old
                         {
