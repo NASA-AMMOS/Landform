@@ -713,18 +713,16 @@ namespace JPLOPS.Landform
             }
             inputFolder = StringHelper.EnsureTrailingSlash(StringHelper.NormalizeSlashes(inputFolder));
             int rdrIdx = -1;
-            int rdrSegLength = 0;
             foreach (string rdrSubdir in RDR_SUBDIRS)
             {
                 string rdrSegment = string.Format("/{0}/", rdrSubdir.ToLower());
                 rdrIdx = inputFolder.ToLower().LastIndexOf(rdrSegment);
                 if (rdrIdx >= 0)
                 {
-                    rdrSegLength = rdrSegment.Length;
                     break;
                 }
             }
-            string ret = (rdrIdx >= 0 ? inputFolder.Substring(0, rdrIdx + rdrSegLength) : inputFolder) + TILESET_SUBDIR;
+            string ret = (rdrIdx >= 0 ? (inputFolder.Substring(0, rdrIdx) + "/rdr/") : inputFolder) + TILESET_SUBDIR;
             foreach (string rb in StringHelper.ParseList(lsopts.ReadonlyBuckets))
             {
                 if (ret.StartsWith("s3://" + StringHelper.EnsureTrailingSlash(StringHelper.NormalizeSlashes(rb))))
@@ -998,6 +996,19 @@ namespace JPLOPS.Landform
                     pipeline.LogWarn("{0} not found in {1} while saving to {2}", TILESET_JSON, tilesetDir, destDir);
                 }
             }
+        }
+
+        /// rdrDir is e.g.
+        /// * "s3://BUCKET/ods/VER/sol/#####/ids/rdr"
+        /// * "s3://BUCKET/ods/VER/YYYY/###/ids/rdr"
+        /// * "s3://BUCKET/foo/bar"
+        /// * "c:/foo/bar"
+        /// * "./foo/bar"
+        protected virtual bool TilesetExists(string rdrDir, int sol, string project, bool checkPID = true)
+        {
+            string destDir = GetDestDir(StringHelper.ReplaceIntWildcards(rdrDir, sol));
+            string pfx = string.Format("{0}/{1}/{2}_", destDir, project, project);
+            return FileExists(pfx + TILESET_JSON) || (checkPID && FileExists(pfx + PID_JSON));
         }
 
         protected void Fetch(string maxDownload, string input, string output, params string[] extraArgs)

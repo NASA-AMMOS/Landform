@@ -246,6 +246,12 @@ namespace JPLOPS.Landform
         [Option(Default = false, HelpText = "option disabled for this command")]
         public override bool CaseSensitiveSearch { get; set; }
 
+        [Option(Default = false, HelpText = "Overwrite existing orbital tilesets")]
+        public bool OverwriteExistingOrbital { get; set; }
+
+        [Option(Default = false, HelpText = "Don't Overwrite existing contextual tilesets")]
+        public bool NoOverwriteExistingContextual { get; set; }
+
         [Option(Default = null, HelpText = "option disabled for this command")]
         public override string MeshFormat { get; set; }
 
@@ -1759,6 +1765,35 @@ namespace JPLOPS.Landform
             return SavePID(destDir, project, phase.ToString(), pidFile);
         }
 
+        protected override bool TilesetExists(string rdrDir, int sol, string project, bool checkPID = true)
+        {
+            return base.TilesetExists(rdrDir ?? options.RDRDir, sol, project, checkPID);
+        }
+
+        //normally don't need to check each possible version
+        //because if version n exists then version n-1 should also exist if n > 0
+        private bool VersionedTilesetExists(string rdrDir, int sol, string project, bool checkPID = true)
+        {
+            string sfx = "_orbital";
+            if (project.EndsWith(sfx))
+            {
+                project = project.Substring(0, project.Length - sfx.Length);
+            }
+            else
+            {
+                sfx = "";
+            }
+            for (int i = 0; i <= MAX_VERSION; i++)
+            {
+                string version = i > 0 ? ("V" + i.ToString("D2")) : "";
+                if (TilesetExists(rdrDir, sol, project + version + sfx, checkPID))
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
         /// <summary>
         /// rdrDir is e.g.
         /// * "s3://BUCKET/ods/VER/sol/#####/ids/rdr"
@@ -2771,17 +2806,42 @@ namespace JPLOPS.Landform
 
         /// <summary>
         /// Combines a batch of new contextual mesh messages with existing ones in the worker queue.
+        /// Also optionally removes messages for tilesets which are already processed (or being processed).
         /// The messages must all have the same RDR dir.
         /// De-dupes, preferring newer-created messages to older.
         /// enforces options.MaxSiteDrivesPerSol
         /// Returns messages sorted first by decreasing sol, then by decreasing number of wedges.
         /// </summary>
         private List<ContextualMeshMessage> CoalesceMessages(List<ContextualMeshMessage> newMsgsOldestToNewest,
-                                                             string what, MessageQueue queue, string rdrDir)
+                                                             string what, MessageQueue queue, string rdrDir,
+                                                             bool cullExisting)
         {
             if (newMsgsOldestToNewest.Count == 0)
             {
                 return newMsgsOldestToNewest;
+            }
+
+            if (cullExisting)
+            {
+                var keep = new List<ContextualMeshMessage>();
+                foreach (var msg in newMsgsOldestToNewest)
+                {
+                    string project = string.Format("{0}_{1}{2}", SolToString(msg.primarySol),
+                                                   msg.primarySiteDrive.ToString(), msg.orbitalOnly ? "_orbital" : "");
+                    if (!TilesetExists(msg.rdrDir, msg.primarySol, project))
+                    {
+                        keep.Add(msg);
+                    }
+                    else
+                    {
+                        pipeline.LogInfo("culling {0} message for {1}, already processing", what, project);
+                    }
+                }
+                if (keep.Count == 0)
+                {
+                    return keep;
+                }
+                newMsgsOldestToNewest = keep;
             }
 
             pipeline.LogInfo("coalescing {0} new {1} messages with existing", newMsgsOldestToNewest.Count, what);
@@ -2890,7 +2950,7 @@ namespace JPLOPS.Landform
 
         //uses SQS, called only while holding credentialRefreshLock
         private int EnqueueMessages(List<Stamped<ContextualMeshMessage>> msgs, string what, MessageQueue queue,
-                                    string rdrDir)
+                                    string rdrDir, bool cullExisting)
         {
             if (queue == null)
             {
@@ -2903,7 +2963,7 @@ namespace JPLOPS.Landform
             try
             {
                 //remove duplicates and order descending by sol, then sitedrive, then num wedges
-                coalesced = CoalesceMessages(coalesced, what, queue, rdrDir);
+                coalesced = CoalesceMessages(coalesced, what, queue, rdrDir, cullExisting);
             }
             catch (Exception ex)
             {
@@ -3107,7 +3167,8 @@ namespace JPLOPS.Landform
                 }
                 lock (credentialRefreshLock)
                 {
-                    if (EnqueueMessages(omsgs, "orbital", orbitalWorkerQueue ?? workerQueue, rdrDir) > 0 &&
+                    bool overwrite = options.OverwriteExistingOrbital;
+                    if (EnqueueMessages(omsgs, "orbital", orbitalWorkerQueue ?? workerQueue, rdrDir, !overwrite) > 0 &&
                         options.AutoStartWorkers && options.WorkerAutoStartSec > 0)
                     {
                         StartWorkers(orbitalWorkerInstances, "orbital");
@@ -3212,7 +3273,8 @@ namespace JPLOPS.Landform
                 }
                 lock (credentialRefreshLock)
                 {
-                    if (EnqueueMessages(msgs, "contextual", workerQueue, rdrDir) > 0 &&
+                    bool overwrite = !options.NoOverwriteExistingContextual;
+                    if (EnqueueMessages(msgs, "contextual", workerQueue, rdrDir, overwrite) > 0 &&
                         options.AutoStartWorkers && options.WorkerAutoStartSec > 0)
                     {
                         StartWorkers(workerInstances);
