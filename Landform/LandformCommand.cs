@@ -16,9 +16,6 @@ namespace JPLOPS.Landform
         [Value(0, Required = true, HelpText = "project name", Default = null)]
         public virtual string ProjectName { get; set; }
 
-        [Option(HelpText = "Operate on cloud data", Default = false)]
-        public bool Cloud { get; set; }
-
         [Option(HelpText = "Redo all", Default = false)]
         public bool Redo { get; set; }
 

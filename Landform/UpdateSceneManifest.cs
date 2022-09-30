@@ -31,12 +31,12 @@ using JPLOPS.Pipeline;
 /// their adjusted poses.
 ///
 /// The tilesets (tactical and contextual) must all have the same parent directory --tilesetdir and may either be local
-/// files on disk or on S3 (even without --cloud).
+/// files on disk or on S3.
 ///
 /// Unless --nourls is specified the RDRs must be available (for both tactical and contextual) under --rdrdir.  They can
-/// also be either local files on disk or on S3 (even without --cloud).
+/// also be either local files on disk or on S3.
 ///
-/// The manifest file can also be either a local file on disk or on S3 (even without --cloud).
+/// The manifest file can also be either a local file on disk or on S3.
 ///
 /// Examples:
 ///

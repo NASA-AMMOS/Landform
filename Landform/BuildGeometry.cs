@@ -85,13 +85,11 @@ using System.IO;
 /// attempted by specifying --generateuvs.  https://github.jpl.nasa.gov/OnSight/Landform/issues/902,
 /// https://github.jpl.nasa.gov/OnSight/Landform/issues/1116
 ///
-/// If a tileset is not required, the full scene mesh can also be directly saved by specifying an output mesh as the
-/// second positional command line argument.  When running locally this can be either a relative or absolute disk path
-/// with an accepted mesh file extension, or just the extension, in which case a default filename will be used in the
-/// current working directory.  When running with --cloud the output mesh must either be a URL within the project venue
-/// storage area, or a relative path which will be prepended with the project storage venue URL and
-/// "meshing/GeometryProducts", or just a known mesh format extension.  The output scene mesh will not be textured.
-/// However, if atlasing was successful, then a textured mesh can be generated with build-texture.
+/// If a tileset is not required the full scene mesh can also be directly saved by specifying an output mesh as the
+/// second positional command line argument.  This can be either a relative or absolute disk path with an accepted mesh
+/// file extension, or just the extension, in which case a default filename will be used in the current working
+/// directory.  The output scene mesh will not be textured.  However, if atlasing was successful, then a textured mesh
+/// can be generated with build-texture.
 ///
 /// Example:
 ///
@@ -184,7 +182,7 @@ namespace JPLOPS.Landform
         [Option(HelpText = "Clever combine max points per cell", Default = CleverCombine.DEF_MAX_POINTS_PER_CELL)]
         public int CleverCombineMaxPointsPerCell { get; set; }
 
-        [Option(HelpText = "Expand poinnt bounds to envelope bounds", Default = TilingDefaults.PARENT_CLIP_BOUNDS_EXPAND_HEIGHT)]
+        [Option(HelpText = "Expand point bounds to envelope bounds", Default = TilingDefaults.PARENT_CLIP_BOUNDS_EXPAND_HEIGHT)]
         public double ExpandEnvelopeBounds { get; set; }
 
         [Option(HelpText = "Poisson cell size (meters), mutually exclusive with PoissonTreeDepth, 0 to disable", Default = PoissonReconstruction.DEF_MIN_OCTREE_CELL_WIDTH_METERS)]

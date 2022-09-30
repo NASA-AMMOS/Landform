@@ -129,6 +129,9 @@ namespace JPLOPS.Landform
 
         [Option(Default = null, HelpText = "Override default orbital image file path")]
         public string OrbitalImage { get; set; }
+
+        [Option(HelpText = "Operate on cloud data", Default = false)]
+        public bool Cloud { get; set; }
     }
 
     public class Ingest : LandformCommand
