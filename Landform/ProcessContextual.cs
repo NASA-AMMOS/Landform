@@ -335,8 +335,11 @@ namespace JPLOPS.Landform
         [Option(Default = null, HelpText = "Orbital worker message queue name")]
         public string OrbitalWorkerQueueName { get; set; }
 
-        [Option(Default = ProcessContextual.DEF_DEBOUNCE_SEC, HelpText = "Master waits at least this long after any list or wedge file changed for a given RDR directory before firing a new contextual mesh message, default if negative")]
+        [Option(Default = ProcessContextual.DEF_DEBOUNCE_SEC, HelpText = "Master waits at least this long after any RDR changed before firing a new contextual or orbital mesh message (unless an EOP is received), default if negative")]
         public int MasterDebounceSec { get; set; }
+
+        [Option(Default = ProcessContextual.DEF_EOP_DEBOUNCE_SEC, HelpText = "Master waits at least this long after any EOP before firing a new contextual mesh message, default if negative")]
+        public int MasterEOPDebounceSec { get; set; }
 
         [Option(Default = false, HelpText = "Worker message queue(s) Landform owned")]
         public bool LandformOwnedWorkerQueue { get; set; }
@@ -413,6 +416,9 @@ namespace JPLOPS.Landform
         //of navcam orthomosaics
         public const int DEF_DEBOUNCE_SEC = 30 * 60; //30 minutes
 
+        //https://github.jpl.nasa.gov/OnSight/Landform/issues/1244
+        public const int DEF_EOP_DEBOUNCE_SEC = 20 * 60; //20 minutes
+
         public const int DEF_MIN_PRIMARY_SITEDRIVE_WEDGES = 4;
         public const int DEF_MAX_SITEDRIVES = 64;
         public const double DEF_MAX_SITEDRIVE_DISTANCE = 2 * BuildGeometry.DEF_SURFACE_EXTENT;
@@ -471,7 +477,7 @@ namespace JPLOPS.Landform
         private Regex eopFileRegex, eofFileRegex, eoxFileRegex;
         private Regex eopMessageRegex, eofMessageRegex, eoxMessageRegex;
 
-        private int debounceMS;
+        private int debounceMS, eopDebounceMS;
         private int solRange, maxSDs;
 
         private int[] solBlacklist;
@@ -1245,7 +1251,11 @@ namespace JPLOPS.Landform
             }
 
             debounceMS = 1000 * (options.MasterDebounceSec >= 0 ? options.MasterDebounceSec : DEF_DEBOUNCE_SEC);
-            pipeline.LogInfo("debounce time {0}s", debounceMS / 1000);
+            pipeline.LogInfo("RDR debounce time {0}s", debounceMS / 1000);
+
+            eopDebounceMS =
+                1000 * (options.MasterEOPDebounceSec >= 0 ? options.MasterEOPDebounceSec : DEF_EOP_DEBOUNCE_SEC);
+            pipeline.LogInfo("EOP debounce time {0}s", eopDebounceMS / 1000);
 
             solRange = options.MaxSolRange >= 0 ? options.MaxSolRange : DEF_MAX_SOL_RANGE;
             maxSDs = options.MaxSiteDrives > 0 ? options.MaxSiteDrives : int.MaxValue;
@@ -3475,6 +3485,10 @@ namespace JPLOPS.Landform
             int targetPeriodSec = MASTER_LOOP_PERIOD_SEC;
             pipeline.LogInfo("running master loop, period {0}s, debounce {1}s", targetPeriodSec, debounceMS / 1000);
 
+
+            long latentEOP = -1;
+            string latentEOPMessage = null;
+
             while (!abort)
             {
                 if (lastStartSec >= 0)
@@ -3512,10 +3526,14 @@ namespace JPLOPS.Landform
 
                     if (!options.NoOrbital)
                     {
+                        //don't attempt to debounce EOF/EOX/EOP here
+                        //that would add latency which is undesirable for orbital tilesets
+                        //just let possibly redundant orbital tilesets get triggered here
+                        //we will dedupe orbital tileset messages anyway including checking for already built products
                         var orbitalURLs = ProcessChangedURLs(changedOrbitalURLs, gotEOF || gotEOX || gotEOP,
-                                                             gotEOF ? $"EOF at {ToLocalTime(eofTimestamp)}" :
-                                                             gotEOX ? $"EOX at {ToLocalTime(eoxTimestamp)}" :
-                                                             gotEOP ? $"EOP at {ToLocalTime(eopTimestamp)}" : "",
+                                                             gotEOF ? $"EOF at {ToLocalTime(eofMS)}" :
+                                                             gotEOX ? $"EOX at {ToLocalTime(eoxMS)}" :
+                                                             gotEOP ? $"EOP at {ToLocalTime(eopMS)}" : "",
                                                              "orbital");
                         if (orbitalURLs.Count > 0)
                         {
@@ -3525,10 +3543,35 @@ namespace JPLOPS.Landform
 
                     if (!options.NoSurface)
                     {
-                        var contextualURLs = ProcessChangedURLs(changedContextualURLs, gotEOX || gotEOP,
-                                                                gotEOX ? $"EOX at {ToLocalTime(eoxTimestamp)}" :
-                                                                gotEOP ? $"EOP at {ToLocalTime(eopTimestamp)}" : "",
-                                                                "contextual");
+                        long eop = -1;
+                        string eopMsg = "";
+                        if (eoxMS > eop)
+                        {
+                            eop = eoxMS;
+                            eopMsg = $"EOX at {ToLocalTime(eoxMS)}";
+                        }
+                        if (eopMS > eop)
+                        {
+                            eop = eopMS;
+                            eopMsg = $"EOP at {ToLocalTime(eopMS)}";
+                        }
+                        if (latentEOP > eop)
+                        {
+                            eop = latentEOP;
+                            eopMsg = latentEOPMessage;
+                        }
+                        latentEOP = -1;
+                        latentEOPMessage = null;
+                        if (eopDebounceMS > 0 && (UTCTime.Now() - eop) < eopDebounceMS)
+                        {
+                            latentEOP = eop;
+                            latentEOPMessage = eopMsg;
+                            eop = -1;
+                            eopMsg = "";
+                        }
+
+                        var contextualURLs = ProcessChangedURLs(changedContextualURLs, eop >= 0, eopMsg, "contextual");
+
                         if (contextualURLs.Count > 0)
                         {
                             lock (contextualPassQueue)
