@@ -877,12 +877,12 @@ namespace JPLOPS.Landform
                 string pid = GetPID();
                 if (pidFile == null)
                 {
-                    pidFile = pid + "_" + PID_JSON;
+                    pidFile = string.Format("{0}_{1}_{2}", project, pid, PID_JSON);
                 }
 
                 string url = string.Format("{0}/{1}/{2}", destDir, project, pidFile);
                 
-                pipeline.LogVerbose("saving PID file {0} with status {1}", url, status);
+                pipeline.LogInfo("saving PID file {0} with status {1}", url, status);
 
                 lock (activePIDFiles)
                 {

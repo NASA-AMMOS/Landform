@@ -1619,25 +1619,28 @@ namespace JPLOPS.Landform
 
         private string AssignVersionAndSavePID(string destDir, ref string project)
         {
-            string sfx = "_orbital";
-            if (project.EndsWith(sfx))
+            string projSfx = "_orbital";
+            if (project.EndsWith(projSfx))
             {
-                project = project.Substring(0, project.Length - sfx.Length);
+                project = project.Substring(0, project.Length - projSfx.Length);
             }
             else
             {
-                sfx = "";
+                projSfx = "";
             }
 
             string version = "";
-            string versionedProject = project + version + sfx;
+            string versionedProject = project + version + projSfx;
 
             string pid = GetPID();
             string pidFile = null;
             if (!string.IsNullOrEmpty(options.Version))
             {
-                version = (int.TryParse(options.Version, out int v) && v <= 0) ? "" : ("V" + options.Version);
-                versionedProject = project + version + sfx;
+                if (int.TryParse(options.Version, out int v) && v > 0)
+                {
+                    version = "V" + v.ToString("D2");
+                }
+                versionedProject = project + version + projSfx;
                 pidFile = SavePID(destDir, versionedProject, "interlock");
             }
             else
@@ -1646,13 +1649,13 @@ namespace JPLOPS.Landform
                 {
                     if (i >= MAX_VERSION)
                     {
-                        throw new Exception($"no versions available for tileset {destDir}/{project + sfx}");
+                        throw new Exception($"no versions available for tileset {destDir}/{project + projSfx}");
                     }
                     if (i > 0)
                     {
                         version = "V" + i.ToString("D2");
                     }
-                    versionedProject = project + version + sfx;
+                    versionedProject = project + version + projSfx;
                     bool noExisting = true, alreadyProcessed = false;
                     foreach (var f in SearchFiles($"{destDir}/{versionedProject}/", recursive: false))
                     {
@@ -1665,15 +1668,14 @@ namespace JPLOPS.Landform
                         //until it is re-received
                         //(eventually such a message will get deleted due to max receive count)
                         noExisting = false;
-                        if (f.EndsWith(MESSAGE_JSON) && StringHelper.GetLastUrlPathSegment(f) == MESSAGE_JSON)
+                        if (f.EndsWith(MESSAGE_JSON))
                         {
                             try
                             {
                                 var existingJson = File.ReadAllText(GetFile(f, filenameUnique: false));
                                 var existingMsg = JsonHelper.FromJson<ContextualMeshMessage>(existingJson);
-                                bool sameMsg =
-                                    existingMsg.ExactEquals(currentMessage as ContextualMeshMessage, pipeline);
-                                if (sameMsg)
+                                bool same = existingMsg.ExactEquals(currentMessage as ContextualMeshMessage, pipeline);
+                                if (same)
                                 {
                                     alreadyProcessed = true;
                                     pipeline.LogInfo("tileset {0}/{1} aborted, already procesessed at {2}",
@@ -1692,12 +1694,11 @@ namespace JPLOPS.Landform
                                 var existingJson = File.ReadAllText(GetFile(f, filenameUnique: false));
                                 var existingContent = JsonHelper.FromJson<ContextualPIDContent>(existingJson);
                                 var existingMsg = existingContent.message;
-                                bool sameMsg =
-                                    existingMsg.ExactEquals(currentMessage as ContextualMeshMessage, pipeline);
+                                bool same = existingMsg.ExactEquals(currentMessage as ContextualMeshMessage, pipeline);
                                 DateTime? ts = null;
-                                if (sameMsg && (options.ZombieSec < 0 ||
-                                                DateTime.Now.Subtract((ts = storageHelper.LastModified(f)).Value)
-                                                .TotalSeconds < options.ZombieSec))
+                                if (same && (options.ZombieSec < 0 ||
+                                             DateTime.Now.Subtract((ts = storageHelper.LastModified(f)).Value)
+                                             .TotalSeconds < options.ZombieSec))
                                 {
                                     alreadyProcessed = true;
                                     pipeline.LogInfo("tileset {0}/{1} aborted, already processing by {2} " +
@@ -1727,11 +1728,13 @@ namespace JPLOPS.Landform
                             pipeline.LogWarn("tileset {0}/{1} aborted in version interlock", destDir, versionedProject);
                             return null;
                         }
-                        string pidSfx = "_" + PID_JSON;
+                        string pfx = project + "_";
+                        string sfx = "_" + PID_JSON;
+                        string pattern = pfx + "*" + sfx;
                         var pids =
-                            SearchFiles($"{destDir}/{versionedProject}/", globPattern: "*" + pidSfx, recursive: false)
+                            SearchFiles($"{destDir}/{versionedProject}/", globPattern: pattern, recursive: false)
                             .Select(url => StringHelper.GetLastUrlPathSegment(url))
-                            .Select(n => n.EndsWith(pidSfx) ? n.Substring(0, n.Length - pidSfx.Length) : n)
+                            .Select(n => n.Substring(0, n.Length - sfx.Length).Substring(pfx.Length))
                             .OrderByDescending(p => p)
                             .ToList();
                         if (pids.Count == 0)
@@ -1741,8 +1744,9 @@ namespace JPLOPS.Landform
                                              destDir, versionedProject);
                             return null;
                         }
-                        if (!pids[0].StartsWith(pid))
+                        if (!pids[0].Equals(pid))
                         {
+                            //we are not the highest PID attempting to build this version, abort
                             DeletePID(destDir, versionedProject, pidFile);
                             pipeline.LogInfo("tileset {0}/{1} aborted in version interlock, claimed by worker {2}",
                                              destDir, versionedProject, pids[0]);
@@ -1753,7 +1757,7 @@ namespace JPLOPS.Landform
                 }
             }
 
-            pipeline.LogInfo("using version \"{0}\" for tileset {1}/{2}{3}", version, destDir, project, sfx);
+            pipeline.LogInfo("using version \"{0}\" for tileset {1}/{2}{3}", version, destDir, project, projSfx);
 
             project = versionedProject;
 

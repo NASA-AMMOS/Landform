@@ -905,7 +905,7 @@ namespace JPLOPS.Landform
 
         protected void SaveMessage(string destDir, string project)
         {
-            string url = string.Format("{0}/{1}/{2}", destDir, project, MESSAGE_JSON);
+            string url = string.Format("{0}/{1}/{2}_{3}", destDir, project, project, MESSAGE_JSON);
             pipeline.LogInfo("saving mesage file {0}", url);
             TemporaryFile.GetAndDelete(MESSAGE_JSON, tmp => {
                 File.WriteAllText(tmp, JsonHelper.ToJson(currentMessage, autoTypes: false));
