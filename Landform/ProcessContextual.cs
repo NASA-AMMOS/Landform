@@ -1851,6 +1851,8 @@ namespace JPLOPS.Landform
         /// </summary>
         private void BuildContextualTileset(ContextualMeshParameters p)
         {
+            CheckCredentials(force: true); //https://github.jpl.nasa.gov/OnSight/Landform/issues/1243
+
             pipeline.LogInfo(DumpParameters(p, verbose: true));
 
             string rdrDir = p.RDRDir ?? options.RDRDir;
@@ -1986,6 +1988,7 @@ namespace JPLOPS.Landform
                     //in which case the DEM should win
                     //TODO it would probably be better to download both with one call to fetch
                     //but currently if we were to do that fetch would prioritize in order of their server timestamps
+                    CheckCredentials();
                     fetchOrbitalAsset(orbitalImageUrl, orbitalImageFile);
                     fetchOrbitalAsset(orbitalDEMUrl, orbitalDEMFile);
                 }
@@ -1997,6 +2000,7 @@ namespace JPLOPS.Landform
                         throw new NotImplementedException("ingestion from multi-sol s3 wildcard not implemented");
                     }
                     SavePID(destDir, project, Phase.ingest, pidFile);
+                    CheckCredentials();
                     RunCommand("ingest", project, "--mission", fullMissionStr, "--meshframe", sdStr, 
                                "--onlyforsitedrives", sdsStr, "--onlyforsols", solRanges,
                                "--inputpath", ingestDir + "/" + (options.RecursiveSearch ? "**" : "*"), noSurface,
@@ -2007,13 +2011,16 @@ namespace JPLOPS.Landform
                     options.StartPhase <= Phase.align && options.EndPhase >= Phase.align)
                 {
                     SavePID(destDir, project, Phase.align, pidFile);
+                    CheckCredentials();
                     RunCommand("bev-align", options.AbortOnAlignmentError, project, allowUnmasked);
+                    CheckCredentials();
                     RunCommand("heightmap-align", options.AbortOnAlignmentError, project, allowUnmasked);
                 }
 
                 if (!options.NoGeometry && options.StartPhase <= Phase.geometry && options.EndPhase >= Phase.geometry)
                 {
                     SavePID(destDir, project, Phase.geometry, pidFile);
+                    CheckCredentials();
                     RunCommand("build-geometry", project, "--extent", options.Extent.ToString(),
                                "--surfaceextent", options.SurfaceExtent.ToString(), allowUnmasked);
                 }
@@ -2023,24 +2030,28 @@ namespace JPLOPS.Landform
                     if (options.StartPhase <= Phase.leaves && options.EndPhase >= Phase.leaves)
                     {
                         SavePID(destDir, project, Phase.leaves, pidFile);
+                        CheckCredentials();
                         BuildTilingInput(project, allowUnmasked, options.Redo ? "--texturevariant=Original" : "");
                     }
 
                     if (!orbitalOnly && options.StartPhase <= Phase.blend && options.EndPhase >= Phase.blend)
                     {
                         SavePID(destDir, project, Phase.blend, pidFile);
+                        CheckCredentials();
                         RunCommand("blend-images", project, allowUnmasked, colorize);
                     }
 
                     if (options.StartPhase <= Phase.tileset && options.EndPhase >= Phase.tileset)
                     {
                         SavePID(destDir, project, Phase.tileset, pidFile);
+                        CheckCredentials();
                         BuildTileset(project, allowUnmasked);
                     }
                     
                     if (options.StartPhase <= Phase.manifest && options.EndPhase >= Phase.manifest)
                     {
                         SavePID(destDir, project, Phase.manifest, pidFile);
+                        CheckCredentials();
                         RunCommand("update-scene-manifest", project, "--notactical", "--nourls", "--nosky",
                                    allowUnmasked, "--sol", solStr, "--sitedrive", sdStr, "--sols", solRanges,
                                    "--sitedrives", sdsStr, "--manifestfile", tilesetDir + "/" + SCENE_JSON);
@@ -2049,6 +2060,7 @@ namespace JPLOPS.Landform
                     if (options.StartPhase <= Phase.save && options.EndPhase >= Phase.save)
                     {
                         SavePID(destDir, project, Phase.save, pidFile);
+                        CheckCredentials();
                         SaveTileset(tilesetDir, project, destDir);
                     }
 
@@ -2056,10 +2068,12 @@ namespace JPLOPS.Landform
                         options.StartPhase <= Phase.sky && options.EndPhase >= Phase.sky)
                     {
                         SavePID(destDir, project, Phase.sky, pidFile);
+                        CheckCredentials();
                         RunCommand("build-sky-sphere", project, "--skymode", options.SkyMode.ToString(),
                                    allowUnmasked, "--sphereradius", options.SkySphereRadius,
                                    "--minbackprojectradius", options.SkyMinBackprojectRadius);
                         string skyTilesetDir = venueDir + "/" + BuildSkySphere.SKY_TILESET_DIR + "/" + project;
+                        CheckCredentials();
                         SaveTileset(skyTilesetDir, project + "_sky", destDir);
                     }
                 }
@@ -2068,6 +2082,7 @@ namespace JPLOPS.Landform
                     options.StartPhase <= Phase.combinedManifest && options.EndPhase >= Phase.combinedManifest)
                 {
                     SavePID(destDir, project, Phase.combinedManifest, pidFile);
+                    CheckCredentials();
                     RunCommand("update-scene-manifest", project, allowUnmasked, "--tilesetdir", destDir,
                                "--rdrdir", rdrDir, "--sol", solStr, "--sitedrive", sdStr,
                                "--sols", solRanges, "--sitedrives", sdsStr,

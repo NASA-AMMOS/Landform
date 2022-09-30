@@ -1015,21 +1015,22 @@ namespace JPLOPS.Landform
             ServiceLoop();
         }
 
-        private void CheckCredentials()
+        protected bool CheckCredentials(bool force = false)
         {
-            if (credentialRefreshSec <= 0)
+            if (!force && credentialRefreshSec <= 0)
             {
-                return;
+                return false;
             }
 
             double overdueSec = 0;
-            if (lastCredentialRefreshSecUTC >= 0)
+            if (lastCredentialRefreshSecUTC > 0)
             {
                 double deadline = lastCredentialRefreshSecUTC + credentialRefreshSec;
                 overdueSec = UTCTime.Now() - deadline;
             }
 
-            if (overdueSec >= 0)
+            bool refreshed = false;
+            if (force || overdueSec >= 0)
             {
                 if (Monitor.TryEnter(credentialRefreshLock, 5000))
                 {
@@ -1040,6 +1041,7 @@ namespace JPLOPS.Landform
                             try
                             {
                                 RefreshCredentials(); //let exception propagate
+                                refreshed = true;
                             }
                             finally
                             {
@@ -1063,6 +1065,8 @@ namespace JPLOPS.Landform
                                      Fmt.HMS(overdueSec * 1e3));
                 }
             }
+
+            return refreshed;
         }
 
         private void ServiceLoop()

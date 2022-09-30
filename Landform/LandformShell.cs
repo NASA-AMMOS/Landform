@@ -159,8 +159,10 @@ namespace JPLOPS.Landform
         protected string awsProfile, originalAWSProfile;
         protected string awsRegion;
 
-        protected double lastCredentialRefreshSecUTC;
-        protected int credentialRefreshSec;
+        //in C# 64 bit fields can't  be volatile, so can't use double or long here
+        //uint max is about 4.2e9; 100y since epoch in sec is 100 * 365 * 24 * 60 * 60 ~= 3.1e9
+        protected volatile uint lastCredentialRefreshSecUTC;
+        protected volatile int credentialRefreshSec;
 
         private Object storageHelperLock = new Object();
         private StorageHelper _storageHelper;
@@ -364,7 +366,7 @@ namespace JPLOPS.Landform
             }
 
             //not conservative timing but do here to ensure that we only set the timestamp if we didn't error out
-            lastCredentialRefreshSecUTC = UTCTime.Now();
+            lastCredentialRefreshSecUTC = (uint)UTCTime.Now();
         }
 
         protected abstract string GetSubcommandLogFile();
