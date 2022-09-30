@@ -203,16 +203,16 @@ namespace JPLOPS.Landform
         ///
         /// To prevent RefreshCredentials() from being called while the credentials may be in use, other threads which
         /// require credentials should hold credentialRefreshLock only while needed.  Potentially long running
-        /// operations should use longRunningCredentialRefereshLock instead.  The only place that both locks should be
+        /// operations should use longRunningCredentialRefreshLock instead.  The only place that both locks should be
         /// acquired simultaneously is in ServiceLoop() before calling RefreshCredentials().  To prevent any chance of
         /// deadlock acquisition order should always be:
-        /// credentialRefreshLock[, longRunningCredentialRefereshLock], deleteMessageLock.
+        /// credentialRefreshLock[, longRunningCredentialRefreshLock], deleteMessageLock.
         ///
         /// For example
         /// * HeartbeatLoop() acquires credentials when it needs to update SQS message timeouts.
         /// * ProcessContextual.MasterLoop() acquires credentials while it may use PLACES or S3.
         /// </summary>
-        protected object credentialRefreshLock = new Object(), longRunningCredentialRefereshLock = new Object();
+        protected object credentialRefreshLock = new Object(), longRunningCredentialRefreshLock = new Object();
 
         /// <summary>
         /// ServiceLoop() acquires deleteMessageLock while deleting messages from the SQS queue.
@@ -221,7 +221,7 @@ namespace JPLOPS.Landform
         /// HeartbeatLoop() actually needs both credentialRefreshLock and deleteMessageLock while updating the timeout,
         /// but that's OK.  It's the only thing that should acquire both at the same time.
         /// To prevent any chance of deadlock acquisition order should always be:
-        /// credentialRefreshLock[, longRunningCredentialRefereshLock], deleteMessageLock.
+        /// credentialRefreshLock[, longRunningCredentialRefreshLock], deleteMessageLock.
         /// </summary>
         private object deleteMessageLock = new Object();
 
@@ -1034,7 +1034,7 @@ namespace JPLOPS.Landform
                 {
                     try
                     {
-                        if (Monitor.TryEnter(longRunningCredentialRefereshLock, 5000))
+                        if (Monitor.TryEnter(longRunningCredentialRefreshLock, 5000))
                         {
                             try
                             {
@@ -1042,7 +1042,7 @@ namespace JPLOPS.Landform
                             }
                             finally
                             {
-                                Monitor.Exit(longRunningCredentialRefereshLock);
+                                Monitor.Exit(longRunningCredentialRefreshLock);
                             }
                         }
                         else

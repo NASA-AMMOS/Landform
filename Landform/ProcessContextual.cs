@@ -3182,7 +3182,7 @@ namespace JPLOPS.Landform
             foreach (var rdrDir in urls.Keys)
             {
                 Dictionary<SiteDrive, Stamped<SiteDriveList>> sdLists = null;
-                lock (longRunningCredentialRefereshLock)
+                lock (longRunningCredentialRefreshLock)
                 {
                     sdLists = LoadSiteDriveLists(rdrDir, urls[rdrDir]);
                 }
@@ -3252,7 +3252,7 @@ namespace JPLOPS.Landform
                 //better to try on each pass rather than once ever
                 var msgs = new List<Stamped<ContextualMeshMessage>>();
                 bool usePlaces = UsePlacesDB();
-                lock (usePlaces ? longRunningCredentialRefereshLock : new Object())
+                lock (usePlaces ? longRunningCredentialRefreshLock : new Object())
                 {
                     var placesDB = usePlaces ? InitPlacesDB() : null;
                     foreach (var changedSD in changedSDs)
