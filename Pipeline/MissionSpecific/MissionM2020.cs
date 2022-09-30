@@ -183,10 +183,10 @@ namespace JPLOPS.Pipeline
             while (!File.Exists(credssExe) && credssExe.LastIndexOf('/') >= 0)
             {
                 string dir = StringHelper.StripLastUrlPathSegment(credssExe);
-                string tryUtils = $"{dir}/Utils/{credssFilename}";
-                if (File.Exists(tryUtils))
+                string tryBin = $"{dir}/Bin/{credssFilename}";
+                if (File.Exists(tryBin))
                 {
-                    credssExe = tryUtils;
+                    credssExe = tryBin;
                     break;
                 }
                 string parent = dir.LastIndexOf('/') > 0 ? StringHelper.StripLastUrlPathSegment(dir) : null;

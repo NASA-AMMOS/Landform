@@ -19,6 +19,6 @@ if [[ $venue = "dev" ]]; then
   role="--role m20-dev-ids"
 fi
 
-$winpty $scriptdir/../Utils/credss.exe $WITH_AWS_CREDS --venue $venue $role -u $USERNAME "$@"
-#$winpty $scriptdir/../Utils/credss.exe $WITH_AWS_CREDS --venue $venue -u $USERNAME "$@"
+$winpty $scriptdir/../Bin/credss.exe $WITH_AWS_CREDS --venue $venue $role -u $USERNAME "$@"
+#$winpty $scriptdir/../Bin/credss.exe $WITH_AWS_CREDS --venue $venue -u $USERNAME "$@"
 

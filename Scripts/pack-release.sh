@@ -20,7 +20,7 @@ for src in TilingServer/bin/Release Landform/bin/Release; do
 done
 
 #copy with subdirs
-for src in Dependencies Scripts Utils; do
+for src in Dependencies Scripts Bin; do
     echo "copying $src to $dir"
     cp -R $src $dir
 done
