@@ -2635,14 +2635,12 @@ namespace JPLOPS.Landform
         // in order from more specific to less specific
         //
         // /m20/{venue}/ids/landform/{contextual,orbital}/{sol}/{site}{drive}/extent
-        // /m20/{venue}/ids/landform/{contextual,orbital}/{sol}/{sol}_{site}{drive}/extent
         // /m20/{venue}/ids/landform/{contextual,orbital}/{sol}/{site}/{drive}/extent
-        // /m20/{venue}/ids/landform/{contextual,orbital}/{sol}/site/{site}/extent
-        // /m20/{venue}/ids/landform/{contextual,orbital}/{sol}/extent
-        // /m20/{venue}/ids/landform/{contextual,orbital}/{site}{drive}/extent
         // /m20/{venue}/ids/landform/{contextual,orbital}/{sol}_{site}{drive}/extent
-        // /m20/{venue}/ids/landform/{contextual,orbital}/{site}/{drive}/extent
+        // /m20/{venue}/ids/landform/{contextual,orbital}/{site}{drive}/extent
+        // /m20/{venue}/ids/landform/{contextual,orbital}/site/{site}/drive/{drive}/extent
         // /m20/{venue}/ids/landform/{contextual,orbital}/site/{site}/extent
+        // /m20/{venue}/ids/landform/{contextual,orbital}/sol/{sol}/extent
         // /m20/{venue}/ids/landform/{contextual,orbital}/extent
         private double GetExtent(int primarySol, SiteDrive primarySD, String service = "contextual")
         {
@@ -2654,47 +2652,48 @@ namespace JPLOPS.Landform
             string shortSol = primarySol.ToString();
             string canonicalSol = SolToString(primarySol);
             string pathSol = SolToString(primarySol, forceNumeric: true);
-            var solStrings = new List<string> { canonicalSol, pathSol, shortSol, "" };
+            var solStrings = new List<string> { canonicalSol, pathSol, shortSol };
 
-            string sd = primarySD.ToString();
+            string sdStr = primarySD.ToString();
             string shortSite = primarySD.Site.ToString();
             string canonicalSite = primarySD.SiteToString();
             string shortDrive = primarySD.Drive.ToString();
             string canonicalDrive = primarySD.DriveToString();
-            var sdStrings = new List<String> { sd,
-                                               string.Format("{0}_{1}", canonicalSol, sd),
-                                               string.Format("{0}/{1}", canonicalSite, canonicalDrive),
-                                               string.Format("{0}/{1}", shortSite, shortDrive),
-                                               string.Format("site/{0}", canonicalSite),
-                                               string.Format("site/{0}", shortSite),
-                                               "" };
-
-            foreach (string solStr in solStrings)
+            var sdStrings = new List<String> { sdStr, string.Format("{0}/{1}", canonicalSite, canonicalDrive),
+                                               string.Format("{0}/{1}", shortSite, shortDrive) };
+            var keys = new List<string>();
+            foreach (string sol in solStrings)
             {
-                foreach (var sdStr in sdStrings)
+                foreach (var sd in sdStrings)
                 {
-                    string key = service;
-                    if (!string.IsNullOrEmpty(solStr))
+                    keys.Add(string.Format("{0}/{1}/", sol, sd));
+                }
+            }
+            keys.Add(string.Format("{0}_{1}/", canonicalSol, sdStr));
+            keys.Add(sdStr);
+            keys.Add(string.Format("site/{0}/drive/{1}/", canonicalSite, canonicalDrive));
+            keys.Add(string.Format("site/{0}/drive/{1}/", shortSite, shortDrive));
+            keys.Add(string.Format("site/{0}/", canonicalSite));
+            keys.Add(string.Format("site/{0}/", shortSite));
+            keys.Add(string.Format("sol/{0}/", canonicalSol));
+            keys.Add(string.Format("sol/{0}/", pathSol));
+            keys.Add(string.Format("sol/{0}/", shortSol));
+            keys.Add("");
+
+            foreach (string keyBase in keys)
+            {
+                string key = string.Format("{0}/{1}extent", service, keyBase);
+                string overrideExtent = GetParameter(service, key);
+                if (overrideExtent != null)
+                {
+                    if (double.TryParse(overrideExtent, out double e) && e > 0)
                     {
-                        key += "/" + solStr;
+                        return e;
                     }
-                    if (!string.IsNullOrEmpty(sdStr))
+                    else
                     {
-                        key += "/" + sdStr;
-                    }
-                    key += "/extent";
-                    string overrideExtent = GetParameter(service, key);
-                    if (overrideExtent != null)
-                    {
-                        if (double.TryParse(overrideExtent, out double e) && e > 0)
-                        {
-                            return e;
-                        }
-                        else
-                        {
-                            pipeline.LogWarn("error parsing override extent \"{0}\" from \"{1}\" as a positive number",
-                                             overrideExtent, key);
-                        }
+                        pipeline.LogWarn("error parsing override extent \"{0}\" from \"{1}\" as a positive number",
+                                         overrideExtent, key);
                     }
                 }
             }
