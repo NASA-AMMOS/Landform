@@ -229,8 +229,9 @@ namespace JPLOPS.Landform
         private volatile bool killedCurrentHandler;
 
         //in C# 64 bit fields can't  be volatile, so can't use double or long here
-        //uint max is about 4.2e9; 100y since epoch in sec is 100 * 365 * 24 * 60 * 60 ~= 3.1e6
+        //uint max is about 4.2e9; 100y since epoch in sec is 100 * 365 * 24 * 60 * 60 ~= 3.1e9
         private volatile uint messageStartSec;
+        private volatile uint lastHeartbeatSec;
 
         protected string selfEC2InstanceID;
 
@@ -1168,7 +1169,7 @@ namespace JPLOPS.Landform
                             }
                             
                             currentMessage = msg;
-                            messageStartSec = (uint)UTCTime.Now();
+                            lastHeartbeatSec = messageStartSec = (uint)UTCTime.Now();
                             
                             pipeline.LogInfo("processing {0} (age {1}, {2} since first receive, {3} receives)", desc,
                                              Fmt.HMS(totalAgeSec * 1e3), Fmt.HMS(ageSec * 1e3), receiveCount);
@@ -1312,7 +1313,6 @@ namespace JPLOPS.Landform
             //(and they're a little more expensive)
 
             double maxHandlerSec = GetMaxHandlerSec();
-            double lastHeartbeatSec = -1;
             int timeoutSec = messageQueue.TimeoutSec;
             double targetPeriod = GetHeartbeatRelPeriod() * timeoutSec;
             pipeline.LogInfo("running heartbeat, period {0:F3}s, message timeout {1}s, max handler {2}",
@@ -1328,19 +1328,20 @@ namespace JPLOPS.Landform
                                           Fmt.HMS(totalSec * 1e3), Fmt.HMS(maxHandlerSec * 1e3));
                         killedCurrentHandler = true;
                         KillCurrentCommand(); //swallows exceptions, but handler will throw exception if killed
+                        lastHeartbeatSec = 0;
                         SleepSec(targetPeriod);
-                        lastHeartbeatSec = -1;
                     }
                     else //still processing message, increase SQS visiblity timeout
                     {
                         try
                         {
-                            if (lastHeartbeatSec >= 0)
+                            if (lastHeartbeatSec > 0)
                             {
                                 //try to maintain heartbeat period proportional to queue timout
                                 SleepSec(targetPeriod - (UTCTime.Now() - lastHeartbeatSec)); //ignores negative
                             }
 
+                            double period = -1; //upper bound on time between visibility update
                             lock (credentialRefreshLock)
                             {
                                 //specifically using two locks here, see
@@ -1352,19 +1353,20 @@ namespace JPLOPS.Landform
                                     if (currentMessage != null)
                                     {
                                         messageQueue.UpdateTimeout(currentMessage, timeoutSec);
+                                        double now = UTCTime.Now();
+                                        if (lastHeartbeatSec > 0)
+                                        {
+                                            period = now - lastHeartbeatSec;
+                                        }
+                                        lastHeartbeatSec = (uint)now; 
                                     }
                                 }
                             }
-                            
-                            //upper bound on time between visibility update
-                            double heartbeatPeriod = lastHeartbeatSec >= 0 ? (UTCTime.Now() - lastHeartbeatSec) : -1;
 
-                            lastHeartbeatSec = UTCTime.Now();
-
-                            if (heartbeatPeriod > timeoutSec)
+                            if (period > timeoutSec)
                             {
                                 pipeline.LogError("heartbeat {0} exceeded visibility timeout {1}",
-                                                  Fmt.HMS(heartbeatPeriod * 1e3), Fmt.HMS(timeoutSec * 1e3));
+                                                  Fmt.HMS(period * 1e3), Fmt.HMS(timeoutSec * 1e3));
                             }
                         }
                         catch (Exception ex)
@@ -1376,8 +1378,8 @@ namespace JPLOPS.Landform
                 }
                 else //no current message
                 {
+                    lastHeartbeatSec = 0;
                     SleepSec(targetPeriod);
-                    lastHeartbeatSec = -1;
                 }
             }
         }
