@@ -128,6 +128,16 @@ namespace JPLOPS.Pipeline
             return string.Format("{0}{1}", OPGSProductId.SiteToString(Site), OPGSProductId.DriveToString(Drive));
         }
 
+        public string SiteToString()
+        {
+            return OPGSProductId.SiteToString(Site);
+        }
+
+        public string DriveToString()
+        {
+            return OPGSProductId.DriveToString(Drive);
+        }
+
         /// <summary>
         /// Parse a comma separated list of sitedrives, possibly null.
         /// Always return a non-null array of zero or more SiteDrives (possibly including wildcards).

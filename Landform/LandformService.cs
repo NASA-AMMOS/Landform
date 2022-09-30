@@ -1507,9 +1507,9 @@ namespace JPLOPS.Landform
             var procCmds = new List<string>();
             var procCounters = new List<int>();
             string ssmProcess =
-                (lvopts.WatchdogSSMProcess == "mission") ? mission.GetSSMProcess() : lvopts.WatchdogSSMProcess;
+                (lvopts.WatchdogSSMProcess == "mission") ? mission.GetSSMWatchdogProcess() : lvopts.WatchdogSSMProcess;
             string ssmCommand =
-                (lvopts.WatchdogSSMCommand == "mission") ? mission.GetSSMCommand() : lvopts.WatchdogSSMCommand;
+                (lvopts.WatchdogSSMCommand == "mission") ? mission.GetSSMWatchdogCommand() : lvopts.WatchdogSSMCommand;
             bool ssmEnabled = !string.IsNullOrEmpty(ssmProcess) && !string.IsNullOrEmpty(ssmCommand);
             if (ssmEnabled)
             {
@@ -1524,9 +1524,10 @@ namespace JPLOPS.Landform
                 pipeline.LogInfo("SSM watchdog disabled");
             }
 
-            string cwProcess =(lvopts.WatchdogCloudWatchProcess == "mission") ? mission.GetCloudWatchProcess() :
+            string cwProcess =(lvopts.WatchdogCloudWatchProcess == "mission") ? mission.GetCloudWatchWatchdogProcess() :
                 lvopts.WatchdogCloudWatchProcess;
-            string cwCommand = (lvopts.WatchdogCloudWatchCommand == "mission") ? mission.GetCloudWatchCommand() :
+            string cwCommand =
+                (lvopts.WatchdogCloudWatchCommand == "mission") ? mission.GetCloudWatchWatchdogCommand() :
                 lvopts.WatchdogCloudWatchCommand;
             bool cwEnabled = !string.IsNullOrEmpty(cwProcess) && !string.IsNullOrEmpty(cwCommand);
             if (cwEnabled)

@@ -52,18 +52,29 @@ namespace JPLOPS.Cloud
             client = null;
         }
 
-        public string GetParameter(string name, bool decrypt = false)
+        public string GetParameter(string name, bool decrypt = false, bool expectExists = true)
         {
-            var response = client.GetParameter(new GetParameterRequest() { Name = name, WithDecryption = decrypt });
-            if (response.HttpStatusCode != HttpStatusCode.OK)
+            try
             {
-                throw new CloudException($"failed to get SSM parameter {name}: http status {response.HttpStatusCode}");
+                var resp = client.GetParameter(new GetParameterRequest() { Name = name, WithDecryption = decrypt });
+                if (resp.HttpStatusCode != HttpStatusCode.OK)
+                {
+                    throw new CloudException($"failed to get SSM parameter {name}: http status {resp.HttpStatusCode}");
+                }
+                if (resp.Parameter.DataType != "text")
+                {
+                    throw new CloudException($"unhandled SSM parameter type for {name}: {resp.Parameter.DataType}");
+                }
+                return resp.Parameter.Value;
             }
-            if (response.Parameter.DataType != "text")
+            catch (ParameterNotFoundException)
             {
-                throw new CloudException($"unhandled SSM parameter type for {name}: {response.Parameter.DataType}");
+                if (expectExists)
+                {
+                    throw;
+                }
+                return null;
             }
-            return response.Parameter.Value;
         }
     }
 }

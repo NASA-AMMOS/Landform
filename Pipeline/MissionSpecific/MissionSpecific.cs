@@ -160,6 +160,12 @@ namespace JPLOPS.Pipeline
 
         [ConfigEnvironmentVariable("LANDFORM_CONTEXTUAL_MESH_MAX_MASTCAM_TEXTURES_PER_SITEDRIVE")]
         public int ContextualMeshMaxMastcamTexturesPerSiteDrive { get; set; } = 400; 
+
+        [ConfigEnvironmentVariable("LANDFORM_SERVICE_SSM_KEY_BASE")]
+        public string ServiceSSMKeyBase { get; set; } = "/m20/{venue}/ids/landform"; 
+
+        [ConfigEnvironmentVariable("LANDFORM_SERVICE_SSM_ENCRYPTED")]
+        public bool ServiceSSMEncrypted { get; set; } = true;
     }
 
     public abstract class MissionSpecific : ConfigDefaultsProvider
@@ -1366,24 +1372,34 @@ namespace JPLOPS.Pipeline
             return GetAllowedProducers(MissionConfig.Instance.AllowedProducers);
         }
 
-        public virtual string GetSSMProcess()
+        public virtual string GetSSMWatchdogProcess()
         {
             return null;
         }
 
-        public virtual string GetSSMCommand()
+        public virtual string GetSSMWatchdogCommand()
         {
             return null;
         }
 
-        public virtual string GetCloudWatchProcess()
+        public virtual string GetCloudWatchWatchdogProcess()
         {
             return null;
         }
 
-        public virtual string GetCloudWatchCommand()
+        public virtual string GetCloudWatchWatchdogCommand()
         {
             return null;
+        }
+
+        public virtual string GetServiceSSMKeyBase()
+        {
+            return MissionConfig.Instance.ServiceSSMKeyBase.Replace("{venue}", venue);
+        }
+
+        public virtual bool GetServiceSSMEncrypted()
+        {
+            return MissionConfig.Instance.ServiceSSMEncrypted;
         }
     }
 }

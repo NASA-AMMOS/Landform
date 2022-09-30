@@ -831,23 +831,23 @@ namespace JPLOPS.Pipeline
             return GetAllowedProducers(MissionM2020Config.Instance.AllowedProducers);
         }
 
-        public override string GetSSMProcess()
+        public override string GetSSMWatchdogProcess()
         {
             return MissionM2020Config.Instance.WatchdogSSMProcess;
         }
 
-        public override string GetSSMCommand()
+        public override string GetSSMWatchdogCommand()
         {
             //https://docs.aws.amazon.com/systems-manager/latest/userguide/sysman-install-win.html
             return MissionM2020Config.Instance.WatchdogSSMCommand.Replace("{venue}", venue);
         }
 
-        public override string GetCloudWatchProcess()
+        public override string GetCloudWatchWatchdogProcess()
         {
             return MissionM2020Config.Instance.WatchdogCloudWatchProcess;
         }
 
-        public override string GetCloudWatchCommand()
+        public override string GetCloudWatchWatchdogCommand()
         {
             //https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/install-CloudWatch-Agent-on-EC2-Instance-fleet.html#start-CloudWatch-Agent-EC2-fleet
             string cmd = MissionM2020Config.Instance.WatchdogCloudWatchCommand.Replace("{venue}", venue);

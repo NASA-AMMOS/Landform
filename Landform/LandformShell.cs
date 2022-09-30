@@ -198,6 +198,24 @@ namespace JPLOPS.Landform
             }
         }
 
+        private Object parameterStoreLock = new Object();
+        private ParameterStore _parameterStore;
+        protected ParameterStore parameterStore
+        {
+            get
+            {
+                lock (parameterStoreLock)
+                {
+                    if (_parameterStore == null)
+                    {
+                        string profile = lsopts.UseDefaultAWSProfileForEC2Client ? null : awsProfile;
+                        _parameterStore = new ParameterStore(profile, awsRegion);
+                    }
+                    return _parameterStore;
+                }
+            }
+        }
+
         private volatile Process currentProcess;
 
         protected volatile bool abort;
@@ -333,6 +351,15 @@ namespace JPLOPS.Landform
                 {
                     _computeHelper.Dispose();
                     _computeHelper = null;
+                }
+            }
+
+            lock (parameterStoreLock)
+            {
+                if (_parameterStore != null)
+                {
+                    _parameterStore.Dispose();
+                    _parameterStore = null;
                 }
             }
 
@@ -510,6 +537,21 @@ namespace JPLOPS.Landform
                 {
                     pipeline.SaveFile(file, url, constrainToStorage: false);
                 }
+            }
+        }
+
+        protected string GetParameter(string service, string key)
+        {
+            key = string.Format("{0}/{1}/{2}", mission.GetServiceSSMKeyBase(), service, key);
+            try
+            {
+                return parameterStore.GetParameter(key, decrypt: mission.GetServiceSSMEncrypted(), expectExists: false);
+            } 
+            catch (Exception ex)
+            {
+                pipeline.LogError("error getting parameter \"{0}\" from SSM: {1}", key,
+                                  ex.Message.Replace("{", "{{").Replace("}", "}}"));
+                return null;
             }
         }
 
@@ -996,19 +1038,6 @@ namespace JPLOPS.Landform
                     pipeline.LogWarn("{0} not found in {1} while saving to {2}", TILESET_JSON, tilesetDir, destDir);
                 }
             }
-        }
-
-        /// rdrDir is e.g.
-        /// * "s3://BUCKET/ods/VER/sol/#####/ids/rdr"
-        /// * "s3://BUCKET/ods/VER/YYYY/###/ids/rdr"
-        /// * "s3://BUCKET/foo/bar"
-        /// * "c:/foo/bar"
-        /// * "./foo/bar"
-        protected virtual bool TilesetExists(string rdrDir, int sol, string project, bool checkPID = true)
-        {
-            string destDir = GetDestDir(StringHelper.ReplaceIntWildcards(rdrDir, sol));
-            string pfx = string.Format("{0}/{1}/{2}_", destDir, project, project);
-            return FileExists(pfx + TILESET_JSON) || (checkPID && FileExists(pfx + PID_JSON));
         }
 
         protected void Fetch(string maxDownload, string input, string output, params string[] extraArgs)

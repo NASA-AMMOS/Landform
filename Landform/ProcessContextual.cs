@@ -72,12 +72,14 @@ using DictionaryOfChangedURLs =
 /// * "c:/foo/bar"
 /// * "./foo/bar"
 ///
-/// The output tileset is named TTTT_SSSDDDD[Vnn] where TTTT is the primary sol and SSSDDDD is the primary sitedrive.  Vnn is an optional version suffix where V is a literal V and nn is typically a two digit positive integer, but can be any string not containing whitespace, slashes, or underscores.  It is
-/// written to rdrDir/tileset/TTTT_SSSDDDD[Vnn] (*), unless --outputfolder is specified, in which case it is written to a
-/// subdirectory TTTT_SSSDDDD[Vnn] there.
+/// The output tileset is named TTTT_SSSDDDD[Vnn][_orbital] where TTTT is the primary sol and SSSDDDD is the primary
+/// sitedrive.  Vnn is an optional version suffix where V is a literal V and nn is typically a two digit positive
+/// integer, but can be any string not containing whitespace, slashes, or underscores.  It is written to
+/// rdrDir/tileset/TTTT_SSSDDDD[Vnn][_orbital] (*), unless --outputfolder is specified, in which case it is written to a
+/// subdirectory TTTT_SSSDDDD[Vnn][_orbital] there.
 ///
 /// (*) Actually if rdrDir contains a prefix ending /rdr then the output directory is that prefix but with rdr replaced
-/// with rdr/tileset/TTTT_SSSDDDD[Vnn].
+/// with rdr/tileset/TTTT_SSSDDDD[Vnn][_orbital].
 ///
 /// When run as a service the RDR directory is also given as part of each SQS message.  Thus, the service will write the
 /// tilesets back to the same RDR tree as the source RDRs, but under the rdr/tileset subdirectory. (If the source bucket
@@ -86,15 +88,15 @@ using DictionaryOfChangedURLs =
 ///
 /// The tileset will contain
 /// * one .b3dm file per tile
-/// * a tilest file TTTT_SSSDDDD[Vnn]/TTTT_SSSDDDD[Vnn]_tileset.json
-/// * a manifest file TTTT_SSSDDDD[Vnn]/TTTT_SSSDDDD[Vnn]_scene.json with relative URLs
-/// * a stats file TTTT_SSSDDDD[Vnn]/TTTT_SSSDDDD[Vnn]_stats.txt.
+/// * a tilest file TTTT_SSSDDDD[Vnn][_orbital]/TTTT_SSSDDDD[Vnn][_orbital]_tileset.json
+/// * a manifest file TTTT_SSSDDDD[Vnn][_orbital]/TTTT_SSSDDDD[Vnn][_orbital]_scene.json with relative URLs
+/// * a stats file TTTT_SSSDDDD[Vnn][_orbital]/TTTT_SSSDDDD[Vnn][_orbital]_stats.txt.
 /// 
 /// Unless --nosky is specified all of the above also holds for a sky tileset named TTTT_SSSDDDD[Vnn]_sky.
 /// 
-/// A combined scene manifest TTT_SSSDDDD[Vnn]_scene.json with absolute URLs can also be optionally created or updated
-/// as a sibling of the output tileset directory.  In that case the update-scene-manifest tool will also include any
-/// sibling tactical mesh tilesets in the manifest.
+/// A combined scene manifest TTT_SSSDDDD[Vnn][_orbital]_scene.json with absolute URLs can also be optionally created or
+/// updated as a sibling of the output tileset directory.  In that case the update-scene-manifest tool will also include
+/// any sibling tactical mesh tilesets in the manifest.
 ///
 /// This service can also run in master service mode by specifying --master.  In that mode the service listens for
 /// messages indicating XYZ list, XYZ wedge files, wedge texture files, or FDR files have been created or updated.  Once
@@ -246,11 +248,11 @@ namespace JPLOPS.Landform
         [Option(Default = false, HelpText = "option disabled for this command")]
         public override bool CaseSensitiveSearch { get; set; }
 
-        [Option(Default = false, HelpText = "Overwrite existing orbital tilesets")]
-        public bool OverwriteExistingOrbital { get; set; }
+        [Option(Default = false, HelpText = "Recreate existing orbital tilesets")]
+        public bool RecreateExistingOrbital { get; set; }
 
-        [Option(Default = false, HelpText = "Don't Overwrite existing contextual tilesets")]
-        public bool NoOverwriteExistingContextual { get; set; }
+        [Option(Default = false, HelpText = "Don't recreate existing contextual tilesets")]
+        public bool NoRecreateExistingContextual { get; set; }
 
         [Option(Default = null, HelpText = "option disabled for this command")]
         public override string MeshFormat { get; set; }
@@ -270,6 +272,12 @@ namespace JPLOPS.Landform
         [Option(Default = null, HelpText = "Override default orbital image URL")]
         public string OrbitalImageURL { get; set; }
 
+        [Option(Default = false, HelpText = "Don't ignore sol when comparing orbital tilesets")]
+        public bool NoOrbitalCompareIgnoreSol { get; set; }
+
+        [Option(Default = ProcessContextual.DEF_ORBITAL_CHECK_EXISTING_SOL_RANGE, HelpText = "If --noorbitalcompareignoresol is absent then check sols differing by at most this amount for existing orbital tilesets")]
+        public int OrbitalCheckExistingSolRange { get; set; }
+
         [Option(Default = false, HelpText = "Abort contextual mesh workflow on unexpected error in an alignment stage")]
         public bool AbortOnAlignmentError { get; set; }
 
@@ -278,6 +286,9 @@ namespace JPLOPS.Landform
 
         [Option(Default = BuildGeometry.DEF_EXTENT, HelpText = "Combined surface and orbital geometry extent in meters")]
         public double Extent { get; set; }
+
+        [Option(Default = false, HelpText = "Don't check for extent overrides in SSM parameter store")]
+        public bool NoAllowOverrideExtent { get; set; }
 
         [Option(Default = false, HelpText = "Run as contextual mesh master service")]
         public bool Master { get; set; }
@@ -407,6 +418,8 @@ namespace JPLOPS.Landform
         public const double DEF_MAX_SITEDRIVE_DISTANCE = 2 * BuildGeometry.DEF_SURFACE_EXTENT;
         public const int DEF_MAX_SOL_RANGE = 200;
 
+        public const int DEF_ORBITAL_CHECK_EXISTING_SOL_RANGE = 30;
+
         public const int DEF_MAX_SITEDRIVES_PER_SOL = -1;
         public const int DEF_MAX_SITEDRIVES_PER_SOL_PER_PASS = 1;
 
@@ -449,6 +462,8 @@ namespace JPLOPS.Landform
         public const string DEF_EOP_MESSAGE_PATTERN = "*EOP at*"; 
         public const string DEF_EOF_MESSAGE_PATTERN = "*Fdr done*"; 
         public const string DEF_EOX_MESSAGE_PATTERN = "*Xyz done*"; //TODO
+
+        public static bool orbitalCompareIgnoreSol;
 
         protected ProcessContextualOptions options;
 
@@ -499,12 +514,18 @@ namespace JPLOPS.Landform
             public long timestamp; //UTC milliseconds since epoch when message was created
             public int numFailedAttempts;
             public long recycledFirstReceiveMS; //UTC ms since epoch when recycled message was originally first received
+            public double extent; //in meters
 #pragma warning restore 0649
 
             public override int GetHashCode()
             {
-                return HashCombiner.Combine(rdrDir.GetHashCode(),
-                                            HashCombiner.Combine(primarySol, primarySiteDrive.GetHashCode()));
+                int hash = HashCombiner.Combine(rdrDir.GetHashCode(), primarySiteDrive.GetHashCode(),
+                                                orbitalOnly.GetHashCode(), extent.GetHashCode());
+                if (!orbitalOnly || !ProcessContextual.orbitalCompareIgnoreSol)
+                {
+                    hash = HashCombiner.Combine(hash, primarySol);
+                }
+                return hash;
             }
 
             public override bool Equals(object obj)
@@ -513,11 +534,10 @@ namespace JPLOPS.Landform
                 {
                     return false;
                 }
-                var msg = obj as ContextualMeshMessage;
-                return msg.rdrDir == rdrDir && msg.primarySol == primarySol && msg.primarySiteDrive == primarySiteDrive;
+                return SameTileset(obj as ContextualMeshMessage);
             }
 
-            public bool ExactEquals(ContextualMeshMessage other, ILogger logger = null)
+            public bool SameTileset(ContextualMeshMessage other, ILogger logger = null)
             {
                 if (other == null)
                 {
@@ -533,15 +553,6 @@ namespace JPLOPS.Landform
                     if (logger != null)
                     {
                         logger.LogInfo("messages differ: rdr dir \"{0}\" != \"{1}\"", rdrDir, other.rdrDir);
-                    }
-                    return false;
-                }
-
-                if (primarySol != other.primarySol)
-                {
-                    if (logger != null)
-                    {
-                        logger.LogInfo("messages differ: primary sol {0} != {1}", primarySol, other.primarySol);
                     }
                     return false;
                 }
@@ -565,14 +576,27 @@ namespace JPLOPS.Landform
                     return false;
                 }
 
-                if (timestamp != other.timestamp)
+                if (extent != other.extent)
                 {
                     if (logger != null)
                     {
-                        logger.LogInfo("messages differ: timestamp {0} != {1}", UTCTime.MSSinceEpochToDate(timestamp),
-                                       UTCTime.MSSinceEpochToDate(other.timestamp));
+                        logger.LogInfo("messages differ: extent {0} != {1}", extent, other.extent);
                     }
                     return false;
+                }
+
+                if ((!orbitalOnly || !ProcessContextual.orbitalCompareIgnoreSol) && primarySol != other.primarySol)
+                {
+                    if (logger != null)
+                    {
+                        logger.LogInfo("messages differ: primary sol {0} != {1}", primarySol, other.primarySol);
+                    }
+                    return false;
+                }
+
+                if (orbitalOnly)
+                {
+                    return true;
                 }
 
                 var mySols = ParseSols();
@@ -596,6 +620,20 @@ namespace JPLOPS.Landform
                         logger.LogInfo("messages differ: site drives {0} != {1}",
                                        string.Join(",", mySDs.OrderBy(sd => sd).ToArray()),
                                        string.Join(",", otherSDs.OrderBy(sd => sd).ToArray()));
+                    }
+                    return false;
+                }
+
+                //contextual meshes may differ even if they have the same sols and sitedrives
+                //because if they are built at different times they may collect different sets of input RDRs
+                //(timestamp is not actually the build time of the contextual mesh but it's the time that
+                //the master requested a contextual mesh based on changes to available RDRs)
+                if (timestamp != other.timestamp)
+                {
+                    if (logger != null)
+                    {
+                        logger.LogInfo("messages differ: timestamp {0} != {1}", UTCTime.MSSinceEpochToDate(timestamp),
+                                       UTCTime.MSSinceEpochToDate(other.timestamp));
                     }
                     return false;
                 }
@@ -658,6 +696,7 @@ namespace JPLOPS.Landform
             public int NumWedges = -1; //used only for information and sorting, negative if unknown
             public bool OrbitalOnly;
             public long Timestamp; //UTC milliseconds since epoch
+            public double Extent;
         }
         
         private string DumpParameters(ContextualMeshParameters p, bool verbose = false)
@@ -679,6 +718,7 @@ namespace JPLOPS.Landform
                 {
                     ret += string.Format("; timestamp {0} UTC", UTCTime.MSSinceEpochToDate(p.Timestamp));
                 }
+                ret += string.Format("; extent {0}m", p.Extent);
             }
             return ret;
         }
@@ -1209,7 +1249,7 @@ namespace JPLOPS.Landform
 
             solRange = options.MaxSolRange >= 0 ? options.MaxSolRange : DEF_MAX_SOL_RANGE;
             maxSDs = options.MaxSiteDrives > 0 ? options.MaxSiteDrives : int.MaxValue;
-            pipeline.LogInfo("contextual mesh extent {0}, surface extent {1}", options.Extent, options.SurfaceExtent);
+            pipeline.LogInfo("default extent {0}, surface extent {1}", options.Extent, options.SurfaceExtent);
             pipeline.LogInfo("max sol range {0}, max sitedrives {1}", solRange, maxSDs);
             pipeline.LogInfo("min wedges for primary sitedrive {0}", options.MinPrimarySiteDriveWedges);
             pipeline.LogInfo("max sitedrives per sol {0}",
@@ -1233,6 +1273,12 @@ namespace JPLOPS.Landform
             if (solBlacklist.Length > 0)
             {
                 pipeline.LogInfo("{0} blacklisted sols: {1}", solBlacklist.Length, MakeSolRanges(solBlacklist));
+            }
+
+            orbitalCompareIgnoreSol = !options.NoOrbitalCompareIgnoreSol;
+            if (orbitalCompareIgnoreSol)
+            {
+                pipeline.LogInfo("ignoring sol when comparing orbital tilesets");
             }
 
             return true;
@@ -1459,11 +1505,19 @@ namespace JPLOPS.Landform
 
             ret.OrbitalOnly = msg.orbitalOnly;
 
+            ret.Extent = msg.extent;
+
             return ret;
         }
 
-        private ContextualMeshParameters MakeParameters(string rdrDir, string sols, string siteDrives, bool orbitalOnly)
+        private ContextualMeshParameters MakeBatchParameters()
         {
+            string rdrDir= options.RDRDir;
+            string sols = options.Sols;
+            string siteDrives = options.SiteDrives;
+            bool orbitalOnly = options.NoSurface;
+            double extent = options.Extent;
+
             int sep = sols.IndexOfAny(new char[] { ',', '-' });
             sep = sep < 0 ? sols.Length : sep;
             int primarySol = int.Parse(sols.Substring(0, sep));
@@ -1573,6 +1627,7 @@ namespace JPLOPS.Landform
                 ret.Sols.Add(primarySol);
                 ret.PrimarySiteDrive = sds[0];
                 ret.SiteDrives.Add(sds[0]);
+                ret.Extent = extent;
                 return ret;
             }
             else
@@ -1589,17 +1644,76 @@ namespace JPLOPS.Landform
                 ret.Sols.UnionWith(allSols);
                 ret.PrimarySiteDrive = sds[0];
                 ret.SiteDrives.UnionWith(sds);
+                ret.Extent = extent;
                 return ret;
             }
         }
 
         private void BuildContextualTileset()
         {
-            var parameters = MakeParameters(options.RDRDir, options.Sols, options.SiteDrives, options.NoSurface);
+            var parameters = MakeBatchParameters();
             if (parameters != null)
             {
                 BuildContextualTileset(parameters);
             }
+        }
+
+        public enum TilesetStatus { absent, found, done, processing, zombie };
+        private TilesetStatus CheckForTileset(ContextualMeshMessage msg, string destDir, int version)
+        {
+            string project = string.Format("{0}_{1}{2}{3}", SolToString(msg.primarySol),
+                                           msg.primarySiteDrive.ToString(),
+                                           version > 0 ? "V" + version.ToString("D2") : "",
+                                           msg.orbitalOnly ? "_orbital" : "");
+            bool absent = true;
+            foreach (var f in SearchFiles($"{destDir}/{project}/", recursive: false))
+            {
+                absent = false;
+                if (f.EndsWith(MESSAGE_JSON))
+                {
+                    try
+                    {
+                        var existingJson = File.ReadAllText(GetFile(f, filenameUnique: false));
+                        var existingMsg = JsonHelper.FromJson<ContextualMeshMessage>(existingJson);
+                        if (existingMsg.SameTileset(msg, pipeline))
+                        {
+                            return TilesetStatus.done;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        pipeline.LogException(ex, "failed to read " + f);
+                    }
+                }
+                else if (f.EndsWith(PID_JSON))
+                {
+                    try
+                    {
+                        var existingJson = File.ReadAllText(GetFile(f, filenameUnique: false));
+                        var existingContent = JsonHelper.FromJson<ContextualPIDContent>(existingJson);
+                        var existingMsg = existingContent.message;
+                        if (existingMsg.SameTileset(msg, pipeline))
+                        {
+                            DateTime? ts = null;
+                            int zs = options.ZombieSec;
+                            if (zs < 0 ||
+                                DateTime.Now.Subtract((ts = storageHelper.LastModified(f)).Value).TotalSeconds < zs)
+                            {
+                                return TilesetStatus.processing;
+                            }
+                            else
+                            {
+                                return TilesetStatus.zombie;
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        pipeline.LogException(ex, "failed to read " + f);
+                    }
+                }
+            }
+            return absent ? TilesetStatus.absent : TilesetStatus.found;
         }
 
         private class ContextualPIDContent : ServicePIDContent
@@ -1656,104 +1770,61 @@ namespace JPLOPS.Landform
                         version = "V" + i.ToString("D2");
                     }
                     versionedProject = project + version + projSfx;
-                    bool noExisting = true, alreadyProcessed = false;
-                    foreach (var f in SearchFiles($"{destDir}/{versionedProject}/", recursive: false))
+                    var status = CheckForTileset(currentMessage as ContextualMeshMessage, destDir, i);
+                    if (status == TilesetStatus.done)
                     {
-                        //we shouldn't normally be able to receive the same message to process a tileset
-                        //that is either already processed or currently processing by a live worker
-                        //because the message should be hidden from visibility by the heartbeat loop
-                        //while processing and it should be deleted after successful processing
-                        //however it is worth double checking here because the heartbeat loop can fail
-                        //and with FIFO queues when that happens the message can't even be deleted
-                        //until it is re-received
-                        //(eventually such a message will get deleted due to max receive count)
-                        noExisting = false;
-                        if (f.EndsWith(MESSAGE_JSON))
-                        {
-                            try
-                            {
-                                var existingJson = File.ReadAllText(GetFile(f, filenameUnique: false));
-                                var existingMsg = JsonHelper.FromJson<ContextualMeshMessage>(existingJson);
-                                bool same = existingMsg.ExactEquals(currentMessage as ContextualMeshMessage, pipeline);
-                                if (same)
-                                {
-                                    alreadyProcessed = true;
-                                    pipeline.LogInfo("tileset {0}/{1} aborted, already procesessed at {2}",
-                                                     destDir, versionedProject, storageHelper.LastModified(f));
-                                }
-                            }
-                            catch (Exception ex)
-                            {
-                                pipeline.LogException(ex, "failed to read " + f);
-                            }
-                        }
-                        else if (f.EndsWith(PID_JSON))
-                        {
-                            try
-                            {
-                                var existingJson = File.ReadAllText(GetFile(f, filenameUnique: false));
-                                var existingContent = JsonHelper.FromJson<ContextualPIDContent>(existingJson);
-                                var existingMsg = existingContent.message;
-                                bool same = existingMsg.ExactEquals(currentMessage as ContextualMeshMessage, pipeline);
-                                DateTime? ts = null;
-                                if (same && (options.ZombieSec < 0 ||
-                                             DateTime.Now.Subtract((ts = storageHelper.LastModified(f)).Value)
-                                             .TotalSeconds < options.ZombieSec))
-                                {
-                                    alreadyProcessed = true;
-                                    pipeline.LogInfo("tileset {0}/{1} aborted, already processing by {2} " +
-                                                     "(current stage {3}{4})",
-                                                     destDir, versionedProject, existingContent.pid,
-                                                     existingContent.status, ts.HasValue ? $", last updated {ts}" : "");
-                                }
-                            }
-                            catch (Exception ex)
-                            {
-                                pipeline.LogException(ex, "failed to read " + f);
-                            }
-                        }
-                    }
-                    if (alreadyProcessed)
-                    {
+                        pipeline.LogInfo("tileset {0}/{1} aborted, already procesessed", destDir, versionedProject);
                         return null;
                     }
-                    else if (noExisting)
+                    if (status == TilesetStatus.processing)
                     {
-                        pidFile = SavePID(destDir, versionedProject, "interlock");
-                        pipeline.LogInfo("beginning {0} version interlock for tileset {1}/{2} for worker {3}",
-                                         Fmt.HMS(VERSION_INTERLOCK_SEC * 1e3), destDir, versionedProject, pid);
-                        if (!SleepSec(VERSION_INTERLOCK_SEC))
-                        {
-                            DeletePID(destDir, versionedProject, pidFile);
-                            pipeline.LogWarn("tileset {0}/{1} aborted in version interlock", destDir, versionedProject);
-                            return null;
-                        }
-                        string pfx = project + "_";
-                        string sfx = "_" + PID_JSON;
-                        string pattern = pfx + "*" + sfx;
-                        var pids =
-                            SearchFiles($"{destDir}/{versionedProject}/", globPattern: pattern, recursive: false)
-                            .Select(url => StringHelper.GetLastUrlPathSegment(url))
-                            .Select(n => n.Substring(0, n.Length - sfx.Length).Substring(pfx.Length))
-                            .OrderByDescending(p => p)
-                            .ToList();
-                        if (pids.Count == 0)
-                        {
-                            DeletePID(destDir, versionedProject, pidFile); //just in case
-                            pipeline.LogWarn("tileset {0}/{1} aborted in version interlock, PID file missing",
-                                             destDir, versionedProject);
-                            return null;
-                        }
-                        if (!pids[0].Equals(pid))
-                        {
-                            //we are not the highest PID attempting to build this version, abort
-                            DeletePID(destDir, versionedProject, pidFile);
-                            pipeline.LogInfo("tileset {0}/{1} aborted in version interlock, claimed by worker {2}",
-                                             destDir, versionedProject, pids[0]);
-                            return null;
-                        }
-                        pipeline.LogInfo("tileset {0}/{1} claimed by worker {2}", destDir, versionedProject, pid);
+                        pipeline.LogInfo("tileset {0}/{1} aborted, currently processing", destDir, versionedProject);
+                        return null;
                     }
+                    if (status == TilesetStatus.found)
+                    {
+                        pipeline.LogInfo("tileset {0}/{1} incomplete, skipping version", destDir, versionedProject);
+                        continue;
+                    }
+                    if (status == TilesetStatus.zombie)
+                    {
+                        pipeline.LogInfo("tileset {0}/{1} zombie, skipping version", destDir, versionedProject);
+                        continue;
+                    }
+                    pidFile = SavePID(destDir, versionedProject, "interlock");
+                    pipeline.LogInfo("beginning {0} version interlock for tileset {1}/{2} for worker {3}",
+                                     Fmt.HMS(VERSION_INTERLOCK_SEC * 1e3), destDir, versionedProject, pid);
+                    if (!SleepSec(VERSION_INTERLOCK_SEC))
+                    {
+                        DeletePID(destDir, versionedProject, pidFile);
+                        pipeline.LogWarn("tileset {0}/{1} aborted in version interlock", destDir, versionedProject);
+                        return null;
+                    }
+                    string pfx = project + "_";
+                    string sfx = "_" + PID_JSON;
+                    string pattern = pfx + "*" + sfx;
+                    var pids =
+                        SearchFiles($"{destDir}/{versionedProject}/", globPattern: pattern, recursive: false)
+                        .Select(url => StringHelper.GetLastUrlPathSegment(url))
+                        .Select(n => n.Substring(0, n.Length - sfx.Length).Substring(pfx.Length))
+                        .OrderByDescending(p => p)
+                        .ToList();
+                    if (pids.Count == 0)
+                    {
+                        DeletePID(destDir, versionedProject, pidFile); //just in case
+                        pipeline.LogWarn("tileset {0}/{1} aborted in version interlock, PID file missing",
+                                         destDir, versionedProject);
+                        return null;
+                    }
+                    if (!pids[0].Equals(pid))
+                    {
+                        //we are not the highest PID attempting to build this version, abort
+                        DeletePID(destDir, versionedProject, pidFile);
+                        pipeline.LogInfo("tileset {0}/{1} aborted in version interlock, claimed by worker {2}",
+                                         destDir, versionedProject, pids[0]);
+                        return null;
+                    }
+                    pipeline.LogInfo("tileset {0}/{1} claimed by worker {2}", destDir, versionedProject, pid);
                 }
             }
 
@@ -1767,35 +1838,6 @@ namespace JPLOPS.Landform
         private string SavePID(string destDir, string project, Phase phase, string pidFile)
         {
             return SavePID(destDir, project, phase.ToString(), pidFile);
-        }
-
-        protected override bool TilesetExists(string rdrDir, int sol, string project, bool checkPID = true)
-        {
-            return base.TilesetExists(rdrDir ?? options.RDRDir, sol, project, checkPID);
-        }
-
-        //normally don't need to check each possible version
-        //because if version n exists then version n-1 should also exist if n > 0
-        private bool VersionedTilesetExists(string rdrDir, int sol, string project, bool checkPID = true)
-        {
-            string sfx = "_orbital";
-            if (project.EndsWith(sfx))
-            {
-                project = project.Substring(0, project.Length - sfx.Length);
-            }
-            else
-            {
-                sfx = "";
-            }
-            for (int i = 0; i <= MAX_VERSION; i++)
-            {
-                string version = i > 0 ? ("V" + i.ToString("D2")) : "";
-                if (TilesetExists(rdrDir, sol, project + version + sfx, checkPID))
-                {
-                    return true;
-                }
-            }
-            return false;
         }
 
         /// <summary>
@@ -2589,6 +2631,77 @@ namespace JPLOPS.Landform
             return ret;
         }
 
+        // searches for extent overrides in parameter store
+        // in order from more specific to less specific
+        //
+        // /m20/{venue}/ids/landform/{contextual,orbital}/{sol}/{site}{drive}/extent
+        // /m20/{venue}/ids/landform/{contextual,orbital}/{sol}/{sol}_{site}{drive}/extent
+        // /m20/{venue}/ids/landform/{contextual,orbital}/{sol}/{site}/{drive}/extent
+        // /m20/{venue}/ids/landform/{contextual,orbital}/{sol}/site/{site}/extent
+        // /m20/{venue}/ids/landform/{contextual,orbital}/{sol}/extent
+        // /m20/{venue}/ids/landform/{contextual,orbital}/{site}{drive}/extent
+        // /m20/{venue}/ids/landform/{contextual,orbital}/{sol}_{site}{drive}/extent
+        // /m20/{venue}/ids/landform/{contextual,orbital}/{site}/{drive}/extent
+        // /m20/{venue}/ids/landform/{contextual,orbital}/site/{site}/extent
+        // /m20/{venue}/ids/landform/{contextual,orbital}/extent
+        private double GetExtent(int primarySol, SiteDrive primarySD, String service = "contextual")
+        {
+            if (!IsService())
+            {
+                return options.Extent;
+            }
+
+            string shortSol = primarySol.ToString();
+            string canonicalSol = SolToString(primarySol);
+            string pathSol = SolToString(primarySol, forceNumeric: true);
+            var solStrings = new List<string> { canonicalSol, pathSol, shortSol, "" };
+
+            string sd = primarySD.ToString();
+            string shortSite = primarySD.Site.ToString();
+            string canonicalSite = primarySD.SiteToString();
+            string shortDrive = primarySD.Drive.ToString();
+            string canonicalDrive = primarySD.DriveToString();
+            var sdStrings = new List<String> { sd,
+                                               string.Format("{0}_{1}", canonicalSol, sd),
+                                               string.Format("{0}/{1}", canonicalSite, canonicalDrive),
+                                               string.Format("{0}/{1}", shortSite, shortDrive),
+                                               string.Format("site/{0}", canonicalSite),
+                                               string.Format("site/{0}", shortSite),
+                                               "" };
+
+            foreach (string solStr in solStrings)
+            {
+                foreach (var sdStr in sdStrings)
+                {
+                    string key = service;
+                    if (!string.IsNullOrEmpty(solStr))
+                    {
+                        key += "/" + solStr;
+                    }
+                    if (!string.IsNullOrEmpty(sdStr))
+                    {
+                        key += "/" + sdStr;
+                    }
+                    key += "/extent";
+                    string overrideExtent = GetParameter(service, key);
+                    if (overrideExtent != null)
+                    {
+                        if (double.TryParse(overrideExtent, out double e) && e > 0)
+                        {
+                            return e;
+                        }
+                        else
+                        {
+                            pipeline.LogWarn("error parsing override extent \"{0}\" from \"{1}\" as a positive number",
+                                             overrideExtent, key);
+                        }
+                    }
+                }
+            }
+
+            return options.Extent;
+        }
+
         private ContextualMeshMessage MakeOrbitalMeshMessage(SiteDriveList primarySDList)
         {
             return MakeOrbitalMeshMessage(primarySDList.RDRDir, primarySDList.MaxSol, primarySDList.SiteDrive);
@@ -2605,7 +2718,8 @@ namespace JPLOPS.Landform
                 siteDrives = primarySD.ToString(),
                 numWedges = 0,
                 orbitalOnly = true,
-                timestamp = (long)UTCTime.NowMS()
+                timestamp = (long)UTCTime.NowMS(),
+                extent = !options.NoAllowOverrideExtent ? GetExtent(primarySol, primarySD, "orbital") : options.Extent
             };
         }
 
@@ -2804,7 +2918,8 @@ namespace JPLOPS.Landform
                 sols = MakeSolRanges(sols),
                 siteDrives = string.Join(",", keepers.Keys.OrderBy(sd => sd)),
                 numWedges = totalWedges,
-                timestamp = (long)UTCTime.NowMS()
+                timestamp = (long)UTCTime.NowMS(),
+                extent = !options.NoAllowOverrideExtent ? GetExtent(primarySol, primarySD) : options.Extent
             };
         }
 
@@ -2818,7 +2933,7 @@ namespace JPLOPS.Landform
         /// </summary>
         private List<ContextualMeshMessage> CoalesceMessages(List<ContextualMeshMessage> newMsgsOldestToNewest,
                                                              string what, MessageQueue queue, string rdrDir,
-                                                             bool cullExisting)
+                                                             bool cullExisting, int checkExistingSolRange)
         {
             if (newMsgsOldestToNewest.Count == 0)
             {
@@ -2827,18 +2942,30 @@ namespace JPLOPS.Landform
 
             if (cullExisting)
             {
+                checkExistingSolRange = Math.Max(0, checkExistingSolRange);
                 var keep = new List<ContextualMeshMessage>();
                 foreach (var msg in newMsgsOldestToNewest)
                 {
-                    string project = string.Format("{0}_{1}{2}", SolToString(msg.primarySol),
-                                                   msg.primarySiteDrive.ToString(), msg.orbitalOnly ? "_orbital" : "");
-                    if (!TilesetExists(msg.rdrDir, msg.primarySol, project))
+                    int minSol = Math.Max(0, msg.primarySol - checkExistingSolRange);
+                    int maxSol = msg.primarySol + checkExistingSolRange;
+                    bool found = false;
+                    for (int sol = minSol; !found && sol <= maxSol; sol++)
+                    {
+                        //only checking version 0 here
+                        //this could return false negative if e.g. version 0 went zombie but a later version is done
+                        //for contextual meshes things like that should get handled later in AssignVersionAndSavePID()
+                        //for orbital this might mean we recreate the tileset even though it exists in another sol
+                        //but that's not the end of the world
+                        var status = CheckForTileset(msg, GetDestDir(StringHelper.ReplaceIntWildcards(rdrDir, sol)), 0);
+                        found = (status == TilesetStatus.done) || (status == TilesetStatus.processing);
+                    }
+                    if (!found)
                     {
                         keep.Add(msg);
                     }
                     else
                     {
-                        pipeline.LogInfo("culling {0} message for {1}, already processing", what, project);
+                        pipeline.LogInfo("culling {0} message for {1}, already exists", what, project);
                     }
                 }
                 if (keep.Count == 0)
@@ -2850,8 +2977,8 @@ namespace JPLOPS.Landform
 
             pipeline.LogInfo("coalescing {0} new {1} messages with existing", newMsgsOldestToNewest.Count, what);
 
-            //keep at most one message per (primarySol, primarySiteDrive) pair
-            //ContextualMeshMessage defines its GetHashCode() and Equals() by (primarySol, primarySiteDrive)
+            //keep only unique messages
+            //this is where ContextualMeshMessage GetHashCode() and Equals() get used
             var keepers = new HashSet<ContextualMeshMessage>();
 
             void keepNewest(List<ContextualMeshMessage> msgs, string kind)
@@ -2941,7 +3068,8 @@ namespace JPLOPS.Landform
             //yes, OrderByDescending() is stable
             //https://stackoverflow.com/questions/1209935/orderby-and-orderbydescending-are-stable
             var coalesced = keepers
-                .OrderByDescending(msg => msg.numWedges) //more wedges -> process sooner (lowest priority)
+                .OrderByDescending(msg => msg.extent) //larger extent -> process sooner (lowest priority)
+                .OrderByDescending(msg => msg.numWedges) //more wedges -> process sooner
                 .OrderByDescending(msg => msg.primarySiteDrive) //higher sitedrive -> process sooner
                 .OrderByDescending(msg => msg.primarySol) //higher sol -> process sooner
                 .OrderBy(msg => msg.numFailedAttempts) //more failed attempts -> process later (highest priority)
@@ -2954,7 +3082,7 @@ namespace JPLOPS.Landform
 
         //uses SQS, called only while holding credentialRefreshLock
         private int EnqueueMessages(List<Stamped<ContextualMeshMessage>> msgs, string what, MessageQueue queue,
-                                    string rdrDir, bool cullExisting)
+                                    string rdrDir, bool cullExisting, int checkExistingSolRange)
         {
             if (queue == null)
             {
@@ -2967,7 +3095,7 @@ namespace JPLOPS.Landform
             try
             {
                 //remove duplicates and order descending by sol, then sitedrive, then num wedges
-                coalesced = CoalesceMessages(coalesced, what, queue, rdrDir, cullExisting);
+                coalesced = CoalesceMessages(coalesced, what, queue, rdrDir, cullExisting, checkExistingSolRange);
             }
             catch (Exception ex)
             {
@@ -3171,8 +3299,10 @@ namespace JPLOPS.Landform
                 }
                 lock (credentialRefreshLock)
                 {
-                    bool overwrite = options.OverwriteExistingOrbital;
-                    if (EnqueueMessages(omsgs, "orbital", orbitalWorkerQueue ?? workerQueue, rdrDir, !overwrite) > 0 &&
+                    var queue = orbitalWorkerQueue ?? workerQueue;
+                    bool cullExisting = !options.RecreateExistingOrbital;
+                    int checkExistingSolRange = options.OrbitalCheckExistingSolRange;
+                    if (EnqueueMessages(omsgs, "orbital", queue, rdrDir, cullExisting, checkExistingSolRange) > 0 &&
                         options.AutoStartWorkers && options.WorkerAutoStartSec > 0)
                     {
                         StartWorkers(orbitalWorkerInstances, "orbital");
@@ -3277,8 +3407,8 @@ namespace JPLOPS.Landform
                 }
                 lock (credentialRefreshLock)
                 {
-                    bool overwrite = !options.NoOverwriteExistingContextual;
-                    if (EnqueueMessages(msgs, "contextual", workerQueue, rdrDir, overwrite) > 0 &&
+                    bool cullExisting = options.NoRecreateExistingContextual;
+                    if (EnqueueMessages(msgs, "contextual", workerQueue, rdrDir, cullExisting, 0) > 0 &&
                         options.AutoStartWorkers && options.WorkerAutoStartSec > 0)
                     {
                         StartWorkers(workerInstances);
