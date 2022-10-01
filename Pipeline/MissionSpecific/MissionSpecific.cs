@@ -52,6 +52,9 @@ namespace JPLOPS.Pipeline
         [ConfigEnvironmentVariable("LANDFORM_ALLOW_SUN_FINDING")]
         public bool AllowSunFinding { get; set; } = false;
 
+        [ConfigEnvironmentVariable("LANDFORM_IMAGE_PRODUCT_TYPE")]
+        public string ImageProductType { get; set; } = "RAS";
+
         [ConfigEnvironmentVariable("LANDFORM_ALLOW_LINEAR")]
         public bool AllowLinear { get; set; } = true;
 
@@ -127,7 +130,7 @@ namespace JPLOPS.Pipeline
         public bool UseUnifiedMeshes { get; set; } = false;
 
         [ConfigEnvironmentVariable("LANDFORM_UNIFIED_MESH_PRODUCT_TYPE")]
-        public string UnifiedMeshProductType { get; set; } = "RAS";
+        public string UnifiedMeshProductType { get; set; } = "auto";
 
         //comma separated list of processing types to allow
         //sorted in order of preference (best last)
@@ -182,6 +185,7 @@ namespace JPLOPS.Pipeline
         {
             this.venue = venue ?? "dev";
             Config.DefaultsProvider = this;
+            RoverProduct.SetImageRDRType(GetImageProductType());
         }
 
         public string GetConfigDefaults(string configFilename)
@@ -510,6 +514,14 @@ namespace JPLOPS.Pipeline
         }
 
         /// <summary>
+        /// get image RDR product type, e.g. for contextual mesh texturing
+        /// </summary>
+        public virtual string GetImageProductType()
+        {
+            return MissionConfig.Instance.ImageProductType;
+        }
+
+        /// <summary>
         /// whether to ingest linearized images
         /// </summary>
         public virtual bool AllowLinear()
@@ -675,7 +687,7 @@ namespace JPLOPS.Pipeline
 
         public virtual string GetUnifiedMeshProductType()
         {
-            return MissionConfig.Instance.UnifiedMeshProductType;
+            return MissionConfig.Instance.UnifiedMeshProductType.Replace("auto", GetImageProductType());
         }
 
         public bool UseForAlignment(PDSParser parser)

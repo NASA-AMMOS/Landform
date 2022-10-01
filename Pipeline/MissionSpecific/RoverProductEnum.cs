@@ -234,6 +234,10 @@ namespace JPLOPS.Pipeline
 
     public static class RoverProduct
     {
+        public const string DEFAULT_IMAGE_RDR_TYPE = "RAS";
+
+        private static string imageRDRType = DEFAULT_IMAGE_RDR_TYPE;
+
         private static Dictionary<string, RoverProductType> pdsDerivedImageTypes =
             new Dictionary<string, RoverProductType>()
         {
@@ -249,13 +253,25 @@ namespace JPLOPS.Pipeline
         private static Dictionary<string, RoverProductType> rdrProductTypes =
             new Dictionary<string, RoverProductType>()
         {
-            { "RAS", RoverProductType.Image },
+            { imageRDRType, RoverProductType.Image },
             { "MXY", RoverProductType.RoverMask },
             { "RNG", RoverProductType.Range },
             { "XYZ", RoverProductType.Points },
             { "UVW", RoverProductType.Normals },
             { "RNE", RoverProductType.RangeError },
         };
+
+        public static string GetImageRDRType()
+        {
+            return imageRDRType;
+        }
+
+        public static void SetImageRDRType(string rdrType)
+        {
+            rdrProductTypes.Remove(imageRDRType);
+            imageRDRType = rdrType;
+            rdrProductTypes.Add(imageRDRType, RoverProductType.Image);
+        }
 
         public static RoverProductType FromPDSDerivedImageType(string pdsType)
         {

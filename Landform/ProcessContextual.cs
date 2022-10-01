@@ -299,7 +299,7 @@ namespace JPLOPS.Landform
         [Option(Default = ProcessContextual.DEF_WEDGE_PATTERN, HelpText = "Master service wedge filename pattern, case insensitive, null, empty,or \"none\" to reject wedge files.  Extension must be .IMG, .VIC or .auto to use mission-specific preferred format.")]
         public string WedgePattern { get; set; }
 
-        [Option(Default = ProcessContextual.DEF_TEXTURE_PATTERN, HelpText = "Master service texture filename pattern, case insensitive, null, empty,or \"none\" to reject texture files.  Extension must be .IMG, .VIC or .auto to use mission-specific preferred format.")]
+        [Option(Default = ProcessContextual.DEF_TEXTURE_PATTERN, HelpText = "Master service texture filename pattern, case insensitive, null, empty,or \"none\" to reject texture files.  Extension must be .IMG, .VIC or .auto to use mission-specific preferred format.  \"mission\" will be replaced with the mission-specific image product type.")]
         public string TexturePattern { get; set; }
 
         [Option(Default = ProcessContextual.DEF_FDR_PATTERN, HelpText = "Master service FDR filename pattern for triggering orbital meshes, case insensitive, null, empty,or \"none\" to reject FDR files (in that case orbital meshes will be triggered on wedge and/or texture files).  Extension must be .IMG, .VIC or .auto to use mission-specific preferred format.")]
@@ -438,7 +438,7 @@ namespace JPLOPS.Landform
         public const string DEF_MAX_ORBITAL = "20G";
 
         public const string DEF_WEDGE_PATTERN = "*XYZ*.auto";
-        public const string DEF_TEXTURE_PATTERN = "*RAS*.auto";
+        public const string DEF_TEXTURE_PATTERN = "*mission*.auto"; //TODO
         public const string DEF_FDR_PATTERN = "*FDR*.auto";
 
         //EDRGen notifications
@@ -1151,7 +1151,8 @@ namespace JPLOPS.Landform
             if (!string.IsNullOrEmpty(options.TexturePattern) &&
                 !string.Equals(options.TexturePattern, "none", StringComparison.OrdinalIgnoreCase))
             {
-                textureRegex = MakeURLRegex(ParseRDRExtension(options.TexturePattern, "--texturepattern"));
+                string tp = options.TexturePattern.Replace("mission", mission.GetImageProductType());
+                textureRegex = MakeURLRegex(ParseRDRExtension(tp, "--texturepattern"));
                 pipeline.LogInfo("texture regex: " + textureRegex);
             }
             

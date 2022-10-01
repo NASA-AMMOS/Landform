@@ -417,7 +417,7 @@ namespace JPLOPS.Pipeline
 
         protected override RoverProductType ParseProductType(string productType)
         {
-            if (productType != null && productType.ToUpper() == "RAS")
+            if (productType != null && productType.ToUpper() == RoverProduct.GetImageRDRType())
             {
                 return RoverProductType.Image;
             }

@@ -434,7 +434,8 @@ namespace JPLOPS.Landform
                 if (string.IsNullOrEmpty(umProductType) ||
                     string.Equals(umProductType, "auto", StringComparison.OrdinalIgnoreCase))
                 {
-                    umProductType = mission != null ? mission.GetUnifiedMeshProductType() : "RAS";
+                    umProductType = mission != null ? mission.GetUnifiedMeshProductType() :
+                        RoverProduct.GetImageRDRType();
                 }
             }
 
