@@ -162,7 +162,7 @@ namespace JPLOPS.Landform
         //in C# 64 bit fields can't  be volatile, so can't use double or long here
         //uint max is about 4.2e9; 100y since epoch in sec is 100 * 365 * 24 * 60 * 60 ~= 3.1e9
         protected volatile uint lastCredentialRefreshSecUTC;
-        protected volatile int credentialRefreshSec;
+        protected int credentialRefreshSec;
 
         private Object storageHelperLock = new Object();
         private StorageHelper _storageHelper;
