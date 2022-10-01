@@ -341,6 +341,9 @@ namespace JPLOPS.Landform
         [Option(Default = ProcessContextual.DEF_EOP_DEBOUNCE_SEC, HelpText = "Master waits at least this long after any EOP before firing a new contextual mesh message, default if negative")]
         public int MasterEOPDebounceSec { get; set; }
 
+        [Option(Default = ProcessContextual.DEF_PLACESDB_CACHE_MAX_AGE_SEC, HelpText = "Cache PlacesDB results for up to this long, disabled if 0, default if negative")]
+        public int MasterPlacesDBCacheMaxAgeSec { get; set; }
+
         [Option(Default = false, HelpText = "Worker message queue(s) Landform owned")]
         public bool LandformOwnedWorkerQueue { get; set; }
 
@@ -419,6 +422,8 @@ namespace JPLOPS.Landform
         //https://github.jpl.nasa.gov/OnSight/Landform/issues/1244
         public const int DEF_EOP_DEBOUNCE_SEC = 20 * 60; //20 minutes
 
+        public const int DEF_PLACESDB_CACHE_MAX_AGE_SEC = 1 * 24 * 60 * 60; //1 day
+
         public const int DEF_MIN_PRIMARY_SITEDRIVE_WEDGES = 4;
         public const int DEF_MAX_SITEDRIVES = 64;
         public const double DEF_MAX_SITEDRIVE_DISTANCE = 2 * BuildGeometry.DEF_SURFACE_EXTENT;
@@ -483,6 +488,8 @@ namespace JPLOPS.Landform
         private int[] solBlacklist;
 
         private volatile MessageQueue workerQueue, orbitalWorkerQueue;
+        private List<string> workerInstances, orbitalWorkerInstances;
+        private double lastWorkerAutoStartSec = -1;
 
         //list and wedge URLs for which we recently recived ObjectCreated (i.e. changed) messages
         //when MasterLoop() sees that none have changed for a given RDR directory in at least options.MasterDebounceSec
@@ -499,9 +506,9 @@ namespace JPLOPS.Landform
         private long eofTimestamp = -1; //orbital meshes can begin processing as soon as FDRs are done
         private long eoxTimestamp = -1; //contextual meshes can begin processing as soon as XYZ,UVW,MXY,RAS are done
 
-        private List<string> workerInstances, orbitalWorkerInstances;
-
-        private double lastWorkerAutoStartSec = -1;
+        private Dictionary<string, string> placesDBCache;
+        private int placesDBCacheMaxAgeSec;
+        private double placesDBCacheTime;
 
         //message sent from master to worker
         //defines the job of building one contextual mesh
@@ -1253,9 +1260,13 @@ namespace JPLOPS.Landform
             debounceMS = 1000 * (options.MasterDebounceSec >= 0 ? options.MasterDebounceSec : DEF_DEBOUNCE_SEC);
             pipeline.LogInfo("RDR debounce time {0}s", debounceMS / 1000);
 
-            eopDebounceMS =
-                1000 * (options.MasterEOPDebounceSec >= 0 ? options.MasterEOPDebounceSec : DEF_EOP_DEBOUNCE_SEC);
+            eopDebounceMS = 1000 * (options.MasterEOPDebounceSec >= 0 ?
+                                    options.MasterEOPDebounceSec : DEF_EOP_DEBOUNCE_SEC);
             pipeline.LogInfo("EOP debounce time {0}s", eopDebounceMS / 1000);
+
+            placesDBCacheMaxAgeSec = (options.MasterPlacesDBCacheMaxAgeSec >= 0 ?
+                                      options.MasterPlacesDBCacheMaxAgeSec : DEF_PLACESDB_CACHE_MAX_AGE_SEC);
+            pipeline.LogInfo("PlacesDB cache max age: {0}", Fmt.HMS(placesDBCacheMaxAgeSec * 1e3));
 
             solRange = options.MaxSolRange >= 0 ? options.MaxSolRange : DEF_MAX_SOL_RANGE;
             maxSDs = options.MaxSiteDrives > 0 ? options.MaxSiteDrives : int.MaxValue;
@@ -3182,6 +3193,23 @@ namespace JPLOPS.Landform
                 {
                     var placesDB = new PlacesDB(pipeline);
                     pipeline.LogInfo("using PlacesDB " + PlacesConfig.Instance.Url);
+                    if (placesDBCacheMaxAgeSec > 0)
+                    {
+                        double now = UTCTime.Now();
+                        if (placesDBCacheTime >= 0 && (now - placesDBCacheTime) > placesDBCacheMaxAgeSec)
+                        {
+                            placesDBCache = null;
+                        }
+                        if (placesDBCache != null)
+                        {
+                            placesDB.SetCache(placesDBCache);
+                        }
+                        else
+                        {
+                            placesDBCache = placesDB.GetCache();
+                            placesDBCacheTime = now;
+                        }
+                    }
                     return placesDB;
                 }
                 catch (Exception ex)
