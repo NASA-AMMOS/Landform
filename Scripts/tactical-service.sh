@@ -58,7 +58,7 @@ svcopts="$stdopts --stacktraces --mission=$mission"
 
 set -x # echo commands
 
-$landform configure-local $cfgopts
+$landform configure $cfgopts
 
 $landform process-${service} $svcopts "$@"
 

@@ -11,29 +11,38 @@ using JPLOPS.Pipeline;
 ///
 /// Example command line, batch mode:
 ///
-/// Landform.exe configure-local --venue=landform-local --storagedir=c:/Users/$USERNAME/Documents/landform-storage
+/// Landform.exe configure --venue=landform-local --storagedir=c:/Users/$USERNAME/Documents/landform-storage
 /// </summary>
 namespace JPLOPS.Landform
 {
-    [Verb("configure-local", HelpText = "Configures Landform local")]
-    public class ConfigureLocalOptions : ConfigureBaseOptions
+    [Verb("configure", HelpText = "Configures Landform")]
+    public class ConfigureOptions : CommandHelper.BaseOptions
     {
         //NOTE: any non-null default values for options will short circuit the Prompt() functionality
         //because it can't differentiate an option that got its value as a default
         //vs an option that was explicitly specified on the command line
-        //instead put defaults in {Local,Cloud}PipelineConfig
+        //instead put defaults in LocalPipelineConfig
         
+        [Option(Default = false, HelpText = "Prompt interactively instead of using defaults")]
+        public bool Interactive { get; set; }
+
+        [Option(Default = null, HelpText = "Venue name")]
+        public string Venue { get; set; }
+
+        [Option(Default = null, HelpText = "Override user mask directory (for compatibility)")]
+        public string UserMasksDirectory { get; set; }
+
         [Option(Default = null, HelpText = "Storage directory")]
         public string StorageDir { get; set; }
     }
 
-    public class ConfigureLocal
+    public class Configure
     {
-        private ConfigureLocalOptions options;
+        private ConfigureOptions options;
 
-        private ILog logger = LogManager.GetLogger(typeof(ConfigureLocal));
+        private ILog logger = LogManager.GetLogger(typeof(Configure));
 
-        public ConfigureLocal(ConfigureLocalOptions options)
+        public Configure(ConfigureOptions options)
         {
             this.options = options;
         }
@@ -42,7 +51,7 @@ namespace JPLOPS.Landform
         {
             try
             {
-                LocalPipelineConfig config = new LocalPipelineConfig();
+                var config = new LocalPipelineConfig();
                 
                 config.Venue = ConsoleHelper.Prompt("venue", options.Venue, config.Venue, options.Interactive);
                 config.StorageDir = ConsoleHelper.Prompt("storage directory", options.StorageDir, config.StorageDir,

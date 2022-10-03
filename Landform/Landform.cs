@@ -21,7 +21,7 @@ namespace JPLOPS.Landform
 
             var verbs = new Dictionary<Type, Type>()
                 {
-                    { typeof(ConfigureLocalOptions), typeof(ConfigureLocal) },
+                    { typeof(ConfigureOptions), typeof(Configure) },
 
                     { typeof(FetchDataOptions), typeof(FetchData) },
 

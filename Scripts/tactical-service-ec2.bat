@@ -243,7 +243,7 @@ set tacticalopts=%tacticalopts% %enforcemaxfacespertile% %requirepds% %tilingopt
 rem note %quiet% must always be last, it's a redirect not an option
 
 @echo on
-%landform% configure-local %cfgopts% %quiet%
+%landform% configure %cfgopts% %quiet%
 
 rem restart service if it crashes or aborts
 rem https://superuser.com/a/1362294

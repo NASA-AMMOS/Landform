@@ -173,8 +173,7 @@
     <Compile Include="BenchmarkS3.cs" />
     <Compile Include="BEVCommand.cs" />
     <Compile Include="BuildSkySphere.cs" />
-    <Compile Include="ConfigureBase.cs" />
-    <Compile Include="ConfigureLocal.cs" />
+    <Compile Include="Configure.cs" />
     <Compile Include="ConvertGLTF.cs" />
     <Compile Include="ConvertIV.cs" />
     <Compile Include="ConvertPDS.cs" />
