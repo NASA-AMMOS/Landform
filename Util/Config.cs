@@ -221,9 +221,13 @@ namespace JPLOPS.Util
                 if (attrib != null && !string.IsNullOrEmpty(name))
                 {
                     string str = Environment.GetEnvironmentVariable(name);
-                    if (str != null)
+                    if (!string.IsNullOrEmpty(str))
                     {
                         SetProperty(member, str, name);
+                    }
+                    else if (str != null)
+                    {
+                        Log($"ignoring empty environment variable {name}");
                     }
                 }
             }
@@ -240,6 +244,7 @@ namespace JPLOPS.Util
 
             void setValue(Object val)
             {
+                Log($"using {name}={val.ToString()}");
                 if (member is FieldInfo)
                 {
                     ((FieldInfo)member).SetValue(this, val);

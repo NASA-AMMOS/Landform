@@ -164,11 +164,11 @@ namespace JPLOPS.Util
 
         public static void SetDefaultsFromEnvironment(Type optsType)
         {
-            string bn = ENV_PREFIX + "_";
             var ea = optsType.GetCustomAttribute<EnvVar>();
+            string vn = null;
             if (ea != null)
             {
-                bn += ea.Name;
+                vn = ea.Name;
             }
             else
             {
@@ -177,18 +177,23 @@ namespace JPLOPS.Util
                 {
                     return; //shouldn't happen because only get here if there was a VerbAttribute, but ok
                 }
-                bn += StringHelper.SnakeCase(va.Name);
+                vn = StringHelper.SnakeCase(va.Name);
             }
             foreach (var prop in optsType.GetProperties().Where(p => p.CanWrite))
             {
+                string pn = prop.Name;
                 var ba = prop.GetCustomAttribute<BaseAttribute>();
                 if (ba != null)
                 {
                     var ea2 = prop.GetCustomAttribute<EnvVar>();
-                    string en = bn + "_" + (ea2 != null ? ea2.Name : StringHelper.SnakeCase(prop.Name));
+                    string en = ENV_PREFIX + "_" + vn + "_" + (ea2 != null ? ea2.Name : StringHelper.SnakeCase(pn));
                     string str = Environment.GetEnvironmentVariable(en.ToUpper());
                     if (string.IsNullOrEmpty(str))
                     {
+                        if (str != null)
+                        {
+                            Config.Log($"ignoring empty environment variable {en} for {pn} on {vn}");
+                        }
                         //if e.g. LANDFORM_CONTEXTUAL_MISSION was not set try LANDFORM_MISSION
                         en = ENV_PREFIX + "_" + (ea2 != null ? ea2.Name : StringHelper.SnakeCase(prop.Name));
                         str = Environment.GetEnvironmentVariable(en.ToUpper());
@@ -197,7 +202,11 @@ namespace JPLOPS.Util
                     {
                         try
                         {
-                            Config.ParseEnvVal(str, prop.PropertyType, obj => { ba.Default = obj; });
+                            Config.ParseEnvVal(str, prop.PropertyType, obj =>
+                            {
+                                ba.Default = obj;
+                                Config.Log($"using {en}={obj.ToString()} for {pn} on {vn}");
+                            });
                         }
                         catch (Exception ex)
                         {
@@ -205,6 +214,10 @@ namespace JPLOPS.Util
                                 string.Format("error setting {0} parameter value {1} from env var {2}={3}: {4}",
                                               prop.PropertyType.Name, prop.Name, en, str, ex.Message));
                         }
+                    }
+                    else if (str != null)
+                    {
+                        Config.Log($"ignoring empty environment variable {en} for {pn} on {vn}");
                     }
                 }
             }
