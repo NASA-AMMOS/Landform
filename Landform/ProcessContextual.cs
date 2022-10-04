@@ -3198,19 +3198,29 @@ namespace JPLOPS.Landform
                     if (placesDBCacheMaxAgeSec > 0)
                     {
                         double now = UTCTime.Now();
-                        if (placesDBCacheTime >= 0 && (now - placesDBCacheTime) > placesDBCacheMaxAgeSec)
+                        double age = now - placesDBCacheTime;
+                        if (placesDBCache != null && placesDBCacheTime >= 0 && age > placesDBCacheMaxAgeSec)
                         {
+                            pipeline.LogInfo("clearing PlacesDB cache, age {0}s > {1}s",
+                                             Fmt.HMS(1e3 * age), Fmt.HMS(1e3 * placesDBCacheMaxAgeSec));
                             placesDBCache = null;
                         }
                         if (placesDBCache != null)
                         {
+                            pipeline.LogInfo("re-using existing PlacesDB cache, age {0}s <= {1}s",
+                                             Fmt.HMS(1e3 * age), Fmt.HMS(1e3 * placesDBCacheMaxAgeSec));
                             placesDB.SetCache(placesDBCache);
                         }
                         else
                         {
                             placesDBCache = placesDB.GetCache();
                             placesDBCacheTime = now;
+                            pipeline.LogInfo("saving PlacesDB cache for later re-use");
                         }
+                    }
+                    else
+                    {
+                        pipeline.LogInfo("not restoring PlacesDB cache, max age{0}s", placesDBCacheMaxAgeSec);
                     }
                     return placesDB;
                 }
