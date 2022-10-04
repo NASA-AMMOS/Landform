@@ -185,13 +185,13 @@ namespace JPLOPS.Util
                     var ea2 = prop.GetCustomAttribute<EnvVar>();
                     string en = bn + "_" + (ea2 != null ? ea2.Name : StringHelper.SnakeCase(prop.Name));
                     string str = Environment.GetEnvironmentVariable(en.ToUpper());
-                    if (str == null)
+                    if (string.IsNullOrEmpty(str))
                     {
                         //if e.g. LANDFORM_CONTEXTUAL_MISSION was not set try LANDFORM_MISSION
                         en = ENV_PREFIX + "_" + (ea2 != null ? ea2.Name : StringHelper.SnakeCase(prop.Name));
                         str = Environment.GetEnvironmentVariable(en.ToUpper());
                     }
-                    if (str != null)
+                    if (!string.IsNullOrEmpty(str))
                     {
                         try
                         {
