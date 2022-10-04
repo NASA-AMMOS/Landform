@@ -1,5 +1,6 @@
 ﻿using System;
 using CommandLine;
+using JPLOPS.Util;
 using JPLOPS.Pipeline;
 
 /// <summary>
@@ -47,6 +48,7 @@ using JPLOPS.Pipeline;
 namespace JPLOPS.Landform
 {
     [Verb("build-tileset", HelpText = "builds a tileset from pre-built tiles")]
+    [EnvVar("TILING")]
     public class BuildTilesetOptions : TilingCommandOptions
     {
         [Option(HelpText = "option disabled for this command", Default = false)]

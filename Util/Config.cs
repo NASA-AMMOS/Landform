@@ -187,23 +187,26 @@ namespace JPLOPS.Util
             foreach (var member in members)
             {
                 var attrib = member.GetCustomAttribute<ConfigEnvironmentVariable>();
-                if (attrib != null && !string.IsNullOrEmpty(attrib.EnvironmentalVariableName))
+                string name = attrib.EnvironmentalVariableName;
+                if (attrib != null && !string.IsNullOrEmpty(name))
                 {
-                    string str = Environment.GetEnvironmentVariable(attrib.EnvironmentalVariableName);
+                    string str = Environment.GetEnvironmentVariable(name);
                     if (str != null)
                     {
-                        SetProperty(member, str);
+                        SetProperty(member, str, name);
                     }
                 }
             }
         }
 
-        private void SetProperty(MemberInfo member, string value)
+        private void SetProperty(MemberInfo member, string value, string name)
         {
             if (!(member is FieldInfo || member is PropertyInfo))
             {
                 throw new Exception("unexpected type: " + member.GetType().Name);
             }
+
+            var type = member is FieldInfo ? ((FieldInfo)member).FieldType : ((PropertyInfo)member).PropertyType;
 
             void setValue(Object val)
             {
@@ -217,22 +220,32 @@ namespace JPLOPS.Util
                 }
             }
 
-            var type = member is FieldInfo ? ((FieldInfo)member).FieldType : ((PropertyInfo)member).PropertyType;
+            try
+            {
+                ParseEnvVal(value, type, setValue);
+            }
+            catch (Exception ex)
+            {
+                throw new Exception(string.Format("error setting config {0} value {1} from env var {2}={3}: {4}",
+                                                  type.Name, member.Name, name, value, ex.Message));
+            }
+        }
 
-            Func<string, bool> parseBool = str => !string.IsNullOrEmpty(str) && str.ToLower() == "true";
-
+        public static void ParseEnvVal(string str, Type type, Action<Object> func)
+        {
+            Func<string, bool> parseBool = s => !string.IsNullOrEmpty(s) && s.ToLower() == "true";
             new TypeDispatcher()
-                .Case<string>(_ => setValue(value))
-                .Case<int>(_ => setValue(int.Parse(value)))
-                .Case<byte>(_ => setValue(byte.Parse(value)))
-                .Case<short>(_ => setValue(short.Parse(value)))
-                .Case<long>(_ => setValue(long.Parse(value)))
-                .Case<uint>(_ => setValue(uint.Parse(value)))
-                .Case<ushort>(_ => setValue(ushort.Parse(value)))
-                .Case<ulong>(_ => setValue(ulong.Parse(value)))
-                .Case<float>(_ => setValue(float.Parse(value)))
-                .Case<double>(_ => setValue(double.Parse(value)))
-                .Case<bool>(_ => setValue(parseBool(value)))
+                .Case<string>(_ => func(str))
+                .Case<int>(_ => func(int.Parse(str)))
+                .Case<byte>(_ => func(byte.Parse(str)))
+                .Case<short>(_ => func(short.Parse(str)))
+                .Case<long>(_ => func(long.Parse(str)))
+                .Case<uint>(_ => func(uint.Parse(str)))
+                .Case<ushort>(_ => func(ushort.Parse(str)))
+                .Case<ulong>(_ => func(ulong.Parse(str)))
+                .Case<float>(_ => func(float.Parse(str)))
+                .Case<double>(_ => func(double.Parse(str)))
+                .Case<bool>(_ => func(parseBool(str)))
                 .Handle(type);
         }
     }

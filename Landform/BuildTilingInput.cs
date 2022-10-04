@@ -65,6 +65,7 @@ using JPLOPS.Util;
 namespace JPLOPS.Landform
 {
     [Verb("build-tiling-input", HelpText = "builds textured tiles from a full scene mesh")]
+    [EnvVar("TILING")]
     public class BuildTilingInputOptions : TilingCommandOptions
     {
         [Value(0, Required = false, HelpText = "project name, defaults to input mesh basename if --inputmesh and --input texture are specified", Default = null)]

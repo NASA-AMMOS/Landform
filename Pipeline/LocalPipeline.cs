@@ -15,21 +15,14 @@ namespace JPLOPS.Pipeline
                              ILog logger = null, bool quietInit = false,
                              int? lruImageCache = null, int? lruDataProductCache = null,
                              bool initQueues = true, bool initAlignmentTables = true, bool initTilingTables = true,
-                             int? maxCores = null)
+                             int? maxCores = null, int? randomSeed = null)
             : base(options, config,
                    StringHelper.NormalizeUrl(PathHelper.NormalizePath(config.StorageDir), "file://"),
                    config.Venue, logger, quietInit,
                    lruImageCache.HasValue ? lruImageCache : config.ImageMemCache,
                    lruDataProductCache.HasValue ? lruDataProductCache : config.DataProductMemCache,
-                   options.SingleThreaded ? 1 : maxCores ?? config.MaxCores)
+                   options.SingleThreaded ? 1 : maxCores ?? config.MaxCores, randomSeed ?? config.RandomSeed)
         {
-            var localConfig = (LocalPipelineConfig)Config;
-
-            if (localConfig.RandomSeed >= 0)
-            {
-                NumberHelper.RandomSeed = localConfig.RandomSeed;
-            }
-
             if (initQueues)
             {
                 InitPhase("initialize message queues", InitializeQueues);
@@ -45,9 +38,9 @@ namespace JPLOPS.Pipeline
         public LocalPipeline(PipelineCoreOptions options, ILog logger = null, bool quietInit = false,
                              int? lruImageCache = null, int? lruDataProductCache = null,
                              bool initQueues = true, bool initAlignmentTables = true, bool initTilingTables = true,
-                             int? maxCores = null)
+                             int? maxCores = null, int? randomSeed = null)
             : this(options, LocalPipelineConfig.Instance, logger, quietInit, lruImageCache, lruDataProductCache,
-                   initQueues, initAlignmentTables, initTilingTables, maxCores)
+                   initQueues, initAlignmentTables, initTilingTables, maxCores, randomSeed)
         {}
 
         protected override void CheckStorageUrl(string url, bool withVenue = true)

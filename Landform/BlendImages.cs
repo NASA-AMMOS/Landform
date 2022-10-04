@@ -89,6 +89,7 @@ namespace JPLOPS.Landform
     public enum BlendStrategy { None, Auto, Barycentric, Inpaint };
 
     [Verb("blend-images", HelpText = "blend observation images")]
+    [EnvVar("BLEND")]
     public class BlendImagesOptions : TextureCommandOptions
     {
         [Value(1, Required = false, HelpText = "URL, file, or file type (extension starting with \".\") to which to save textured scene mesh", Default = null)]

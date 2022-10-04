@@ -76,6 +76,7 @@ using JPLOPS.Pipeline.AlignmentServer;
 namespace JPLOPS.Landform
 {
     [Verb("process-tactical", HelpText = "process tactical meshes into tilesets")]
+    [EnvVar("TACTICAL")]
     public class ProcessTacticalOptions : LandformServiceOptions
     {
         [Value(0, Required = false, HelpText = "project name, empty to infer, must omit if processing more than one mesh", Default = null)]

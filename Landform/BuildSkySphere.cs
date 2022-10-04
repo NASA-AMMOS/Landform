@@ -74,6 +74,7 @@ namespace JPLOPS.Landform
     public enum SkyOcclusionMode { Never, Always, Auto };
 
     [Verb("build-sky-sphere", HelpText = "build a skysphere tileset from observations")]
+    [EnvVar("SKY")]
     public class BuildSkySphereOptions : TilingCommandOptions
     {
         [Option(HelpText = "Sky mode (Box, Sphere, TopoSphere, Auto)", Default = BuildSkySphere.DEF_SKY_MODE)]

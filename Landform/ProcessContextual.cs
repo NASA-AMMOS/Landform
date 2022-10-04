@@ -177,6 +177,7 @@ using DictionaryOfChangedURLs =
 namespace JPLOPS.Landform
 {
     [Verb("process-contextual", HelpText = "process contextual meshes")]
+    [EnvVar("CONTEXTUAL")]
     public class ProcessContextualOptions : LandformServiceOptions
     {
         [Value(0, Required = false, Default = null, HelpText = "option disabled for this command")]

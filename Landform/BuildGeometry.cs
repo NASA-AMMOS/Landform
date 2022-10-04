@@ -99,6 +99,7 @@ using System.IO;
 namespace JPLOPS.Landform
 {
     [Verb("build-geometry", HelpText = "create scene mesh from point clouds")]
+    [EnvVar("GEOMETRY")]
     public class BuildGeometryOptions : GeometryCommandOptions
     {
         [Value(1, Required = false, HelpText = "URL, file, or file type (extension starting with \".\") to which to save scene mesh", Default = null)]

@@ -8,8 +8,21 @@ using log4net;
 
 namespace JPLOPS.Util
 {
+    [AttributeUsage(AttributeTargets.Class | AttributeTargets.Property)]
+    public class EnvVar : System.Attribute
+    {
+        public readonly string Name;
+
+        public EnvVar(string name)
+        {
+            this.Name = name;
+        }
+    }
+
     public class CommandHelper
     {
+        public const string ENV_PREFIX = "LANDFORM";
+
         [Verb("base-options")]
         public class BaseOptions
         {
@@ -43,11 +56,11 @@ namespace JPLOPS.Util
             [Option(Default = false, HelpText = "Disable parallism, e.g. for debugging")]
             public bool SingleThreaded { get; set; }
         
-            [Option(Default = null, HelpText = "0 to use all available cores, N to use up to N, -M to reserve M")]
-            public int? MaxCores { get; set; }
+            [Option(Default = 0, HelpText = "0 to use all available cores, N to use up to N, -M to reserve M.  This will be overridden by config file value for commands that load pipeline config.")]
+            public int MaxCores { get; set; }
 
-            [Option(Default = null, HelpText = "negative to use a time-dependent random seed")]
-            public int? RandomSeed { get; set; }
+            [Option(Default = -1, HelpText = "negative to use a time-dependent random seed.  This will be overridden by config file value for commands that load pipeline config.")]
+            public int RandomSeed { get; set; }
         }
 
         public static bool HasFlag(string[] args, string flag)
@@ -134,9 +147,8 @@ namespace JPLOPS.Util
                 }
             }
 
-            CoreLimitedParallel.SetMaxCores(opts.SingleThreaded ? 1 : (opts.MaxCores ?? 0));
-
-            NumberHelper.RandomSeed = opts.RandomSeed ?? -1;
+            CoreLimitedParallel.SetMaxCores(opts.SingleThreaded ? 1 : opts.MaxCores);
+            NumberHelper.RandomSeed = opts.RandomSeed;
 
             return true;
         }
@@ -148,8 +160,66 @@ namespace JPLOPS.Util
                               CoreLimitedParallel.GetMaxCores(), CoreLimitedParallel.GetAvailableCores());
         }
 
+        public static void SetDefaultsFromEnvironment(Type optsType)
+        {
+            string bn = ENV_PREFIX + "_";
+            var ea = optsType.GetCustomAttribute<EnvVar>();
+            if (ea != null)
+            {
+                bn += ea.Name;
+            }
+            else
+            {
+                var va = optsType.GetCustomAttribute<VerbAttribute>();
+                if (va == null)
+                {
+                    return; //shouldn't happen because only get here if there was a VerbAttribute, but ok
+                }
+                bn += StringHelper.SnakeCase(va.Name);
+            }
+            foreach (var prop in optsType.GetProperties().Where(p => p.CanWrite))
+            {
+                var ba = prop.GetCustomAttribute<BaseAttribute>();
+                if (ba != null)
+                {
+                    var ea2 = prop.GetCustomAttribute<EnvVar>();
+                    string en = bn + "_" + (ea2 != null ? ea2.Name : StringHelper.SnakeCase(prop.Name));
+                    string str = Environment.GetEnvironmentVariable(en.ToUpper());
+                    if (str == null)
+                    {
+                        //if e.g. LANDFORM_CONTEXTUAL_MISSION was not set try LANDFORM_MISSION
+                        en = ENV_PREFIX + "_" + (ea2 != null ? ea2.Name : StringHelper.SnakeCase(prop.Name));
+                        str = Environment.GetEnvironmentVariable(en.ToUpper());
+                    }
+                    if (str != null)
+                    {
+                        try
+                        {
+                            Config.ParseEnvVal(str, prop.PropertyType, obj => { ba.Default = obj; });
+                        }
+                        catch (Exception ex)
+                        {
+                            throw new Exception(
+                                string.Format("error setting {0} parameter value {1} from env var {2}={3}: {4}",
+                                              prop.PropertyType.Name, prop.Name, en, str, ex.Message));
+                        }
+                    }
+                }
+            }
+        }
+
         public static object ParseCommandLineOpts(string[] args, IEnumerable<Type> optsTypes, bool allowUnknown = false)
         {
+            string verbName = args[0].ToLower();
+            Type optsType = optsTypes
+                .Where(t => t.GetCustomAttribute<VerbAttribute>().Name.ToLower() == verbName)
+                .FirstOrDefault();
+            if (optsType == null)
+            {
+                throw new Exception(string.Format("unknown subcommand {0}", verbName));
+            }
+            SetDefaultsFromEnvironment(optsType);
+
             Func<string, string, bool> startsWith = (s, p) => s.StartsWith(p, true, null);
             Func<string, string, bool> isArg = (a, n) => startsWith(a, "--" + n) || startsWith(a, "-" + n);
             int optsIndex = args.ToList().FindIndex(arg => isArg(arg, "optionsfile"));
@@ -182,15 +252,6 @@ namespace JPLOPS.Util
                 if (!File.Exists(optsFile))
                 {
                     throw new Exception(string.Format("options file {0} not found", optsFile));
-                }
-
-                string verbName = args[0].ToLower();
-                Type optsType = optsTypes
-                    .Where(t => t.GetCustomAttribute<VerbAttribute>().Name.ToLower() == verbName)
-                    .FirstOrDefault();
-                if (optsType == null)
-                {
-                    throw new Exception(string.Format("unknown subcommand {0}", verbName));
                 }
 
                 Console.WriteLine("reading {0} options from options file {1}", verbName, optsFile);
@@ -226,14 +287,14 @@ namespace JPLOPS.Util
                 if (allowUnknown)
                 {
                     //work around https://github.com/commandlineparser/commandline/issues/525
-                    args = FilterOutUnknownArgs(args, optsTypes);
+                    args = FilterOutUnknownArgs(args, optsType);
                     allowUnknown = false;
                 }
                 var parser = new Parser((ParserSettings settings) => 
-                        {
-                            settings.HelpWriter = Console.Error;
-                            settings.IgnoreUnknownArguments = allowUnknown;
-                        });
+                {
+                    settings.HelpWriter = Console.Error;
+                    settings.IgnoreUnknownArguments = allowUnknown;
+                });
                 var res = parser.ParseArguments(args, optsTypes.ToArray());
                 if (res is Parsed<object>)
                 {
@@ -252,18 +313,9 @@ namespace JPLOPS.Util
             }
         }
 
-        public static string[] FilterOutUnknownArgs(string[] args, IEnumerable<Type> optsTypes)
+        public static string[] FilterOutUnknownArgs(string[] args, Type optsType)
         {
-            if (args == null || args.Length < 2)
-            {
-                return args;
-            }
-
-            string verbName = args[0].ToLower();
-            Type optsType = optsTypes
-                .Where(t => t.GetCustomAttribute<VerbAttribute>().Name.ToLower() == verbName)
-                .FirstOrDefault();
-            if (optsType == null)
+            if (args == null || args.Length < 2 || optsType == null)
             {
                 return args;
             }

@@ -88,6 +88,7 @@ using JPLOPS.Pipeline;
 namespace JPLOPS.Landform
 {
     [Verb("update-scene-manifest", HelpText = "update scene manifest")]
+    [EnvVar("MANIFEST")]
     public class UpdateSceneManifestOptions : GeometryCommandOptions
     {
         [Value(0, HelpText = "Project name, optional if --nocontextual", Default = null)]

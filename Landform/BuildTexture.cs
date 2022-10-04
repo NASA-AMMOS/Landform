@@ -1,5 +1,6 @@
 ﻿using System;
 using CommandLine;
+using JPLOPS.Util;
 
 /// <summary>
 /// Generate a full-scene texture by backprojecting observation images in a Landform alignment project.
@@ -24,6 +25,7 @@ using CommandLine;
 namespace JPLOPS.Landform
 {
     [Verb("build-texture", HelpText = "backproject a mesh texture and/or index image")]
+    [EnvVar("TEXTURE")]
     public class BuildTextureOptions : TextureCommandOptions
     {
         [Value(1, Required = false, HelpText = "URL, file, or file type (extension starting with \".\") to which to save textured scene mesh", Default = null)]

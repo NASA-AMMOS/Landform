@@ -40,7 +40,7 @@ cfgfolder=$service
 venue=${service}-service
 
 stdopts="--configdir=$cfgdir --configfolder=$cfgfolder --logdir=$logdir --tempdir=$tmpdir"
-cfgopts="$stdopts --venue=$venue --maxcores=0 --randomseed=-1 --storagedir=$storagedir"
+cfgopts="$stdopts --venue=$venue --storagedir=$storagedir"
 svcopts="$stdopts --stacktraces --master --mission=$mission"
 
 set -x # echo commands

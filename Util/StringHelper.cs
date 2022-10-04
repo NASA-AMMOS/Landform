@@ -376,6 +376,15 @@ namespace JPLOPS.Util
             return str.Length > maxLen ? (str.Substring(0, maxLen) + "...") : str;
         }
 
+        public static string SnakeCase(string str)
+        {
+            str = str.Replace('-','_').Replace('.','_');
+            str = Regex.Replace(str, @"\s+", "_");
+            str = Regex.Replace(str, @"(([^A-Z_])([A-Z])", "$1_$2"); //FooBar -> Foo_Bar, S3Foo -> S3_Foo, AtB -> At_B
+            str = Regex.Replace(str, @"([^_])([A-Z][^A-Z_])", "$1_$2"); //RDRFoo -> RDR_Foo
+            return str;
+        }
+
         private static double[] NEG_POW_10 = new double[]
         {
             1,

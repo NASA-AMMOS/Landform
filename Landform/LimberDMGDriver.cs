@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Diagnostics;
 using CommandLine;
+using JPLOPS.Util;
 using JPLOPS.Imaging;
 using JPLOPS.Geometry;
 using JPLOPS.Pipeline.AlignmentServer;
@@ -27,6 +28,7 @@ using JPLOPS.Pipeline.AlignmentServer;
 namespace JPLOPS.Landform
 {
     [Verb("limber-dmg", HelpText = "run Limber DMG")]
+    [EnvVar("DMG")]
     public class LimberDMGOptions
     {
         [Value(0, Required = true, HelpText = "image to blend")]

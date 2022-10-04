@@ -726,9 +726,9 @@ namespace JPLOPS.Landform
         protected void Configure(string venue)
         {
             var allowedFlags = new HashSet<string>() { "--quiet", "--debug" };
-            string mco = lsopts.MaxCores.HasValue ? "--maxcores=" + lsopts.MaxCores.Value : null;
-            string rso = lsopts.RandomSeed.HasValue ? "--randomseed=" + lsopts.RandomSeed.Value : null;
-            RunCommand("configure-local", allowedFlags, "--venue", venue, "--storagedir", storageDir, mco, rso);
+            string mco = "--maxcores=" + lsopts.MaxCores;
+            string rso = "--randomseed=" + lsopts.RandomSeed;
+            RunCommand("configure", allowedFlags, "--venue", venue, "--storagedir", storageDir, mco, rso);
         }
 
         //noop if sec <= 0

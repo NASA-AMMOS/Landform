@@ -118,7 +118,8 @@ namespace JPLOPS.Pipeline
 
         public PipelineCore(PipelineCoreOptions options, Config config, string storageUrl, string venue,
                             ILog logger = null, bool quietInit = false,
-                            int? lruImageCache = null, int? lruDataProductCache = null, int? maxCores = null)
+                            int? lruImageCache = null, int? lruDataProductCache = null, int? maxCores = null,
+                            int? randomSeed = null)
         {
             this.Options = options;
             this.Config = config;
@@ -179,6 +180,12 @@ namespace JPLOPS.Pipeline
             dataProductCache = new LRUCache<Guid, DataProduct>(lruDataProductCache ?? DEF_DATA_PRODUCT_MEM_CACHE);
 
             CoreLimitedParallel.SetMaxCores(maxCores ?? (options.SingleThreaded ? 1 : 0));
+
+            if (randomSeed.HasValue)
+            {
+                NumberHelper.RandomSeed = randomSeed.Value;
+            }
+
             if (!quietInit)
             {
                 DumpConfig();
