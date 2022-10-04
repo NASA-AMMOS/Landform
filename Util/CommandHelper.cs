@@ -145,6 +145,8 @@ namespace JPLOPS.Util
                 {
                     logger.InfoFormat("config file: {0}", StringHelper.NormalizeSlashes(cfgFile));
                 }
+
+                Config.SetLogger(logger);
             }
 
             CoreLimitedParallel.SetMaxCores(opts.SingleThreaded ? 1 : opts.MaxCores);
