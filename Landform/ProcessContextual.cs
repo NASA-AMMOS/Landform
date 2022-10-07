@@ -439,7 +439,7 @@ namespace JPLOPS.Landform
         public const string DEF_MAX_ORBITAL = "20G";
 
         public const string DEF_WEDGE_PATTERN = "*XYZ*.auto";
-        public const string DEF_TEXTURE_PATTERN = "*mission*.auto"; //TODO
+        public const string DEF_TEXTURE_PATTERN = "*mission*.auto";
         public const string DEF_FDR_PATTERN = "*FDR*.auto";
 
         //EDRGen notifications
@@ -1535,7 +1535,7 @@ namespace JPLOPS.Landform
 
         private ContextualMeshParameters MakeBatchParameters()
         {
-            string rdrDir= options.RDRDir;
+            string rdrDir = options.RDRDir;
             string sols = options.Sols;
             string siteDrives = options.SiteDrives;
             bool orbitalOnly = options.NoSurface;
@@ -2704,23 +2704,23 @@ namespace JPLOPS.Landform
             {
                 foreach (var sd in sdStrings)
                 {
-                    keys.Add(string.Format("{0}/{1}/", sol, sd));
+                    keys.Add(string.Format("{0}/{1}", sol, sd));
                 }
             }
-            keys.Add(string.Format("{0}_{1}/", canonicalSol, sdStr));
+            keys.Add(string.Format("{0}_{1}", canonicalSol, sdStr));
             keys.Add(sdStr);
-            keys.Add(string.Format("site/{0}/drive/{1}/", canonicalSite, canonicalDrive));
-            keys.Add(string.Format("site/{0}/drive/{1}/", shortSite, shortDrive));
-            keys.Add(string.Format("site/{0}/", canonicalSite));
-            keys.Add(string.Format("site/{0}/", shortSite));
-            keys.Add(string.Format("sol/{0}/", canonicalSol));
-            keys.Add(string.Format("sol/{0}/", pathSol));
-            keys.Add(string.Format("sol/{0}/", shortSol));
+            keys.Add(string.Format("site/{0}/drive/{1}", canonicalSite, canonicalDrive));
+            keys.Add(string.Format("site/{0}/drive/{1}", shortSite, shortDrive));
+            keys.Add(string.Format("site/{0}", canonicalSite));
+            keys.Add(string.Format("site/{0}", shortSite));
+            keys.Add(string.Format("sol/{0}", canonicalSol));
+            keys.Add(string.Format("sol/{0}", pathSol));
+            keys.Add(string.Format("sol/{0}", shortSol));
             keys.Add("");
 
             foreach (string keyBase in keys)
             {
-                string key = string.Format("{0}/{1}extent", service, keyBase);
+                string key = string.Format("{0}/{1}/extent", service, keyBase);
                 string overrideExtent = GetParameter(service, key);
                 if (overrideExtent != null)
                 {
@@ -3524,7 +3524,6 @@ namespace JPLOPS.Landform
             double lastStartSec = -1;
             int targetPeriodSec = MASTER_LOOP_PERIOD_SEC;
             pipeline.LogInfo("running master loop, period {0}s, debounce {1}s", targetPeriodSec, debounceMS / 1000);
-
 
             long latentEOP = -1;
             string latentEOPMessage = null;
