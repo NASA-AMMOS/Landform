@@ -28,10 +28,8 @@
  *****************************************************************************/
 
 using System;
-using System.Diagnostics;
 using System.IO;
 using System.Reflection;
-using System.Runtime.InteropServices;
 using Gdal = OSGeo.GDAL.Gdal;
 using Ogr = OSGeo.OGR.Ogr;
 
@@ -41,55 +39,41 @@ namespace JPLOPS.Pipeline
     {
         private static volatile bool _configuredOgr;
         private static volatile bool _configuredGdal;
-        private static volatile bool _usable;
-
-        [DllImport("kernel32", CharSet = CharSet.Auto, SetLastError = true)]
-        static extern bool SetDefaultDllDirectories(uint directoryFlags);
-        //               LOAD_LIBRARY_SEARCH_DEFAULT_DIRS
-        private const uint DllSearchFlags = 0x00001000;
-
-        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        static extern bool AddDllDirectory(string lpPathName);
 
         /// <summary>
         /// Construction of Gdal/Ogr
         /// </summary>
         static GdalConfiguration()
         {
-            string executingDirectory = null, gdalPath = null, nativePath = null;
-            try
+            string executingAssemblyFile = new Uri(Assembly.GetExecutingAssembly().GetName().CodeBase).LocalPath;
+            string executingDirectory = Path.GetDirectoryName(executingAssemblyFile);
+
+            if (string.IsNullOrEmpty(executingDirectory))
+                throw new InvalidOperationException("cannot get executing directory");
+
+
+            string gdalPath = Path.Combine(executingDirectory, "gdal");
+            string path, nativePath;
+            if (IsWindows)
             {
-                if (!IsWindows)
-                {
-                    const string notSet = "_Not_set_";
-                    string tmp = Gdal.GetConfigOption("GDAL_DATA", notSet);
-                    _usable = tmp != notSet;
-                    return;
-                }
-
-                string executingAssemblyFile = new Uri(Assembly.GetExecutingAssembly().GetName().CodeBase).LocalPath;
-                executingDirectory = Path.GetDirectoryName(executingAssemblyFile);
-
-                if (string.IsNullOrEmpty(executingDirectory))
-                    throw new InvalidOperationException("cannot get executing directory");
-
-
-                // modify search place and order
-                SetDefaultDllDirectories(DllSearchFlags);
-
-                gdalPath = Path.Combine(executingDirectory, "gdal");
                 nativePath = Path.Combine(gdalPath, GetPlatform());
-                if (!Directory.Exists(nativePath))
-                    throw new DirectoryNotFoundException($"GDAL native directory not found at '{nativePath}'");
-                if (!File.Exists(Path.Combine(nativePath, "gdal_wrap.dll")))
-                    throw new FileNotFoundException(
-                        $"GDAL native wrapper file not found at '{Path.Combine(nativePath, "gdal_wrap.dll")}'");
+                path = Environment.GetEnvironmentVariable("PATH");
+                path = nativePath + ";" + Path.Combine(nativePath, "plugins") + ";" + path;
+            }
+            else
+            {
+                nativePath = gdalPath;
+                path = Environment.GetEnvironmentVariable("LD_LIBRARY_PATH");
+                path = nativePath + ":" + Path.Combine(nativePath, "plugins") + ":" + path;
+            }
 
-                // Add directories
-                AddDllDirectory(nativePath);
-                AddDllDirectory(Path.Combine(nativePath, "plugins"));
+            // Prepend native path to environment path, to ensure the
+            // right libs are being used.
+            Environment.SetEnvironmentVariable("PATH", path);
 
+            // Set environment variables
+            if (IsWindows)
+            {
                 // Set the additional GDAL environment variables.
                 string gdalData = Path.Combine(gdalPath, "data");
                 Environment.SetEnvironmentVariable("GDAL_DATA", gdalData);
@@ -105,28 +89,7 @@ namespace JPLOPS.Pipeline
                 string projSharePath = Path.Combine(gdalPath, "share");
                 Environment.SetEnvironmentVariable("PROJ_LIB", projSharePath);
                 Gdal.SetConfigOption("PROJ_LIB", projSharePath);
-                OSGeo.OSR.Osr.SetPROJSearchPaths(new[] { projSharePath });
-
-                _usable = true;
             }
-            catch (Exception e)
-            {
-                _usable = false;
-                Trace.WriteLine(e, "error");
-                Trace.WriteLine($"Executing directory: {executingDirectory}", "error");
-                Trace.WriteLine($"gdal directory: {gdalPath}", "error");
-                Trace.WriteLine($"native directory: {nativePath}", "error");
-
-                //throw;
-            }
-        }
-
-        /// <summary>
-        /// Gets a value indicating if the GDAL package is set up properly.
-        /// </summary>
-        public static bool Usable
-        {
-            get { return _usable; }
         }
 
         /// <summary>
@@ -135,7 +98,6 @@ namespace JPLOPS.Pipeline
         /// <remarks>Be sure to call this function before using Gdal/Ogr/Osr</remarks>
         public static void ConfigureOgr()
         {
-            if (!_usable) return;
             if (_configuredOgr) return;
 
             // Register drivers
@@ -151,7 +113,6 @@ namespace JPLOPS.Pipeline
         /// <remarks>Be sure to call this function before using Gdal/Ogr/Osr</remarks>
         public static void ConfigureGdal()
         {
-            if (!_usable) return;
             if (_configuredGdal) return;
 
             // Register drivers
@@ -167,7 +128,9 @@ namespace JPLOPS.Pipeline
         /// </summary>
         private static string GetPlatform()
         {
-            return Environment.Is64BitProcess ? "x64" : "x86";
+            if (IsWindows)
+                return IntPtr.Size == 4 ? "x86" : "x64";
+            return IntPtr.Size == 4 ? "i386" : "x86_x64";
         }
 
         /// <summary>
@@ -177,23 +140,18 @@ namespace JPLOPS.Pipeline
         {
             get
             {
-                var res = !(Environment.OSVersion.Platform == PlatformID.Unix ||
-                            Environment.OSVersion.Platform == PlatformID.MacOSX);
-
-                return res;
+                return !(Environment.OSVersion.Platform == PlatformID.Unix ||
+                         Environment.OSVersion.Platform == PlatformID.MacOSX);
             }
         }
         private static void PrintDriversOgr()
         {
 #if DEBUG
-            if (_usable)
+            var num = Ogr.GetDriverCount();
+            for (var i = 0; i < num; i++)
             {
-                var num = Ogr.GetDriverCount();
-                for (var i = 0; i < num; i++)
-                {
-                    var driver = Ogr.GetDriver(i);
-                    Trace.WriteLine($"OGR {i}: {driver.GetName()}", "Debug");
-                }
+                var driver = Ogr.GetDriver(i);
+                Console.WriteLine(string.Format("OGR {0}: {1}", i, driver.name));
             }
 #endif
         }
@@ -201,14 +159,11 @@ namespace JPLOPS.Pipeline
         private static void PrintDriversGdal()
         {
 #if DEBUG
-            if (_usable)
+            var num = Gdal.GetDriverCount();
+            for (var i = 0; i < num; i++)
             {
-                var num = Gdal.GetDriverCount();
-                for (var i = 0; i < num; i++)
-                {
-                    var driver = Gdal.GetDriver(i);
-                    Trace.WriteLine($"GDAL {i}: {driver.ShortName}-{driver.LongName}");
-                }
+                var driver = Gdal.GetDriver(i);
+                Console.WriteLine(string.Format("GDAL {0}: {1}-{2}", i, driver.ShortName, driver.LongName));
             }
 #endif
         }

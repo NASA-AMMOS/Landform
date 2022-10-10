@@ -3,7 +3,7 @@
 # use lines like this to spew in test
 # System.Diagnostics.Trace.WriteLine("foo");
 
-defmodules="ImageFeatures Geometry GeometryThirdParty Imaging ImagingEmgu MathExtensions Pipeline RayTrace Util Xna"
+defmodules="Geometry GeometryThirdParty ImageFeatures ImagingEmgu Imaging MathExtensions Pipeline RayTrace Util Xna"
 
 #run-tests.sh [parallel] [module1 [module2 ...]]
 
@@ -21,19 +21,9 @@ if [[ $1 == "parallel" ]]; then parallel="/Parallel"; shift; else parallel=""; f
 
 if [[ $# -gt 0 ]]; then modules="$@"; else modules="$defmodules"; fi
 
-#dlls=
-#for m in $modules; do
-#    dlls="$dlls ${m}Test\\bin\\Release\\${m}Test.dll"
-#done
-#
-#"$mstest" $parallel $dlls
-
-
+dlls=
 for m in $modules; do
-    echo
-    echo "--- ${m}Test begin ---"
-    dll="${m}Test\\bin\\Release\\${m}Test.dll"
-    "$mstest" $parallel $dll
-    echo "--- ${m}Test end ---"
-    echo
+    dlls="$dlls ${m}Test\\bin\\Release\\${m}Test.dll"
 done
+
+"$mstest" $parallel $dlls
