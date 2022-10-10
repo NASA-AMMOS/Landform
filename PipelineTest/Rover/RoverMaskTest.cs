@@ -8,12 +8,6 @@ namespace PipelineTest
     [TestClass]
     public class RoverMaskTest
     {
-        [TestInitialize()]
-        public void Startup()
-        {
-            Embree.RTC.InitEmbree();
-        }
-
         [TestMethod]
         [DeploymentItem("gdal", "gdal")]
         [DeploymentItem("TestData", "TestData")]

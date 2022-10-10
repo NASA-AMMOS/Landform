@@ -15,12 +15,6 @@ namespace RayTraceTest
     [DeploymentItem("x64", "x64")]
     public class SceneCasterTest
     {
-        [TestInitialize()]
-        public void Startup()
-        {
-            Embree.RTC.InitEmbree();
-        }
-
         static Mesh LoadMesh()
         {
             return Mesh.Load(Path.Combine("TestData", "mesh", "raptor.obj"));

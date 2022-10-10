@@ -17,9 +17,7 @@ namespace JPLOPS.Landform
                     return 1;
                 }
                 
-                //use centralized version from OPS.Pipeline
-                //not GdalConfiguration which is auto-added to this subproject by nuget
-                JPLOPS.Pipeline.GdalConfiguration.ConfigureGdal();
+                JPLOPS.Imaging.GdalConfiguration.ConfigureGdal();
                 
                 var verbs = new Dictionary<Type, Type>()
                 {
