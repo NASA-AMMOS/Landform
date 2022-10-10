@@ -64,13 +64,13 @@
       <HintPath>..\packages\AWSSDK.Core.3.7.13.18\lib\net45\AWSSDK.Core.dll</HintPath>
     </Reference>
     <Reference Include="AWSSDK.EC2, Version=3.3.0.0, Culture=neutral, PublicKeyToken=885c28607f98e604, processorArchitecture=MSIL">
-      <HintPath>..\packages\AWSSDK.EC2.3.7.90.1\lib\net45\AWSSDK.EC2.dll</HintPath>
+      <HintPath>..\packages\AWSSDK.EC2.3.7.95.2\lib\net45\AWSSDK.EC2.dll</HintPath>
     </Reference>
     <Reference Include="AWSSDK.S3, Version=3.3.0.0, Culture=neutral, PublicKeyToken=885c28607f98e604, processorArchitecture=MSIL">
       <HintPath>..\packages\AWSSDK.S3.3.7.9.67\lib\net45\AWSSDK.S3.dll</HintPath>
     </Reference>
     <Reference Include="AWSSDK.SimpleSystemsManagement, Version=3.3.0.0, Culture=neutral, PublicKeyToken=885c28607f98e604, processorArchitecture=MSIL">
-      <HintPath>..\packages\AWSSDK.SimpleSystemsManagement.3.7.18.9\lib\net45\AWSSDK.SimpleSystemsManagement.dll</HintPath>
+      <HintPath>..\packages\AWSSDK.SimpleSystemsManagement.3.7.20.8\lib\net45\AWSSDK.SimpleSystemsManagement.dll</HintPath>
     </Reference>
     <Reference Include="AWSSDK.SQS, Version=3.3.0.0, Culture=neutral, PublicKeyToken=885c28607f98e604, processorArchitecture=MSIL">
       <HintPath>..\packages\AWSSDK.SQS.3.7.2.117\lib\net45\AWSSDK.SQS.dll</HintPath>
@@ -285,9 +285,9 @@
   </ItemGroup>
   <ItemGroup>
     <Analyzer Include="..\packages\AWSSDK.AutoScaling.3.7.10.72\analyzers\dotnet\cs\AWSSDK.AutoScaling.CodeAnalysis.dll" />
-    <Analyzer Include="..\packages\AWSSDK.EC2.3.7.90.1\analyzers\dotnet\cs\AWSSDK.EC2.CodeAnalysis.dll" />
+    <Analyzer Include="..\packages\AWSSDK.EC2.3.7.95.2\analyzers\dotnet\cs\AWSSDK.EC2.CodeAnalysis.dll" />
     <Analyzer Include="..\packages\AWSSDK.S3.3.7.9.67\analyzers\dotnet\cs\AWSSDK.S3.CodeAnalysis.dll" />
-    <Analyzer Include="..\packages\AWSSDK.SimpleSystemsManagement.3.7.18.9\analyzers\dotnet\cs\AWSSDK.SimpleSystemsManagement.CodeAnalysis.dll" />
+    <Analyzer Include="..\packages\AWSSDK.SimpleSystemsManagement.3.7.20.8\analyzers\dotnet\cs\AWSSDK.SimpleSystemsManagement.CodeAnalysis.dll" />
     <Analyzer Include="..\packages\AWSSDK.SQS.3.7.2.117\analyzers\dotnet\cs\AWSSDK.SQS.CodeAnalysis.dll" />
   </ItemGroup>
   <ItemGroup>
