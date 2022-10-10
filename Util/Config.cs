@@ -217,9 +217,9 @@ namespace JPLOPS.Util
             foreach (var member in members)
             {
                 var attrib = member.GetCustomAttribute<ConfigEnvironmentVariable>();
-                string name = attrib.EnvironmentalVariableName;
-                if (attrib != null && !string.IsNullOrEmpty(name))
+                if (attrib != null && !string.IsNullOrEmpty(attrib.EnvironmentalVariableName))
                 {
+                    string name = attrib.EnvironmentalVariableName;
                     string str = Environment.GetEnvironmentVariable(name);
                     if (!string.IsNullOrEmpty(str))
                     {
