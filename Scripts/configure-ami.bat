@@ -1,4 +1,8 @@
+rem this mimics packer-landform-ami-pipeline/playbook.yml
+rem but for fast iterating on dev
+
 set ver=2.7.0
+
 set upload_path=c:\upload
 set landform_package_version=Landform-%ver%.zip
 set landform_vfw_dlls=vfw-dlls.zip
@@ -20,11 +24,17 @@ rem aws configure set region us-gov-west-1
 
 mkdir c:\landform
 
+mkdir c:\landform\config_files
+aws s3 cp %landform_dist_url%/set-disk.ps1 c:\landform\config_files
+aws s3 cp %landform_dist_url%/cloudwatch-bootstrap.ps1 c:\landform\config_files
+
 aws s3 cp %landform_dist_url%/%landform_package_version% %upload_path%
 aws s3 cp %landform_dist_url%/%landform_vfw_dlls% %upload_path%
 
 curl https://community.chocolatey.org/install.ps1 -o %upload_path%\chocolatey-install.ps1
 powershell %upload_path%\chocolatey-install.ps1
+
+rem sadly the rest of this seems to require a reboot so that choco is in path...
 
 choco install vim  -y
 choco install 7zip -y
@@ -37,7 +47,7 @@ choco install vcredist-all -y
 curl https://s3.amazonaws.com/amazoncloudwatch-agent/windows/amd64/latest/amazon-cloudwatch-agent.msi -o %upload_path%\amazon-cloudwatch-agent.msi
 msiexec /i %upload_path%\amazon-cloudwatch-agent.msi /q
 
-reg add HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem\LongPathsEnabled /t dword /d 1
+reg add HKLM\SYSTEM\CurrentControlSet\Control\FileSystem\LongPathsEnabled /t REG_DWORD /d 1 /f
 
 rd /s /q c:\tmp
 rd /s /q %upload_path%
