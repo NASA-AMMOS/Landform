@@ -243,7 +243,7 @@ namespace JPLOPS.Util
 
             void setValue(Object val)
             {
-                Log($"using {name}={val.ToString()}");
+                Log($"using {name}={val.ToString()} for {GetType().Name}");
                 if (member is FieldInfo)
                 {
                     ((FieldInfo)member).SetValue(this, val);

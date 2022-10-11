@@ -123,6 +123,13 @@ namespace JPLOPS.Util
 
             Logging.ConfigureLogging(Config.FullCommand, opts.Quiet, opts.Debug, opts.LogFile, opts.LogDir);
 
+            CoreLimitedParallel.SetMaxCores(opts.SingleThreaded ? 1 : opts.MaxCores);
+            NumberHelper.RandomSeed = opts.RandomSeed;
+
+            //get the app config instance to ask its file path now
+            //after Config.ConfigDir and Config.ConfigFolder are initialized
+            string cfgFile = appConfigFile != null ? appConfigFile() : null; //latent spew, possible side effects
+
             if (!opts.Quiet)
             {
                 var logger = !string.IsNullOrEmpty(Config.SubCommand) ? LogManager.GetLogger(Config.SubCommand)
@@ -135,22 +142,17 @@ namespace JPLOPS.Util
                                   ConsoleHelper.GetPID(), PathHelper.GetExe(), string.Join(" ", args));
                 logger.InfoFormat("{0} {1}{2}", Config.BaseCommand ?? "Landform", appVersion,
                                   appVersion != pipelineVersion ? (", " + pipelineVersion) : "");
+                Config.SetLogger(new ThunkLogger(info: msg => logger.Info(msg))); //flush latent spew
                 logger.InfoFormat("temp dir: {0}", StringHelper.NormalizeSlashes(TemporaryFile.TemporaryDirectory));
                 logger.InfoFormat("log file: {0}", StringHelper.NormalizeSlashes(Logging.GetLogFile()));
+                logger.InfoFormat("max cores: {0}, random seed: {1}",
+                                  CoreLimitedParallel.GetMaxCores(), NumberHelper.RandomSeed);
 
-                //get the app config instance to ask its file path now
-                //after Config.ConfigDir and Config.ConfigFolder are initialized
-                string cfgFile = appConfigFile != null ? appConfigFile() : null;
                 if (cfgFile != null)
                 {
                     logger.InfoFormat("config file: {0}", StringHelper.NormalizeSlashes(cfgFile));
                 }
-
-                Config.SetLogger(new ThunkLogger(info: msg => logger.Info(msg)));
             }
-
-            CoreLimitedParallel.SetMaxCores(opts.SingleThreaded ? 1 : opts.MaxCores);
-            NumberHelper.RandomSeed = opts.RandomSeed;
 
             return true;
         }
@@ -254,6 +256,10 @@ namespace JPLOPS.Util
                 if (optsType == null)
                 {
                     throw new Exception(string.Format("unknown subcommand {0}", verbName));
+                }
+                if (verbName != "base-options")
+                {
+                    Config.Log("running subcommand: " + verbName);
                 }
                 envArgs = GetArgsFromEnvironment(optsType);
             }
