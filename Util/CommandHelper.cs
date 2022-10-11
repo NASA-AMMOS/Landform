@@ -222,7 +222,7 @@ namespace JPLOPS.Util
                                         throw new Exception($"cannot use {en}=false for flag {va.Name} --{opt}");
                                     }
                                 }
-                                Config.Log($"using {en}={str} to set {va.Name} --{opt}");
+                                Config.Log($"using {en}={str} to default {va.Name} --{opt} (may be overridden)");
                                 envArgs.Add(opt, obj);
                             }, parseNonemptyAsTrue: true);
                         }
@@ -312,14 +312,7 @@ namespace JPLOPS.Util
                         {
                             throw new Exception(string.Format("required option {0} not in file {1}", opt, optsFile));
                         }
-
                         prop.SetValue(opts, ba.Default);
-
-                        if (envArgs.ContainsKey(opt))
-                        {
-                            prop.SetValue(opts, envArgs[opt]);
-                        }
-
                         if (dict.ContainsKey(opt))
                         {
                             object val = dict[opt];
@@ -329,6 +322,11 @@ namespace JPLOPS.Util
                             }
                             prop.SetValue(opts, val);
                         }
+                        else if (envArgs.ContainsKey(opt))
+                        {
+                            prop.SetValue(opts, envArgs[opt]);
+                        }
+
                     }
                 }
                 return opts;
@@ -349,22 +347,26 @@ namespace JPLOPS.Util
                 if (envArgs != null)
                 {
                     var fullArgs = new List<string>();
-                    int i = 0;
-                    for (; i < args.Length && !args[i].StartsWith("--"); i++)
+                    var explicitOpts = new HashSet<string>();
+                    for (int i = 0; i < args.Length; i++)
                     {
                         fullArgs.Add(args[i]);
+                        if (args[i].StartsWith("--"))
+                        {
+                            explicitOpts.Add(args[i]);
+                        }
                     }
                     foreach (var entry in envArgs)
                     {
-                        fullArgs.Add("--" + entry.Key);
-                        if (!(entry.Value is bool))
+                        string opt = "--" + entry.Key;
+                        if (!explicitOpts.Contains(opt))
                         {
-                            fullArgs.Add(entry.Value.ToString());
+                            fullArgs.Add(opt);
+                            if (!(entry.Value is bool))
+                            {
+                                fullArgs.Add(entry.Value.ToString());
+                            }
                         }
-                    }
-                    for (; i < args.Length; i++)
-                    {
-                        fullArgs.Add(args[i]);
                     }
                     args = fullArgs.ToArray();
                 }
