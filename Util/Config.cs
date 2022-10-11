@@ -4,7 +4,6 @@ using System.Linq;
 using System.Collections.Generic;
 using System.Reflection;
 using Newtonsoft.Json;
-using log4net;
 
 namespace JPLOPS.Util
 {
@@ -64,18 +63,18 @@ namespace JPLOPS.Util
 
         public static ConfigDefaultsProvider DefaultsProvider;
 
-        public static ILog Logger { get; private set; }
+        public static ILogger Logger { get; private set; }
 
         private static List<string> pendingLogs = new List<string>();
 
-        public static void SetLogger(ILog logger)
+        public static void SetLogger(ILogger logger)
         {
             Config.Logger = logger;
             if (logger != null && pendingLogs.Count > 0)
             {
                 foreach (var msg in pendingLogs)
                 {
-                    logger.Info(msg);
+                    logger.LogInfo(msg);
                 }
                 pendingLogs.Clear();
             }
@@ -85,7 +84,7 @@ namespace JPLOPS.Util
         {
             if (Logger != null)
             {
-                Logger.Info(msg);
+                Logger.LogInfo(msg);
             }
             else
             {

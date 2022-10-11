@@ -146,7 +146,7 @@ namespace JPLOPS.Util
                     logger.InfoFormat("config file: {0}", StringHelper.NormalizeSlashes(cfgFile));
                 }
 
-                Config.SetLogger(logger);
+                Config.SetLogger(new ThunkLogger(info: msg => logger.Info(msg)));
             }
 
             CoreLimitedParallel.SetMaxCores(opts.SingleThreaded ? 1 : opts.MaxCores);
@@ -353,8 +353,7 @@ namespace JPLOPS.Util
                         fullArgs.Add("--" + entry.Key);
                         if (!(entry.Value is bool))
                         {
-                            string val = entry.Value.ToString();
-                            fullArgs.Add(entry.Value is string ? $"\"{val}\"" : val);
+                            fullArgs.Add(entry.Value.ToString());
                         }
                     }
                     for (; i < args.Length; i++)

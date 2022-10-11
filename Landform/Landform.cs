@@ -58,6 +58,10 @@ namespace JPLOPS.Landform
             catch (Exception ex)
             {
                 Config.Log("unhandled exception: " + ex.ToString());
+                if (Config.Logger == null)
+                {
+                    Config.SetLogger(new ThunkLogger(info: msg => Console.Error.WriteLine(msg)));
+                }
                 return 1;
             }
         }
