@@ -162,12 +162,24 @@ namespace JPLOPS.Util
                               CoreLimitedParallel.GetMaxCores(), CoreLimitedParallel.GetAvailableCores());
         }
 
-        public static void SetDefaultsFromEnvironment(Type optsType)
+        public static string GetOptName(PropertyInfo prop, BaseAttribute ba)
         {
+            string opt = prop.Name;
+            var oa = ba as OptionAttribute;
+            if (oa != null && !string.IsNullOrEmpty(oa.LongName))
+            {
+                opt = oa.LongName;
+            }
+            return opt.ToLower();
+        }
+
+        public static Dictionary<string, object> GetArgsFromEnvironment(Type optsType)
+        {
+            var envArgs = new Dictionary<string, object>();
             var va = optsType.GetCustomAttribute<VerbAttribute>();
             if (va == null)
             {
-                return; //shouldn't happen because only get here if there was a VerbAttribute, but ok
+                return envArgs; //shouldn't happen because only get here if there was a VerbAttribute, but ok
             }
             var ea = optsType.GetCustomAttribute<EnvVar>();
             string vn = ea != null ? ea.Name : StringHelper.SnakeCase(va.Name);
@@ -176,6 +188,7 @@ namespace JPLOPS.Util
                 var ba = prop.GetCustomAttribute<BaseAttribute>();
                 if (ba != null)
                 {
+                    string opt = GetOptName(prop, ba);
                     var ea2 = prop.GetCustomAttribute<EnvVar>();
                     string pn = ea2 != null ? ea2.Name : StringHelper.SnakeCase(prop.Name);
                     string en = (ENV_PREFIX + "_" + vn + "_" + pn).ToUpper();
@@ -196,15 +209,26 @@ namespace JPLOPS.Util
                         {
                             Config.ParseEnvVal(str, prop.PropertyType, obj =>
                             {
-                                ba.Default = obj;
-                                Config.Log($"using {en}={obj.ToString()} for {va.Name} {prop.Name}");
-                            });
+                                //this doesn't work because each call to GetCustomAttribute() returns a new instance
+                                //ba.Default = obj;
+                                bool flag = prop.PropertyType == typeof(bool);
+                                if (flag)
+                                {
+                                    if (!string.IsNullOrEmpty(str) && str.ToLower() == "false")
+                                    {
+                                        //https://github.jpl.nasa.gov/OnSight/Landform/issues/1001
+                                        throw new Exception($"cannot use {en}=false for flag {va.Name} --{opt}");
+                                    }
+                                }
+                                Config.Log($"using {en}={str} to set {va.Name} --{opt}");
+                                envArgs.Add(opt, obj);
+                            }, parseNonemptyAsTrue: true);
                         }
                         catch (Exception ex)
                         {
                             throw new Exception(
-                                string.Format("error setting {0} parameter value {1} from env var {2}={3}: {4}",
-                                              prop.PropertyType.Name, prop.Name, en, str, ex.Message));
+                                string.Format("error setting {0} --{1} from env var {2}={3}: {4}",
+                                              prop.PropertyType.Name, opt, en, str, ex.Message));
                         }
                     }
                     else if (str != null)
@@ -213,24 +237,31 @@ namespace JPLOPS.Util
                     }
                 }
             }
+            return envArgs;
         }
 
         public static object ParseCommandLineOpts(string[] args, IEnumerable<Type> optsTypes, bool allowUnknown = false)
         {
-            string verbName = args[0].ToLower();
-            Type optsType = optsTypes
-                .Where(t => t.GetCustomAttribute<VerbAttribute>().Name.ToLower() == verbName)
-                .FirstOrDefault();
-            if (optsType == null)
+            Type optsType = null;
+            string verbName = null;
+            Dictionary<string, object> envArgs = null;
+            if (args != null && args.Length > 0 && args[0] != null && !args[0].StartsWith("--"))
             {
-                throw new Exception(string.Format("unknown subcommand {0}", verbName));
+                verbName = args[0].ToLower();
+                optsType = optsTypes
+                    .Where(t => t.GetCustomAttribute<VerbAttribute>().Name.ToLower() == verbName)
+                    .FirstOrDefault();
+                if (optsType == null)
+                {
+                    throw new Exception(string.Format("unknown subcommand {0}", verbName));
+                }
+                envArgs = GetArgsFromEnvironment(optsType);
             }
-            SetDefaultsFromEnvironment(optsType);
-
+                
             Func<string, string, bool> startsWith = (s, p) => s.StartsWith(p, true, null);
             Func<string, string, bool> isArg = (a, n) => startsWith(a, "--" + n) || startsWith(a, "-" + n);
             int optsIndex = args.ToList().FindIndex(arg => isArg(arg, "optionsfile"));
-            if (optsIndex > 0)
+            if (optsIndex > 0 && optsType != null)
             {
                 string optsFile = null;
                 string optsArg = args[optsIndex];
@@ -267,24 +298,31 @@ namespace JPLOPS.Util
 
                 foreach (var prop in optsType.GetProperties().Where(p => p.CanWrite))
                 {
-                    var attr = prop.GetCustomAttribute<BaseAttribute>();
-                    if (attr != null)
+                    var ba = prop.GetCustomAttribute<BaseAttribute>();
+                    if (ba != null)
                     {
-                        if (attr.Required && !dict.ContainsKey(prop.Name))
+                        string opt = GetOptName(prop, ba);
+                        if (ba.Required && !dict.ContainsKey(opt))
                         {
-                            throw new Exception(string.Format("required option {0} not in options file {1}",
-                                                              prop.Name, optsFile));
+                            throw new Exception(string.Format("required option {0} not in file {1}", opt, optsFile));
                         }
-                        prop.SetValue(opts, attr.Default);
-                    }
-                    if (dict.ContainsKey(prop.Name))
-                    {
-                        object val = dict[prop.Name];
-                        if (prop.PropertyType.IsEnum)
+
+                        prop.SetValue(opts, ba.Default);
+
+                        if (envArgs.ContainsKey(opt))
                         {
-                            val = Enum.Parse(prop.PropertyType, (string)val);
+                            prop.SetValue(opts, envArgs[opt]);
                         }
-                        prop.SetValue(opts, val);
+
+                        if (dict.ContainsKey(opt))
+                        {
+                            object val = dict[opt];
+                            if (prop.PropertyType.IsEnum)
+                            {
+                                val = Enum.Parse(prop.PropertyType, (string)val);
+                            }
+                            prop.SetValue(opts, val);
+                        }
                     }
                 }
                 return opts;
@@ -302,6 +340,29 @@ namespace JPLOPS.Util
                     settings.HelpWriter = Console.Error;
                     settings.IgnoreUnknownArguments = allowUnknown;
                 });
+                if (envArgs != null)
+                {
+                    var fullArgs = new List<string>();
+                    int i = 0;
+                    for (; i < args.Length && !args[i].StartsWith("--"); i++)
+                    {
+                        fullArgs.Add(args[i]);
+                    }
+                    foreach (var entry in envArgs)
+                    {
+                        fullArgs.Add("--" + entry.Key);
+                        if (!(entry.Value is bool))
+                        {
+                            string val = entry.Value.ToString();
+                            fullArgs.Add(entry.Value is string ? $"\"{val}\"" : val);
+                        }
+                    }
+                    for (; i < args.Length; i++)
+                    {
+                        fullArgs.Add(args[i]);
+                    }
+                    args = fullArgs.ToArray();
+                }
                 var res = parser.ParseArguments(args, optsTypes.ToArray());
                 if (res is Parsed<object>)
                 {

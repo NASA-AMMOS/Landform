@@ -266,9 +266,10 @@ namespace JPLOPS.Util
             }
         }
 
-        public static void ParseEnvVal(string str, Type type, Action<Object> func)
+        public static void ParseEnvVal(string str, Type type, Action<Object> func, bool parseNonemptyAsTrue = false)
         {
-            Func<string, bool> parseBool = s => !string.IsNullOrEmpty(s) && s.ToLower() == "true";
+            Func<string, bool> parseBool = s =>
+                !string.IsNullOrEmpty(s) && (parseNonemptyAsTrue || s.ToLower() == "true");
             new TypeDispatcher()
                 .Case<string>(_ => func(str))
                 .Case<int>(_ => func(int.Parse(str)))
@@ -281,6 +282,7 @@ namespace JPLOPS.Util
                 .Case<float>(_ => func(float.Parse(str)))
                 .Case<double>(_ => func(double.Parse(str)))
                 .Case<bool>(_ => func(parseBool(str)))
+                .Case<Enum>(_ => func(Enum.Parse(type, str)))
                 .Handle(type);
         }
     }

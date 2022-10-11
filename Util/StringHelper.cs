@@ -380,7 +380,7 @@ namespace JPLOPS.Util
         {
             str = str.Replace('-','_').Replace('.','_');
             str = Regex.Replace(str, @"\s+", "_");
-            str = Regex.Replace(str, @"(([^A-Z_])([A-Z])", "$1_$2"); //FooBar -> Foo_Bar, S3Foo -> S3_Foo, AtB -> At_B
+            str = Regex.Replace(str, @"([^A-Z_])([A-Z])", "$1_$2"); //FooBar -> Foo_Bar, S3Foo -> S3_Foo, AtB -> At_B
             str = Regex.Replace(str, @"([^_])([A-Z][^A-Z_])", "$1_$2"); //RDRFoo -> RDR_Foo
             return str;
         }

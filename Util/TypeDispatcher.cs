@@ -25,6 +25,10 @@ namespace JPLOPS.Util
 
         public bool Handle(Type t, object x)
         {
+            if (t.IsEnum)
+            {
+                t = typeof(Enum);
+            }
             if (handlers.ContainsKey(t))
             {
                 handlers[t](x);
