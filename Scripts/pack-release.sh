@@ -14,13 +14,13 @@ rm -rf $dir
 mkdir $dir
 
 #copy without subdirs
-for src in TilingServer/bin/Release Landform/bin/Release; do
+for src in Landform/bin/Release; do
     echo "copying $src/* to $dir"
     cp -R $src/* $dir
 done
 
 #copy with subdirs
-for src in Dependencies Scripts Bin; do
+for src in Scripts Bin; do
     echo "copying $src to $dir"
     cp -R $src $dir
 done
