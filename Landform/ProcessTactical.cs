@@ -216,9 +216,10 @@ namespace JPLOPS.Landform
         protected override bool AcceptMessage(QueueMessage msg, out string reason)
         {
             reason = null;
+            string url = null;
             try
             {
-                string url = GetUrlFromMessage(msg);
+                url = GetUrlFromMessage(msg);
                 if (string.IsNullOrEmpty(url))
                 {
                     reason = "no URL in message";
@@ -239,7 +240,8 @@ namespace JPLOPS.Landform
             }
             catch (Exception ex)
             {
-                reason = ex.Message;
+                reason = ex.GetType().Name + (!string.IsNullOrEmpty(ex.Message) ? (": " + ex.Message) : "") +
+                    " url=\"" + url + "\"";
                 return false;
             }
         }

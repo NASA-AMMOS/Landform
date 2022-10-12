@@ -882,6 +882,7 @@ namespace JPLOPS.Landform
         protected override bool AcceptMessage(QueueMessage msg, out string reason)
         {
             reason = null;
+            string url = null;
             if (options.Master)
             {
                 try
@@ -890,7 +891,7 @@ namespace JPLOPS.Landform
                     {
                         return true;
                     }
-                    string url = GetUrlFromMessage(msg); 
+                    url = GetUrlFromMessage(msg); 
                     if (string.IsNullOrEmpty(url))
                     {
                         reason = "no URL in message";
@@ -941,7 +942,8 @@ namespace JPLOPS.Landform
                 }
                 catch (Exception ex)
                 {
-                    reason = ex.Message;
+                    reason = ex.GetType().Name + (!string.IsNullOrEmpty(ex.Message) ? (": " + ex.Message) : "") +
+                        " url=\"" + url + "\"";
                     return false;
                 }
             }
@@ -1079,25 +1081,25 @@ namespace JPLOPS.Landform
             }
         }
 
-        protected override QueueMessage AlternateMessageHandler(string msg)
+        protected override QueueMessage AlternateMessageHandler(string txt)
         {
             if (!options.Master)
             {
                 return null;
             }
-            if (eopMessageRegex != null && eopMessageRegex.IsMatch(msg))
+            if (eopMessageRegex != null && eopMessageRegex.IsMatch(txt))
             {
-                return new EOPMessage() { eop = msg };
+                return new EOPMessage() { eop = txt };
             }
-            if (eofMessageRegex != null && eofMessageRegex.IsMatch(msg))
+            if (eofMessageRegex != null && eofMessageRegex.IsMatch(txt))
             {
-                return new EOFMessage() { eof = msg };
+                return new EOFMessage() { eof = txt };
             }
-            if (eoxMessageRegex != null && eoxMessageRegex.IsMatch(msg))
+            if (eoxMessageRegex != null && eoxMessageRegex.IsMatch(txt))
             {
-                return new EOXMessage() { eox = msg };
+                return new EOXMessage() { eox = txt };
             }
-            return base.AlternateMessageHandler(msg);
+            return base.AlternateMessageHandler(txt);
         }
 
         private string ParseRDRExtension(string filenamePattern, string what)

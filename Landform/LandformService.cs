@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Text.RegularExpressions;
 using CommandLine;
 using Amazon.SQS.Model;
 using JPLOPS.Util;
@@ -262,6 +263,8 @@ namespace JPLOPS.Landform
                 this.url = url;
             }
         }
+        private Regex genericMessageRegex =
+            new Regex(@"^\s*{\s*""url""s*:\s*""\S+""\s*}\s*$", RegexOptions.IgnoreCase);
 
         public LandformService(LandformServiceOptions options) : base(options)
         {
@@ -510,7 +513,7 @@ namespace JPLOPS.Landform
         {
             int ovt = overrideVisibilityTimeout;
             QueueMessage qm = null, aqm = null;
-            Func<string, QueueMessage> oh = msg => { aqm = AlternateMessageHandler(msg); return aqm; };
+            Func<string, QueueMessage> oh = txt => { aqm = AlternateMessageHandler(txt); return aqm; };
             switch (lvopts.MessageType)
             {
                 case MessageType.Generic:
@@ -570,7 +573,7 @@ namespace JPLOPS.Landform
             }
             catch
             {
-                return "unknown message type " + msg.GetType().Name;
+                return msg.GetType().Name + " without URL";
             }
         }
 
@@ -589,21 +592,18 @@ namespace JPLOPS.Landform
         /// Returns non-null iff handled.
         /// Can throw.  
         /// </summary>
-        protected virtual QueueMessage AlternateMessageHandler(string msg)
+        protected virtual QueueMessage AlternateMessageHandler(string txt)
         {
-            string url = msg.Trim();
+            string url = txt.Trim();
             if (url.StartsWith("s3://", StringComparison.OrdinalIgnoreCase))
             {
                 return new GenericMessage(url);
             }
-            try
+            if (genericMessageRegex.IsMatch(txt))
             {
-                return JsonHelper.FromJson<GenericMessage>(msg);
+                return JsonHelper.FromJson<GenericMessage>(txt);
             }
-            catch (Exception)
-            {
-                return null; //try to parse as expected message type
-            }
+            return null; //try to parse as expected message type
         }
 
         //Filter out some subfolders on S3.
@@ -762,8 +762,10 @@ namespace JPLOPS.Landform
             pipeline.LogInfo("{0}sending message to queue {1}", lvopts.DryRun ? "dry " : "", messageQueue.Name);
             if (!lvopts.DryRun)
             {
-                messageQueue.Enqueue(lvopts.SendMessage.IndexOf("://") >= 0 ? new GenericMessage(lvopts.SendMessage)
-                                     : ParseMessage(File.ReadAllText(lvopts.SendMessage)));
+                var msg = lvopts.SendMessage.IndexOf("://") >= 0 ?
+                    new GenericMessage(lvopts.SendMessage) :
+                    ParseMessage(File.ReadAllText(lvopts.SendMessage));
+                messageQueue.Enqueue(msg);
             }
         }
 
@@ -1230,8 +1232,6 @@ namespace JPLOPS.Landform
                         }
                         else //not accepted or too old
                         {
-                            //this can spam the log
-                            //pipeline.LogInfo("{0} {1}", desc, !accepted ? "not accepted" : "too old");
                             try
                             {
                                 lock (deleteMessageLock)
