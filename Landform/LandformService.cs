@@ -253,7 +253,7 @@ namespace JPLOPS.Landform
         /// <summary>
         /// Simple JSON message for testing or in workflows not involving [SNS wrapped] S3 event messages.
         /// </summary>
-        private class GenericMessage : QueueMessage
+        protected class GenericMessage : QueueMessage
         {
             public string url;
 
@@ -590,7 +590,14 @@ namespace JPLOPS.Landform
         /// </summary>
         protected virtual QueueMessage AlternateMessageHandler(string msg)
         {
-            return null;
+            try
+            {
+                return JsonHelper.FromJson<GenericMessage>(msg);
+            }
+            catch (Exception ex)
+            {
+                return null; //try to parse as expected message type
+            }
         }
 
         //Filter out some subfolders on S3.
@@ -1217,6 +1224,8 @@ namespace JPLOPS.Landform
                         }
                         else //not accepted or too old
                         {
+                            //this can spam the log
+                            //pipeline.LogInfo("{0} {1}", desc, !accepted ? "not accepted" : "too old");
                             try
                             {
                                 lock (deleteMessageLock)

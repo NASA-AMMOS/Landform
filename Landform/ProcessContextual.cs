@@ -1081,19 +1081,23 @@ namespace JPLOPS.Landform
 
         protected override QueueMessage AlternateMessageHandler(string msg)
         {
-            if (options.Master && eopMessageRegex != null && eopMessageRegex.IsMatch(msg))
+            if (!options.Master)
+            {
+                return null;
+            }
+            if (eopMessageRegex != null && eopMessageRegex.IsMatch(msg))
             {
                 return new EOPMessage() { eop = msg };
             }
-            if (options.Master && eofMessageRegex != null && eofMessageRegex.IsMatch(msg))
+            if (eofMessageRegex != null && eofMessageRegex.IsMatch(msg))
             {
                 return new EOFMessage() { eof = msg };
             }
-            if (options.Master && eoxMessageRegex != null && eoxMessageRegex.IsMatch(msg))
+            if (eoxMessageRegex != null && eoxMessageRegex.IsMatch(msg))
             {
                 return new EOXMessage() { eox = msg };
             }
-            return null;
+            return base.AlternateMessageHandler(msg);
         }
 
         private string ParseRDRExtension(string filenamePattern, string what)
