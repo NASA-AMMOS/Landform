@@ -100,9 +100,10 @@ done
 if [ "$using_s3" ]; then
     echo "if tileset(s) don't load then try the following:"
     echo "* to work around CORS errors quit Chrome then restart like this:"
-    echo "  $CHROME --disable-web-security --user-data-dir=$HOME/chromeTemp >/dev/null 2>&1 &"
+    echo "  \"\$CHROME\" --disable-web-security --user-data-dir=$HOME/chromeTemp >/dev/null 2>&1 &"
     echo "  where CHROME is "
     echo "  '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' on OSX"
+    echo "  'C:\Program Files (x86)\Google\Chrome\Application\chrome.exe' on Windows"
     echo "* if Chrome is stuck at NET::ERR_CERT_INVALID type thisisunsafe"
     echo "* clear cookies for $domain"
     echo "* make sure you've logged in at $dproxy"

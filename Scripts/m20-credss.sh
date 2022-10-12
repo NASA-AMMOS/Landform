@@ -25,7 +25,7 @@ if [ "$credss" == "" ]; then
 fi
 
 user=$USER
-if [ "$user" == ""]; then
+if [ "$user" == "" ]; then
     user=$USERNAME
 fi
 
