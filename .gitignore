@@ -14,6 +14,7 @@ cfg/
 storage/
 storage
 release/
+release
 TestResults/
 *.user
 Landform-*/
