@@ -54,3 +54,11 @@ rd /s /q %upload_path%
 rd /s /q c:\Users\Administrator\.aws
 
 c:\ProgramData\Amazon\EC2-Windows\Launch\Settings\EC2LaunchSettings.exe
+
+rem put this in userdata before running landform during release engineering
+rem to avoid having to keep building a new AMI
+rem replace A.B.C with the release version
+rem also replace IAM role in launch template with am-m20-ids-s3-access
+rem mkdir c:\upload
+rem aws s3 cp s3://m20-ids-g-landform/deploy/Landform-A.B.C.zip c:\upload
+rem 7z x c:\upload\Landform-A.B.C.zip -oc:\landform -aoa
