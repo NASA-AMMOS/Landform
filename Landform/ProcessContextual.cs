@@ -1945,6 +1945,14 @@ namespace JPLOPS.Landform
             string extent = p.Extent > 0 ? p.Extent.ToString() : options.Extent.ToString();
             string surfaceExtent = options.SurfaceExtent.ToString(); 
 
+            //when we save the message json to s3 include the actual effective extent
+            //this really only matters in corner cases where a legacy message without explicit extent was received
+            var cmm = currentMessage as ContextualMeshMessage;
+            if (cmm != null && cmm.extent <= 0)
+            {
+                cmm.extent = p.Extent > 0 ? p.Extent : options.Extent;
+            }
+
             pipeline.LogInfo("building contextual tileset {0} from {1} sitedrives in {2} sols",
                              project, siteDrives.Count, sols.Count);
             try
