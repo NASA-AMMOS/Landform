@@ -57,7 +57,6 @@ namespace JPLOPS.Util
         }
 
         public static string AppVersion; //may be null
-        public static string PipelineVersion; //may be null
 
         public static string[] CommandLineArgs;
 

@@ -82,11 +82,6 @@ namespace JPLOPS.Util
                 Config.AppVersion = appType.Assembly.GetName().Version.ToString();
             }
 
-            if (pipelineType != null)
-            {
-                Config.PipelineVersion = pipelineType.Assembly.GetName().Version.ToString();
-            }
-
             var opts = new BaseOptions();
             if (args.Length > 0)
             {
@@ -137,11 +132,9 @@ namespace JPLOPS.Util
                     : pipelineType != null ? LogManager.GetLogger(pipelineType)
                     : LogManager.GetLogger("Landform");
                 string appVersion = Config.AppVersion ?? "(unknown)";
-                string pipelineVersion = Config.PipelineVersion ?? "(unknown)";
                 logger.InfoFormat("process ID {0}, command: {1} {2}",
                                   ConsoleHelper.GetPID(), PathHelper.GetExe(), string.Join(" ", args));
-                logger.InfoFormat("{0} {1}{2}", Config.BaseCommand ?? "Landform", appVersion,
-                                  appVersion != pipelineVersion ? (", " + pipelineVersion) : "");
+                logger.InfoFormat("{0} {1}", Config.BaseCommand ?? "Landform", appVersion);
                 Config.SetLogger(new ThunkLogger(info: msg => logger.Info(msg))); //flush latent spew
                 logger.InfoFormat("temp dir: {0}", StringHelper.NormalizeSlashes(TemporaryFile.TemporaryDirectory));
                 logger.InfoFormat("log file: {0}", StringHelper.NormalizeSlashes(Logging.GetLogFile()));
