@@ -528,7 +528,7 @@ namespace JPLOPS.Landform
             public long timestamp; //UTC milliseconds since epoch when message was created
             public int numFailedAttempts;
             public long recycledFirstReceiveMS; //UTC ms since epoch when recycled message was originally first received
-            public double extent; //in meters
+            public double extent = -1; //in meters, non-positive to use default
 #pragma warning restore 0649
 
             public override int GetHashCode()
@@ -1933,18 +1933,15 @@ namespace JPLOPS.Landform
                 noOrbital = "--noorbital";
             }
             string noSurface = orbitalOnly ? "--nosurface" : "";
-
             string orbitalDEMFileOpt = !string.IsNullOrEmpty(orbitalDEMFile) ? $"--orbitaldem={orbitalDEMFile}" : null;
-
             string orbitalImageFileOpt =
                 !string.IsNullOrEmpty(orbitalImageFile) ? $"--orbitalimage={orbitalImageFile}" : null;
-
             string camerasOpt =
                 !string.IsNullOrEmpty(options.OnlyForCameras) ? $"--onlyforcameras={options.OnlyForCameras}" : null;
-
             string allowUnmasked = options.AllowUnmaskedRoverObservations ? "--allowunmaskedroverobservations" : null;
-
             string colorize = options.Colorize ? "--colorize" : null;
+            string extent = p.Extent > 0 ? p.Extent.ToString() : options.Extent.ToString();
+            string surfaceExtent = options.SurfaceExtent.ToString(); 
 
             pipeline.LogInfo("building contextual tileset {0} from {1} sitedrives in {2} sols",
                              project, siteDrives.Count, sols.Count);
@@ -2048,8 +2045,8 @@ namespace JPLOPS.Landform
                 {
                     SavePID(destDir, project, Phase.geometry, pidFile);
                     CheckCredentials();
-                    RunCommand("build-geometry", project, "--extent", options.Extent.ToString(),
-                               "--surfaceextent", options.SurfaceExtent.ToString(), allowUnmasked);
+                    RunCommand("build-geometry", project, "--extent", extent, "--surfaceextent", surfaceExtent,
+                               allowUnmasked);
                 }
                 
                 if (!options.NoTileset)
