@@ -1,7 +1,7 @@
 #!/bin/sh
 
 root=.
-if [ $1 == "-pre" ]; then
+if [ "$1" == "-pre" ]; then
     root=./Landform
     shift
 fi
