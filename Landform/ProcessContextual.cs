@@ -2694,19 +2694,19 @@ namespace JPLOPS.Landform
             string shortSol = primarySol.ToString();
             string canonicalSol = SolToString(primarySol);
             string pathSol = SolToString(primarySol, forceNumeric: true);
-            var solStrings = new List<string> { canonicalSol, pathSol, shortSol };
+            var solStrs = new List<string> { canonicalSol, pathSol, shortSol };
 
             string sdStr = primarySD.ToString();
             string shortSite = primarySD.Site.ToString();
             string canonicalSite = primarySD.SiteToString();
             string shortDrive = primarySD.Drive.ToString();
             string canonicalDrive = primarySD.DriveToString();
-            var sdStrings = new List<String> { sdStr, string.Format("{0}/{1}", canonicalSite, canonicalDrive),
-                                               string.Format("{0}/{1}", shortSite, shortDrive) };
+            var sdStrs = new List<String> { sdStr, $"{canonicalSite}/{canonicalDrive}", $"{shortSite}/{shortDrive}" };
+
             var keys = new List<string>();
-            foreach (string sol in solStrings)
+            foreach (string sol in solStrs)
             {
-                foreach (var sd in sdStrings)
+                foreach (var sd in sdStrs)
                 {
                     keys.Add(string.Format("{0}/{1}", sol, sd));
                 }
@@ -2721,15 +2721,17 @@ namespace JPLOPS.Landform
             keys.Add(string.Format("sol/{0}", pathSol));
             keys.Add(string.Format("sol/{0}", shortSol));
             keys.Add("");
+            //19 total keys
 
-            foreach (string keyBase in keys)
+            foreach (string keyPath in keys)
             {
-                string key = string.Format("{0}/{1}/extent", service, keyBase);
+                string key = string.Format("{0}/{1}/extent", service, keyPath);
                 string overrideExtent = GetParameter(service, key);
                 if (overrideExtent != null)
                 {
                     if (double.TryParse(overrideExtent, out double e) && e > 0)
                     {
+                        pipeline.LogInfo("using extent {0}m from {1} (default {2}m)", e, key, options.Extent);
                         return e;
                     }
                     else
@@ -2739,6 +2741,17 @@ namespace JPLOPS.Landform
                     }
                 }
             }
+
+            string keyBase = mission.GetServiceSSMKeyBase();
+            pipeline.LogInfo("using default extent {0}m, no override extent in SSM keys:\n" +
+                             $"  {keyBase}/{service}/{canonicalSol}/{canonicalSite}{canonicalDrive}/extent\n" +
+                             $"  {keyBase}/{service}/{canonicalSol}/{canonicalSite}/{canonicalDrive}/extent\n" +
+                             $"  {keyBase}/{service}/{canonicalSol}_{canonicalSite}{canonicalDrive}/extent\n" +
+                             $"  {keyBase}/{service}/{canonicalSite}{canonicalDrive}/extent\n" +
+                             $"  {keyBase}/{service}/site/{canonicalSite}/drive/{canonicalDrive}/extent\n" +
+                             $"  {keyBase}/{service}/site/{canonicalSite}/extent\n" +
+                             $"  {keyBase}/{service}/sol/{canonicalSol}/extent\n" +
+                             $"  {keyBase}/{service}/extent");
 
             return options.Extent;
         }
