@@ -585,16 +585,22 @@ namespace JPLOPS.Landform
         protected abstract bool HandleMessage(QueueMessage msg);
 
         /// <summary>
-        /// Optional hook to handle unusual messages.
+        /// Hook to handle unusual messages.
+        /// Returns non-null iff handled.
         /// Can throw.  
         /// </summary>
         protected virtual QueueMessage AlternateMessageHandler(string msg)
         {
+            string url = msg.Trim();
+            if (url.StartsWith("s3://", StringComparison.OrdinalIgnoreCase))
+            {
+                return new GenericMessage(url);
+            }
             try
             {
                 return JsonHelper.FromJson<GenericMessage>(msg);
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 return null; //try to parse as expected message type
             }
