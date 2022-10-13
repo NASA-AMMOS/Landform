@@ -502,10 +502,11 @@ namespace JPLOPS.Landform
         private Queue<DictionaryOfChangedURLs> contextualPassQueue = new Queue<DictionaryOfChangedURLs>();
 
         //if EOP messages are enabled this is the timestamp of the latest EOP message in UTC milliseconds
-        //MasterLoop() will process all pending changed URLs when this becomes non-negative
-        private long eopTimestamp = -1;
-        private long eofTimestamp = -1; //orbital meshes can begin processing as soon as FDRs are done
-        private long eoxTimestamp = -1; //contextual meshes can begin processing as soon as XYZ,UVW,MXY,RAS are done
+        //when one of these becomes positive MasterLoop() will process all pending changed URLs after the EOP debounce
+        //a final eop is marked as a negative timestamp which will skip the debounce
+        private long eopTimestamp;
+        private long eofTimestamp; //orbital meshes can begin processing as soon as FDRs are done
+        private long eoxTimestamp; //contextual meshes can begin processing as soon as XYZ,UVW,MXY,RAS are done
 
         private Dictionary<string, string> placesDBCache;
         private int placesDBCacheMaxAgeSec;
@@ -982,26 +983,38 @@ namespace JPLOPS.Landform
             }
         }
 
+        private int FinalEOP(string txt)
+        {
+            txt = StringHelper.GetLastUrlPathSegment(txt, stripExtension: true).Trim();
+            return txt.EndsWith("final", StringComparison.OrdinalIgnoreCase) ? -1 : 1;
+        }
+
         protected override bool HandleMessage(QueueMessage msg)
         {
             if (options.Master)
             {
                 if (msg is EOPMessage)
                 {
-                    Interlocked.Exchange(ref eopTimestamp, (long)UTCTime.NowMS());
-                    pipeline.LogInfo("received EOP message \"{0}\"", ((EOPMessage)msg).eop.Trim());
+                    string txt = ((EOPMessage)msg).eop.Trim();
+                    int sign = FinalEOP(txt);
+                    Interlocked.Exchange(ref eopTimestamp, sign * (long)UTCTime.NowMS());
+                    pipeline.LogInfo("received EOP message \"{0}\"{1}", txt, sign < 0 ? " (final)" : "");
                     return true; //successfully processed, remove message from queue
                 }
                 if (msg is EOFMessage)
                 {
-                    Interlocked.Exchange(ref eofTimestamp, (long)UTCTime.NowMS());
-                    pipeline.LogInfo("received EOF message \"{0}\"", ((EOFMessage)msg).eof.Trim());
+                    string txt = ((EOFMessage)msg).eof.Trim();
+                    int sign = FinalEOP(txt);
+                    Interlocked.Exchange(ref eofTimestamp, sign * (long)UTCTime.NowMS());
+                    pipeline.LogInfo("received EOF message \"{0}\"{1}", txt, sign < 0 ? " (final)" : "");
                     return true; //successfully processed, remove message from queue
                 }
                 if (msg is EOXMessage)
                 {
-                    Interlocked.Exchange(ref eoxTimestamp, (long)UTCTime.NowMS());
-                    pipeline.LogInfo("received EOX message \"{0}\"", ((EOXMessage)msg).eox.Trim());
+                    string txt = ((EOXMessage)msg).eox.Trim();
+                    int sign = FinalEOP(txt);
+                    Interlocked.Exchange(ref eoxTimestamp, sign * (long)UTCTime.NowMS());
+                    pipeline.LogInfo("received EOX message \"{0}\"{1}", txt, sign < 0 ? " (final)" : "");
                     return true; //successfully processed, remove message from queue
                 }
                 string url = StringHelper.NormalizeUrl(GetUrlFromMessage(msg)); 
@@ -1012,20 +1025,23 @@ namespace JPLOPS.Landform
                 }
                 if (eopFileRegex != null && eopFileRegex.IsMatch(url))
                 {
-                    Interlocked.Exchange(ref eopTimestamp, (long)UTCTime.NowMS());
-                    pipeline.LogInfo("processed EOP file {0}", url);
+                    int sign = FinalEOP(url);
+                    Interlocked.Exchange(ref eopTimestamp, sign * (long)UTCTime.NowMS());
+                    pipeline.LogInfo("processed EOP file {0}{1}", url, sign < 0 ? " (final)" : "");
                     return true; //successfully processed, remove message from queue
                 }
                 if (eofFileRegex != null && eofFileRegex.IsMatch(url))
                 {
-                    Interlocked.Exchange(ref eofTimestamp, (long)UTCTime.NowMS());
-                    pipeline.LogInfo("processed EOF file {0}", url);
+                    int sign = FinalEOP(url);
+                    Interlocked.Exchange(ref eofTimestamp, sign * (long)UTCTime.NowMS());
+                    pipeline.LogInfo("processed EOF file {0}{1}", url, sign < 0 ? " (final)" : "");
                     return true; //successfully processed, remove message from queue
                 }
                 if (eoxFileRegex != null && eoxFileRegex.IsMatch(url))
                 {
-                    Interlocked.Exchange(ref eoxTimestamp, (long)UTCTime.NowMS());
-                    pipeline.LogInfo("processed EOX file {0}", url);
+                    int sign = FinalEOP(url);
+                    Interlocked.Exchange(ref eoxTimestamp, sign * (long)UTCTime.NowMS());
+                    pipeline.LogInfo("processed EOX file {0}{1}", url, sign < 0 ? " (final)" : "");
                     return true; //successfully processed, remove message from queue
                 }
                 var rdrDir = SiteDriveList.GetRDRDir(url);
@@ -3530,9 +3546,9 @@ namespace JPLOPS.Landform
                         urls[rdrDir] = changedURLs[rdrDir];
                         string lastChangeMsg = lastChange >= 0 ?
                             $", last change at {ToLocalTime(lastChange)}, {(debounceMS / 1000):f3}s debounce" : "";
-                        pipeline.LogInfo("processing RDR dir {0} for new {1} meshes, " +
-                                         "{2} changed sitedrives{3}, {4}", rdrDir, what, urls[rdrDir].Count,
-                                         lastChangeMsg, eop ? eopMsg : "(debounce timeout)");
+                        pipeline.LogInfo("processing RDR dir {0} for new {1} meshes, {2} changed sitedrives" +
+                                         "{3}, {4}", rdrDir, what, urls[rdrDir].Count,
+                                         lastChangeMsg, eop ? eopMsg : "(RDR debounce expired)");
                     }
                 }
                 foreach (string rdrDir in urls.Keys)
@@ -3580,12 +3596,18 @@ namespace JPLOPS.Landform
                         }
                     }
 
-                    long eofMS = Interlocked.Exchange(ref eofTimestamp, -1); 
-                    long eoxMS = Interlocked.Exchange(ref eoxTimestamp, -1); 
-                    long eopMS = Interlocked.Exchange(ref eopTimestamp, -1); 
-                    bool gotEOF = eofMS >= 0;
-                    bool gotEOX = eoxMS >= 0;
-                    bool gotEOP = eopMS >= 0;
+                    long eofMS = Interlocked.Exchange(ref eofTimestamp, 0); 
+                    long eoxMS = Interlocked.Exchange(ref eoxTimestamp, 0); 
+                    long eopMS = Interlocked.Exchange(ref eopTimestamp, 0); 
+                    bool gotEOF = eofMS != 0;
+                    bool gotEOX = eoxMS != 0;
+                    bool gotEOP = eopMS != 0;
+                    bool finalEOF = eofMS < 0;
+                    bool finalEOX = eoxMS < 0;
+                    bool finalEOP = eopMS < 0;
+                    eofMS = Math.Abs(eofMS);
+                    eoxMS = Math.Abs(eoxMS);
+                    eopMS = Math.Abs(eopMS);
 
                     if (!options.NoOrbital)
                     {
@@ -3608,29 +3630,39 @@ namespace JPLOPS.Landform
                     {
                         long eop = -1;
                         string eopMsg = "";
+                        bool fin = false;
                         if (eoxMS > eop)
                         {
                             eop = eoxMS;
-                            eopMsg = $"EOX at {ToLocalTime(eoxMS)}";
+                            fin = finalEOX;
+                            eopMsg = string.Format("EOX{0} at {1}", fin ? " (final)" : "" , ToLocalTime(eoxMS));
                         }
                         if (eopMS > eop)
                         {
                             eop = eopMS;
-                            eopMsg = $"EOP at {ToLocalTime(eopMS)}";
+                            fin = finalEOP;
+                            eopMsg = string.Format("EOP{0} at {1}", fin ? " (final)" : "" , ToLocalTime(eopMS));
                         }
-                        if (latentEOP > eop)
+                        if (!fin && latentEOP > eop)
                         {
                             eop = latentEOP;
                             eopMsg = latentEOPMessage;
                         }
                         latentEOP = -1;
                         latentEOPMessage = null;
-                        if (eopDebounceMS > 0 && (UTCTime.Now() - eop) < eopDebounceMS)
+                        if (!fin && eopDebounceMS > 0)
                         {
-                            latentEOP = eop;
-                            latentEOPMessage = eopMsg;
-                            eop = -1;
-                            eopMsg = "";
+                            if ((UTCTime.Now() - eop) < eopDebounceMS)
+                            {
+                                latentEOP = eop;
+                                latentEOPMessage = eopMsg;
+                                eop = -1;
+                                eopMsg = "";
+                            }
+                            else if (!string.IsNullOrEmpty(eopMsg))
+                            {
+                                eopMsg += $" ({(debounceMS / 1000):f3}s debounce expired)";
+                            }
                         }
 
                         var contextualURLs = ProcessChangedURLs(changedContextualURLs, eop >= 0, eopMsg, "contextual");
