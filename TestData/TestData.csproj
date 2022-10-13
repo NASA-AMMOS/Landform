@@ -116,10 +116,16 @@
     <None Include="TestData\json\m2020-contextual-master-roastt20-xyz-event2.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <None Include="TestData\json\m2020-contextual-master-sol84-fdr-event.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
     <None Include="TestData\json\m2020-contextual-master-sol84-xyz-event.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <None Include="TestData\json\m2020-contextual-master-sol84-xyz-event2.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="TestData\json\m2020-contextual-master-sol84-xyz-event3.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <None Include="TestData\json\m2020-contextual-master-tt16b-xyz-event.json">
