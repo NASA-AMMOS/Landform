@@ -2774,7 +2774,7 @@ namespace JPLOPS.Landform
             }
 
             string keyBase = mission.GetServiceSSMKeyBase();
-            pipeline.LogInfo("using default extent {0}m, no override extent in SSM keys:\n" +
+            pipeline.LogInfo($"using default extent {options.Extent}m, no override extent in SSM keys:\n" +
                              $"  {keyBase}/{service}/{canonicalSol}/{canonicalSite}{canonicalDrive}/extent\n" +
                              $"  {keyBase}/{service}/{canonicalSol}/{canonicalSite}/{canonicalDrive}/extent\n" +
                              $"  {keyBase}/{service}/{canonicalSol}_{canonicalSite}{canonicalDrive}/extent\n" +

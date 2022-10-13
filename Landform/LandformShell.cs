@@ -125,6 +125,9 @@ namespace JPLOPS.Landform
         [Option(HelpText = "Use default AWS profile (vs profile from credential refresh) for EC2 client", Default = false)]
         public bool UseDefaultAWSProfileForEC2Client { get; set; }
 
+        [Option(HelpText = "Use default AWS profile (vs profile from credential refresh) for SSM client", Default = false)]
+        public bool UseDefaultAWSProfileForSSMClient { get; set; }
+
         [Option(HelpText = "Comma separated list of input S3 buckets (or bucket/path) that should be treated as read-only, also requires --readonlybucketaltdest", Default = null)]
         public string ReadonlyBuckets { get; set; }
 
@@ -210,7 +213,7 @@ namespace JPLOPS.Landform
                 {
                     if (_parameterStore == null)
                     {
-                        string profile = lsopts.UseDefaultAWSProfileForEC2Client ? null : awsProfile;
+                        string profile = lsopts.UseDefaultAWSProfileForSSMClient ? null : awsProfile;
                         _parameterStore = new ParameterStore(profile, awsRegion);
                     }
                     return _parameterStore;
