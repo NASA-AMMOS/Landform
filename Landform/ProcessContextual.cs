@@ -1169,15 +1169,17 @@ namespace JPLOPS.Landform
             if (!string.IsNullOrEmpty(options.WedgePattern) &&
                 !string.Equals(options.WedgePattern, "none", StringComparison.OrdinalIgnoreCase))
             {
-                wedgeRegex = MakeURLRegex(ParseRDRExtension(options.WedgePattern, "--wedgepattern"));
+                options.WedgePattern = ParseRDRExtension(options.WedgePattern, "--wedgepattern");
+                wedgeRegex = MakeURLRegex(options.WedgePattern);
                 pipeline.LogInfo("wedge regex: " + wedgeRegex);
             }
             
             if (!string.IsNullOrEmpty(options.TexturePattern) &&
                 !string.Equals(options.TexturePattern, "none", StringComparison.OrdinalIgnoreCase))
             {
-                string tp = options.TexturePattern.Replace("mission", mission.GetImageProductType());
-                textureRegex = MakeURLRegex(ParseRDRExtension(tp, "--texturepattern"));
+                options.TexturePattern = options.TexturePattern.Replace("mission", mission.GetImageProductType());
+                options.TexturePattern = ParseRDRExtension(options.TexturePattern, "--texturepattern");
+                textureRegex = MakeURLRegex(options.TexturePattern);
                 pipeline.LogInfo("texture regex: " + textureRegex);
             }
             
@@ -2616,10 +2618,7 @@ namespace JPLOPS.Landform
                 string regex = MakeWedgeAndTextureRegex();
                 string what = (wedgeRegex != null && textureRegex != null) ? "wedges and textures" :
                     (wedgeRegex != null) ? "wedges" : "textures";
-                if (pipeline.Verbose)
-                {
-                    what += " matching " + regex;
-                }
+                what += " matching " + regex;
 
                 pipeline.LogInfo("searching for additional {0} in RDR dir {1} for sols {2}-{3}",
                                  what, rdrDir, minSol, maxSol);
@@ -2757,6 +2756,7 @@ namespace JPLOPS.Landform
             keys.Add(""); //not even the trailing slash
             //19 total keys
 
+            string keyBase = mission.GetServiceSSMKeyBase();
             var checkedKeys = new List<string>();
             foreach (string keyPath in keys)
             {
@@ -2766,7 +2766,8 @@ namespace JPLOPS.Landform
                 {
                     if (double.TryParse(overrideExtent, out double e) && e > 0)
                     {
-                        pipeline.LogInfo("using extent {0}m from {1} (default {2}m)", e, key, options.Extent);
+                        pipeline.LogInfo("using extent {0}m from {1}/{2}/{3} (default {4}m)",
+                                         e, keyBase, service, key, options.Extent);
                         return e;
                     }
                     else
@@ -2778,7 +2779,6 @@ namespace JPLOPS.Landform
                 checkedKeys.Add(key);
             }
 
-            string keyBase = mission.GetServiceSSMKeyBase();
             pipeline.LogInfo($"using default extent {options.Extent}m, no override extent in SSM keys:\n  " +
                              string.Join("\n  ", checkedKeys.Select(k => $"{keyBase}/{service}/{k}")));
 
