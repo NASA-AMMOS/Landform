@@ -716,7 +716,8 @@ namespace JPLOPS.Landform
         
         private string DumpParameters(ContextualMeshParameters p, bool verbose = false)
         {
-            var ret = string.Format("contextual mesh {0}_{1}", SolToString(p.PrimarySol), p.PrimarySiteDrive);
+            var ret = string.Format("{0} mesh {1}_{2}", p.OrbitalOnly ? "orbital" : "contextual",
+                                    SolToString(p.PrimarySol), p.PrimarySiteDrive);
             if (verbose)
             {
                 ret += string.Format(" for {0}; sols {1}; sitedrives {2}",
@@ -1712,7 +1713,7 @@ namespace JPLOPS.Landform
                                            version > 0 ? "V" + version.ToString("D2") : "",
                                            msg.orbitalOnly ? "_orbital" : "");
             string url = $"{destDir}/{project}/";
-            pipeline.LogInfo("checking for tileset under {0}", url);
+            pipeline.LogVerbose("checking for tileset under {0}", url);
             bool absent = true;
             foreach (var f in SearchFiles(url, recursive: false))
             {
@@ -2734,28 +2735,29 @@ namespace JPLOPS.Landform
             string canonicalSite = primarySD.SiteToString();
             string shortDrive = primarySD.Drive.ToString();
             string canonicalDrive = primarySD.DriveToString();
-            var sdStrs = new List<String> { sdStr, $"{canonicalSite}/{canonicalDrive}/", $"{shortSite}/{shortDrive}/" };
+            var sdStrs = new List<String> { sdStr, $"{canonicalSite}/{canonicalDrive}", $"{shortSite}/{shortDrive}" };
 
             var keys = new List<string>();
             foreach (string sol in solStrs)
             {
                 foreach (var sd in sdStrs)
                 {
-                    keys.Add(string.Format("{0}/{1}/", sol, sd));
+                    keys.Add($"{sol}/{sd}/");
                 }
             }
-            keys.Add(string.Format("{0}_{1}/", canonicalSol, sdStr));
-            keys.Add(sdStr);
-            keys.Add(string.Format("site/{0}/drive/{1}/", canonicalSite, canonicalDrive));
-            keys.Add(string.Format("site/{0}/drive/{1}/", shortSite, shortDrive));
-            keys.Add(string.Format("site/{0}/", canonicalSite));
-            keys.Add(string.Format("site/{0}/", shortSite));
-            keys.Add(string.Format("sol/{0}/", canonicalSol));
-            keys.Add(string.Format("sol/{0}/", pathSol));
-            keys.Add(string.Format("sol/{0}/", shortSol));
+            keys.Add($"{canonicalSol}_{sdStr}/");
+            keys.Add($"{sdStr}/");
+            keys.Add($"site/{canonicalSite}/drive/{canonicalDrive}/");
+            keys.Add($"site/{shortSite}/drive/{shortDrive}/");
+            keys.Add($"site/{canonicalSite}/");
+            keys.Add($"site/{shortSite}/");
+            keys.Add($"sol/{canonicalSol}/");
+            keys.Add($"sol/{pathSol}/");
+            keys.Add($"sol/{shortSol}/");
             keys.Add(""); //not even the trailing slash
             //19 total keys
 
+            var checkedKeys = new List<string>();
             foreach (string keyPath in keys)
             {
                 string key = string.Format("{0}/{1}extent", service, keyPath); //keyPath has trailing slash iff nonempty
@@ -2773,18 +2775,12 @@ namespace JPLOPS.Landform
                                          overrideExtent, key);
                     }
                 }
+                checkedKeys.Add(key);
             }
 
             string keyBase = mission.GetServiceSSMKeyBase();
-            pipeline.LogInfo($"using default extent {options.Extent}m, no override extent in SSM keys:\n" +
-                             $"  {keyBase}/{service}/{canonicalSol}/{canonicalSite}{canonicalDrive}/extent\n" +
-                             $"  {keyBase}/{service}/{canonicalSol}/{canonicalSite}/{canonicalDrive}/extent\n" +
-                             $"  {keyBase}/{service}/{canonicalSol}_{canonicalSite}{canonicalDrive}/extent\n" +
-                             $"  {keyBase}/{service}/{canonicalSite}{canonicalDrive}/extent\n" +
-                             $"  {keyBase}/{service}/site/{canonicalSite}/drive/{canonicalDrive}/extent\n" +
-                             $"  {keyBase}/{service}/site/{canonicalSite}/extent\n" +
-                             $"  {keyBase}/{service}/sol/{canonicalSol}/extent\n" +
-                             $"  {keyBase}/{service}/extent");
+            pipeline.LogInfo($"using default extent {options.Extent}m, no override extent in SSM keys:\n  " +
+                             string.Join("\n  ", checkedKeys.Select(k => $"{keyBase}/{service}/{k}")));
 
             return options.Extent;
         }
@@ -3040,7 +3036,7 @@ namespace JPLOPS.Landform
                     string desc = DescribeMessage(msg, verbose: true);
                     pipeline.LogInfo("checking sol range [{0}-{1}] for tileset: {2}", minSol, maxSol, desc);
                     int foundSol = -1;
-                    for (int sol = minSol; sol <= maxSol; sol++)
+                    void check(int sol)
                     {
                         //only checking version 0 here
                         //this could return false negative if e.g. version 0 went zombie but a later version is done
@@ -3052,8 +3048,15 @@ namespace JPLOPS.Landform
                         if ((status == TilesetStatus.done) || (status == TilesetStatus.processing))
                         {
                             foundSol = sol;
-                            break;
                         }
+                    }
+                    for (int sol = msg.primarySol; foundSol < 0 && sol >= minSol; sol--)
+                    {
+                        check(sol);
+                    }
+                    for (int sol = msg.primarySol + 1; foundSol < 0 && sol <= maxSol; sol++)
+                    {
+                        check(sol);
                     }
                     if (foundSol < 0)
                     {
