@@ -1711,8 +1711,10 @@ namespace JPLOPS.Landform
                                            msg.primarySiteDrive.ToString(),
                                            version > 0 ? "V" + version.ToString("D2") : "",
                                            msg.orbitalOnly ? "_orbital" : "");
+            string url = $"{destDir}/{project}/";
+            pipeline.LogInfo("checking for tileset under {0}", url);
             bool absent = true;
-            foreach (var f in SearchFiles($"{destDir}/{project}/", recursive: false))
+            foreach (var f in SearchFiles(url, recursive: false))
             {
                 absent = false;
                 if (f.EndsWith(MESSAGE_JSON))
@@ -3028,13 +3030,17 @@ namespace JPLOPS.Landform
             if (cullExisting)
             {
                 checkExistingSolRange = Math.Max(0, checkExistingSolRange);
+                pipeline.LogInfo("checking {0} messages for already existing tilesets in +-{1} sols",
+                                 newMsgsOldestToNewest.Count, checkExistingSolRange);
                 var keep = new List<ContextualMeshMessage>();
                 foreach (var msg in newMsgsOldestToNewest)
                 {
                     int minSol = Math.Max(0, msg.primarySol - checkExistingSolRange);
                     int maxSol = msg.primarySol + checkExistingSolRange;
-                    bool found = false;
-                    for (int sol = minSol; !found && sol <= maxSol; sol++)
+                    string desc = DescribeMessage(msg, verbose: true);
+                    pipeline.LogInfo("checking sol range [{0}-{1}] for tileset: {2}", minSol, maxSol, desc);
+                    int foundSol = -1;
+                    for (int sol = minSol; sol <= maxSol; sol++)
                     {
                         //only checking version 0 here
                         //this could return false negative if e.g. version 0 went zombie but a later version is done
@@ -3043,15 +3049,19 @@ namespace JPLOPS.Landform
                         //but that's not the end of the world
                         string solDir = StringHelper.ReplaceIntWildcards(rdrDir, sol);
                         var status = CheckForTileset(msg, GetDestDir(solDir, quiet: true), 0);
-                        found = (status == TilesetStatus.done) || (status == TilesetStatus.processing);
+                        if ((status == TilesetStatus.done) || (status == TilesetStatus.processing))
+                        {
+                            foundSol = sol;
+                            break;
+                        }
                     }
-                    if (!found)
+                    if (foundSol < 0)
                     {
                         keep.Add(msg);
                     }
                     else
                     {
-                        pipeline.LogInfo("culling {0} message for {1}, already exists", what, project);
+                        pipeline.LogInfo("{0} mesh exists in sol {1}, dropping: {2}", what, foundSol, desc);
                     }
                 }
                 if (keep.Count == 0)
