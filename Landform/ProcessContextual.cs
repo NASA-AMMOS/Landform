@@ -1847,7 +1847,7 @@ namespace JPLOPS.Landform
                         pipeline.LogWarn("tileset {0}/{1} aborted in version interlock", destDir, versionedProject);
                         return null;
                     }
-                    string pfx = project + "_";
+                    string pfx = versionedProject + "_";
                     string sfx = "_" + PID_JSON;
                     string pattern = pfx + "*" + sfx;
                     var pids =
