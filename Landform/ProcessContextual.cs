@@ -1065,11 +1065,12 @@ namespace JPLOPS.Landform
                     pipeline.LogWarn("failed to parse site drive from URL {0}", url);
                     return true; //drop message
                 }
-                if (!options.NoOrbital && (fdrRegex == null || fdrRegex.IsMatch(url)))
+                bool isFDR = fdrRegex != null && fdrRegex.IsMatch(url);
+                if (!options.NoOrbital && isFDR)
                 {
                     AddChangedURL(changedOrbitalURLs, rdrDir, sd.Value, url);
                 }
-                if (!options.NoSurface)
+                if (!options.NoSurface && !isFDR)
                 {
                     AddChangedURL(changedContextualURLs, rdrDir, sd.Value, url);
                 }
@@ -2515,7 +2516,7 @@ namespace JPLOPS.Landform
                     }
                     latestTimestamp = Math.Max(latestTimestamp, entry.Value);
                 }
-                if (sdList.NumSols > 0) //not NumWedges to handle case of only texture  updates
+                if (sdList.NumSols > 0) //not NumWedges to handle case of only texture updates
                 {
                     ret[sd] = new Stamped<SiteDriveList>(sdList, latestTimestamp);
                 }
@@ -2529,6 +2530,13 @@ namespace JPLOPS.Landform
             //this is important because it catches situations where XYZs are acquired for a sitedrive in sols up to N
             //but then in later sols M > N only additional textures are acquired for that sitedrive
             filterLists(passthroughEmpty: true);
+
+            if (ret.Count == 0)
+            {
+                //would get InvalidOperationException trying to find minPrimarySol below
+                pipeline.LogInfo("culled all changed sitedrives");
+                return ret;
+            }
 
             if (pipeline.Verbose)
             {
@@ -3665,7 +3673,7 @@ namespace JPLOPS.Landform
                             }
                         }
 
-                        var contextualURLs = ProcessChangedURLs(changedContextualURLs, eop >= 0, eopMsg, "contextual");
+                        var contextualURLs = ProcessChangedURLs(changedContextualURLs, eop > 0, eopMsg, "contextual");
 
                         if (contextualURLs.Count > 0)
                         {
