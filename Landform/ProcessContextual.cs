@@ -2734,31 +2734,31 @@ namespace JPLOPS.Landform
             string canonicalSite = primarySD.SiteToString();
             string shortDrive = primarySD.Drive.ToString();
             string canonicalDrive = primarySD.DriveToString();
-            var sdStrs = new List<String> { sdStr, $"{canonicalSite}/{canonicalDrive}", $"{shortSite}/{shortDrive}" };
+            var sdStrs = new List<String> { sdStr, $"{canonicalSite}/{canonicalDrive}/", $"{shortSite}/{shortDrive}/" };
 
             var keys = new List<string>();
             foreach (string sol in solStrs)
             {
                 foreach (var sd in sdStrs)
                 {
-                    keys.Add(string.Format("{0}/{1}", sol, sd));
+                    keys.Add(string.Format("{0}/{1}/", sol, sd));
                 }
             }
-            keys.Add(string.Format("{0}_{1}", canonicalSol, sdStr));
+            keys.Add(string.Format("{0}_{1}/", canonicalSol, sdStr));
             keys.Add(sdStr);
-            keys.Add(string.Format("site/{0}/drive/{1}", canonicalSite, canonicalDrive));
-            keys.Add(string.Format("site/{0}/drive/{1}", shortSite, shortDrive));
-            keys.Add(string.Format("site/{0}", canonicalSite));
-            keys.Add(string.Format("site/{0}", shortSite));
-            keys.Add(string.Format("sol/{0}", canonicalSol));
-            keys.Add(string.Format("sol/{0}", pathSol));
-            keys.Add(string.Format("sol/{0}", shortSol));
-            keys.Add("");
+            keys.Add(string.Format("site/{0}/drive/{1}/", canonicalSite, canonicalDrive));
+            keys.Add(string.Format("site/{0}/drive/{1}/", shortSite, shortDrive));
+            keys.Add(string.Format("site/{0}/", canonicalSite));
+            keys.Add(string.Format("site/{0}/", shortSite));
+            keys.Add(string.Format("sol/{0}/", canonicalSol));
+            keys.Add(string.Format("sol/{0}/", pathSol));
+            keys.Add(string.Format("sol/{0}/", shortSol));
+            keys.Add(""); //not even the trailing slash
             //19 total keys
 
             foreach (string keyPath in keys)
             {
-                string key = string.Format("{0}/{1}/extent", service, keyPath);
+                string key = string.Format("{0}/{1}extent", service, keyPath); //keyPath has trailing slash iff nonempty
                 string overrideExtent = GetParameter(service, key);
                 if (overrideExtent != null)
                 {
