@@ -3628,7 +3628,7 @@ namespace JPLOPS.Landform
 
                     if (!options.NoSurface)
                     {
-                        long eop = -1;
+                        long eop = 0;
                         string eopMsg = "";
                         bool fin = false;
                         if (eoxMS > eop)
