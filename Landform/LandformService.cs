@@ -265,6 +265,8 @@ namespace JPLOPS.Landform
         }
         private Regex genericMessageRegex =
             new Regex(@"^\s*{\s*""url""s*:\s*""\S+""\s*}\s*$", RegexOptions.IgnoreCase);
+        private Regex s3MessageRegex =
+            new Regex(@"^\s*{\s*""Records""\s*:\s*\[(?:[\n]|.)*\]\s*}\s*$", RegexOptions.IgnoreCase);
 
         public LandformService(LandformServiceOptions options) : base(options)
         {
@@ -602,6 +604,10 @@ namespace JPLOPS.Landform
             if (genericMessageRegex.IsMatch(txt))
             {
                 return JsonHelper.FromJson<GenericMessage>(txt);
+            }
+            if (s3MessageRegex.IsMatch(txt))
+            {
+                return JsonHelper.FromJson<S3EventMessage>(txt);
             }
             return null; //try to parse as expected message type
         }

@@ -39,11 +39,11 @@ namespace JPLOPS.Cloud
 
     public class S3EventRecord
     {
-        public string eventVersion; //2.1
-        public string eventSource; //aws:s3
-        public string awsRegion; ///us-gov-west-1
-        public string eventTime; //2019-11-18T21:59:44.631Z
-        public string eventName; //ObjectCreated:Put
+        public string eventVersion; //2.1, 2,2
+        public string eventSource;  //aws:s3
+        public string awsRegion;    //us-gov-west-1
+        public string eventTime;    //2019-11-18T21:59:44.631Z
+        public string eventName;    //ObjectCreated:Put
         public S3User userIdentity;
         public Dictionary<string, string> requestParameters;
         public Dictionary<string, string> responseElements;
