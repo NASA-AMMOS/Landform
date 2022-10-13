@@ -629,6 +629,10 @@ namespace JPLOPS.Pipeline
             int rdrSeg = url.ToLower().IndexOf("/rdr/");
             if (rdrSeg < 0)
             {
+                rdrSeg = url.ToLower().IndexOf("/fdr/");
+            }
+            if (rdrSeg < 0)
+            {
                 return null;
             }
             url = url.Substring(0, rdrSeg + 5);
