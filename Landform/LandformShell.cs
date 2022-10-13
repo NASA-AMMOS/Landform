@@ -752,7 +752,7 @@ namespace JPLOPS.Landform
             return ms <= 0;
         }
 
-        protected string GetDestDir(string inputFolder)
+        protected string GetDestDir(string inputFolder, bool quiet = false)
         {
             if (!string.IsNullOrEmpty(outputFolder))
             {
@@ -777,7 +777,10 @@ namespace JPLOPS.Landform
                     ret = "s3://" +
                         StringHelper.EnsureTrailingSlash(StringHelper.NormalizeSlashes(lsopts.ReadonlyBucketAltDest))
                         + ret.Substring(5);
-                    pipeline.LogInfo("readonly bucket {0}, using output folder {1}", rb, ret);
+                    if (!quiet)
+                    {
+                        pipeline.LogInfo("readonly bucket {0}, using output folder {1}", rb, ret);
+                    }
                     break;
                 }
             }

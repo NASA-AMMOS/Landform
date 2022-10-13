@@ -3041,7 +3041,8 @@ namespace JPLOPS.Landform
                         //for contextual meshes things like that should get handled later in AssignVersionAndSavePID()
                         //for orbital this might mean we recreate the tileset even though it exists in another sol
                         //but that's not the end of the world
-                        var status = CheckForTileset(msg, GetDestDir(StringHelper.ReplaceIntWildcards(rdrDir, sol)), 0);
+                        string solDir = StringHelper.ReplaceIntWildcards(rdrDir, sol);
+                        var status = CheckForTileset(msg, GetDestDir(solDir, quiet: true), 0);
                         found = (status == TilesetStatus.done) || (status == TilesetStatus.processing);
                     }
                     if (!found)
