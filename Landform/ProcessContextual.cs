@@ -385,8 +385,8 @@ namespace JPLOPS.Landform
         [Option(Default = null, HelpText = "Comma separated list of orbital worker EC2 instance ids (starting with \"i-\"), instance names, or instance name wildcard patterns, or \"asg:<name>[:<size>]\" to use an auto scaling group (size defaults to 1)")]
         public string OrbitalWorkerInstances { get; set; }
 
-        [Option(Default = null, HelpText = "Force version string.  Can be any integer or string not containing whitespace, slashes, or underscores.  Non-positive integers have the effect of un-setting the version.  If null or empty then the next available version number is automatically assigned.")]
-        public string Version { get; set; }
+        [Option(Default = null, HelpText = "Force tileset version.  Can be any integer or string not containing whitespace, slashes, or underscores.  Non-positive integers have the effect of un-setting the version.  If null or empty then the next available version number is automatically assigned.")]
+        public string TilesetVersion { get; set; }
 
         [Option(Default = ProcessContextual.DEF_ZOMBIE_SEC, HelpText = "Consider existing PIDs zombie if not updated for longer than this (disabled if non-positive)")]
         public int ZombieSec { get; set; }
@@ -1799,9 +1799,9 @@ namespace JPLOPS.Landform
 
             string pid = GetPID();
             string pidFile = null;
-            if (!string.IsNullOrEmpty(options.Version))
+            if (!string.IsNullOrEmpty(options.TilesetVersion))
             {
-                if (int.TryParse(options.Version, out int v) && v > 0)
+                if (int.TryParse(options.TilesetVersion, out int v) && v > 0)
                 {
                     version = "V" + v.ToString("D2");
                 }
@@ -1822,19 +1822,15 @@ namespace JPLOPS.Landform
                     }
                     versionedProject = project + version + projSfx;
                     var status = CheckForTileset(currentMessage as ContextualMeshMessage, destDir, i);
-                    if (status == TilesetStatus.done)
+                    if (status == TilesetStatus.done || status == TilesetStatus.processing)
                     {
-                        pipeline.LogInfo("tileset {0}/{1} aborted, already procesessed", destDir, versionedProject);
-                        return null;
-                    }
-                    if (status == TilesetStatus.processing)
-                    {
-                        pipeline.LogInfo("tileset {0}/{1} aborted, currently processing", destDir, versionedProject);
+                        pipeline.LogInfo("aborting {0}, already {1} at {2}/{3}",
+                                         project, status, destDir, versionedProject);
                         return null;
                     }
                     if (status == TilesetStatus.found)
                     {
-                        pipeline.LogInfo("tileset {0}/{1} incomplete, skipping version", destDir, versionedProject);
+                        pipeline.LogInfo("tileset {0}/{1} found, skipping version", destDir, versionedProject);
                         continue;
                     }
                     if (status == TilesetStatus.zombie)
