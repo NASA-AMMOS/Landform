@@ -1,6 +1,6 @@
-﻿using OPS.Util;
+﻿using JPLOPS.Util;
 
-namespace OPS.Imaging
+namespace JPLOPS.Imaging
 {
     public class ImageSerializers : SerializerMap<ImageSerializer>
     {
@@ -21,7 +21,6 @@ namespace OPS.Imaging
         protected override void RegisterSerializers()
         {
             new PDSSerializer().Register(this);
-            new DDSSerializer().Register(this);
             new GDALSerializer().Register(this);
             new FITSSerializer().Register(this);
             new RGBSerializer().Register(this);

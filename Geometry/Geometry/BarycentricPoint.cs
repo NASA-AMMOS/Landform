@@ -1,14 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using Microsoft.Xna.Framework;
 
-using OPS.MathExtensions;
-using Microsoft.Xna.Framework;
-using OPS.Geometry;
-
-namespace OPS.Geometry
+namespace JPLOPS.Geometry
 {
     /// <summary>
     /// Class to store barycentric coordinates of a point within a triangle

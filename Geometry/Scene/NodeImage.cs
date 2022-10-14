@@ -1,10 +1,7 @@
-using System;
-using System.Linq;
-using System.Collections.Generic;
 using Microsoft.Xna.Framework;
-using OPS.Imaging;
+using JPLOPS.Imaging;
 
-namespace OPS.Geometry
+namespace JPLOPS.Geometry
 {
     public class NodeImage : NodeComponent
     {

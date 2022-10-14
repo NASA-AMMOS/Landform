@@ -1,6 +1,5 @@
-﻿using System;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
-using OPS.Imaging;
+﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
+using JPLOPS.Imaging;
 using Microsoft.Xna.Framework;
 using System.IO;
 

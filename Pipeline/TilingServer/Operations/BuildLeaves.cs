@@ -1,17 +1,12 @@
-﻿using log4net;
-using System;
+﻿using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
-using System.Text;
 using System.Threading;
-using OPS.Util;
-using OPS.Imaging;
-using OPS.Geometry;
+using JPLOPS.Util;
+using JPLOPS.Geometry;
 using Microsoft.Xna.Framework;
-using System.Collections.Concurrent;
 
-namespace OPS.Pipeline.TilingServer
+namespace JPLOPS.Pipeline.TilingServer
 {
 
     public class BuildLeavesMessage : PipelineMessage

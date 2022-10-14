@@ -1,8 +1,0 @@
-{
-  "name": "04-stick",
-  "options": "tilingscheme=Oct",
-  "inputs": [
-    { "mesh": "stick.ply", "texture": "stick.tif" }
-  ],
-  "maxTime": "1h"
-}

@@ -1,12 +1,11 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using OPS.Util;
-using OPS.Pipeline.AlignmentServer;
+using JPLOPS.Util;
+using JPLOPS.Pipeline.AlignmentServer;
 
-namespace OPS.Pipeline
+namespace JPLOPS.Pipeline
 {
     public class RoverObservationComparator : IComparer<RoverObservation>
     {

@@ -1,8 +1,4 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-
-namespace OPS.Util
+namespace JPLOPS.Util
 {
     public class HammingDistance
     {

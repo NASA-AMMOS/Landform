@@ -1,4 +1,4 @@
-namespace OPS.Imaging
+namespace JPLOPS.Imaging
 {
     public interface IImageLoader
     {

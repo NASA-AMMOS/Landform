@@ -1,13 +1,7 @@
-﻿using MathNet.Numerics.LinearAlgebra;
-using Microsoft.Xna.Framework;
-using OPS.MathExtensions;
+﻿using Microsoft.Xna.Framework;
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
-namespace OPS.Geometry
+namespace JPLOPS.Geometry
 {
     /// <summary>
     /// An epipolar transformation from a model image to a data image.

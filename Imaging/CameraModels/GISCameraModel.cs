@@ -1,15 +1,12 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Collections.Concurrent;
-using System.Linq;
 using Microsoft.Xna.Framework;
 using Newtonsoft.Json;
 using OSGeo.GDAL;
 using OSGeo.OSR;
-using OPS.Util;
-using OPS.MathExtensions;
+using JPLOPS.Util;
+using JPLOPS.MathExtensions;
 
-namespace OPS.Imaging
+namespace JPLOPS.Imaging
 {
     /// <summary>
     /// This class provides helpers to translate between (lon, lat), (easting, northing), planetary body frame, and GIS

@@ -1,14 +1,11 @@
 ﻿using log4net;
 using System;
-using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Xml;
 using System.Net;
 using System.Collections.Concurrent;
 using Microsoft.Xna.Framework;
-namespace OPS.Pipeline
+namespace JPLOPS.Pipeline
 {
     public class MSLLegacyManifest
     {

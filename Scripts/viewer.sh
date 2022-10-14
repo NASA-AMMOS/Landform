@@ -36,7 +36,7 @@ if [ $# -lt 1 ]; then
     exit 1
 fi
 
-if [[ `python --version` != *3.?.? ]]; then
+if ! [[ `python --version` =~ "Python 3" ]]; then
     echo "python 3.7+ required"
     exit 1
 fi
@@ -98,13 +98,20 @@ for url in "$@"; do
 done
 
 if [ "$using_s3" ]; then
-    echo "if tileset(s) don't load then"
-    echo "0) clear cookies for $domain"
-    echo "1) make sure you've logged in at $dproxy"
-    echo "2) check bucket(s) have CORS configured (see $docurl)"
-    echo "3) view page source and make sure the shim script has been injected before the unity loader (if not rm -rf $out/$viewer $out/${viewer}.zip, make sure you have credss credentials to read s3://$lfbucket (in dev venue), and try again)"
-    echo "4) note that if you are trying to view a scene.json on S3 there is currently a known bug, see ticket for workaround: https://github.jpl.nasa.gov/OnSight/Landform/issues/1136"
-    echo "5) sacrifice chicken"
+    echo "if tileset(s) don't load then try the following:"
+    echo "* to work around CORS errors quit Chrome then restart like this:"
+    echo "  \"\$CHROME\" --disable-web-security --user-data-dir=$HOME/chromeTemp >/dev/null 2>&1 &"
+    echo "  where CHROME is "
+    echo "  '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' on OSX"
+    echo "  'C:\Program Files (x86)\Google\Chrome\Application\chrome.exe' on Windows"
+    echo "* if Chrome is stuck at NET::ERR_CERT_INVALID type thisisunsafe"
+    echo "* clear cookies for $domain"
+    echo "* make sure you've logged in at $dproxy"
+    echo "* check bucket(s) have CORS configured (see $docurl)"
+    echo "* view page source and make sure the shim script has been injected before the unity loader (if not rm -rf $out/$viewer $out/${viewer}.zip, make sure you have credss credentials to read s3://$lfbucket (in dev venue), and try again)"
+    echo "* note that if you are trying to view a scene.json on S3 there is currently a known bug, see ticket for workaround: https://github.jpl.nasa.gov/OnSight/Landform/issues/1136"
+    echo "* sacrifice chicken"
 fi
 
-python $scriptdir/python-https.py $port $out $pem
+python $scriptdir/python-https.py $port $out $pem >/dev/null 2>&1
+

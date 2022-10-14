@@ -1,9 +1,7 @@
 using System;
-using System.Collections;
-using System.Collections.Generic;
 using System.Diagnostics;
 
-namespace OPS.Util
+namespace JPLOPS.Util
 {
     public class Fmt
     {

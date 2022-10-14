@@ -1,23 +1,14 @@
 //#define DBG_DIFF
 using System;
-using System.Collections;
 using System.Collections.Generic;
-using System.Collections.Concurrent;
-using System.IO;
-using System.Linq;
-using System.Diagnostics;
-using System.Threading;
 using CommandLine;
 using Microsoft.Xna.Framework;
-using OPS.Util;
-using OPS.MathExtensions;
-using OPS.Imaging;
-using OPS.RayTrace;
-using OPS.Geometry;
-using OPS.Pipeline;
-using OPS.Pipeline.AlignmentServer;
-using OPS.Pipeline.TilingServer;
-using OPS.Pipeline.Texturing;
+using JPLOPS.Util;
+using JPLOPS.MathExtensions;
+using JPLOPS.Imaging;
+using JPLOPS.Geometry;
+using JPLOPS.Pipeline;
+using JPLOPS.Pipeline.AlignmentServer;
 
 /// <summary>
 /// Creates blended observation images, implementing the blend-images stage in the Landform contextual mesh workflow.
@@ -93,11 +84,12 @@ using OPS.Pipeline.Texturing;
 /// Landform.exe blend-images windjana
 ///
 /// </summary>
-namespace OPS.Landform
+namespace JPLOPS.Landform
 {
     public enum BlendStrategy { None, Auto, Barycentric, Inpaint };
 
     [Verb("blend-images", HelpText = "blend observation images")]
+    [EnvVar("BLEND")]
     public class BlendImagesOptions : TextureCommandOptions
     {
         [Value(1, Required = false, HelpText = "URL, file, or file type (extension starting with \".\") to which to save textured scene mesh", Default = null)]

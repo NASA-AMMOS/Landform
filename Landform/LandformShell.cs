@@ -1,21 +1,16 @@
 using System;
 using System.IO;
-using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
-using System.Reflection;
 using System.Threading;
 using CommandLine;
-using OPS.Util;
-using OPS.Cloud;
-using OPS.Imaging;
-using OPS.Geometry;
-using OPS.Pipeline;
-using OPS.Pipeline.AlignmentServer;
-using OPS.Pipeline.TilingServer;
+using JPLOPS.Util;
+using JPLOPS.Cloud;
+using JPLOPS.Geometry;
+using JPLOPS.Pipeline;
 
-namespace OPS.Landform
+namespace JPLOPS.Landform
 {
     public class LandformShellOptions : LandformCommandOptions
     {
@@ -130,6 +125,9 @@ namespace OPS.Landform
         [Option(HelpText = "Use default AWS profile (vs profile from credential refresh) for EC2 client", Default = false)]
         public bool UseDefaultAWSProfileForEC2Client { get; set; }
 
+        [Option(HelpText = "Use default AWS profile (vs profile from credential refresh) for SSM client", Default = false)]
+        public bool UseDefaultAWSProfileForSSMClient { get; set; }
+
         [Option(HelpText = "Comma separated list of input S3 buckets (or bucket/path) that should be treated as read-only, also requires --readonlybucketaltdest", Default = null)]
         public string ReadonlyBuckets { get; set; }
 
@@ -164,7 +162,9 @@ namespace OPS.Landform
         protected string awsProfile, originalAWSProfile;
         protected string awsRegion;
 
-        protected double lastCredentialRefreshSecUTC;
+        //in C# 64 bit fields can't  be volatile, so can't use double or long here
+        //uint max is about 4.2e9; 100y since epoch in sec is 100 * 365 * 24 * 60 * 60 ~= 3.1e9
+        protected volatile uint lastCredentialRefreshSecUTC;
         protected int credentialRefreshSec;
 
         private Object storageHelperLock = new Object();
@@ -199,6 +199,24 @@ namespace OPS.Landform
                         _computeHelper = new ComputeHelper(profile, awsRegion, pipeline);
                     }
                     return _computeHelper;
+                }
+            }
+        }
+
+        private Object parameterStoreLock = new Object();
+        private ParameterStore _parameterStore;
+        protected ParameterStore parameterStore
+        {
+            get
+            {
+                lock (parameterStoreLock)
+                {
+                    if (_parameterStore == null)
+                    {
+                        string profile = lsopts.UseDefaultAWSProfileForSSMClient ? null : awsProfile;
+                        _parameterStore = new ParameterStore(profile, awsRegion);
+                    }
+                    return _parameterStore;
                 }
             }
         }
@@ -275,15 +293,11 @@ namespace OPS.Landform
 
             PathHelper.DumpFilesystemStats(pipeline.Logger);
 
-            var cp = pipeline as CloudPipeline;
-
             awsProfile = !string.IsNullOrEmpty(lsopts.AWSProfile) ? lsopts.AWSProfile :
-                cp != null && !string.IsNullOrEmpty(cp.AWSProfile) ? cp.AWSProfile :
                 mission != null ? mission.GetDefaultAWSProfile() : null;
             pipeline.LogInfo("AWS profile: {0}", awsProfile);
 
             awsRegion = !string.IsNullOrEmpty(lsopts.AWSRegion) ? lsopts.AWSRegion :
-                cp != null && !string.IsNullOrEmpty(cp.AWSRegion) ? cp.AWSRegion :
                 mission != null ? mission.GetDefaultAWSRegion() : null;
             pipeline.LogInfo("AWS region: {0}", awsRegion);
 
@@ -345,8 +359,17 @@ namespace OPS.Landform
                 }
             }
 
+            lock (parameterStoreLock)
+            {
+                if (_parameterStore != null)
+                {
+                    _parameterStore.Dispose();
+                    _parameterStore = null;
+                }
+            }
+
             //not conservative timing but do here to ensure that we only set the timestamp if we didn't error out
-            lastCredentialRefreshSecUTC = UTCTime.Now();
+            lastCredentialRefreshSecUTC = (uint)UTCTime.Now();
         }
 
         protected abstract string GetSubcommandLogFile();
@@ -399,7 +422,7 @@ namespace OPS.Landform
 
         public static bool FileExists(PipelineCore pipeline, Func<StorageHelper> storageHelper, string url)
         {
-            if (url.StartsWith("s3://") && !(pipeline is CloudPipeline))
+            if (url.StartsWith("s3://"))
             {
                 return storageHelper().FileExists(url);
             }
@@ -411,7 +434,7 @@ namespace OPS.Landform
 
         public static bool DeleteFile(PipelineCore pipeline, Func<StorageHelper> storageHelper, string url)
         {
-            if (url.StartsWith("s3://") && !(pipeline is CloudPipeline))
+            if (url.StartsWith("s3://"))
             {
                 return storageHelper().DeleteObject(url);
             }
@@ -423,7 +446,7 @@ namespace OPS.Landform
 
         public static long FileSize(PipelineCore pipeline, Func<StorageHelper> storageHelper, string url)
         {
-            if (url.StartsWith("s3://") && !(pipeline is CloudPipeline))
+            if (url.StartsWith("s3://"))
             {
                 return storageHelper().FileSize(url);
             }
@@ -437,7 +460,7 @@ namespace OPS.Landform
                                                       string url, string globPattern = "", bool recursive = false,
                                                       bool ignoreCase = false)
         {
-            if (url.StartsWith("s3://") && !(pipeline is CloudPipeline))
+            if (url.StartsWith("s3://"))
             {
                 return storageHelper().SearchObjects(url, "*/" + globPattern, recursive, ignoreCase);
             }
@@ -457,7 +480,7 @@ namespace OPS.Landform
 
             pipeline.LogInfo("{0}getting {1}", dryRun ? "dry " : "", url);
 
-            if (url.StartsWith("s3://") && !(pipeline is CloudPipeline) && !dryRun)
+            if (url.StartsWith("s3://") && !dryRun)
             {
                 path = pipeline.DownloadCachePath(cacheDir, filename);
                 if (!File.Exists(path))
@@ -511,7 +534,7 @@ namespace OPS.Landform
             }
             if (!dryRun)
             {
-                if (url.StartsWith("s3://") && !(pipeline is CloudPipeline))
+                if (url.StartsWith("s3://"))
                 {
                     storageHelper().UploadFile(file, url);
                 }
@@ -519,6 +542,21 @@ namespace OPS.Landform
                 {
                     pipeline.SaveFile(file, url, constrainToStorage: false);
                 }
+            }
+        }
+
+        protected string GetParameter(string service, string key)
+        {
+            key = string.Format("{0}/{1}/{2}", mission.GetServiceSSMKeyBase(), service, key);
+            try
+            {
+                return parameterStore.GetParameter(key, decrypt: mission.GetServiceSSMEncrypted(), expectExists: false);
+            } 
+            catch (Exception ex)
+            {
+                pipeline.LogError("error getting parameter \"{0}\" from SSM: {1}", key,
+                                  ex.Message.Replace("{", "{{").Replace("}", "}}"));
+                return null;
             }
         }
 
@@ -691,9 +729,9 @@ namespace OPS.Landform
         protected void Configure(string venue)
         {
             var allowedFlags = new HashSet<string>() { "--quiet", "--debug" };
-            string mco = lsopts.MaxCores.HasValue ? "--maxcores=" + lsopts.MaxCores.Value : null;
-            string rso = lsopts.RandomSeed.HasValue ? "--randomseed=" + lsopts.RandomSeed.Value : null;
-            RunCommand("configure-local", allowedFlags, "--venue", venue, "--storagedir", storageDir, mco, rso);
+            string mco = "--maxcores=" + lsopts.MaxCores;
+            string rso = "--randomseed=" + lsopts.RandomSeed;
+            RunCommand("configure", allowedFlags, "--venue", venue, "--storagedir", storageDir, mco, rso);
         }
 
         //noop if sec <= 0
@@ -714,7 +752,7 @@ namespace OPS.Landform
             return ms <= 0;
         }
 
-        protected string GetDestDir(string inputFolder)
+        protected string GetDestDir(string inputFolder, bool quiet = false)
         {
             if (!string.IsNullOrEmpty(outputFolder))
             {
@@ -722,18 +760,16 @@ namespace OPS.Landform
             }
             inputFolder = StringHelper.EnsureTrailingSlash(StringHelper.NormalizeSlashes(inputFolder));
             int rdrIdx = -1;
-            int rdrSegLength = 0;
             foreach (string rdrSubdir in RDR_SUBDIRS)
             {
                 string rdrSegment = string.Format("/{0}/", rdrSubdir.ToLower());
                 rdrIdx = inputFolder.ToLower().LastIndexOf(rdrSegment);
                 if (rdrIdx >= 0)
                 {
-                    rdrSegLength = rdrSegment.Length;
                     break;
                 }
             }
-            string ret = (rdrIdx >= 0 ? inputFolder.Substring(0, rdrIdx + rdrSegLength) : inputFolder) + TILESET_SUBDIR;
+            string ret = (rdrIdx >= 0 ? (inputFolder.Substring(0, rdrIdx) + "/rdr/") : inputFolder) + TILESET_SUBDIR;
             foreach (string rb in StringHelper.ParseList(lsopts.ReadonlyBuckets))
             {
                 if (ret.StartsWith("s3://" + StringHelper.EnsureTrailingSlash(StringHelper.NormalizeSlashes(rb))))
@@ -741,7 +777,10 @@ namespace OPS.Landform
                     ret = "s3://" +
                         StringHelper.EnsureTrailingSlash(StringHelper.NormalizeSlashes(lsopts.ReadonlyBucketAltDest))
                         + ret.Substring(5);
-                    pipeline.LogInfo("readonly bucket {0}, using output folder {1}", rb, ret);
+                    if (!quiet)
+                    {
+                        pipeline.LogInfo("readonly bucket {0}, using output folder {1}", rb, ret);
+                    }
                     break;
                 }
             }
@@ -888,12 +927,12 @@ namespace OPS.Landform
                 string pid = GetPID();
                 if (pidFile == null)
                 {
-                    pidFile = pid + "_" + PID_JSON;
+                    pidFile = string.Format("{0}_{1}_{2}", project, pid, PID_JSON);
                 }
 
                 string url = string.Format("{0}/{1}/{2}", destDir, project, pidFile);
                 
-                pipeline.LogVerbose("saving PID file {0} with status {1}", url, status);
+                pipeline.LogInfo("saving PID file {0} with status {1}", url, status);
 
                 lock (activePIDFiles)
                 {

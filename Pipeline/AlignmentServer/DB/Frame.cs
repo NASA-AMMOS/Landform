@@ -1,24 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
-using Amazon.DynamoDBv2.DataModel;
-using OPS.Cloud;
 
-namespace OPS.Pipeline.AlignmentServer
+namespace JPLOPS.Pipeline.AlignmentServer
 {
-    /// <summary>
-    /// Represents a coordinate frame in the database
-    /// Coordinate frames can have one or more observations associated with them. 
-    /// Frames are not versioned
-    /// </summary>\
-    [DynamoDBTable("Frames")]
-    [DynamoDBReadCapacity(5, 50)]
-    [DynamoDBWriteCapacity(5, 50)]
     public class Frame
     {
-        [DynamoDBRangeKey]
+        [DBRangeKey]
         public string ProjectName;
 
-        [DynamoDBHashKey]
+        [DBHashKey]
         public string Name;
 
         public string ParentName;
@@ -26,12 +16,6 @@ namespace OPS.Pipeline.AlignmentServer
         public HashSet<TransformSource> Transforms = new HashSet<TransformSource>(); //MT safety: lock before accessing
 
         public HashSet<string> ObservationNames = new HashSet<string>(); //MT safety: lock before accessing
-
-        //DEPRECATED - for legacy compat only
-        public string FrameName;
-
-        //DEPRECATED - for legacy compat only
-        public HashSet<string> PriorIds = new HashSet<string>(); //MT safety: lock before accessing
 
         public double EastingMeters; //along equator east of prime meridian
 
@@ -49,7 +33,6 @@ namespace OPS.Pipeline.AlignmentServer
 
         public bool HasLonLat;
 
-        //This constructor must be public for DynamoDB but should not be used
         public Frame() { }
 
         /// <summary>
@@ -133,14 +116,14 @@ namespace OPS.Pipeline.AlignmentServer
         /// </summary>
         public static Frame Find(PipelineCore pipeline, string projectName, string name)
         {
-            return Compat(pipeline, pipeline.LoadDatabaseItem<Frame>(name, projectName));
+            return pipeline.LoadDatabaseItem<Frame>(name, projectName);
         }
 
         public static IEnumerable<Frame> Find(PipelineCore pipeline, string projectName)
         {
             foreach (var frame in pipeline.ScanDatabase<Frame>("ProjectName", projectName))
             {
-                yield return Compat(pipeline, frame);
+                yield return frame;
             }
         }
 
@@ -153,87 +136,6 @@ namespace OPS.Pipeline.AlignmentServer
         {
             if (ParentName == null) return null;
             return Find(pipeline, ProjectName, ParentName);
-        }
-
-        private static Dictionary<string, List<FrameTransform>> compatTransformCache = null;
-        private static ObservationCache compatObservationCache = null;
-        private static object compatLock = new Object();
-        private static Frame Compat(PipelineCore pipeline, Frame frame)
-        {
-            if (pipeline.LegacyCompat)
-            {
-                lock (compatLock)
-                {
-                    if (string.IsNullOrEmpty(frame.Name))
-                    {
-                        frame.Name = frame.FrameName;
-                    }
-
-                    lock (frame.Transforms)
-                    {
-                        if (frame.Transforms.Count == 0)
-                        {
-                            if (compatTransformCache == null)
-                            {
-                                pipeline.LogInfo("populating legacy compat transform cache...");
-                                compatTransformCache = new Dictionary<string, List<FrameTransform>>();
-                                
-                                foreach (var ft in pipeline.ScanDatabase<FrameTransform>())
-                                {
-                                    if (!compatTransformCache.ContainsKey(ft.FrameName))
-                                    {
-                                        compatTransformCache[ft.FrameName] = new List<FrameTransform>();
-                                    }
-                                    ft.Source = TransformSource.Adjusted; //this should be the default anyway
-                                    compatTransformCache[ft.FrameName].Add(ft);
-                                }
-                                
-                                foreach (var ft in pipeline.ScanDatabase<FrameTransform>(null, tableName: "FrameTransformPriors"))
-                                {
-                                    if (!compatTransformCache.ContainsKey(ft.FrameName))
-                                    {
-                                        compatTransformCache[ft.FrameName] = new List<FrameTransform>();
-                                    }
-                                    ft.Source = TransformSource.Prior;
-                                    compatTransformCache[ft.FrameName].Add(ft);
-                                }
-                            }
-                            var transformsForFrame = compatTransformCache[frame.Name];
-                            if (transformsForFrame != null)
-                            {
-                                foreach (var transform in transformsForFrame)
-                                {
-                                    frame.Transforms.Add(transform.Source);
-                                }
-                            }
-                            if (string.IsNullOrEmpty(frame.ParentName))
-                            {
-                                //root frame doesn't have a prior in the legacy database, but it's just identity
-                                frame.Transforms.Add(TransformSource.Prior);
-                            }
-                        }
-                    }
-
-                    lock (frame.ObservationNames)
-                    {
-                        if (frame.ObservationNames.Count == 0)
-                        {
-                            if (compatObservationCache == null)
-                            {
-                                pipeline.LogInfo("populating legacy compat observation cache...");
-                                compatObservationCache = new ObservationCache(pipeline, frame.ProjectName);
-                                compatObservationCache.Preload(obs => obs is RoverObservation);
-                            }
-                            foreach (var obs in compatObservationCache.GetAllObservationsForFrame(frame))
-                            {
-                                frame.ObservationNames.Add(obs.Name);
-                            }
-                        }
-                    }
-                }
-            }
-
-            return frame;
         }
     }   
 }

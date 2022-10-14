@@ -3,18 +3,16 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
 using System.Linq;
-using System.Text;
 using System.IO;
 using System.Net;
-using System.Threading.Tasks;
 using System.Xml;
 using Microsoft.Xna.Framework;
 using RestSharp;
 using RestSharp.Authenticators;
-using OPS.Util;
-using OPS.Imaging;
+using JPLOPS.Util;
+using JPLOPS.Imaging;
 
-namespace OPS.Pipeline
+namespace JPLOPS.Pipeline
 {
     public class PlacesConfig : SingletonConfig<PlacesConfig>
     {
@@ -118,9 +116,9 @@ namespace OPS.Pipeline
         //we lock on it to serialize requests
         //that handles the case of launching multiple initial requests for the same query in parallel
         //query => response
-        Dictionary<string, string> cache = new Dictionary<string, string>();
+        private Dictionary<string, string> cache = new Dictionary<string, string>();
 
-        Dictionary<string, string> bestViewCache = new Dictionary<string, string>();
+        private Dictionary<string, string> bestViewCache = new Dictionary<string, string>();
 
         private ConcurrentDictionary<SiteDrive, Vector3> cachedOffsetFromStart =
             new ConcurrentDictionary<SiteDrive, Vector3>();
@@ -538,6 +536,16 @@ namespace OPS.Pipeline
             }
 
             return CheckXMLDocument(ParseXml(query, response), expected);
+        }
+
+        public Dictionary<string, string> GetCache()
+        {
+            return cache;
+        }
+
+        public void SetCache(Dictionary<string, string> cache)
+        {
+            this.cache = cache;
         }
 
         public string[] CheckOrbitalDEMMetadata(int index, double xyScale = -1, Vector2? ulcEastingNorthing = null,

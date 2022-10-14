@@ -1,12 +1,7 @@
 ﻿using Microsoft.Xna.Framework;
-using OPS.Geometry;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using JPLOPS.Geometry;
 
-namespace OPS.Pipeline
+namespace JPLOPS.Pipeline
 {
     /// <summary>
     /// Interface for objects that can determine when a mesh should be split when tiling

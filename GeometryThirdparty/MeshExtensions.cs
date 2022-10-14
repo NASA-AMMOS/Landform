@@ -1,10 +1,9 @@
 ﻿using System;
-using System.Linq;
 using System.Collections.Generic;
 using Microsoft.Xna.Framework;
-using OPS.Util;
+using JPLOPS.Util;
 
-namespace OPS.Geometry
+namespace JPLOPS.Geometry
 {
     public enum MeshReconstructionMethod
     {
@@ -17,9 +16,7 @@ namespace OPS.Geometry
     {
         EdgeCollapse, //EdgeCollapse.QuadricEdgeCollapse()
         ResampleFSSR, //MeshExtensions.ResampleDecimated(MeshReconstructionMethod.FSSR)
-        ResamplePoisson, //MeshExtensions.ResampleDecimated(MeshReconstructionMethod.Poisson)
-        MeshLab, //MeshLab.Decimated()
-        MeshLabResample //MeshLab.ResampleDecimated()
+        ResamplePoisson //MeshExtensions.ResampleDecimated(MeshReconstructionMethod.Poisson)
     }
 
     public static class MeshExtensions
@@ -61,24 +58,6 @@ namespace OPS.Geometry
                 {
                     m = ResampleDecimated(m, targetFaces, MeshReconstructionMethod.Poisson, clippingBounds, upAxis,
                                           logger: logger);
-                    break;
-                }
-                case MeshDecimationMethod.MeshLab:
-                {
-                    m = MeshLab.Decimated(m, targetFaces);
-                    if (clippingBounds.HasValue)
-                    {
-                        m.Clip(clippingBounds.Value);
-                    }
-                    break;
-                }
-                case MeshDecimationMethod.MeshLabResample:
-                {
-                    m = MeshLab.ResampleDecimated(m, (int)(DEF_SAMPLES_PER_FACE * targetFaces), targetFaces);
-                    if (clippingBounds.HasValue)
-                    {
-                        m.Clip(clippingBounds.Value);
-                    }
                     break;
                 }
                 default: throw new Exception("unknown decimation method " + method);

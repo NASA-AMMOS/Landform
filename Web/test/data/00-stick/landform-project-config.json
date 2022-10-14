@@ -1,8 +1,0 @@
-{
-  "name": "00-stick",
-  "options": "",
-  "inputs": [
-    { "mesh": "stick.obj", "texture": "stick.jpg" }
-  ],
-  "maxTime": "1h"
-}

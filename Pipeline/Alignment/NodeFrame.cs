@@ -1,7 +1,7 @@
-using OPS.Geometry;
-using OPS.Pipeline.AlignmentServer;
+using JPLOPS.Geometry;
+using JPLOPS.Pipeline.AlignmentServer;
 
-namespace OPS.Pipeline
+namespace JPLOPS.Pipeline
 {
     public class NodeFrame : NodeComponent
     {

@@ -1,22 +1,13 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
-using Amazon.DynamoDBv2.DataModel;
 using Newtonsoft.Json;
-using OPS.Util;
-using OPS.Cloud;
-using OPS.Imaging;
-using OPS.Geometry;
-using OPS.Pipeline;
+using JPLOPS.Util;
+using JPLOPS.Imaging;
+using JPLOPS.Geometry;
 
-namespace OPS.Pipeline.AlignmentServer
+namespace JPLOPS.Pipeline.AlignmentServer
 {
-    [DynamoDBTable("BirdsEyeViews")]
-    [DynamoDBReadCapacity(50, 100)]
-    [DynamoDBWriteCapacity(50, 100)]
     public class BirdsEyeView
     {
         public enum ColorMode { Texture, Tilt, Elevation };
@@ -40,13 +31,12 @@ namespace OPS.Pipeline.AlignmentServer
             }
         }
 
-        [DynamoDBRangeKey]
+        [DBRangeKey]
         public string ProjectName;
 
-        [DynamoDBHashKey]
+        [DBHashKey]
         public string Name; //SSSDDDD-OptionsSHA1
 
-        [DynamoDBIgnore]
         [JsonIgnore]
         public SiteDrive SiteDrive
         {
@@ -61,7 +51,6 @@ namespace OPS.Pipeline.AlignmentServer
         public double RootOriginXPixels;
         public double RootOriginYPixels;
 
-        [DynamoDBIgnore]
         [JsonIgnore]
         public Vector2 RootOriginPixel
         {
@@ -72,7 +61,6 @@ namespace OPS.Pipeline.AlignmentServer
         public double SiteDriveOriginXPixels;
         public double SiteDriveOriginYPixels;
 
-        [DynamoDBIgnore]
         [JsonIgnore]
         public Vector2 SiteDriveOriginPixel
         {
@@ -83,7 +71,6 @@ namespace OPS.Pipeline.AlignmentServer
         public int WidthPixels;
         public int HeightPixels;
 
-        [DynamoDBIgnore]
         [JsonIgnore]
         public int AreaPixels
         {
@@ -117,7 +104,6 @@ namespace OPS.Pipeline.AlignmentServer
             return string.Format("{0}-{1}", siteDrive.ToString(), StringHelper.SHA1(opts.Serialize()));
         }
 
-        //This constructor must be public for DynamoDb but should not be used
         public BirdsEyeView() { }
 
         protected BirdsEyeView(string projectName, SiteDrive siteDrive, BEVOptions opts,

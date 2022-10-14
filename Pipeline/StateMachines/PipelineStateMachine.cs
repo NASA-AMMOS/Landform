@@ -1,12 +1,11 @@
 ﻿using System;
 using System.Linq;
 using System.Collections.Generic;
-using OPS.Util;
-using OPS.Cloud;
-using OPS.Geometry;
-using OPS.Pipeline.TilingServer;
+using JPLOPS.Util;
+using JPLOPS.Geometry;
+using JPLOPS.Pipeline.TilingServer;
 
-namespace OPS.Pipeline
+namespace JPLOPS.Pipeline
 {
     public enum ProjectType { GenericTiling, ParentTiling };
 

@@ -1,7 +1,6 @@
 set mstest="C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\Common7\IDE\CommonExtensions\Microsoft\TestWindow\vstest.console.exe"
 %mstest% /Parallel^
- AlignmentTest\bin\Release\AlignmentTest.dll^
- CloudTest\bin\Release\CloudTest.dll^
+ ImageFeaturesTest\bin\Release\ImageFeaturesTest.dll^
  GeometryTest\bin\Release\GeometryTest.dll^
  GeometryThirdpartyTest\bin\Release\GeometryThirdpartyTest.dll^
  ImagingTest\bin\Release\ImagingTest.dll^

@@ -1,15 +1,12 @@
 ﻿using Microsoft.Xna.Framework;
-using OPS.Imaging;
-using OPS.MathExtensions;
-using OPS.Util;
+using JPLOPS.MathExtensions;
+using JPLOPS.Util;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
-namespace OPS.Geometry
+namespace JPLOPS.Geometry
 {
 
     public class VertexWithRoughness : Vertex

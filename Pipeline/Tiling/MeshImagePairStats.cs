@@ -1,14 +1,10 @@
 using System;
-using System.Linq;
-using System.Collections.Generic;
-using Amazon.DynamoDBv2.DataModel;
-using Amazon.DynamoDBv2.DocumentModel;
 using Newtonsoft.Json;
-using OPS.Util;
-using OPS.Geometry;
-using OPS.Imaging;
+using JPLOPS.Util;
+using JPLOPS.Geometry;
+using JPLOPS.Imaging;
 
-namespace OPS.Pipeline
+namespace JPLOPS.Pipeline
 {
     public class MeshImagePairStats : NodeComponent
     {
@@ -93,7 +89,7 @@ namespace OPS.Pipeline
         }
     }
 
-    public class MeshImagePairStatsConverter : JsonConverter, IPropertyConverter
+    public class MeshImagePairStatsConverter : JsonConverter
     {
         public override bool CanRead
         {
@@ -118,16 +114,6 @@ namespace OPS.Pipeline
         public override object ReadJson(JsonReader reader, Type type, object existing, JsonSerializer serializer)
         {
             return MeshImagePairStats.Deserialize(serializer.Deserialize<string>(reader));
-        }
-
-        public object FromEntry(DynamoDBEntry entry)
-        {
-            return MeshImagePairStats.Deserialize(entry.AsString());
-        }
-
-        public DynamoDBEntry ToEntry(object value)
-        {
-            return ((MeshImagePairStats)value).Serialize();
         }
     }
 }

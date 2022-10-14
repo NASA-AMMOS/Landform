@@ -4,8 +4,8 @@ using System.Linq;
 using CommandLine;
 using Microsoft.Xna.Framework;
 using log4net;
-using OPS.Util;
-using OPS.Imaging;
+using JPLOPS.Util;
+using JPLOPS.Imaging;
 
 /// <summary>
 /// Utility to convert PDS images to other formats.
@@ -19,7 +19,7 @@ using OPS.Imaging;
 ///
 ///  LandformUtil.exe convert-pds out/windjana/meshes
 /// </summary>
-namespace OPS.Landform
+namespace JPLOPS.Landform
 {
 
     [Verb("convert-pds", HelpText = "Convert PDS images to different format")]

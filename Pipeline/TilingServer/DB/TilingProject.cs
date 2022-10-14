@@ -2,26 +2,19 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Threading;
-using Amazon.DynamoDBv2.DataModel;
 using log4net;
 using Microsoft.Xna.Framework;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using OPS.Util;
-using OPS.Cloud;
-using OPS.Geometry;
-using OPS.Pipeline;
-using OPS.Pipeline.Texturing;
+using JPLOPS.MathExtensions;
+using JPLOPS.Util;
+using JPLOPS.Geometry;
 
-namespace OPS.Pipeline.TilingServer
+namespace JPLOPS.Pipeline.TilingServer
 {
-    [DynamoDBTable("TilingProjects")]
-    [DynamoDBReadCapacity(5, 50)]
-    [DynamoDBWriteCapacity(5, 50)]
     public class TilingProject
     {
-        [DynamoDBHashKey]
+        [DBHashKey]
         public string Name;
 
         public ProjectType ProjectType;
@@ -98,8 +91,7 @@ namespace OPS.Pipeline.TilingServer
 
         public Guid TextureProjectorGuid;
 
-        [DynamoDBProperty("RootTransform", typeof(XNAMatrixConverter))]
-        [JsonConverter(typeof(XNAMatrixConverter))]
+        [JsonConverter(typeof(XNAMatrixJsonConverter))]
         public Matrix RootTransform = Matrix.Identity;
 
         public static string ToExt(string fmt)
@@ -115,7 +107,6 @@ namespace OPS.Pipeline.TilingServer
             return fmt.ToLower();
         }
 
-        //This constructor must be public for DynamoDB but should not be used
         public TilingProject() { }
 
         protected TilingProject(string name, ProjectType projectType, string productPath)
@@ -165,10 +156,6 @@ namespace OPS.Pipeline.TilingServer
             foreach (var node in nodes)
             {
                 node.Delete(pipeline, ignoreErrors, keepMeshes);
-                if (pipeline is CloudPipeline)
-                {
-                    Thread.Sleep(SLEEP_BETWEEN_NODE_DELETES_MS); //throttle to reduce chance of exponential backoff
-                }
                 if (++n % 500 == 0)
                 {
                     pipeline.LogInfo("deleted {0} nodes", n);

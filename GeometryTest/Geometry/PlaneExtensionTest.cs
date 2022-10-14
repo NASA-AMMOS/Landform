@@ -1,8 +1,5 @@
-﻿using System;
-using System.Text;
-using System.Collections.Generic;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
-using OPS.Geometry;
+﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
+using JPLOPS.Geometry;
 using Microsoft.Xna.Framework;
 
 namespace GeometryTest.Geometry

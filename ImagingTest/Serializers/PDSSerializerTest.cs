@@ -1,8 +1,7 @@
-﻿using System;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
-using OPS.Imaging;
+﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
+using JPLOPS.Imaging;
 using System.IO;
-using OPS.Test;
+using JPLOPS.Test;
 
 namespace ImagingTest
 {

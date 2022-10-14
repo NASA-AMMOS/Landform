@@ -1,13 +1,9 @@
 using System;
-using System.Collections.Generic;
 using System.Collections.Concurrent;
-using System.Linq;
 using Microsoft.Xna.Framework;
 using OSGeo.GDAL;
-using OSGeo.OSR;
-using OPS.Util;
 
-namespace OPS.Imaging
+namespace JPLOPS.Imaging
 {
     /// <summary>
     /// Also see OPS.Geometry.DEM which is a more general purpose DEM implementation that can be backed by any Image.

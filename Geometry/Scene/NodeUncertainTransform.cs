@@ -1,13 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
 using MathNet.Numerics.LinearAlgebra;
-using OPS.MathExtensions;
+using JPLOPS.MathExtensions;
 
-namespace OPS.Geometry
+namespace JPLOPS.Geometry
 {
     /// <summary>
     /// Defines uncertainty in a node's transform.

@@ -1,12 +1,5 @@
 ﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
-using OPS.Imaging;
-using OPS.Test;
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using JPLOPS.Imaging;
 
 namespace ImagingTest
 {

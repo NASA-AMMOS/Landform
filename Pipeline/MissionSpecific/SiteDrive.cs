@@ -1,12 +1,8 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Text.RegularExpressions;
-using System.Threading.Tasks;
-using OPS.Util;
+using JPLOPS.Util;
 
-namespace OPS.Pipeline
+namespace JPLOPS.Pipeline
 {
     /// <summary>
     /// Represents a rover site drive pair
@@ -130,6 +126,16 @@ namespace OPS.Pipeline
         public override string ToString()
         {
             return string.Format("{0}{1}", OPGSProductId.SiteToString(Site), OPGSProductId.DriveToString(Drive));
+        }
+
+        public string SiteToString()
+        {
+            return OPGSProductId.SiteToString(Site);
+        }
+
+        public string DriveToString()
+        {
+            return OPGSProductId.DriveToString(Drive);
         }
 
         /// <summary>

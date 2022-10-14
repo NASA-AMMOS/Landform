@@ -1,7 +1,6 @@
-using System;
 using System.Diagnostics;
 
-namespace OPS.Util
+namespace JPLOPS.Util
 {
     public class PerfTimer
     {

@@ -3,10 +3,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 using System.Security.Cryptography;
 
-namespace OPS.Util
+namespace JPLOPS.Util
 {
     public class StringHelper
     {
@@ -375,6 +374,15 @@ namespace OPS.Util
         public static string Abbreviate(string str, int maxLen = 100)
         {
             return str.Length > maxLen ? (str.Substring(0, maxLen) + "...") : str;
+        }
+
+        public static string SnakeCase(string str)
+        {
+            str = str.Replace('-','_').Replace('.','_');
+            str = Regex.Replace(str, @"\s+", "_");
+            str = Regex.Replace(str, @"([^A-Z_])([A-Z])", "$1_$2"); //FooBar -> Foo_Bar, S3Foo -> S3_Foo, AtB -> At_B
+            str = Regex.Replace(str, @"([^_])([A-Z][^A-Z_])", "$1_$2"); //RDRFoo -> RDR_Foo
+            return str;
         }
 
         private static double[] NEG_POW_10 = new double[]

@@ -1,7 +1,6 @@
-﻿using System;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
-using OPS.Imaging;
-using OPS.Pipeline;
+﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
+using JPLOPS.Imaging;
+using JPLOPS.Pipeline;
 using Microsoft.Xna.Framework;
 using System.IO;
 namespace PipelineTest

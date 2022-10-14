@@ -1,0 +1,7 @@
+{
+  "rdrDir":"s3://m20-ids-g-landform/M2020/sol/####/ids/rdr/",
+  "primarySol":84,
+  "sols":"72,84",
+  "primarySiteDrive":"0040000",
+  "siteDrives":"0032302,0040000"
+}

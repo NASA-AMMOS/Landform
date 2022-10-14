@@ -3,19 +3,16 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading;
-using System.Text;
 using System.Text.RegularExpressions;
 using CommandLine;
 using Microsoft.Xna.Framework;
-using OPS.MathExtensions;
-using OPS.Geometry;
-using OPS.Imaging;
-using OPS.Pipeline;
-using OPS.Pipeline.AlignmentServer;
-using OPS.Pipeline.Texturing;
-using OPS.Pipeline.TilingServer;
-using OPS.RayTrace;
-using OPS.Util;
+using JPLOPS.MathExtensions;
+using JPLOPS.Geometry;
+using JPLOPS.Imaging;
+using JPLOPS.Pipeline;
+using JPLOPS.Pipeline.AlignmentServer;
+using JPLOPS.Pipeline.TilingServer;
+using JPLOPS.Util;
 
 /// <summary>
 /// Creates leaf, and sometimes also parent, tile meshes and textures for a Landform alignment project.
@@ -65,9 +62,10 @@ using OPS.Util;
 /// Landform.exe build-tiling-input windjana
 ///
 /// </summary>
-namespace OPS.Landform
+namespace JPLOPS.Landform
 {
     [Verb("build-tiling-input", HelpText = "builds textured tiles from a full scene mesh")]
+    [EnvVar("TILING")]
     public class BuildTilingInputOptions : TilingCommandOptions
     {
         [Value(0, Required = false, HelpText = "project name, defaults to input mesh basename if --inputmesh and --input texture are specified", Default = null)]

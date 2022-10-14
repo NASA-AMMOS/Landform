@@ -14,17 +14,12 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Threading;
 using System.IO;
 using OSGeo.GDAL;
 using log4net;
-using Microsoft.Xna.Framework;
-using OPS.MathExtensions;
 
-namespace OPS.Imaging
-{    
+namespace JPLOPS.Imaging
+{
     /// <summary>
     /// Reads all image types supported by GDAL
     /// </summary>

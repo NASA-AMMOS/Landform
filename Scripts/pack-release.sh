@@ -1,7 +1,7 @@
 #!/bin/sh
 
-if [ $# -ne 1 ]; then
-    echo "USAGE: pack-release.sh MAJOR.MINOR.PATCH"
+if [ $# -lt 1 ]; then
+    echo "USAGE: pack-release.sh MAJOR.MINOR.PATCH [-upload]"
     exit 1
 fi
 
@@ -14,13 +14,13 @@ rm -rf $dir
 mkdir $dir
 
 #copy without subdirs
-for src in TilingServer/bin/Release Landform/bin/Release; do
+for src in Landform/bin/Release; do
     echo "copying $src/* to $dir"
     cp -R $src/* $dir
 done
 
 #copy with subdirs
-for src in Dependencies Scripts Utils; do
+for src in Scripts Bin; do
     echo "copying $src to $dir"
     cp -R $src $dir
 done
@@ -32,3 +32,6 @@ echo "zipping $zf"
 rm -f $zf
 zip -rp $zf $dir
 
+if [ "$2" == "-upload" ]; then
+    aws --profile=credss-default s3 cp Landform-${ver}.zip s3://m20-ids-g-landform/deploy/Landform-${ver}.zip
+fi

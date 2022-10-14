@@ -3,12 +3,10 @@ using System.Collections.Generic;
 using System.Linq;
 using Microsoft.Xna.Framework;
 using CommandLine;
-using OPS.Util;
-using OPS.Imaging;
-using OPS.Geometry;
-using OPS.Alignment;
-using OPS.Pipeline;
-using OPS.Pipeline.AlignmentServer;
+using JPLOPS.ImageFeatures;
+using JPLOPS.Geometry;
+using JPLOPS.Pipeline;
+using JPLOPS.Pipeline.AlignmentServer;
 
 /// <summary>
 /// Align sitedrive heightmaps to each other and optionally to an orbital DEM.
@@ -41,7 +39,7 @@ using OPS.Pipeline.AlignmentServer;
 /// Landform.exe heightmap-align windjana --basesitedrive 0311472
 ///
 /// </summary>
-namespace OPS.Landform
+namespace JPLOPS.Landform
 {
     [Verb("heightmap-align", HelpText = "")]
     public class HeightmapAlignerOptions : BEVCommandOptions
@@ -298,6 +296,11 @@ namespace OPS.Landform
             SortSiteDrives(); //also sets baseSiteDrive
         }
 
+        private void SaveMatchMesh(Vector3[] modelPts, Vector3[] dataPts, string name)
+        {
+            SaveMesh(FeatureMatch.MakeMatchMesh(modelPts, dataPts), name);
+        }
+
         private DEMAligner MakeAligner(bool? preserveXY = null)
         {
             var ret = new DEMAligner()
@@ -340,8 +343,10 @@ namespace OPS.Landform
             {
                 //naming convention is <model>-<data>
                 var bn = "orbital-surface_Heightmap_";
-                aligner.SavePriorMatchMesh = mesh => SaveMesh(mesh, bn + "Prior_Matches");
-                aligner.SaveAdjustedMatchMesh = mesh => SaveMesh(mesh, bn + "Adj_Matches");
+                aligner.SavePriorMatchMesh =
+                    (modelPts, dataPts) => SaveMatchMesh(modelPts, dataPts, bn + "Prior_Matches");
+                aligner.SaveAdjustedMatchMesh =
+                    (modelPts, dataPts) => SaveMatchMesh(modelPts, dataPts, bn + "Adj_Matches");
             }
 
             //we actually align the orbital DEM to the surface
@@ -391,8 +396,10 @@ namespace OPS.Landform
                     {
                         //naming convention is <model>-<data>
                         var bn = $"{firstName}-{sd}_Heightmap_";
-                        aligner.SavePriorMatchMesh = mesh => SaveMesh(mesh, bn + "Prior_Matches");
-                        aligner.SaveAdjustedMatchMesh = mesh => SaveMesh(mesh, bn + "Adj_Matches");
+                        aligner.SavePriorMatchMesh =
+                            (modelPts, dataPts) => SaveMatchMesh(modelPts, dataPts, bn + "Prior_Matches");
+                        aligner.SaveAdjustedMatchMesh =
+                            (modelPts, dataPts) => SaveMatchMesh(modelPts, dataPts, bn + "Adj_Matches");
                     }
                     var adj = aligner.AlignDEMToScene(sdDEMs[sd], BestAdjustedTransform(sd),
                                                       dems.ToArray(), demsToRoot.ToArray(),

@@ -1,10 +1,9 @@
 ﻿using System;
-using System.Linq;
 using System.Collections.Generic;
 using Microsoft.Xna.Framework;
-using OPS.Geometry;
+using JPLOPS.Geometry;
 
-namespace OPS.Pipeline
+namespace JPLOPS.Pipeline
 {
     public enum TilingScheme { Bin, QuadX, QuadY, QuadZ, QuadAuto, QuadAutoWithFallback, Oct, UserDefined, Flat } 
 

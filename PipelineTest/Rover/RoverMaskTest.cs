@@ -1,13 +1,7 @@
 ﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
-using Microsoft.Xna.Framework;
-using OPS.Imaging;
-using OPS.Pipeline;
-using System;
-using System.Collections.Generic;
+using JPLOPS.Imaging;
+using JPLOPS.Pipeline;
 using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace PipelineTest
 {
@@ -18,7 +12,6 @@ namespace PipelineTest
         [DeploymentItem("gdal", "gdal")]
         [DeploymentItem("TestData", "TestData")]
         [DeploymentItem("MissionSpecific\\Resources", "MissionSpecific\\Resources")]
-        [DeploymentItem("x86", "x86")]
         [DeploymentItem("x64", "x64")]
         public void RoverMaskSanity()
         {

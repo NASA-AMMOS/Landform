@@ -1,11 +1,9 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using OPS.Geometry;
+using JPLOPS.Geometry;
 
-namespace OPS.Pipeline.AlignmentServer
+namespace JPLOPS.Pipeline.AlignmentServer
 {
     public class FrameCache
     {
@@ -111,19 +109,7 @@ namespace OPS.Pipeline.AlignmentServer
                             Add(transform);
                         }
                     });
-                if (pipeline.LegacyCompat)
-                {
-                    foreach (var ft in pipeline.ScanDatabase<FrameTransform>(null, tableName: "FrameTransformPriors"))
-                    {
-                        ft.Source = TransformSource.Prior;
-                        Add(ft);
-                    }
-                    if (frames.ContainsKey("root"))
-                    {
-                        //root frame doesn't have a prior in the legacy database, but it's just identity
-                        Add(new FrameTransform(frames["root"], TransformSource.Prior, new UncertainRigidTransform()));
-                    }
-                }
+                
                 foreach (var frame in frames.Keys)
                 {
                     if (!transforms.ContainsKey(frame))

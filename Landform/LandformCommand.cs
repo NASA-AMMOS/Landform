@@ -1,25 +1,20 @@
 using System;
 using System.IO;
-using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
 using CommandLine;
-using OPS.Util;
-using OPS.Pipeline;
-using OPS.Imaging;
-using OPS.Geometry;
-using OPS.Pipeline.AlignmentServer;
+using JPLOPS.Util;
+using JPLOPS.Pipeline;
+using JPLOPS.Imaging;
+using JPLOPS.Geometry;
+using JPLOPS.Pipeline.AlignmentServer;
 
-namespace OPS.Landform
+namespace JPLOPS.Landform
 {
     public class LandformCommandOptions : PipelineCoreOptions
     {
         [Value(0, Required = true, HelpText = "project name", Default = null)]
         public virtual string ProjectName { get; set; }
-
-        [Option(HelpText = "Operate on cloud data", Default = false)]
-        public bool Cloud { get; set; }
 
         [Option(HelpText = "Redo all", Default = false)]
         public bool Redo { get; set; }
@@ -83,14 +78,7 @@ namespace OPS.Landform
 
             StartStopwatch();
 
-            if (lcopts.Cloud)
-            {
-                pipeline = new CloudPipeline(lcopts, initQueues: false);
-            }
-            else
-            {
-                pipeline = new LocalPipeline(lcopts);
-            }
+            pipeline = new LocalPipeline(lcopts);
 
             RunPhase("scan for user image masks", () => pipeline.InitUserMasks());
 
@@ -150,11 +138,6 @@ namespace OPS.Landform
             if (!string.IsNullOrEmpty(localOutputPath))
             {
                 pipeline.LogInfo("local output path: {0}", localOutputPath);
-            }
-
-            if (!string.IsNullOrEmpty(outputFolder) && pipeline is CloudPipeline && project != null)
-            {
-                pipeline.LogInfo("cloud output path: {0}", pipeline.GetStorageUrl(outputFolder, project.Name));
             }
         }
 
@@ -224,12 +207,6 @@ namespace OPS.Landform
                 pipeline.LogInfo("deleting any prior results under {0}", localOutputPath);
                 Directory.Delete(localOutputPath, true);
             }
-            if ((pipeline is CloudPipeline) && project != null)
-            {
-                string url = StringHelper.EnsureTrailingSlash(pipeline.GetStorageUrl(outputFolder, project.Name));
-                pipeline.LogInfo("deleting any prior results under {0}", url);
-                pipeline.DeleteFiles(url);
-            }
         }
 
         protected virtual bool ParseArguments(string outDir)
@@ -284,17 +261,6 @@ namespace OPS.Landform
             if (url.StartsWith("."))
             {
                 url = defaultFilename + url;
-            }
-            if (pipeline is CloudPipeline)
-            {
-                if (!url.Contains("://"))
-                {
-                    url = pipeline.GetStorageUrl(outDir, project.Name, url);
-                }
-                else if (!url.StartsWith(pipeline.StorageUrlWithVenue))
-                {
-                    throw new Exception(string.Format("output URL {0} outside cloud storage area", url));
-                }
             }
             return url;
         }

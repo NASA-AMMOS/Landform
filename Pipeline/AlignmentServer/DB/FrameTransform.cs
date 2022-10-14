@@ -1,14 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using Amazon.DynamoDBv2.DataModel;
 using MathNet.Numerics.LinearAlgebra;
 using Newtonsoft.Json;
-using OPS.Cloud;
-using OPS.Geometry;
+using JPLOPS.Geometry;
 
 
-namespace OPS.Pipeline.AlignmentServer
+namespace JPLOPS.Pipeline.AlignmentServer
 {
     public enum TransformSource
     {
@@ -37,30 +35,24 @@ namespace OPS.Pipeline.AlignmentServer
     /// Frame transforms are not versioned, so two workers can edit and save them at the same time. 
     /// Frame transform lookups are versioned, but this is internal to the class
     /// </summary>
-    [DynamoDBTable("FrameTransforms")]
-    [DynamoDBReadCapacity(5, 50)]
-    [DynamoDBWriteCapacity(5, 50)]
     public class FrameTransform
     {
-        [DynamoDBRangeKey]
+        [DBRangeKey]
         public string ProjectName;
 
-        [DynamoDBHashKey]
+        [DBHashKey]
         public string Name;
 
         public string FrameName;
 
         public TransformSource Source;
 
-        [DynamoDBProperty("Mean", typeof(VectorNConverter))]
         [JsonConverter(typeof(VectorNConverter))]
         public Vector<double> Mean;
 
-        [DynamoDBProperty("Covariance", typeof(SquareMatrixConverter))]
         [JsonConverter(typeof(SquareMatrixConverter))]
         public Matrix<double> Covariance;
 
-        [DynamoDBIgnore]
         [JsonIgnore]
         public UncertainRigidTransform Transform
         {
@@ -75,7 +67,6 @@ namespace OPS.Pipeline.AlignmentServer
             }
         }
 
-        //This constructor must be public for DynamoDB but should not be used
         public FrameTransform() { }
 
         /// <summary>
@@ -159,7 +150,7 @@ namespace OPS.Pipeline.AlignmentServer
         {
             foreach (var ft in pipeline.ScanDatabase<FrameTransform>("ProjectName", projectName))
             {
-                yield return Compat(pipeline, ft);
+                yield return ft;
             }
         }
 
@@ -190,7 +181,7 @@ namespace OPS.Pipeline.AlignmentServer
         public static FrameTransform Find(PipelineCore pipeline, string projectName, string frameName,
                                           TransformSource source)
         {
-            return Compat(pipeline, pipeline.LoadDatabaseItem<FrameTransform>(MakeName(frameName, source), projectName));
+            return pipeline.LoadDatabaseItem<FrameTransform>(MakeName(frameName, source), projectName);
         }
 
         public static FrameTransform Find(PipelineCore pipeline, Frame frame, TransformSource source)
@@ -201,17 +192,6 @@ namespace OPS.Pipeline.AlignmentServer
         public bool IsPrior()
         {
             return Source >= TransformSource.Prior;
-        }
-
-        private static FrameTransform Compat(PipelineCore pipeline, FrameTransform ft)
-        {
-            if (pipeline.LegacyCompat && string.IsNullOrEmpty(ft.Name))
-            {
-                //ft.Source should default to Adjusted (0) which is correct
-                //but if somehow it is different, then leave it as is
-                ft.Name = MakeName(ft.FrameName, ft.Source);
-            }
-            return ft;
         }
 
         public static string AppendSourcesPath(string dir, TransformSource[] adjustedSources,

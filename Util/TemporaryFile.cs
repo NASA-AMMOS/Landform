@@ -1,21 +1,15 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
-using System.Reflection;
 using log4net;
 
-namespace OPS.Util
+namespace JPLOPS.Util
 {
 
     public class TemporaryFile
     {
-        class TempFileConfig : Config
+        class TemporaryFileConfig : SingletonConfig<TemporaryFileConfig>
         {
             [ConfigEnvironmentVariable("LANDFORM_TEMP")]
             public string Dir = "tmp";
@@ -26,7 +20,6 @@ namespace OPS.Util
             [ConfigEnvironmentVariable("LANDFORM_TEMP_MAX_DISK_BYTES")]
             public long MaxDiskBytes = 10L * 1024L * 1024L * 1024L;
         }
-        private static TempFileConfig config;
 
         public delegate void FilenameDelegate(string s);
         public delegate void DirectoryDelegate(string s);
@@ -34,16 +27,15 @@ namespace OPS.Util
 
         public static string TemporaryDirectory
         {
-            get { return config.Dir; }
-            set { config.Dir = Path.GetFullPath(value); }
+            get { return TemporaryFileConfig.Instance.Dir; }
+            set { TemporaryFileConfig.Instance.Dir = Path.GetFullPath(value); }
         }
 
         private static ILog logger = LogManager.GetLogger(typeof(TemporaryFile));
 
         static TemporaryFile()
         {
-            config = new TempFileConfig();
-            TemporaryDirectory = config.Dir;
+            TemporaryDirectory = TemporaryFileConfig.Instance.Dir;
         }
 
         /// <summary>
@@ -216,8 +208,8 @@ namespace OPS.Util
         /// </summary>
         /// <param name="subdir">subdirectory of temp dir to operate on, or whole temp dir if null or empty</param>
         /// <param name="recursive">whether to operate recursively</param>
-        /// <param name="maxAge">if negative use config.MaxAge, if zero then ignore age, if positive then try to remove all files older than this age in seconds</param>
-        /// <param name="maxDiskBytes">if negative use config.MaxDiskBytes, if zero then ignore disk usage, if positive then try to remove old files until disk usage is less than this limit</param>
+        /// <param name="maxAge">if negative use TemporaryFileConfig.MaxAge, if zero then ignore age, if positive then try to remove all files older than this age in seconds</param>
+        /// <param name="maxDiskBytes">if negative use TemporaryFileConfig.MaxDiskBytes, if zero then ignore disk usage, if positive then try to remove old files until disk usage is less than this limit</param>
         /// <param name="alwaysDelete">if non-null then always delete files matching this predicate</param>
         /// <param name="deleteEmptySubdirs">if recursive then delete subdirs which are empty or became empty</param>
         /// <returns></returns>
@@ -228,12 +220,12 @@ namespace OPS.Util
         {
             if (maxAge < 0)
             {
-                maxAge = config.MaxAge;
+                maxAge = TemporaryFileConfig.Instance.MaxAge;
             }
 
             if (maxDiskBytes < 0)
             {
-                maxDiskBytes = config.MaxDiskBytes;
+                maxDiskBytes = TemporaryFileConfig.Instance.MaxDiskBytes;
             }
 
             var dir = !string.IsNullOrEmpty(subdir) ? Path.Combine(TemporaryDirectory, subdir) : TemporaryDirectory;

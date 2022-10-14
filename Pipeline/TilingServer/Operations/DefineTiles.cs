@@ -5,11 +5,11 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using Microsoft.Xna.Framework;
-using OPS.Geometry;
-using OPS.Imaging;
-using OPS.Util;
+using JPLOPS.Geometry;
+using JPLOPS.Imaging;
+using JPLOPS.Util;
 
-namespace OPS.Pipeline.TilingServer
+namespace JPLOPS.Pipeline.TilingServer
 {
     public class DefineTilesMessage : PipelineMessage
     {
@@ -292,11 +292,6 @@ namespace OPS.Pipeline.TilingServer
                 }
 
                 tilingNode.Save(pipeline);
-
-                if (pipeline is CloudPipeline)
-                {
-                    Thread.Sleep(10); //throttle to reduce chance of exponential backoff
-                }
 
                 spew("saved", ++numSaved, 500);
             }

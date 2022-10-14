@@ -1,9 +1,8 @@
-using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 
-namespace OPS.Geometry
+namespace JPLOPS.Geometry
 {
     public class MTLFile
     {

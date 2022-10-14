@@ -1,16 +1,9 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Microsoft.Xna.Framework;
-using OPS.Util;
-using OPS.Geometry;
-using OPS.Imaging;
-using OPS.RayTrace;
-using OPS.Pipeline.AlignmentServer;
+﻿using Microsoft.Xna.Framework;
+using JPLOPS.Geometry;
+using JPLOPS.Imaging;
+using JPLOPS.RayTrace;
 
-namespace OPS.Pipeline
+namespace JPLOPS.Pipeline
 {
     /// <summary>
     /// Articulation parameters for a rover pose. All angles are in radians.

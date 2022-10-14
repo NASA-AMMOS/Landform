@@ -1,8 +1,0 @@
-{
-  "name": "19-stick-export-ply-tiff",
-  "options": "exportmeshformat=ply&exportimageformat=tif",
-  "inputs": [
-    { "mesh": "stick.obj", "texture": "stick.jpg" }
-  ],
-  "maxTime": "1h"
-}

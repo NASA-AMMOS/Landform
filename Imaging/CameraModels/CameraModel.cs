@@ -1,11 +1,9 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using OPS.Util;
+using JPLOPS.Util;
 using Microsoft.Xna.Framework;
 using Newtonsoft.Json;
 
-namespace OPS.Imaging
+namespace JPLOPS.Imaging
 {
     public class CameraModelException : Exception
     {

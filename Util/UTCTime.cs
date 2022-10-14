@@ -1,9 +1,7 @@
 using System;
 using System.Threading;
-using System.Collections;
-using System.Collections.Generic;
 
-namespace OPS.Util
+namespace JPLOPS.Util
 {
     public class UTCTime
     {

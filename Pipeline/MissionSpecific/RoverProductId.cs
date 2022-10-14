@@ -1,10 +1,9 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using OPS.Util;
+using JPLOPS.Util;
 
-namespace OPS.Pipeline
+namespace JPLOPS.Pipeline
 {
     public class RoverProductIdTemporalComparer : IComparer<RoverProductId>
     {

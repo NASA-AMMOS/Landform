@@ -1,18 +1,11 @@
 ﻿using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
-using OPS.Util;
-using OPS.MathExtensions;
-using OPS.RayTrace;
-using OPS.Imaging;
-using OPS.Geometry;
-using OPS.Pipeline.AlignmentServer;
+using JPLOPS.MathExtensions;
+using JPLOPS.RayTrace;
+using JPLOPS.Geometry;
 
-namespace OPS.Pipeline.Texturing
+namespace JPLOPS.Pipeline.Texturing
 {
     // a strategy that tests all observations for each pixel
     // will return the highest quality pixel for every output pixel

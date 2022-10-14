@@ -1,13 +1,8 @@
 ﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
-using OPS.Geometry;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using OPS.Imaging;
+using JPLOPS.Geometry;
+using JPLOPS.Imaging;
 using System.IO;
-using OPS.Pipeline;
+using JPLOPS.Pipeline;
 using Microsoft.Xna.Framework;
 
 namespace PipelineTest
@@ -15,10 +10,27 @@ namespace PipelineTest
     [TestClass]
     [DeploymentItem("TestData", "TestData")]
     [DeploymentItem("gdal", "gdal")]
-    [DeploymentItem("x86", "x86")]
     [DeploymentItem("x64", "x64")]
     public class TexturedMeshClipperTest
     {
+        private string cwd;
+
+        [TestInitialize()]
+        public void Startup()
+        {
+            cwd = System.Environment.CurrentDirectory;
+            if (cwd.EndsWith("x64"))
+            {
+                Directory.SetCurrentDirectory(Directory.GetParent(cwd).FullName);
+            }
+        }
+
+        [TestCleanup()]
+        public void Cleanup()
+        {
+            Directory.SetCurrentDirectory(cwd);
+        }
+
         static Mesh LoadMesh()
         {
             return Mesh.Load(Path.Combine("TestData", "mesh", "raptor.obj"));

@@ -1,22 +1,11 @@
-﻿using Amazon.DynamoDBv2.DataModel;
-using Microsoft.Xna.Framework;
-using OPS.Cloud;
-using OPS.Util;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using log4net;
+﻿using Microsoft.Xna.Framework;
+using JPLOPS.Util;
 
-namespace OPS.Pipeline.TilingServer
+namespace JPLOPS.Pipeline.TilingServer
 {
-    [DynamoDBTable("TilingInputChunk")]
-    [DynamoDBReadCapacity(5, 50)]
-    [DynamoDBWriteCapacity(5, 50)]
     public class TilingInputChunk
     {
-        [DynamoDBHashKey] //Partition key
+        [DBHashKey]
         public string Id;
 
         public string MeshUrl;
@@ -25,7 +14,6 @@ namespace OPS.Pipeline.TilingServer
 
         public string Bounds;
 
-        //This constructor must be public for DynamoDB but should not be used
         public TilingInputChunk() { }
 
         protected TilingInputChunk(string id, string meshUrl, string imageUrl, BoundingBox bounds)

@@ -1,9 +1,8 @@
 using System;
-using System.Collections.Generic;
 using System.Linq;
-using OPS.Util;
+using JPLOPS.Util;
 
-namespace OPS.Pipeline
+namespace JPLOPS.Pipeline
 {
     public class MSLOPGSProductId : OPGSProductId
     {
@@ -418,7 +417,7 @@ namespace OPS.Pipeline
 
         protected override RoverProductType ParseProductType(string productType)
         {
-            if (productType != null && productType.ToUpper() == "RAS")
+            if (productType != null && productType.ToUpper() == RoverProduct.GetImageRDRType())
             {
                 return RoverProductType.Image;
             }

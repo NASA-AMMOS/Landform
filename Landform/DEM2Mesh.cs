@@ -1,15 +1,13 @@
 ﻿using System;
 using System.IO;
-using System.Linq;
-using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 using CommandLine;
 using log4net;
-using OPS.Util;
-using OPS.MathExtensions;
-using OPS.Imaging;
-using OPS.Geometry;
-using OPS.Pipeline;
+using JPLOPS.Util;
+using JPLOPS.MathExtensions;
+using JPLOPS.Imaging;
+using JPLOPS.Geometry;
+using JPLOPS.Pipeline;
 
 /// <summary>
 ///
@@ -26,7 +24,7 @@ using OPS.Pipeline;
 /// Landform.exe dem2mesh M20_PrimeMission_HiRISE_DEM_1m.tif M20_PrimeMission_HiRISE_DEM_1m.obj
 ///    --inputimage M20_PrimeMission_HiRISE_CLR_25cm.tif --mission M2020 --decimatedem 8 --decimateimage 8
 /// </summary>
-namespace OPS.Landform
+namespace JPLOPS.Landform
 {
     [Verb("dem2mesh", HelpText = "Convert a DEM and optional image to a mesh")]
     public class DEM2MeshOptions : CommandHelper.BaseOptions

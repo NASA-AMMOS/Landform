@@ -3,12 +3,12 @@ using System.Collections.Generic;
 using System.Linq;
 using Microsoft.Xna.Framework;
 using Sharp3DBinPacking;
-using OPS.MathExtensions;
-using OPS.Util;
-using OPS.Geometry;
-using OPS.Imaging;
+using JPLOPS.MathExtensions;
+using JPLOPS.Util;
+using JPLOPS.Geometry;
+using JPLOPS.Imaging;
 
-namespace OPS.Pipeline
+namespace JPLOPS.Pipeline
 {
     public class TexturedMeshClipper
     {

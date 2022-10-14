@@ -2,13 +2,12 @@
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using CommandLine;
 using log4net;
-using OPS.Cloud;
-using OPS.Util;
-using OPS.Pipeline;
+using JPLOPS.Cloud;
+using JPLOPS.Util;
+using JPLOPS.Pipeline;
 
 /// <summary>
 /// Utility to benchmark S3 performance.
@@ -19,9 +18,9 @@ using OPS.Pipeline;
 ///   --maxfiles=10
 ///
 /// </summary>
-namespace OPS.Landform
+namespace JPLOPS.Landform
 {
-    [Verb("benchmarks3", HelpText = "Run benchmark to test S3 speeds")]
+    [Verb("benchmark-s3", HelpText = "Run benchmark to test S3 speeds")]
     public class BenchmarkS3Options
     {
         [Value(0, Required = true, HelpText = "S3 base url, e.g. s3://BUCKET/ods/VENUE/sol")]

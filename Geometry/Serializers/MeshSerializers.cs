@@ -1,6 +1,6 @@
-﻿using OPS.Util;
+﻿using JPLOPS.Util;
 
-namespace OPS.Geometry
+namespace JPLOPS.Geometry
 {
     public class MeshSerializers : SerializerMap<MeshSerializer>
     {

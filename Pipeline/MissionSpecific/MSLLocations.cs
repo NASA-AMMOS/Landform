@@ -1,16 +1,13 @@
 ﻿using log4net;
 using Microsoft.Xna.Framework;
 using System;
-using System.Collections.Generic;
 using System.Collections.Concurrent;
 using System.Linq;
 using System.Net;
-using System.Text;
-using System.Threading.Tasks;
 using System.Xml;
-using OPS.Imaging;
+using JPLOPS.Imaging;
 
-namespace OPS.Pipeline
+namespace JPLOPS.Pipeline
 {
     /// <summary>
     /// Represents an MSL location as read from locations XML file

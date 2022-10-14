@@ -2,7 +2,7 @@
 using Microsoft.Xna.Framework;
 using Newtonsoft.Json;
 
-namespace OPS.Imaging
+namespace JPLOPS.Imaging
 {
     public class CAHVOR : CAHV
     {

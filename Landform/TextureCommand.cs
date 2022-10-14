@@ -1,27 +1,23 @@
 //#define DBG_BLURRED
 //#define DBG_FRUSTA
 using System;
-using System.Collections;
 using System.Collections.Generic;
-using System.Collections.Concurrent;
 using System.IO;
 using System.Linq;
-using System.Diagnostics;
 using System.Threading;
 using CommandLine;
 using Microsoft.Xna.Framework;
 using ColorMine.ColorSpaces;
-using OPS.Util;
-using OPS.MathExtensions;
-using OPS.Imaging;
-using OPS.RayTrace;
-using OPS.Geometry;
-using OPS.Pipeline;
-using OPS.Pipeline.Texturing;
-using OPS.Pipeline.AlignmentServer;
-using OPS.Pipeline.TilingServer;
+using JPLOPS.Util;
+using JPLOPS.MathExtensions;
+using JPLOPS.Imaging;
+using JPLOPS.RayTrace;
+using JPLOPS.Geometry;
+using JPLOPS.Pipeline;
+using JPLOPS.Pipeline.Texturing;
+using JPLOPS.Pipeline.AlignmentServer;
 
-namespace OPS.Landform
+namespace JPLOPS.Landform
 {
     public class TextureCommandOptions : GeometryCommandOptions
     {

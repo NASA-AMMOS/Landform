@@ -1,16 +1,13 @@
 ﻿//#define FAST_PARSE
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text;
 using System.Text.RegularExpressions;
 using System.Diagnostics;
 using Microsoft.Xna.Framework;
-using OPS.Util;
 
-namespace OPS.Geometry
+namespace JPLOPS.Geometry
 {
 
     public class OBJSerializerException : MeshSerializerException {

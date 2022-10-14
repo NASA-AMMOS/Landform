@@ -1,6 +1,9 @@
 #!/bin/bash
 
-defmodules="Alignment Cloud Geometry GeometryThirdParty Imaging ImagingEmgu MathExtensions Pipeline RayTrace Util Xna"
+# use lines like this to spew in test
+# System.Diagnostics.Trace.WriteLine("foo");
+
+defmodules="Geometry GeometryThirdParty ImageFeatures ImagingEmgu Imaging MathExtensions Pipeline RayTrace Util Xna"
 
 #run-tests.sh [parallel] [module1 [module2 ...]]
 
@@ -23,8 +26,4 @@ for m in $modules; do
     dlls="$dlls ${m}Test\\bin\\Release\\${m}Test.dll"
 done
 
-# use lines like this to spew in test
-# System.Diagnostics.Trace.WriteLine("foo");
-
 "$mstest" $parallel $dlls
-

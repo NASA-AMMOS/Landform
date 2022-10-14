@@ -53,12 +53,12 @@ cfgfolder=$service
 venue=${service}-service
 
 stdopts="--configdir=$cfgdir --configfolder=$cfgfolder --logdir=$logdir --tempdir=$tmpdir"
-cfgopts="$stdopts --venue=$venue --maxcores=0 --randomseed=-1 --storagedir=$storagedir"
+cfgopts="$stdopts --venue=$venue --storagedir=$storagedir"
 svcopts="$stdopts --stacktraces --mission=$mission"
 
 set -x # echo commands
 
-$landform configure-local $cfgopts
+$landform configure $cfgopts
 
 $landform process-${service} $svcopts "$@"
 

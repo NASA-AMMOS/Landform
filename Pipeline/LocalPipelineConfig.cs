@@ -1,10 +1,8 @@
 using System;
 using System.IO;
-using System.Collections.Generic;
-using System.Linq;
-using OPS.Util;
+using JPLOPS.Util;
 
-namespace OPS.Pipeline
+namespace JPLOPS.Pipeline
 {
     public class LocalPipelineConfig : SingletonConfig<LocalPipelineConfig>
     {

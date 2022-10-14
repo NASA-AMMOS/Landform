@@ -1,17 +1,10 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
-using System.Collections.Concurrent;
-using System.Linq;
-using System.Text;
-using System.Diagnostics;
-using log4net;
 using Microsoft.Xna.Framework;
-using OPS.MathExtensions;
-using OPS.Util;
-using OPS.Imaging;
+using JPLOPS.MathExtensions;
+using JPLOPS.Imaging;
 
-namespace OPS.Geometry
+namespace JPLOPS.Geometry
 {
     public enum Neighborhood { Four = 4, Eight = 8 };
 

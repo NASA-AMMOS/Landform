@@ -1,11 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using OPS.Util;
+﻿using System.Collections.Generic;
+using JPLOPS.Util;
 
-namespace OPS.Geometry
+namespace JPLOPS.Geometry
 {
     /// <summary>
     /// Interface for a mesh serializer

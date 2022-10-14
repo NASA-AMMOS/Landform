@@ -1,0 +1,187 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="14.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="..\packages\EmguCV.3.1.0.1\build\EmguCV.props" Condition="Exists('..\packages\EmguCV.3.1.0.1\build\EmguCV.props')" />
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProjectGuid>{AE1B74CC-7CBB-4AAF-9BE6-68534D61D264}</ProjectGuid>
+    <OutputType>Library</OutputType>
+    <AppDesignerFolder>Properties</AppDesignerFolder>
+    <RootNamespace>OPS.ImageFeatures</RootNamespace>
+    <AssemblyName>ImageFeatures</AssemblyName>
+    <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
+    <FileAlignment>512</FileAlignment>
+    <TargetFrameworkProfile />
+    <NuGetPackageImportStamp>
+    </NuGetPackageImportStamp>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\Debug\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <RunCodeAnalysis>false</RunCodeAnalysis>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>bin\Release\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <PlatformTarget>x64</PlatformTarget>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="Emgu.CV.UI, Version=3.1.0.2282, Culture=neutral, PublicKeyToken=7281126722ab4438, processorArchitecture=MSIL">
+      <HintPath>..\packages\EmguCV.3.1.0.1\lib\net30\Emgu.CV.UI.dll</HintPath>
+    </Reference>
+    <Reference Include="Emgu.CV.UI.GL, Version=3.1.0.2282, Culture=neutral, PublicKeyToken=7281126722ab4438, processorArchitecture=MSIL">
+      <HintPath>..\packages\EmguCV.3.1.0.1\lib\net30\Emgu.CV.UI.GL.dll</HintPath>
+    </Reference>
+    <Reference Include="Emgu.CV.World, Version=3.1.0.2282, Culture=neutral, PublicKeyToken=7281126722ab4438, processorArchitecture=MSIL">
+      <HintPath>..\packages\EmguCV.3.1.0.1\lib\net30\Emgu.CV.World.dll</HintPath>
+    </Reference>
+    <Reference Include="log4net, Version=2.0.15.0, Culture=neutral, PublicKeyToken=669e0ddf0bb1aa2a, processorArchitecture=MSIL">
+      <HintPath>..\packages\log4net.2.0.15\lib\net45\log4net.dll</HintPath>
+    </Reference>
+    <Reference Include="MathNet.Numerics, Version=5.0.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\MathNet.Numerics.5.0.0\lib\net48\MathNet.Numerics.dll</HintPath>
+    </Reference>
+    <Reference Include="OpenTK, Version=3.1.0.0, Culture=neutral, PublicKeyToken=bad199fe84eb3df4, processorArchitecture=MSIL">
+      <HintPath>..\packages\OpenTK.3.1.0\lib\net20\OpenTK.dll</HintPath>
+    </Reference>
+    <Reference Include="OpenTK.GLControl, Version=3.1.0.0, Culture=neutral, PublicKeyToken=bad199fe84eb3df4, processorArchitecture=MSIL">
+      <HintPath>..\packages\OpenTK.GLControl.3.1.0\lib\net20\OpenTK.GLControl.dll</HintPath>
+    </Reference>
+    <Reference Include="System" />
+    <Reference Include="System.Configuration" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.Drawing" />
+    <Reference Include="System.Numerics" />
+    <Reference Include="System.Runtime.Serialization" />
+    <Reference Include="System.Web" />
+    <Reference Include="System.Windows.Forms" />
+    <Reference Include="System.Xml.Linq" />
+    <Reference Include="System.Data.DataSetExtensions" />
+    <Reference Include="Microsoft.CSharp" />
+    <Reference Include="System.Data" />
+    <Reference Include="System.Net.Http" />
+    <Reference Include="System.Xml" />
+    <Reference Include="ZedGraph, Version=5.1.7.430, Culture=neutral, PublicKeyToken=02a83cbd123fcd60, processorArchitecture=MSIL">
+      <HintPath>..\packages\ZedGraph.5.1.7\lib\net35-Client\ZedGraph.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="FeatureDescriptor.cs" />
+    <Compile Include="FeatureDetector.cs" />
+    <Compile Include="FeatureDetectorBase.cs" />
+    <Compile Include="ImageFeature.cs" />
+    <Compile Include="MatchFilters\DescriptorDistanceFilter.cs" />
+    <Compile Include="Matching\CascadeHashingMatcher.cs" />
+    <Compile Include="MatchFilters\EpipolarTransformDecomposition.cs" />
+    <Compile Include="MatchFilters\GTMFilter.cs" />
+    <Compile Include="Matching\BruteForceMatcher.cs" />
+    <Compile Include="MatchFilters\KnownGeometryFilter.cs" />
+    <Compile Include="Matching\EmguSIFTMatcher.cs" />
+    <Compile Include="Matching\FeatureMatch.cs" />
+    <Compile Include="Matching\ImagePairCorrespondence.cs" />
+    <Compile Include="Matching\KnownGeometryMatcher.cs" />
+    <Compile Include="PCASIFT\PCAConstants.cs" />
+    <Compile Include="SIFT\ASIFTDetector.cs" />
+    <Compile Include="PCASIFT\PCASIFTDescriptor.cs" />
+    <Compile Include="PCASIFT\PCASIFTDetector.cs" />
+    <Compile Include="PCASIFT\PCASIFTFeature.cs" />
+    <Compile Include="PCASIFT\PCASIFTIO.cs" />
+    <Compile Include="PCASIFT\PCASIFTUtil.cs" />
+    <Compile Include="SIFT\BRIEFDescriptor.cs" />
+    <Compile Include="SIFT\FASTDetector.cs" />
+    <Compile Include="SIFT\SIFTDescriptor.cs" />
+    <Compile Include="MatchFilters\MoisanStivalFilter.cs" />
+    <Compile Include="SIFT\SIFTDetector.cs" />
+    <Compile Include="SIFT\SIFTFeature.cs" />
+    <Compile Include="MatchFilters\IMatchFilter.cs" />
+    <Compile Include="Matching\IFeatureMatcher.cs" />
+    <Compile Include="MatchFilters\MoisanStivalEpipolar.cs" />
+    <Compile Include="PCASIFT\PCAKeypointProjector.cs" />
+    <Compile Include="PCASIFT\PCASIFTTrain.cs" />
+    <Compile Include="EpipolarLineFinder.cs" />
+    <Compile Include="MatchFilters\FeatureLinearizer.cs" />
+    <Compile Include="Properties\AssemblyInfo.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Cloud\Cloud.csproj">
+      <Project>{52A91B3E-1D95-4715-A7AD-2840B2F9C6AC}</Project>
+      <Name>Cloud</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\Geometry\Geometry.csproj">
+      <Project>{49A27854-2DB1-4E1C-893A-F60BDF5F3C86}</Project>
+      <Name>Geometry</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\ImagingEmgu\ImagingEmgu.csproj">
+      <Project>{9722c3b0-63d5-4b8a-9c4f-3381223bf3a2}</Project>
+      <Name>ImagingEmgu</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\Imaging\Imaging.csproj">
+      <Project>{c3ec3ab5-8dfd-4daa-9833-246f0db6a805}</Project>
+      <Name>Imaging</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\MathExtensions\MathExtensions.csproj">
+      <Project>{8c7c8a71-0a4b-4d75-9cb2-32803bd8f86f}</Project>
+      <Name>MathExtensions</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\Util\Util.csproj">
+      <Project>{8145AA65-BA61-4E27-81FF-B64217B49929}</Project>
+      <Name>Util</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\MathExtensions\MathExtensions.csproj">
+      <Project>{8c7c8a71-0a4b-4d75-9cb2-32803bd8f86f}</Project>
+      <Name>MathExtensions</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\Util\Util.csproj">
+      <Project>{8145AA65-BA61-4E27-81FF-B64217B49929}</Project>
+      <Name>Util</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\Xna\Xna.csproj">
+      <Project>{46759719-42D9-473B-A8AD-0848A33BDAC6}</Project>
+      <Name>Xna</Name>
+    </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="app.config" />
+    <None Include="OpenTK.dll.config" />
+    <None Include="packages.config" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="License-LGPL.txt" />
+    <Content Include="PCASIFT\defaultTraining.txt">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="PCASIFT\alternateTraining.txt">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+  <ItemGroup>
+    <WCFMetadata Include="Service References\" />
+  </ItemGroup>
+  <ItemGroup />
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
+    <PropertyGroup>
+      <ErrorText>This project references NuGet package(s) that are missing on this computer. Use NuGet Package Restore to download them.  For more information, see http://go.microsoft.com/fwlink/?LinkID=322105. The missing file is {0}.</ErrorText>
+    </PropertyGroup>
+    <Error Condition="!Exists('..\packages\EmguCV.3.1.0.1\build\EmguCV.props')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\EmguCV.3.1.0.1\build\EmguCV.props'))" />
+    <Error Condition="!Exists('..\packages\EmguCV.3.1.0.1\build\EmguCV.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\EmguCV.3.1.0.1\build\EmguCV.targets'))" />
+  </Target>
+  <Import Project="..\packages\EmguCV.3.1.0.1\build\EmguCV.targets" Condition="Exists('..\packages\EmguCV.3.1.0.1\build\EmguCV.targets')" />
+  <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
+       Other similar extension points exist, see Microsoft.Common.targets.
+  <Target Name="BeforeBuild">
+  </Target>
+  <Target Name="AfterBuild">
+  </Target>
+  -->
+</Project>

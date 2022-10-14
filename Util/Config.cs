@@ -1,11 +1,11 @@
-﻿
-using System;
+﻿using System;
 using System.IO;
 using System.Linq;
+using System.Collections.Generic;
 using System.Reflection;
 using Newtonsoft.Json;
 
-namespace OPS.Util
+namespace JPLOPS.Util
 {
     /// <summary>
     /// Use this attribute on properties in subclasses of Config to indicate
@@ -57,11 +57,39 @@ namespace OPS.Util
         }
 
         public static string AppVersion; //may be null
-        public static string PipelineVersion; //may be null
 
         public static string[] CommandLineArgs;
 
         public static ConfigDefaultsProvider DefaultsProvider;
+
+        public static ILogger Logger { get; private set; }
+
+        private static List<string> pendingLogs = new List<string>();
+
+        public static void SetLogger(ILogger logger)
+        {
+            Config.Logger = logger;
+            if (logger != null && pendingLogs.Count > 0)
+            {
+                foreach (var msg in pendingLogs)
+                {
+                    logger.LogInfo(msg);
+                }
+                pendingLogs.Clear();
+            }
+        }
+
+        public static void Log(string msg)
+        {
+            if (Logger != null)
+            {
+                Logger.LogInfo(msg);
+            }
+            else
+            {
+                pendingLogs.Add(msg);
+            }
+        }
 
         public Config()
         {
@@ -189,24 +217,32 @@ namespace OPS.Util
                 var attrib = member.GetCustomAttribute<ConfigEnvironmentVariable>();
                 if (attrib != null && !string.IsNullOrEmpty(attrib.EnvironmentalVariableName))
                 {
-                    string str = Environment.GetEnvironmentVariable(attrib.EnvironmentalVariableName);
-                    if (str != null)
+                    string name = attrib.EnvironmentalVariableName;
+                    string str = Environment.GetEnvironmentVariable(name);
+                    if (!string.IsNullOrEmpty(str))
                     {
-                        SetProperty(member, str);
+                        SetProperty(member, str, name);
+                    }
+                    else if (str != null)
+                    {
+                        Log($"ignoring empty environment variable {name}");
                     }
                 }
             }
         }
 
-        private void SetProperty(MemberInfo member, string value)
+        private void SetProperty(MemberInfo member, string value, string name)
         {
             if (!(member is FieldInfo || member is PropertyInfo))
             {
                 throw new Exception("unexpected type: " + member.GetType().Name);
             }
 
+            var type = member is FieldInfo ? ((FieldInfo)member).FieldType : ((PropertyInfo)member).PropertyType;
+
             void setValue(Object val)
             {
+                Log($"using {name}={val.ToString()} for {GetType().Name}");
                 if (member is FieldInfo)
                 {
                     ((FieldInfo)member).SetValue(this, val);
@@ -217,22 +253,34 @@ namespace OPS.Util
                 }
             }
 
-            var type = member is FieldInfo ? ((FieldInfo)member).FieldType : ((PropertyInfo)member).PropertyType;
+            try
+            {
+                ParseEnvVal(value, type, setValue);
+            }
+            catch (Exception ex)
+            {
+                throw new Exception(string.Format("error setting config {0} value {1} from env var {2}={3}: {4}",
+                                                  type.Name, member.Name, name, value, ex.Message));
+            }
+        }
 
-            Func<string, bool> parseBool = str => !string.IsNullOrEmpty(str) && str.ToLower() == "true";
-
+        public static void ParseEnvVal(string str, Type type, Action<Object> func, bool parseNonemptyAsTrue = false)
+        {
+            Func<string, bool> parseBool = s =>
+                !string.IsNullOrEmpty(s) && (parseNonemptyAsTrue || s.ToLower() == "true");
             new TypeDispatcher()
-                .Case<string>(_ => setValue(value))
-                .Case<int>(_ => setValue(int.Parse(value)))
-                .Case<byte>(_ => setValue(byte.Parse(value)))
-                .Case<short>(_ => setValue(short.Parse(value)))
-                .Case<long>(_ => setValue(long.Parse(value)))
-                .Case<uint>(_ => setValue(uint.Parse(value)))
-                .Case<ushort>(_ => setValue(ushort.Parse(value)))
-                .Case<ulong>(_ => setValue(ulong.Parse(value)))
-                .Case<float>(_ => setValue(float.Parse(value)))
-                .Case<double>(_ => setValue(double.Parse(value)))
-                .Case<bool>(_ => setValue(parseBool(value)))
+                .Case<string>(_ => func(str))
+                .Case<int>(_ => func(int.Parse(str)))
+                .Case<byte>(_ => func(byte.Parse(str)))
+                .Case<short>(_ => func(short.Parse(str)))
+                .Case<long>(_ => func(long.Parse(str)))
+                .Case<uint>(_ => func(uint.Parse(str)))
+                .Case<ushort>(_ => func(ushort.Parse(str)))
+                .Case<ulong>(_ => func(ulong.Parse(str)))
+                .Case<float>(_ => func(float.Parse(str)))
+                .Case<double>(_ => func(double.Parse(str)))
+                .Case<bool>(_ => func(parseBool(str)))
+                .Case<Enum>(_ => func(Enum.Parse(type, str)))
                 .Handle(type);
         }
     }

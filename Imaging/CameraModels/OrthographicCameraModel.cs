@@ -1,10 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using Microsoft.Xna.Framework;
+﻿using Microsoft.Xna.Framework;
 using Newtonsoft.Json;
 
-namespace OPS.Imaging
+namespace JPLOPS.Imaging
 {
     /// <summary>
     /// A basic orthographic camera model

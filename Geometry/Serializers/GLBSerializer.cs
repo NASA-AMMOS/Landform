@@ -2,9 +2,9 @@
 using System.IO;
 using System.Text;
 using System.Linq;
-using OPS.Geometry.GLTF;
+using JPLOPS.Geometry.GLTF;
 
-namespace OPS.Geometry
+namespace JPLOPS.Geometry
 {
     /// <summary>
     /// Writes and reads binary GLTF files, version 2.

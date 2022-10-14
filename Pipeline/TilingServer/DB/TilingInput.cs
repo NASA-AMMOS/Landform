@@ -1,21 +1,15 @@
 ﻿using System;
 using System.Collections.Generic;
-using Amazon.DynamoDBv2.DataModel;
-using log4net;
-using OPS.Cloud;
 
 
-namespace OPS.Pipeline.TilingServer
+namespace JPLOPS.Pipeline.TilingServer
 {
-    [DynamoDBTable("TilingInput")]
-    [DynamoDBReadCapacity(5, 50)]
-    [DynamoDBWriteCapacity(5, 50)]
     public class TilingInput
     {
-        [DynamoDBHashKey]
+        [DBHashKey]
         public string Name;
 
-        [DynamoDBRangeKey]
+        [DBRangeKey]
         public string ProjectName;
 
         public string MeshUrl;
@@ -36,7 +30,6 @@ namespace OPS.Pipeline.TilingServer
 
         public HashSet<string> ChunkIds = new HashSet<string>(); //MT safety: lock before accessing
 
-        //This constructor must be public for DynamoDB but should not be used
         public TilingInput() { }
 
         protected TilingInput(string name, string projectName, string meshUrl, string imageUrl, string indexUrl, string id) : this()

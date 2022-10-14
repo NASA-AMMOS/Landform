@@ -2,7 +2,7 @@
 using System.Text;
 using Newtonsoft.Json;
 
-namespace OPS.Pipeline
+namespace JPLOPS.Pipeline
 {
     public class JsonDataProduct : DataProduct
     {

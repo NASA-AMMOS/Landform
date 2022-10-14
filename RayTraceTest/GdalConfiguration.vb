@@ -6,7 +6,7 @@
 '* Author:   Felix Obermaier
 '*
 '******************************************************************************
-'* Copyright (c) 2012, Felix Obermaier
+'* Copyright (c) 2012-2018, Felix Obermaier
 '*
 '* Permission is hereby granted, free of charge, to any person obtaining a
 '* copy of this software and associated documentation files (the "Software"),
@@ -39,83 +39,59 @@ Namespace RayTraceTest
     ''' <summary>
     ''' Configuration class for GDAL/OGR
     ''' </summary>
-    Partial Public NotInheritable Class GdalConfiguration
-        Private Sub New()
-        End Sub
+    Public Partial Shared Class GdalConfiguration
         Private Shared _configuredOgr As Boolean
         Private Shared _configuredGdal As Boolean
 
-        Private Shared Function VolatileRead(Of T)(ByRef Address As T) As T
-            VolatileRead = Address
-            Threading.Thread.MemoryBarrier()
-        End Function
 
-        Private Shared Sub VolatileWrite(Of T)(ByRef Address As T, ByVal Value As T)
-            Threading.Thread.MemoryBarrier()
-            Address = Value
-        End Sub
+        /// <summary>
+        /// Construction of Gdal/Ogr
+        /// </summary>
+        Private Shared Sub New()
+            Dim executingAssemblyFile As String = New Uri(Assembly.GetExecutingAssembly().GetName().CodeBase).LocalPath
+            Dim executingDirectory As String = Path.GetDirectoryName(executingAssemblyFile)
+            If String.IsNullOrEmpty(executingDirectory) Then Throw New InvalidOperationException("cannot get executing directory")
+            Dim gdalPath As String = Path.Combine(executingDirectory, "gdal")
+            Dim path, nativePath As String
 
-        ''' <summary>
-        ''' Function to determine which platform we're on
-        ''' </summary>
-        Private Shared Function GetPlatform() As String
-            Return If(IntPtr.Size = 4, "x86", "x64")
-        End Function
-
-
-        ''' <summary>
-        ''' Construction of Gdal/Ogr
-        ''' </summary>
-        Shared Sub New()
-            Dim executingAssemblyFile = New Uri(Assembly.GetExecutingAssembly().GetName().CodeBase).LocalPath
-            Dim executingDirectory = Path.GetDirectoryName(executingAssemblyFile)
-
-            If String.IsNullOrEmpty(executingDirectory) Then
-                Throw New InvalidOperationException("cannot get executing directory")
+            If IsWindows Then
+                nativePath = Path.Combine(gdalPath, GetPlatform())
+                path = Environment.GetEnvironmentVariable("PATH")
+                path = nativePath & ";" & Path.Combine(nativePath, "plugins") & ";" & path
+            Else
+                nativePath = gdalPath
+                path = Environment.GetEnvironmentVariable("LD_LIBRARY_PATH")
+                path = nativePath & ":" & Path.Combine(nativePath, "plugins") & ":" & path
             End If
-
-
-            Dim gdalPath = Path.Combine(executingDirectory, "gdal")
-            Dim nativePath = Path.Combine(gdalPath, GetPlatform())
 
             ' Prepend native path to environment path, to ensure the
             ' right libs are being used.
-            Dim path__1 = Environment.GetEnvironmentVariable("PATH")
-            path__1 = nativePath & ";" & Path.Combine(nativePath, "plugins") & ";" & path__1
-            Environment.SetEnvironmentVariable("PATH", path__1)
+            Environment.SetEnvironmentVariable("PATH", path)
 
-            ' Set the additional GDAL environment variables.
-            Dim gdalData = Path.Combine(gdalPath, "data")
-            Environment.SetEnvironmentVariable("GDAL_DATA", gdalData)
-            Gdal.SetConfigOption("GDAL_DATA", gdalData)
-
-            Dim driverPath = Path.Combine(nativePath, "plugins")
-            Environment.SetEnvironmentVariable("GDAL_DRIVER_PATH", driverPath)
-            Gdal.SetConfigOption("GDAL_DRIVER_PATH", driverPath)
-
-            Environment.SetEnvironmentVariable("GEOTIFF_CSV", gdalData)
-            Gdal.SetConfigOption("GEOTIFF_CSV", gdalData)
-
-            Dim projSharePath = Path.Combine(gdalPath, "share")
-            Environment.SetEnvironmentVariable("PROJ_LIB", projSharePath)
-            Gdal.SetConfigOption("PROJ_LIB", projSharePath)
+            ' Set environment variables
+            If IsWindows Then
+                Dim gdalData As String = Path.Combine(gdalPath, "data")
+                Environment.SetEnvironmentVariable("GDAL_DATA", gdalData)
+                Gdal.SetConfigOption("GDAL_DATA", gdalData)
+                Dim driverPath As String = Path.Combine(nativePath, "plugins")
+                Environment.SetEnvironmentVariable("GDAL_DRIVER_PATH", driverPath)
+                Gdal.SetConfigOption("GDAL_DRIVER_PATH", driverPath)
+                Environment.SetEnvironmentVariable("GEOTIFF_CSV", gdalData)
+                Gdal.SetConfigOption("GEOTIFF_CSV", gdalData)
+                Dim projSharePath As String = Path.Combine(gdalPath, "share")
+                Environment.SetEnvironmentVariable("PROJ_LIB", projSharePath)
+                Gdal.SetConfigOption("PROJ_LIB", projSharePath)
+            End If
         End Sub
 
         ''' <summary>
         ''' Method to ensure the static constructor is being called.
         ''' </summary>
         ''' <remarks>Be sure to call this function before using Gdal/Ogr/Osr</remarks>
-        Public Shared Sub ConfigureOgr()
-
-            Call VolatileRead(_configuredOgr)
-            If _configuredOgr Then
-                Return
-			End If
-
-            ' Register drivers
+        Sub ConfigureOgr()
+            If _configuredOgr Then Return
             Ogr.RegisterAll()
-            Call VolatileWrite(_configuredOgr, True)
-
+            _configuredOgr = True
             PrintDriversOgr()
         End Sub
 
@@ -123,18 +99,29 @@ Namespace RayTraceTest
         ''' Method to ensure the static constructor is being called.
         ''' </summary>
         ''' <remarks>Be sure to call this function before using Gdal/Ogr/Osr</remarks>
-        Public Shared Sub ConfigureGdal()
-            Call VolatileRead(_configuredGdal)
-            If _configuredGdal Then
-                Return
-            End If
-
-            ' Register drivers
+        Sub ConfigureGdal()
+            If _configuredGdal Then Return
             Gdal.AllRegister()
-            Call VolatileWrite(_configuredGdal, True)
-
+            _configuredGdal = True
             PrintDriversGdal()
         End Sub
+
+        ''' <summary>
+        ''' Function to determine which platform we're on
+        ''' </summary>
+        Private Function GetPlatform() As String
+            If IsWindows Then Return If(IntPtr.Size = 4, "x86", "x64")
+            Return If(IntPtr.Size = 4, "i386", "x86_x64")
+        End Function
+
+        ''' <summary>
+        ''' Gets a value indicating if we are on a windows platform
+        ''' </summary>
+        Private Shared ReadOnly Property IsWindows As Boolean
+            Get
+                Return Not (Environment.OSVersion.Platform = PlatformID.Unix OrElse Environment.OSVersion.Platform = PlatformID.MacOSX)
+            End Get
+        End Property
 
         Private Shared Sub PrintDriversOgr()
 #If DEBUG Then

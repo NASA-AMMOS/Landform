@@ -1,23 +1,17 @@
 using System;
 using System.IO;
-using System.Collections;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using System.Text;
-using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Text.RegularExpressions;
 using CommandLine;
 using Amazon.SQS.Model;
-using OPS.Util;
-using OPS.Cloud;
-using OPS.Pipeline;
-using OPS.Imaging;
-using OPS.Geometry;
-using OPS.Pipeline.AlignmentServer;
+using JPLOPS.Util;
+using JPLOPS.Cloud;
 
-namespace OPS.Landform
+namespace JPLOPS.Landform
 {
     public enum MessageType { Generic, S3Event, SNSWrappedS3Event }
 
@@ -169,6 +163,8 @@ namespace OPS.Landform
 
         public const int WATCHDOG_PROCESS_RESTART_PERIODS = 12;
 
+        public const int MAX_OPEN_QUEUE_RETRIES = 2;
+
         //there is an interplay between the max message age and the max receive count
         //because each time a message is received it becomes invisible for at least the visibility timeout of the queue
         //which is typically 30s
@@ -208,16 +204,16 @@ namespace OPS.Landform
         ///
         /// To prevent RefreshCredentials() from being called while the credentials may be in use, other threads which
         /// require credentials should hold credentialRefreshLock only while needed.  Potentially long running
-        /// operations should use longRunningCredentialRefereshLock instead.  The only place that both locks should be
-        /// qcquired simultaneously is in ServiceLoop() before calling RefreshCredentials().  To prevent any chance of
+        /// operations should use longRunningCredentialRefreshLock instead.  The only place that both locks should be
+        /// acquired simultaneously is in ServiceLoop() before calling RefreshCredentials().  To prevent any chance of
         /// deadlock acquisition order should always be:
-        /// credentialRefreshLock[, longRunningCredentialRefereshLock], deleteMessageLock.
+        /// credentialRefreshLock[, longRunningCredentialRefreshLock], deleteMessageLock.
         ///
         /// For example
         /// * HeartbeatLoop() acquires credentials when it needs to update SQS message timeouts.
         /// * ProcessContextual.MasterLoop() acquires credentials while it may use PLACES or S3.
         /// </summary>
-        protected object credentialRefreshLock = new Object(), longRunningCredentialRefereshLock = new Object();
+        protected object credentialRefreshLock = new Object(), longRunningCredentialRefreshLock = new Object();
 
         /// <summary>
         /// ServiceLoop() acquires deleteMessageLock while deleting messages from the SQS queue.
@@ -226,7 +222,7 @@ namespace OPS.Landform
         /// HeartbeatLoop() actually needs both credentialRefreshLock and deleteMessageLock while updating the timeout,
         /// but that's OK.  It's the only thing that should acquire both at the same time.
         /// To prevent any chance of deadlock acquisition order should always be:
-        /// credentialRefreshLock[, longRunningCredentialRefereshLock], deleteMessageLock.
+        /// credentialRefreshLock[, longRunningCredentialRefreshLock], deleteMessageLock.
         /// </summary>
         private object deleteMessageLock = new Object();
 
@@ -234,8 +230,9 @@ namespace OPS.Landform
         private volatile bool killedCurrentHandler;
 
         //in C# 64 bit fields can't  be volatile, so can't use double or long here
-        //uint max is about 4.2e9; 100y since epoch in sec is 100 * 365 * 24 * 60 * 60 ~= 3.1e6
+        //uint max is about 4.2e9; 100y since epoch in sec is 100 * 365 * 24 * 60 * 60 ~= 3.1e9
         private volatile uint messageStartSec;
+        private volatile uint lastHeartbeatSec;
 
         protected string selfEC2InstanceID;
 
@@ -257,7 +254,7 @@ namespace OPS.Landform
         /// <summary>
         /// Simple JSON message for testing or in workflows not involving [SNS wrapped] S3 event messages.
         /// </summary>
-        private class GenericMessage : QueueMessage
+        protected class GenericMessage : QueueMessage
         {
             public string url;
 
@@ -266,6 +263,10 @@ namespace OPS.Landform
                 this.url = url;
             }
         }
+        private Regex genericMessageRegex =
+            new Regex(@"^\s*{\s*""url""s*:\s*""\S+""\s*}\s*$", RegexOptions.IgnoreCase);
+        private Regex s3MessageRegex =
+            new Regex(@"^\s*{\s*""Records""\s*:\s*\[(?:[\n]|.)*\]\s*}\s*$", RegexOptions.IgnoreCase);
 
         public LandformService(LandformServiceOptions options) : base(options)
         {
@@ -514,7 +515,7 @@ namespace OPS.Landform
         {
             int ovt = overrideVisibilityTimeout;
             QueueMessage qm = null, aqm = null;
-            Func<string, QueueMessage> oh = msg => { aqm = AlternateMessageHandler(msg); return aqm; };
+            Func<string, QueueMessage> oh = txt => { aqm = AlternateMessageHandler(txt); return aqm; };
             switch (lvopts.MessageType)
             {
                 case MessageType.Generic:
@@ -574,7 +575,7 @@ namespace OPS.Landform
             }
             catch
             {
-                return "unknown message type " + msg.GetType().Name;
+                return msg.GetType().Name + " without URL";
             }
         }
 
@@ -589,12 +590,26 @@ namespace OPS.Landform
         protected abstract bool HandleMessage(QueueMessage msg);
 
         /// <summary>
-        /// Optional hook to handle unusual messages.
+        /// Hook to handle unusual messages.
+        /// Returns non-null iff handled.
         /// Can throw.  
         /// </summary>
-        protected virtual QueueMessage AlternateMessageHandler(string msg)
+        protected virtual QueueMessage AlternateMessageHandler(string txt)
         {
-            return null;
+            string url = txt.Trim();
+            if (url.StartsWith("s3://", StringComparison.OrdinalIgnoreCase))
+            {
+                return new GenericMessage(url);
+            }
+            if (genericMessageRegex.IsMatch(txt))
+            {
+                return JsonHelper.FromJson<GenericMessage>(txt);
+            }
+            if (s3MessageRegex.IsMatch(txt))
+            {
+                return JsonHelper.FromJson<S3EventMessage>(txt);
+            }
+            return null; //try to parse as expected message type
         }
 
         //Filter out some subfolders on S3.
@@ -651,6 +666,16 @@ namespace OPS.Landform
         }
 
         protected virtual bool CanDeprioritizeRetries()
+        {
+            return false;
+        }
+
+        protected virtual bool UseMessageStopwatch()
+        {
+            return true;
+        }
+
+        protected virtual bool SuppressRejections()
         {
             return false;
         }
@@ -716,7 +741,7 @@ namespace OPS.Landform
                              what, name, landformOwned ? "" : "not ");
             bool autoCreateIfLandformOwned = !lvopts.DeleteQueues;
             MessageQueue queue = null;
-            while (true)
+            for (int i = 0; i < MAX_OPEN_QUEUE_RETRIES; i++)
             {
                 try
                 {
@@ -748,8 +773,10 @@ namespace OPS.Landform
             pipeline.LogInfo("{0}sending message to queue {1}", lvopts.DryRun ? "dry " : "", messageQueue.Name);
             if (!lvopts.DryRun)
             {
-                messageQueue.Enqueue(lvopts.SendMessage.IndexOf("://") >= 0 ? new GenericMessage(lvopts.SendMessage)
-                                     : ParseMessage(File.ReadAllText(lvopts.SendMessage)));
+                var msg = lvopts.SendMessage.IndexOf("://") >= 0 ?
+                    new GenericMessage(lvopts.SendMessage) :
+                    ParseMessage(File.ReadAllText(lvopts.SendMessage));
+                messageQueue.Enqueue(msg);
             }
         }
 
@@ -905,7 +932,7 @@ namespace OPS.Landform
 
         protected void SaveMessage(string destDir, string project)
         {
-            string url = string.Format("{0}/{1}/{2}", destDir, project, MESSAGE_JSON);
+            string url = string.Format("{0}/{1}/{2}_{3}", destDir, project, project, MESSAGE_JSON);
             pipeline.LogInfo("saving mesage file {0}", url);
             TemporaryFile.GetAndDelete(MESSAGE_JSON, tmp => {
                 File.WriteAllText(tmp, JsonHelper.ToJson(currentMessage, autoTypes: false));
@@ -1014,35 +1041,37 @@ namespace OPS.Landform
             ServiceLoop();
         }
 
-        private void CheckCredentials()
+        protected bool CheckCredentials(bool force = false)
         {
-            if (credentialRefreshSec <= 0)
+            if (!force && credentialRefreshSec <= 0)
             {
-                return;
+                return false;
             }
 
             double overdueSec = 0;
-            if (lastCredentialRefreshSecUTC >= 0)
+            if (lastCredentialRefreshSecUTC > 0)
             {
                 double deadline = lastCredentialRefreshSecUTC + credentialRefreshSec;
                 overdueSec = UTCTime.Now() - deadline;
             }
 
-            if (overdueSec >= 0)
+            bool refreshed = false;
+            if (force || overdueSec >= 0)
             {
                 if (Monitor.TryEnter(credentialRefreshLock, 5000))
                 {
                     try
                     {
-                        if (Monitor.TryEnter(longRunningCredentialRefereshLock, 5000))
+                        if (Monitor.TryEnter(longRunningCredentialRefreshLock, 5000))
                         {
                             try
                             {
                                 RefreshCredentials(); //let exception propagate
+                                refreshed = true;
                             }
                             finally
                             {
-                                Monitor.Exit(longRunningCredentialRefereshLock);
+                                Monitor.Exit(longRunningCredentialRefreshLock);
                             }
                         }
                         else
@@ -1062,6 +1091,8 @@ namespace OPS.Landform
                                      Fmt.HMS(overdueSec * 1e3));
                 }
             }
+
+            return refreshed;
         }
 
         private void ServiceLoop()
@@ -1069,6 +1100,8 @@ namespace OPS.Landform
             int throttleMS = GetDequeueThrottleMS();
             int maxAgeSec = GetMaxMessageAgeSec();
             int maxReceiveCount = GetMaxReceiveCount();
+            bool messageStopwatch = UseMessageStopwatch();
+            bool suppressRejections = SuppressRejections();
             pipeline.LogInfo("running service loop on queue {0}, throttle {1}ms", messageQueue.Name, throttleMS);
 
             if (!string.IsNullOrEmpty(selfEC2InstanceID) && lvopts.IdleShutdownSec > 0 &&
@@ -1161,10 +1194,13 @@ namespace OPS.Landform
 
                         if (accepted && !tooOld)
                         {
-                            StartStopwatch();
+                            if (messageStopwatch)
+                            {
+                                StartStopwatch();
+                            }
                             
                             currentMessage = msg;
-                            messageStartSec = (uint)UTCTime.Now();
+                            lastHeartbeatSec = messageStartSec = (uint)UTCTime.Now();
                             
                             pipeline.LogInfo("processing {0} (age {1}, {2} since first receive, {3} receives)", desc,
                                              Fmt.HMS(totalAgeSec * 1e3), Fmt.HMS(ageSec * 1e3), receiveCount);
@@ -1201,7 +1237,10 @@ namespace OPS.Landform
                                 pipeline.LogException(deleteException, "deleting message");
                             }
 
-                            StopStopwatch(brief: true);
+                            if (messageStopwatch)
+                            {
+                                StopStopwatch(brief: true);
+                            }
                         }
                         else //not accepted or too old
                         {
@@ -1233,9 +1272,27 @@ namespace OPS.Landform
                                               failMessageQueue != null ? "adding to" : "no");
                         }
 
-                        if (!accepted && !string.IsNullOrEmpty(rejectionReason))
+                        if (!accepted)
                         {
-                            pipeline.LogVerbose("rejected message: {0}", rejectionReason);
+                            if (string.IsNullOrEmpty(rejectionReason))
+                            {
+                                rejectionReason = "(unknown)";
+                            }
+                            string txt = msg.MessageText;
+                            if (!string.IsNullOrEmpty(txt))
+                            {
+                                txt = txt.Replace("{", "{{").Replace("}", "}}");
+                            }
+                            string spew = string.Format("rejected {0} message \"{1}\": {2}",
+                                                        msg.GetType().Name, txt, rejectionReason);
+                            if (suppressRejections)
+                            {
+                                pipeline.LogVerbose(spew);
+                            }
+                            else
+                            {
+                                pipeline.LogInfo(spew);
+                            }
                         }
 
                         if (recycle && deleted)
@@ -1305,7 +1362,6 @@ namespace OPS.Landform
             //(and they're a little more expensive)
 
             double maxHandlerSec = GetMaxHandlerSec();
-            double lastHeartbeatSec = -1;
             int timeoutSec = messageQueue.TimeoutSec;
             double targetPeriod = GetHeartbeatRelPeriod() * timeoutSec;
             pipeline.LogInfo("running heartbeat, period {0:F3}s, message timeout {1}s, max handler {2}",
@@ -1321,19 +1377,20 @@ namespace OPS.Landform
                                           Fmt.HMS(totalSec * 1e3), Fmt.HMS(maxHandlerSec * 1e3));
                         killedCurrentHandler = true;
                         KillCurrentCommand(); //swallows exceptions, but handler will throw exception if killed
+                        lastHeartbeatSec = 0;
                         SleepSec(targetPeriod);
-                        lastHeartbeatSec = -1;
                     }
                     else //still processing message, increase SQS visiblity timeout
                     {
                         try
                         {
-                            if (lastHeartbeatSec >= 0)
+                            if (lastHeartbeatSec > 0)
                             {
                                 //try to maintain heartbeat period proportional to queue timout
                                 SleepSec(targetPeriod - (UTCTime.Now() - lastHeartbeatSec)); //ignores negative
                             }
 
+                            double period = -1; //upper bound on time between visibility update
                             lock (credentialRefreshLock)
                             {
                                 //specifically using two locks here, see
@@ -1345,19 +1402,20 @@ namespace OPS.Landform
                                     if (currentMessage != null)
                                     {
                                         messageQueue.UpdateTimeout(currentMessage, timeoutSec);
+                                        double now = UTCTime.Now();
+                                        if (lastHeartbeatSec > 0)
+                                        {
+                                            period = now - lastHeartbeatSec;
+                                        }
+                                        lastHeartbeatSec = (uint)now; 
                                     }
                                 }
                             }
-                            
-                            //upper bound on time between visibility update
-                            double heartbeatPeriod = lastHeartbeatSec >= 0 ? (UTCTime.Now() - lastHeartbeatSec) : -1;
 
-                            lastHeartbeatSec = UTCTime.Now();
-
-                            if (heartbeatPeriod > timeoutSec)
+                            if (period > timeoutSec)
                             {
                                 pipeline.LogError("heartbeat {0} exceeded visibility timeout {1}",
-                                                  Fmt.HMS(heartbeatPeriod * 1e3), Fmt.HMS(timeoutSec * 1e3));
+                                                  Fmt.HMS(period * 1e3), Fmt.HMS(timeoutSec * 1e3));
                             }
                         }
                         catch (Exception ex)
@@ -1369,8 +1427,8 @@ namespace OPS.Landform
                 }
                 else //no current message
                 {
+                    lastHeartbeatSec = 0;
                     SleepSec(targetPeriod);
-                    lastHeartbeatSec = -1;
                 }
             }
         }
@@ -1500,9 +1558,9 @@ namespace OPS.Landform
             var procCmds = new List<string>();
             var procCounters = new List<int>();
             string ssmProcess =
-                (lvopts.WatchdogSSMProcess == "mission") ? mission.GetSSMProcess() : lvopts.WatchdogSSMProcess;
+                (lvopts.WatchdogSSMProcess == "mission") ? mission.GetSSMWatchdogProcess() : lvopts.WatchdogSSMProcess;
             string ssmCommand =
-                (lvopts.WatchdogSSMCommand == "mission") ? mission.GetSSMCommand() : lvopts.WatchdogSSMCommand;
+                (lvopts.WatchdogSSMCommand == "mission") ? mission.GetSSMWatchdogCommand() : lvopts.WatchdogSSMCommand;
             bool ssmEnabled = !string.IsNullOrEmpty(ssmProcess) && !string.IsNullOrEmpty(ssmCommand);
             if (ssmEnabled)
             {
@@ -1517,9 +1575,10 @@ namespace OPS.Landform
                 pipeline.LogInfo("SSM watchdog disabled");
             }
 
-            string cwProcess =(lvopts.WatchdogCloudWatchProcess == "mission") ? mission.GetCloudWatchProcess() :
+            string cwProcess =(lvopts.WatchdogCloudWatchProcess == "mission") ? mission.GetCloudWatchWatchdogProcess() :
                 lvopts.WatchdogCloudWatchProcess;
-            string cwCommand = (lvopts.WatchdogCloudWatchCommand == "mission") ? mission.GetCloudWatchCommand() :
+            string cwCommand =
+                (lvopts.WatchdogCloudWatchCommand == "mission") ? mission.GetCloudWatchWatchdogCommand() :
                 lvopts.WatchdogCloudWatchCommand;
             bool cwEnabled = !string.IsNullOrEmpty(cwProcess) && !string.IsNullOrEmpty(cwCommand);
             if (cwEnabled)

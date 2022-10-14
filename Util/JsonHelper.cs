@@ -5,7 +5,7 @@ using Newtonsoft.Json.Converters;
 using Newtonsoft.Json.Serialization;
 
 
-namespace OPS.Util
+namespace JPLOPS.Util
 {
     public class IgnorePropertiesResolver : DefaultContractResolver
     {

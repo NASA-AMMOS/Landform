@@ -1,23 +1,15 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using OPS.Cloud;
-using OPS.Pipeline;
-using Amazon.DynamoDBv2.DataModel;
 
-namespace OPS.Pipeline.AlignmentServer
+namespace JPLOPS.Pipeline.AlignmentServer
 {
     /// <summary>
     /// A project specifies a container for a 3D reconstruction consiting of mutliple observations
     /// </summary>
-    [DynamoDBTable("Projects")]
-    [DynamoDBReadCapacity(5, 50)]
-    [DynamoDBWriteCapacity(5, 50)]
     public class Project
     {
-        [DynamoDBHashKey]
+        [DBHashKey]
         public string Name;
 
         public string Mission;
@@ -38,7 +30,6 @@ namespace OPS.Pipeline.AlignmentServer
             }
         }
 
-        //This constructor must be public for DynamoDB but should not be used
         public Project() { }
 
         /// <summary>
@@ -109,10 +100,6 @@ namespace OPS.Pipeline.AlignmentServer
             Project project = pipeline.LoadDatabaseItem<Project>(name);
             if (project != null)
             {
-                if (pipeline.LegacyCompat && string.IsNullOrEmpty(project.Mission))
-                {
-                    project.Mission = OPS.Pipeline.Mission.MSL.ToString(); //legacy compat
-                }
                 project.IsValid();
             }
             return project;

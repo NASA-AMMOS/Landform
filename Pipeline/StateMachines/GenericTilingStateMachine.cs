@@ -1,11 +1,7 @@
-﻿using System;
-using System.Linq;
-using System.Collections.Generic;
-using log4net;
-using OPS.Cloud;
-using OPS.Pipeline.TilingServer;
+﻿using System.Collections.Generic;
+using JPLOPS.Pipeline.TilingServer;
 
-namespace OPS.Pipeline
+namespace JPLOPS.Pipeline
 {
     class GenericTilingStateMachine : PipelineStateMachine
     {

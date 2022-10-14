@@ -1,13 +1,8 @@
-using OPS.Imaging;
-using OPS.Util;
-using System;
-using System.Collections.Generic;
+using JPLOPS.Imaging;
+using JPLOPS.Util;
 using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
-namespace OPS.Pipeline
+namespace JPLOPS.Pipeline
 {
     public class TiffDataProduct : DataProduct
     {

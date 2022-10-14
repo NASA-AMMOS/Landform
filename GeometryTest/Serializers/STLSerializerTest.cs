@@ -1,11 +1,6 @@
 ﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
-using OPS.Geometry;
-using System;
-using System.Collections.Generic;
+using JPLOPS.Geometry;
 using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace GeometryTest
 {

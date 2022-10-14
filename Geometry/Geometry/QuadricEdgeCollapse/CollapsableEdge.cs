@@ -1,14 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
+﻿
 using Microsoft.Xna.Framework;
-using OPS.Geometry;
-using Priority_Queue;
 
-namespace OPS.Geometry
+namespace JPLOPS.Geometry
 {
     /// <summary>
     /// Stores two VertexNodes, the third VertexNode of its left face (for winding order), and the location of the collapsed vertex

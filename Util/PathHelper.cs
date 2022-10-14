@@ -1,9 +1,7 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Reflection;
@@ -11,7 +9,7 @@ using System.Runtime.InteropServices;
 using System.ComponentModel;
 using log4net;
 
-namespace OPS.Util
+namespace JPLOPS.Util
 {
     /// <summary>
     /// This class consolidates common path operations

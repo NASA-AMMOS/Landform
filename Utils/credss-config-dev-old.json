@@ -1,2 +1,0 @@
-{ "venues": [ ["dev-old", "https://login.m20-dev.jpl.nasa.gov/v2/cli_login",
- ""] ], "sso_token_location": ".cssotoken" }

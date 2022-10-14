@@ -1,22 +1,20 @@
 ﻿using System;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using OPS.Geometry;
+using JPLOPS.Geometry;
 using System.IO;
-using OPS.Imaging;
-using OPS.RayTrace;
+using JPLOPS.Imaging;
+using JPLOPS.RayTrace;
 using Microsoft.Xna.Framework;
-using OPS.Test;
+using JPLOPS.Test;
 
 namespace RayTraceTest
 {
     [TestClass]
     [DeploymentItem("TestData", "TestData")]
     [DeploymentItem("gdal", "gdal")]
-    [DeploymentItem("x86", "x86")]
     [DeploymentItem("x64", "x64")]
     public class SceneCasterTest
     {
-
         static Mesh LoadMesh()
         {
             return Mesh.Load(Path.Combine("TestData", "mesh", "raptor.obj"));

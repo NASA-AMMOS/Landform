@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Collections.Concurrent;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 using System.IO;
 using System.Net;
@@ -10,14 +9,11 @@ using System.Threading;
 using System.Diagnostics;
 using System.Text.RegularExpressions;
 using Amazon.S3;
-using Microsoft.Xna.Framework;
 using CommandLine;
 using log4net;
-using OPS.Util;
-using OPS.Cloud;
-using OPS.Imaging;
-using OPS.Geometry;
-using OPS.Pipeline;
+using JPLOPS.Util;
+using JPLOPS.Cloud;
+using JPLOPS.Pipeline;
 
 ///<summary>
 /// Download files from S3 or http(s).
@@ -69,7 +65,7 @@ using OPS.Pipeline;
 ///   --withpng --useunifiedmeshes=false --onlymeshproducts --onlyforeye=Left
 ///
 ///<Summary>
-namespace OPS.Landform
+namespace JPLOPS.Landform
 {
     [Verb("fetch", HelpText = "Download data products from S3")]
     public class FetchDataOptions
@@ -138,8 +134,8 @@ namespace OPS.Landform
         [Option(Default = false, HelpText = "Only download products that match an OBJ or IV mesh product ID")]
         public bool OnlyMeshProducts { get; set; }
 
-        [Option(Default = false, HelpText = "Download VIC products")]
-        public bool WithVIC { get; set; }
+        [Option(Default = "auto", HelpText = "Prefer IMG products to VIC when both are available (otherwise, the reverse); true, false or auto to use default for mission")]
+        public string PreferIMGToVIC { get; set; }
 
         [Option(Default = false, HelpText = "Don't download PDS products")]
         public bool NoPDS { get; set; }
@@ -150,7 +146,7 @@ namespace OPS.Landform
         [Option(Default = null, HelpText = "Comma separated list of unified mesh filenames or URLs to use (overrides default algorithm to select lastest for each sitedrive)")]
         public string UnifiedMeshes { get; set; }
 
-        [Option(Default = "auto", HelpText = "Download and use unified meshes for filtering, true, false, or auto to use default for mission")]
+        [Option(Default = "auto", HelpText = "Download and use unified meshes for filtering; true, false, or auto to use default for mission")]
         public string UseUnifiedMeshes { get; set; }
 
         [Option(Default = "auto", HelpText = "Product type to expect in unified meshes, or auto to use default for mission")]
@@ -288,6 +284,7 @@ namespace OPS.Landform
         private List<Regex> includeRegex, excludeRegex;
 
         private HashSet<string> acceptedExtensions;
+        private bool preferIMGToVIC;
 
         private ConcurrentDictionary<string, long> s3ObjectSize = new ConcurrentDictionary<string, long>();
         private ConcurrentDictionary<string, long> s3ObjectMSSinceEpoch = new ConcurrentDictionary<string, long>();
@@ -394,17 +391,15 @@ namespace OPS.Landform
                 else
                 {
                     acceptedExtensions.Add(".IMG");
+                    acceptedExtensions.Add(".VIC");
                 }
             }
 
-            if (options.WithVIC)
-            {
-                acceptedExtensions.Add(".VIC");
-            }
-            else
-            {
-                acceptedExtensions.Remove(".VIC");
-            }
+            preferIMGToVIC = !string.IsNullOrEmpty(options.PreferIMGToVIC) &&
+                (string.Equals(options.PreferIMGToVIC, "true", StringComparison.OrdinalIgnoreCase) ||
+                 (string.Equals(options.PreferIMGToVIC, "auto", StringComparison.OrdinalIgnoreCase) &&
+                  (mission == null || mission.PreferIMGToVIC())));
+                
 
             if (options.WithPNG)
             {
@@ -439,7 +434,8 @@ namespace OPS.Landform
                 if (string.IsNullOrEmpty(umProductType) ||
                     string.Equals(umProductType, "auto", StringComparison.OrdinalIgnoreCase))
                 {
-                    umProductType = mission != null ? mission.GetUnifiedMeshProductType() : "RAS";
+                    umProductType = mission != null ? mission.GetUnifiedMeshProductType() :
+                        RoverProduct.GetImageRDRType();
                 }
             }
 
@@ -471,6 +467,9 @@ namespace OPS.Landform
             {
                 throw new ArgumentException("--deletelru requires --accountexisting");
             }
+
+            logger.InfoFormat("accepted extensions: " + string.Join(",", acceptedExtensions));
+            logger.InfoFormat("prefer IMG to VIC: " + preferIMGToVIC);
         }
 
         private bool ShouldTrace(string url)
@@ -938,6 +937,52 @@ namespace OPS.Landform
             if (filtered.Count < urls.Count)
             {
                 logger.InfoFormat("filtered {0}->{1} products by URL", urls.Count, filtered.Count);
+            }
+
+            if (acceptedExtensions.Contains(".IMG") && acceptedExtensions.Contains(".VIC"))
+            {
+                var imgURLs = new Dictionary<string, string>(); //URL without ext -> full URL
+                var vicURLs = new Dictionary<string, string>();
+                foreach (string url in filtered)
+                {
+                    if (url.EndsWith(".IMG", StringComparison.OrdinalIgnoreCase))
+                    {
+                        imgURLs.Add(StringHelper.StripUrlExtension(url), url);
+                    }
+                    else if (url.EndsWith(".VIC", StringComparison.OrdinalIgnoreCase))
+                    {
+                        vicURLs.Add(StringHelper.StripUrlExtension(url), url);
+                    }
+                }
+
+                string pref = preferIMGToVIC ? "IMG" : "VIC";
+                string notPref = preferIMGToVIC ? "VIC" : "IMG";
+
+                var extFiltered = new List<string>();
+                foreach (string url in filtered)
+                {
+                    string baseURL = StringHelper.StripUrlExtension(url);
+                    if (imgURLs.ContainsKey(baseURL) && vicURLs.ContainsKey(baseURL))
+                    {
+                        string removeURL = preferIMGToVIC ? vicURLs[baseURL] : imgURLs[baseURL];
+                        if (ShouldTrace(removeURL))
+                        {
+                            logger.InfoFormat("filtered {0}: preferring {1} to {2}", removeURL, pref, notPref); 
+                        }
+                        extFiltered.Add(preferIMGToVIC ? imgURLs[baseURL] : vicURLs[baseURL]);
+                    }
+                    else
+                    {
+                        extFiltered.Add(url);
+                    }
+                }
+
+                if (extFiltered.Count < filtered.Count)
+                {
+                    logger.InfoFormat("filtered {0}->{1} {2} products in favor of {3}", filtered.Count,
+                                      extFiltered.Count, notPref, pref);
+                }
+                filtered = extFiltered;
             }
 
             if (options.OnlyMeshProducts && (!options.NoIV || !options.NoOBJ))
@@ -1757,7 +1802,7 @@ namespace OPS.Landform
                         logger.InfoFormat("-- fetching {0} product ids for sol {1} under {2} ({3} new bytes) --",
                                           groups.Select(g => g.Count).Sum(), sol, location,
                                           Fmt.Bytes(urlsBySol[sol]
-                                                        .Sum(url => RemoteBytes(url) - LocalBytes(LocalPath(url), 0))));
+                                                    .Sum(url => RemoteBytes(url) - LocalBytes(LocalPath(url), 0))));
                         groups.ForEach(g => g.ForEach(id => logger.Info(id.FullId)));
                     }
                 }

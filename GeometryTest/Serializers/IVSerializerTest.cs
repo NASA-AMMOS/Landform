@@ -1,13 +1,11 @@
-﻿using System;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
-using OPS.Geometry;
+﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
+using JPLOPS.Geometry;
 using System.IO;
 
 namespace GeometryThirdpartyTest
 {
     [TestClass]
     [DeploymentItem("TestData", "TestData")]
-    [DeploymentItem("ExternalApps", "ExternalApps")]
     public class OpenInventorSerializerTest
     {
         [TestMethod]

@@ -1,16 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
-using System.Linq;
-using System.Text;
-using System.IO;
 using Microsoft.Xna.Framework;
-using System.Diagnostics;
-using OPS.MathExtensions;
-using OPS.Util;
-using OPS.Imaging;
+using JPLOPS.MathExtensions;
+using JPLOPS.Util;
+using JPLOPS.Imaging;
 
-namespace OPS.Geometry
+namespace JPLOPS.Geometry
 {
     public enum AtlasMode { None, UVAtlas, Heightmap, Naive, Project, Manifold };
 
@@ -241,7 +237,7 @@ namespace OPS.Geometry
 
         public static void NaiveAtlas(this Mesh mesh)
         {
-            if (!OPS.Geometry.NaiveAtlas.Compute(mesh, out float[] u, out float[] v, out int[] indices,
+            if (!JPLOPS.Geometry.NaiveAtlas.Compute(mesh, out float[] u, out float[] v, out int[] indices,
                                                  out int[] vertexRemap))
             {
                 throw new Exception("naive atlas failed");

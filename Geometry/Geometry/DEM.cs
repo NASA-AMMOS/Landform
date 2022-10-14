@@ -1,13 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using log4net;
 using Microsoft.Xna.Framework;
-using OPS.Imaging;
-using OPS.Util;
+using JPLOPS.Imaging;
+using JPLOPS.Util;
 
-namespace OPS.Geometry
+namespace JPLOPS.Geometry
 {
     /// <summary>
     /// Wraps any scalar Image with a ConformalCameraModel as a Digital Elevation Map.

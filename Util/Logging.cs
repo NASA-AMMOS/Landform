@@ -1,14 +1,12 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.IO;
-using System.Reflection;
 using log4net;
 using log4net.Appender;
 using log4net.Layout;
 using log4net.Core;
 
-namespace OPS.Util
+namespace JPLOPS.Util
 {
     public interface ILogger
     {

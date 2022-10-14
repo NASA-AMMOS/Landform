@@ -1,13 +1,8 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using OPS.Imaging;
 using Emgu.CV;
 using Emgu.CV.Structure;
 
-namespace OPS.Imaging.Emgu
+namespace JPLOPS.Imaging.Emgu
 {
     public static class Extensions
     {

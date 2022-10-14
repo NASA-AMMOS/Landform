@@ -1,17 +1,11 @@
-﻿using log4net;
-using System;
-using System.Collections.Generic;
-using System.Collections.Concurrent; 
-using System.IO;
+﻿using System;
+using System.Collections.Concurrent;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
-using OPS.Util;
-using OPS.Imaging;
-using OPS.Geometry;
+using JPLOPS.Util;
+using JPLOPS.Geometry;
 
-namespace OPS.Pipeline.TilingServer
+namespace JPLOPS.Pipeline.TilingServer
 {
     public class ChunkInputMessage : PipelineMessage
     {

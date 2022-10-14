@@ -1,13 +1,12 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
 using System.Linq;
 using Microsoft.Xna.Framework;
-using OPS.Util;
-using OPS.MathExtensions;
+using JPLOPS.Util;
+using JPLOPS.MathExtensions;
 
-namespace OPS.Geometry
+namespace JPLOPS.Geometry
 {
     /// <summary>
     /// Contains methods for placing Poisson-disc point samples across the surface of a given mesh at a chosen density

@@ -1,9 +1,8 @@
-﻿using System;
-using System.IO;
+﻿using System.IO;
 using System.Text;
-using OPS.Geometry.GLTF;
+using JPLOPS.Geometry.GLTF;
 
-namespace OPS.Geometry
+namespace JPLOPS.Geometry
 {
     /// <summary>
     /// Writes and reads glTF files that consist of a single embedded mesh and optional texture with default material.

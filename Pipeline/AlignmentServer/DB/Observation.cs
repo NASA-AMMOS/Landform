@@ -1,13 +1,11 @@
 ﻿using System;
 using System.Linq;
 using System.Collections.Generic;
-using Amazon.DynamoDBv2.DataModel;
 using Newtonsoft.Json;
-using OPS.Cloud;
-using OPS.Imaging;
-using OPS.Util;
+using JPLOPS.Imaging;
+using JPLOPS.Util;
 
-namespace OPS.Pipeline.AlignmentServer
+namespace JPLOPS.Pipeline.AlignmentServer
 {
     public enum TextureVariant { Original, Blurred, Blended, SkyBlended };
 
@@ -15,9 +13,6 @@ namespace OPS.Pipeline.AlignmentServer
     /// Represents an image or 3D shape measurement of the environment
     /// Can be connected to Frames and aligned with other observations through FrameTransforms
     /// </summary>
-    [DynamoDBTable("Observations")]
-    [DynamoDBReadCapacity(50, 100)]
-    [DynamoDBWriteCapacity(50, 100)]
     public class Observation : IURLFileSet
     {
         //not a valid observation index
@@ -54,10 +49,10 @@ namespace OPS.Pipeline.AlignmentServer
         public const int ORBITAL_IMAGE_INDEX = MAX_INDEX; 
         public const int ORBITAL_DEM_INDEX = ORBITAL_IMAGE_INDEX - 1;
 
-        [DynamoDBRangeKey]
+        [DBRangeKey]
         public string ProjectName;
 
-        [DynamoDBHashKey]
+        [DBHashKey]
         public string Name; //rover product ID
 
         public string Url; //PDS or VICAR image with metadata that loads as PDSMetadata
@@ -103,7 +98,6 @@ namespace OPS.Pipeline.AlignmentServer
 
         public double HullFarClip;
 
-        [DynamoDBProperty("CameraModel", typeof(CameraModelConverter))]
         [JsonConverter(typeof(CameraModelConverter))]
         public CameraModel CameraModel;
 
@@ -128,7 +122,6 @@ namespace OPS.Pipeline.AlignmentServer
             }
         }
 
-        //This constructor must be public for DynamoDb but should not be used
         public Observation() { }
 
         /// <summary>

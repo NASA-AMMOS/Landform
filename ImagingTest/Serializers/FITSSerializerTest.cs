@@ -1,11 +1,6 @@
 ﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
-using OPS.Imaging;
-using System;
-using System.Collections.Generic;
+using JPLOPS.Imaging;
 using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace ImagingTest.Serializers
 {

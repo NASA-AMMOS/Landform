@@ -1,12 +1,7 @@
-﻿using System;
-using System.IO;
-using System.Text;
-using System.Collections;
-using System.Collections.Generic;
-using OPS.Geometry;
-using OPS.Util;
+﻿using System.Collections.Generic;
+using JPLOPS.Geometry;
 
-namespace OPS.Pipeline.TilingServer
+namespace JPLOPS.Pipeline.TilingServer
 {
     public class BuildTilesetJsonMessage : PipelineMessage
     {

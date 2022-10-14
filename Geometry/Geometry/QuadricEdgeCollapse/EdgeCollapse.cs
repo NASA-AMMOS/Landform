@@ -1,17 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 using Microsoft.Xna.Framework;
-using OPS.Geometry;
 
 using Priority_Queue;
-using System.Collections;
 using System.Runtime.CompilerServices;
 
-namespace OPS.Geometry
+namespace JPLOPS.Geometry
 {
     /// <summary>
     /// Node used for the edge collapse queue

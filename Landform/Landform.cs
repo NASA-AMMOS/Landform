@@ -1,72 +1,69 @@
 using System;
 using System.Collections.Generic;
-using CommandLine;
-using OPS.Util;
-using OPS.Pipeline;
+using JPLOPS.Util;
+using JPLOPS.Pipeline;
 
-namespace OPS.Landform
+namespace JPLOPS.Landform
 {
     class Landform
     {
         static int Main(string[] args)
         {
-            if (!CommandHelper.Configure(args, typeof(Landform), typeof(PipelineCore),
-                                         () => CommandHelper.HasFlag(args, "cloud") ?
-                                         CloudPipelineConfig.Instance.ConfigFilePath() :
-                                         LocalPipelineConfig.Instance.ConfigFilePath()))
+            try
             {
-                return 1;
-            }
-
-            //MeshSerializers in the OPS.Geometry subproject will auto-register themselves
-            //in the static initializer for the OPS.Geometry.MeshSerializers SerializerMap
-            //however there are also some additional MeshSerializers in OPS.GeometryThirdParty
-            //and we also want those to add themselves to the OPS.Geometry.MeshSerializers SerializerMap
-            OPS.Geometry.ThirdPartyMeshSerializers.Register();
-
-            //use centralized version from OPS.Pipeline
-            //not GdalConfiguration which is auto-added to this subproject by nuget
-            OPS.Pipeline.GdalConfiguration.ConfigureGdal();
-
-            var verbs = new Dictionary<Type, Type>()
+                if (!CommandHelper.Configure(args, typeof(Landform), typeof(PipelineCore),
+                                             () => LocalPipelineConfig.Instance.ConfigFilePath()))
                 {
-                    { typeof(ConfigureCloudOptions), typeof(ConfigureCloud) },
-                    { typeof(StartWorkerOptions), typeof(StartWorker) },
-
-                    { typeof(ConfigureLocalOptions), typeof(ConfigureLocal) },
-
+                    return 1;
+                }
+                
+                JPLOPS.Imaging.GdalConfiguration.ConfigureGdal();
+                
+                var verbs = new Dictionary<Type, Type>()
+                {
+                    { typeof(ConfigureOptions), typeof(Configure) },
+                    
                     { typeof(FetchDataOptions), typeof(FetchData) },
-
+                    
                     { typeof(IngestOptions), typeof(Ingest) },
-
+                    
                     { typeof(BEVAlignerOptions), typeof(BEVAligner) },
                     { typeof(HeightmapAlignerOptions), typeof(HeightmapAligner) },
-                    { typeof(AgisoftAlignerOptions), typeof(AgisoftAligner) },
-
+                    
                     { typeof(BuildGeometryOptions), typeof(BuildGeometry) },
                     { typeof(BuildSkySphereOptions), typeof(BuildSkySphere) },
                     { typeof(BuildTextureOptions), typeof(BuildTexture) },
                     { typeof(BuildTilingInputOptions), typeof(BuildTilingInput) },
                     { typeof(BuildTilesetOptions), typeof(BuildTileset) },
-
+                    
                     { typeof(BlendImagesOptions), typeof(BlendImages) },
                     { typeof(LimberDMGOptions), typeof(LimberDMGDriver) },
-
+                    
                     { typeof(ProcessTacticalOptions), typeof(ProcessTactical) },
                     { typeof(ProcessContextualOptions), typeof(ProcessContextual) },
-
+                    
                     { typeof(UpdateSceneManifestOptions), typeof(UpdateSceneManifest) },
                     { typeof(ObservationProductsOptions), typeof(ObservationProducts) },
-
+                    
                     { typeof(ConvertPDSOptions), typeof(ConvertPDS) },
                     { typeof(ConvertIVOptions), typeof(ConvertIV) },
                     { typeof(ConvertGLTFOptions), typeof(ConvertGLTF) },
                     { typeof(DEM2MeshOptions), typeof(DEM2Mesh) },
-
+                    
                     { typeof(BenchmarkS3Options), typeof(BenchmarkS3) },
                 };
-
-            return CommandHelper.RunFromCommandline(args, verbs);
+                
+                return CommandHelper.RunFromCommandline(args, verbs);
+            }
+            catch (Exception ex)
+            {
+                Config.Log("unhandled exception: " + ex.ToString());
+                if (Config.Logger == null)
+                {
+                    Config.SetLogger(new ThunkLogger(info: msg => Console.Error.WriteLine(msg)));
+                }
+                return 1;
+            }
         }
     }
 }

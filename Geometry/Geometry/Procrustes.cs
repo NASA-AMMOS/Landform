@@ -1,15 +1,10 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using MathNet.Numerics.LinearAlgebra;
 using Microsoft.Xna.Framework;
 
 //ported from AsteroidViz/Assets/Scripts/Procrustes.cs for Unity by marty vona
 //SHA: 321c19b84ddadbf2d7376860e8ccb062381df38b
 
-namespace OPS.Geometry
+namespace JPLOPS.Geometry
 {
     public class Procrustes
     {

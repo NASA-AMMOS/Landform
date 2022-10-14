@@ -2,18 +2,15 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
-using OPS.Util;
-using OPS.MathExtensions;
-using OPS.Geometry;
-using OPS.Imaging;
-using OPS.Pipeline.TilingServer;
-using OPS.Pipeline.AlignmentServer;
+using JPLOPS.Util;
+using JPLOPS.MathExtensions;
+using JPLOPS.Geometry;
+using JPLOPS.Imaging;
+using JPLOPS.Pipeline.TilingServer;
+using JPLOPS.Pipeline.AlignmentServer;
 
-namespace OPS.Pipeline
+namespace JPLOPS.Pipeline
 {
     public static class SceneNodeTilingExtensions
     {

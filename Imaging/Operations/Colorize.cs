@@ -3,9 +3,9 @@ using System.Linq;
 using System.IO;
 using ColorMine.ColorSpaces;
 using Microsoft.Xna.Framework;
-using OPS.MathExtensions;
+using JPLOPS.MathExtensions;
 
-namespace OPS.Imaging
+namespace JPLOPS.Imaging
 {
     public enum LuminanceMode { Average, Max, ITU_BT709, Red, Green, Blue };
 

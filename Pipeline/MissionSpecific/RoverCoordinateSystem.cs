@@ -1,13 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Microsoft.Xna.Framework;
-using OPS.Imaging;
-using OPS.Geometry;
+﻿using Microsoft.Xna.Framework;
+using JPLOPS.Geometry;
 
-namespace OPS.Pipeline
+namespace JPLOPS.Pipeline
 {
     // UNITY - left-handed space used in unity
     //           +Y is real-world up and mars up, +Z is North/forward, +X is East/right

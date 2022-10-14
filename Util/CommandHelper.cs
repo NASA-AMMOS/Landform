@@ -6,10 +6,23 @@ using System.Reflection;
 using CommandLine;
 using log4net;
 
-namespace OPS.Util
+namespace JPLOPS.Util
 {
+    [AttributeUsage(AttributeTargets.Class | AttributeTargets.Property)]
+    public class EnvVar : System.Attribute
+    {
+        public readonly string Name;
+
+        public EnvVar(string name)
+        {
+            this.Name = name;
+        }
+    }
+
     public class CommandHelper
     {
+        public const string ENV_PREFIX = "LANDFORM";
+
         [Verb("base-options")]
         public class BaseOptions
         {
@@ -43,11 +56,11 @@ namespace OPS.Util
             [Option(Default = false, HelpText = "Disable parallism, e.g. for debugging")]
             public bool SingleThreaded { get; set; }
         
-            [Option(Default = null, HelpText = "0 to use all available cores, N to use up to N, -M to reserve M")]
-            public int? MaxCores { get; set; }
+            [Option(Default = 0, HelpText = "0 to use all available cores, N to use up to N, -M to reserve M.  This will be overridden by config file value for commands that load pipeline config.")]
+            public int MaxCores { get; set; }
 
-            [Option(Default = null, HelpText = "negative to use a time-dependent random seed")]
-            public int? RandomSeed { get; set; }
+            [Option(Default = -1, HelpText = "negative to use a time-dependent random seed.  This will be overridden by config file value for commands that load pipeline config.")]
+            public int RandomSeed { get; set; }
         }
 
         public static bool HasFlag(string[] args, string flag)
@@ -67,11 +80,6 @@ namespace OPS.Util
             {
                 Config.BaseCommand = appType.Name;
                 Config.AppVersion = appType.Assembly.GetName().Version.ToString();
-            }
-
-            if (pipelineType != null)
-            {
-                Config.PipelineVersion = pipelineType.Assembly.GetName().Version.ToString();
             }
 
             var opts = new BaseOptions();
@@ -110,6 +118,13 @@ namespace OPS.Util
 
             Logging.ConfigureLogging(Config.FullCommand, opts.Quiet, opts.Debug, opts.LogFile, opts.LogDir);
 
+            CoreLimitedParallel.SetMaxCores(opts.SingleThreaded ? 1 : opts.MaxCores);
+            NumberHelper.RandomSeed = opts.RandomSeed;
+
+            //get the app config instance to ask its file path now
+            //after Config.ConfigDir and Config.ConfigFolder are initialized
+            string cfgFile = appConfigFile != null ? appConfigFile() : null; //latent spew, possible side effects
+
             if (!opts.Quiet)
             {
                 var logger = !string.IsNullOrEmpty(Config.SubCommand) ? LogManager.GetLogger(Config.SubCommand)
@@ -117,26 +132,20 @@ namespace OPS.Util
                     : pipelineType != null ? LogManager.GetLogger(pipelineType)
                     : LogManager.GetLogger("Landform");
                 string appVersion = Config.AppVersion ?? "(unknown)";
-                string pipelineVersion = Config.PipelineVersion ?? "(unknown)";
                 logger.InfoFormat("process ID {0}, command: {1} {2}",
                                   ConsoleHelper.GetPID(), PathHelper.GetExe(), string.Join(" ", args));
-                logger.InfoFormat("{0} {1}{2}", Config.BaseCommand ?? "Landform", appVersion,
-                                  appVersion != pipelineVersion ? (", " + pipelineVersion) : "");
+                logger.InfoFormat("{0} {1}", Config.BaseCommand ?? "Landform", appVersion);
+                Config.SetLogger(new ThunkLogger(info: msg => logger.Info(msg))); //flush latent spew
                 logger.InfoFormat("temp dir: {0}", StringHelper.NormalizeSlashes(TemporaryFile.TemporaryDirectory));
                 logger.InfoFormat("log file: {0}", StringHelper.NormalizeSlashes(Logging.GetLogFile()));
+                logger.InfoFormat("max cores: {0}, random seed: {1}",
+                                  CoreLimitedParallel.GetMaxCores(), NumberHelper.RandomSeed);
 
-                //get the app config instance to ask its file path now
-                //after Config.ConfigDir and Config.ConfigFolder are initialized
-                string cfgFile = appConfigFile != null ? appConfigFile() : null;
                 if (cfgFile != null)
                 {
                     logger.InfoFormat("config file: {0}", StringHelper.NormalizeSlashes(cfgFile));
                 }
             }
-
-            CoreLimitedParallel.SetMaxCores(opts.SingleThreaded ? 1 : (opts.MaxCores ?? 0));
-
-            NumberHelper.RandomSeed = opts.RandomSeed ?? -1;
 
             return true;
         }
@@ -148,12 +157,110 @@ namespace OPS.Util
                               CoreLimitedParallel.GetMaxCores(), CoreLimitedParallel.GetAvailableCores());
         }
 
+        public static string GetOptName(PropertyInfo prop, BaseAttribute ba)
+        {
+            string opt = prop.Name;
+            var oa = ba as OptionAttribute;
+            if (oa != null && !string.IsNullOrEmpty(oa.LongName))
+            {
+                opt = oa.LongName;
+            }
+            return opt.ToLower();
+        }
+
+        public static Dictionary<string, object> GetArgsFromEnvironment(Type optsType)
+        {
+            var envArgs = new Dictionary<string, object>();
+            var va = optsType.GetCustomAttribute<VerbAttribute>();
+            if (va == null)
+            {
+                return envArgs; //shouldn't happen because only get here if there was a VerbAttribute, but ok
+            }
+            var ea = optsType.GetCustomAttribute<EnvVar>();
+            string vn = ea != null ? ea.Name : StringHelper.SnakeCase(va.Name);
+            foreach (var prop in optsType.GetProperties().Where(p => p.CanWrite))
+            {
+                var ba = prop.GetCustomAttribute<BaseAttribute>();
+                if (ba != null)
+                {
+                    string opt = GetOptName(prop, ba);
+                    var ea2 = prop.GetCustomAttribute<EnvVar>();
+                    string pn = ea2 != null ? ea2.Name : StringHelper.SnakeCase(prop.Name);
+                    string en = (ENV_PREFIX + "_" + vn + "_" + pn).ToUpper();
+                    string str = Environment.GetEnvironmentVariable(en);
+                    if (string.IsNullOrEmpty(str))
+                    {
+                        if (str != null)
+                        {
+                            Config.Log($"ignoring empty environment variable {en}");
+                        }
+                        //if e.g. LANDFORM_CONTEXTUAL_MISSION was not set try LANDFORM_MISSION
+                        en = (ENV_PREFIX + "_" + pn).ToUpper();
+                        str = Environment.GetEnvironmentVariable(en);
+                    }
+                    if (!string.IsNullOrEmpty(str))
+                    {
+                        try
+                        {
+                            Config.ParseEnvVal(str, prop.PropertyType, obj =>
+                            {
+                                //this doesn't work because each call to GetCustomAttribute() returns a new instance
+                                //ba.Default = obj;
+                                bool flag = prop.PropertyType == typeof(bool);
+                                if (flag)
+                                {
+                                    if (!string.IsNullOrEmpty(str) && str.ToLower() == "false")
+                                    {
+                                        //https://github.jpl.nasa.gov/OnSight/Landform/issues/1001
+                                        throw new Exception($"cannot use {en}=false for flag {va.Name} --{opt}");
+                                    }
+                                }
+                                Config.Log($"using {en}={str} to default {va.Name} --{opt} (may be overridden)");
+                                envArgs.Add(opt, obj);
+                            }, parseNonemptyAsTrue: true);
+                        }
+                        catch (Exception ex)
+                        {
+                            throw new Exception(
+                                string.Format("error setting {0} --{1} from env var {2}={3}: {4}",
+                                              prop.PropertyType.Name, opt, en, str, ex.Message));
+                        }
+                    }
+                    else if (str != null)
+                    {
+                        Config.Log($"ignoring empty environment variable {en}");
+                    }
+                }
+            }
+            return envArgs;
+        }
+
         public static object ParseCommandLineOpts(string[] args, IEnumerable<Type> optsTypes, bool allowUnknown = false)
         {
+            Type optsType = null;
+            string verbName = null;
+            Dictionary<string, object> envArgs = null;
+            if (args != null && args.Length > 0 && args[0] != null && !args[0].StartsWith("--"))
+            {
+                verbName = args[0].ToLower();
+                optsType = optsTypes
+                    .Where(t => t.GetCustomAttribute<VerbAttribute>().Name.ToLower() == verbName)
+                    .FirstOrDefault();
+                if (optsType == null)
+                {
+                    throw new Exception(string.Format("unknown subcommand {0}", verbName));
+                }
+                if (verbName != "base-options")
+                {
+                    Config.Log("running subcommand: " + verbName);
+                }
+                envArgs = GetArgsFromEnvironment(optsType);
+            }
+                
             Func<string, string, bool> startsWith = (s, p) => s.StartsWith(p, true, null);
             Func<string, string, bool> isArg = (a, n) => startsWith(a, "--" + n) || startsWith(a, "-" + n);
             int optsIndex = args.ToList().FindIndex(arg => isArg(arg, "optionsfile"));
-            if (optsIndex > 0)
+            if (optsIndex > 0 && optsType != null)
             {
                 string optsFile = null;
                 string optsArg = args[optsIndex];
@@ -184,39 +291,35 @@ namespace OPS.Util
                     throw new Exception(string.Format("options file {0} not found", optsFile));
                 }
 
-                string verbName = args[0].ToLower();
-                Type optsType = optsTypes
-                    .Where(t => t.GetCustomAttribute<VerbAttribute>().Name.ToLower() == verbName)
-                    .FirstOrDefault();
-                if (optsType == null)
-                {
-                    throw new Exception(string.Format("unknown subcommand {0}", verbName));
-                }
-
                 Console.WriteLine("reading {0} options from options file {1}", verbName, optsFile);
                 var dict = JsonHelper.FromJson<Dictionary<string, object>>(File.ReadAllText(optsFile));
                 object opts = optsType.GetConstructor(new Type[] {}).Invoke(new object[] {});
 
                 foreach (var prop in optsType.GetProperties().Where(p => p.CanWrite))
                 {
-                    var attr = prop.GetCustomAttribute<BaseAttribute>();
-                    if (attr != null)
+                    var ba = prop.GetCustomAttribute<BaseAttribute>();
+                    if (ba != null)
                     {
-                        if (attr.Required && !dict.ContainsKey(prop.Name))
+                        string opt = GetOptName(prop, ba);
+                        if (ba.Required && !dict.ContainsKey(opt))
                         {
-                            throw new Exception(string.Format("required option {0} not in options file {1}",
-                                                              prop.Name, optsFile));
+                            throw new Exception(string.Format("required option {0} not in file {1}", opt, optsFile));
                         }
-                        prop.SetValue(opts, attr.Default);
-                    }
-                    if (dict.ContainsKey(prop.Name))
-                    {
-                        object val = dict[prop.Name];
-                        if (prop.PropertyType.IsEnum)
+                        prop.SetValue(opts, ba.Default);
+                        if (dict.ContainsKey(opt))
                         {
-                            val = Enum.Parse(prop.PropertyType, (string)val);
+                            object val = dict[opt];
+                            if (prop.PropertyType.IsEnum)
+                            {
+                                val = Enum.Parse(prop.PropertyType, (string)val);
+                            }
+                            prop.SetValue(opts, val);
                         }
-                        prop.SetValue(opts, val);
+                        else if (envArgs.ContainsKey(opt))
+                        {
+                            prop.SetValue(opts, envArgs[opt]);
+                        }
+
                     }
                 }
                 return opts;
@@ -226,14 +329,40 @@ namespace OPS.Util
                 if (allowUnknown)
                 {
                     //work around https://github.com/commandlineparser/commandline/issues/525
-                    args = FilterOutUnknownArgs(args, optsTypes);
+                    args = FilterOutUnknownArgs(args, optsType);
                     allowUnknown = false;
                 }
                 var parser = new Parser((ParserSettings settings) => 
+                {
+                    settings.HelpWriter = Console.Error;
+                    settings.IgnoreUnknownArguments = allowUnknown;
+                });
+                if (envArgs != null)
+                {
+                    var fullArgs = new List<string>();
+                    var explicitOpts = new HashSet<string>();
+                    for (int i = 0; i < args.Length; i++)
+                    {
+                        fullArgs.Add(args[i]);
+                        if (args[i].StartsWith("--"))
                         {
-                            settings.HelpWriter = Console.Error;
-                            settings.IgnoreUnknownArguments = allowUnknown;
-                        });
+                            explicitOpts.Add(args[i]);
+                        }
+                    }
+                    foreach (var entry in envArgs)
+                    {
+                        string opt = "--" + entry.Key;
+                        if (!explicitOpts.Contains(opt))
+                        {
+                            fullArgs.Add(opt);
+                            if (!(entry.Value is bool))
+                            {
+                                fullArgs.Add(entry.Value.ToString());
+                            }
+                        }
+                    }
+                    args = fullArgs.ToArray();
+                }
                 var res = parser.ParseArguments(args, optsTypes.ToArray());
                 if (res is Parsed<object>)
                 {
@@ -252,18 +381,9 @@ namespace OPS.Util
             }
         }
 
-        public static string[] FilterOutUnknownArgs(string[] args, IEnumerable<Type> optsTypes)
+        public static string[] FilterOutUnknownArgs(string[] args, Type optsType)
         {
-            if (args == null || args.Length < 2)
-            {
-                return args;
-            }
-
-            string verbName = args[0].ToLower();
-            Type optsType = optsTypes
-                .Where(t => t.GetCustomAttribute<VerbAttribute>().Name.ToLower() == verbName)
-                .FirstOrDefault();
-            if (optsType == null)
+            if (args == null || args.Length < 2 || optsType == null)
             {
                 return args;
             }

@@ -1,15 +1,9 @@
 using System;
-using System.Collections.Generic;
-using System.Collections.Concurrent;
-using System.Linq;
 using Microsoft.Xna.Framework;
-using Newtonsoft.Json;
-using OSGeo.GDAL;
 using OSGeo.OSR;
-using OPS.Util;
-using OPS.MathExtensions;
+using JPLOPS.MathExtensions;
 
-namespace OPS.Imaging
+namespace JPLOPS.Imaging
 {
     public abstract class PlanetaryBody
     {

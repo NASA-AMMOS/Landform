@@ -1,16 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Collections.Concurrent;
 using System.Linq;
-using System.Text;
 using System.IO;
 using Microsoft.Xna.Framework;
-using System.Diagnostics;
-using OPS.MathExtensions;
-using OPS.Util;
-using OPS.Imaging;
 
-namespace OPS.Geometry
+namespace JPLOPS.Geometry
 {
     /// <summary>
     /// A class representing a 3D mesh
@@ -466,7 +460,7 @@ namespace OPS.Geometry
             //    return merged.Bounds().MaxDimension();
             //}
 
-            return OPS.Geometry.HausdorffDistance.Calculate(this, merged, maxErrorEpsilon, symmetric);
+            return JPLOPS.Geometry.HausdorffDistance.Calculate(this, merged, maxErrorEpsilon, symmetric);
         }
 
         /// <summary>

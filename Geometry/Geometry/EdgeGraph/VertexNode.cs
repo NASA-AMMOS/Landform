@@ -1,13 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
-using Microsoft.Xna.Framework;
-using OPS.Geometry;
-
-namespace OPS.Geometry
+namespace JPLOPS.Geometry
 {
     /// <summary>
     /// Stores a vertex with its associated error matrix, edges, and flags for representing meshes as node-edge graphs when doing edge collapses

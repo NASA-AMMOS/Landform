@@ -1,10 +1,8 @@
 using System;
-using System.Collections.Generic;
-using System.Linq;
 using Microsoft.Xna.Framework;
 using Newtonsoft.Json;
 
-namespace OPS.MathExtensions
+namespace JPLOPS.MathExtensions
 {
     /// Also see Microsoft.Xna.Framework.Extensions and OPS.Geometry.BoundingBoxExtensions
     public static class XNAExtensions

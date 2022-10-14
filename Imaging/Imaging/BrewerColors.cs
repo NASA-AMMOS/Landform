@@ -24,14 +24,10 @@ Alternately, this acknowledgment may appear in the software itself, if and where
 
  */
 
-using System;
-using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
 
-namespace OPS.Imaging
+namespace JPLOPS.Imaging
 {
     // the colors for this code are translated from http://personal.psu.edu/cab38/ColorBrewer/ColorBrewer_RGB.html
     // the colors are based on the perceptual map color work of Dr. Cynthia Brewer http://colorbrewer.org

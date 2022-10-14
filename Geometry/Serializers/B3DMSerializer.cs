@@ -3,9 +3,9 @@ using System.IO;
 using System.Text;
 using System.Collections.Generic;
 using Newtonsoft.Json;
-using OPS.Geometry.GLTF;
+using JPLOPS.Geometry.GLTF;
 
-namespace OPS.Geometry
+namespace JPLOPS.Geometry
 {
     /// <summary>
     /// Reads and writes 3DTiles batched 3D model files, version 1.

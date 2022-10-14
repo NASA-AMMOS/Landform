@@ -1,17 +1,15 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using OPS.Imaging;
-using OPS.Cloud;
-using OPS.Pipeline.AlignmentServer;
+﻿using JPLOPS.Pipeline.AlignmentServer;
 
-namespace OPS.Pipeline
+namespace JPLOPS.Pipeline
 {
-    public abstract class IngestImage : PipelineRoutine
+    public abstract class IngestImage
     {
-        public IngestImage(PipelineCore pipeline) : base(pipeline) { }
+        public readonly PipelineCore pipeline;
+
+        public IngestImage(PipelineCore pipeline)
+        {
+            this.pipeline = pipeline;
+        }
 
         public enum Status
         {

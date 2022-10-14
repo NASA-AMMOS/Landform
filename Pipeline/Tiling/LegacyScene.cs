@@ -1,14 +1,9 @@
 ﻿using Microsoft.Xna.Framework;
-using OPS.Geometry;
-using OPS.Imaging;
-using System;
-using System.Collections.Generic;
+using JPLOPS.Geometry;
+using JPLOPS.Imaging;
 using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
-namespace OPS.Pipeline
+namespace JPLOPS.Pipeline
 {
     /// <summary>
     /// Represents a legacy scene from the original OnSight terrain pipeline

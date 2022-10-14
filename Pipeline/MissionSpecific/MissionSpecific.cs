@@ -1,18 +1,13 @@
 ﻿using System;
-using System.IO;
 using System.Linq;
-using System.Text;
 using System.Text.RegularExpressions;
 using System.Collections.Generic;
 using Microsoft.Xna.Framework;
-using log4net;
-using OPS.Util;
-using OPS.Cloud;
-using OPS.Imaging;
-using OPS.Geometry;
-using OPS.Pipeline.AlignmentServer;
+using JPLOPS.Util;
+using JPLOPS.Imaging;
+using JPLOPS.Pipeline.AlignmentServer;
 
-namespace OPS.Pipeline
+namespace JPLOPS.Pipeline
 {
     public enum Mission { None, MSL, M2020, ROASTT19, TT4, ScarecrowEECAM, ROASTT20, ORT11, TT16, M20SOPS }
 
@@ -26,6 +21,15 @@ namespace OPS.Pipeline
 
         [ConfigEnvironmentVariable("LANDFORM_ALLOW_PDS_LABEL_FILES")]
         public bool AllowPDSLabelFiles { get; set; } = false;
+
+        [ConfigEnvironmentVariable("LANDFORM_ALLOW_VIC_FILES")]
+        public bool AllowVICFiles { get; set; } = true;
+
+        [ConfigEnvironmentVariable("LANDFORM_ALLOW_IMG_FILES")]
+        public bool AllowIMGFiles { get; set; } = true;
+
+        [ConfigEnvironmentVariable("LANDFORM_PREFER_IMG_TO_VIC")]
+        public bool PreferIMGToVIC { get; set; } = true;
 
         [ConfigEnvironmentVariable("LANDFORM_ALLOW_LOCATIONS_DB")]
         public bool AllowLocationsDB { get; set; } = false;
@@ -47,6 +51,9 @@ namespace OPS.Pipeline
 
         [ConfigEnvironmentVariable("LANDFORM_ALLOW_SUN_FINDING")]
         public bool AllowSunFinding { get; set; } = false;
+
+        [ConfigEnvironmentVariable("LANDFORM_IMAGE_PRODUCT_TYPE")]
+        public string ImageProductType { get; set; } = "RAS";
 
         [ConfigEnvironmentVariable("LANDFORM_ALLOW_LINEAR")]
         public bool AllowLinear { get; set; } = true;
@@ -123,7 +130,7 @@ namespace OPS.Pipeline
         public bool UseUnifiedMeshes { get; set; } = false;
 
         [ConfigEnvironmentVariable("LANDFORM_UNIFIED_MESH_PRODUCT_TYPE")]
-        public string UnifiedMeshProductType { get; set; } = "RAS";
+        public string UnifiedMeshProductType { get; set; } = "auto";
 
         //comma separated list of processing types to allow
         //sorted in order of preference (best last)
@@ -156,6 +163,12 @@ namespace OPS.Pipeline
 
         [ConfigEnvironmentVariable("LANDFORM_CONTEXTUAL_MESH_MAX_MASTCAM_TEXTURES_PER_SITEDRIVE")]
         public int ContextualMeshMaxMastcamTexturesPerSiteDrive { get; set; } = 400; 
+
+        [ConfigEnvironmentVariable("LANDFORM_SERVICE_SSM_KEY_BASE")]
+        public string ServiceSSMKeyBase { get; set; } = "/m20/{venue}/ids/landform"; 
+
+        [ConfigEnvironmentVariable("LANDFORM_SERVICE_SSM_ENCRYPTED")]
+        public bool ServiceSSMEncrypted { get; set; } = true;
     }
 
     public abstract class MissionSpecific : ConfigDefaultsProvider
@@ -172,6 +185,7 @@ namespace OPS.Pipeline
         {
             this.venue = venue ?? "dev";
             Config.DefaultsProvider = this;
+            RoverProduct.SetImageRDRType(GetImageProductType());
         }
 
         public string GetConfigDefaults(string configFilename)
@@ -416,6 +430,34 @@ namespace OPS.Pipeline
         }
 
         /// <summary>
+        /// whether to allow IMG files
+        /// typically IMG are transcoded from VIC
+        /// waiting for the the transcoding may add latency
+        /// but on some missions only the IMG may be persistently stored to S3
+        /// </summary>
+        public virtual bool AllowIMGFiles()
+        {
+            return MissionConfig.Instance.AllowIMGFiles;
+        }
+
+        /// <summary>
+        /// whether to allow VIC files
+        /// on some missions only the IMG may be persistently stored to S3
+        /// </summary>
+        public virtual bool AllowVICFiles()
+        {
+            return MissionConfig.Instance.AllowVICFiles;
+        }
+
+        /// <summary>
+        /// whether to prefer IMG to VIC if both are available
+        /// </summary>
+        public virtual bool PreferIMGToVIC ()
+        {
+            return MissionConfig.Instance.PreferIMGToVIC;
+        }
+
+        /// <summary>
         /// whether to allow priors from MSLLocations
         /// </summary>
         public virtual bool AllowLocationsDB()
@@ -469,6 +511,14 @@ namespace OPS.Pipeline
         public virtual bool AllowSunFinding()
         {
             return MissionConfig.Instance.AllowSunFinding;
+        }
+
+        /// <summary>
+        /// get image RDR product type, e.g. for contextual mesh texturing
+        /// </summary>
+        public virtual string GetImageProductType()
+        {
+            return MissionConfig.Instance.ImageProductType;
         }
 
         /// <summary>
@@ -637,7 +687,7 @@ namespace OPS.Pipeline
 
         public virtual string GetUnifiedMeshProductType()
         {
-            return MissionConfig.Instance.UnifiedMeshProductType;
+            return MissionConfig.Instance.UnifiedMeshProductType.Replace("auto", GetImageProductType());
         }
 
         public bool UseForAlignment(PDSParser parser)
@@ -1190,14 +1240,26 @@ namespace OPS.Pipeline
         /// Not case sensitive, no leading dots.
         /// In priority order so if a file is available in multiple formats the first one found will be used.
         /// </summary>
-        public virtual string GetPDSExts()
+        public virtual string GetPDSExts(bool disablePDSLabelFiles = false, bool prioritizePDSLabelFiles = false)
         {
-            string exts = "img";
-            if (AllowPDSLabelFiles())
+            string imgExts = AllowIMGFiles() ? "img" : "";
+            if (!disablePDSLabelFiles && AllowPDSLabelFiles())
             {
-                exts += ",lbl";
+                if (prioritizePDSLabelFiles)
+                {
+                    imgExts = "lbl" + (!string.IsNullOrEmpty(imgExts) ? "," : "") + imgExts;
+                }
+                else
+                {
+                    imgExts += (!string.IsNullOrEmpty(imgExts) ? "," : "") + "lbl";
+                }
             }
-            exts += ",vic";
+
+            string vicExts = AllowVICFiles() ? "vic" : "";
+
+            string exts = PreferIMGToVIC() ? imgExts : vicExts;
+            exts += (!string.IsNullOrEmpty(exts) ? "," : "") + (PreferIMGToVIC() ? vicExts : imgExts);
+
             return exts;
         }
 
@@ -1208,7 +1270,8 @@ namespace OPS.Pipeline
         /// </summary>
         public virtual string GetSceneManifestImageRDRExts()
         {
-            return "img,png,jpg";
+            string exts = GetPDSExts(disablePDSLabelFiles: true);
+            return exts + (!string.IsNullOrEmpty(exts) ? "," : "") + "png,jpg";
         }
 
         /// <summary>
@@ -1321,24 +1384,34 @@ namespace OPS.Pipeline
             return GetAllowedProducers(MissionConfig.Instance.AllowedProducers);
         }
 
-        public virtual string GetSSMProcess()
+        public virtual string GetSSMWatchdogProcess()
         {
             return null;
         }
 
-        public virtual string GetSSMCommand()
+        public virtual string GetSSMWatchdogCommand()
         {
             return null;
         }
 
-        public virtual string GetCloudWatchProcess()
+        public virtual string GetCloudWatchWatchdogProcess()
         {
             return null;
         }
 
-        public virtual string GetCloudWatchCommand()
+        public virtual string GetCloudWatchWatchdogCommand()
         {
             return null;
+        }
+
+        public virtual string GetServiceSSMKeyBase()
+        {
+            return MissionConfig.Instance.ServiceSSMKeyBase.Replace("{venue}", venue);
+        }
+
+        public virtual bool GetServiceSSMEncrypted()
+        {
+            return MissionConfig.Instance.ServiceSSMEncrypted;
         }
     }
 }

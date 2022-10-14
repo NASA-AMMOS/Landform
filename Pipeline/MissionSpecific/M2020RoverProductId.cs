@@ -1,9 +1,8 @@
 using System;
-using System.Collections.Generic;
 using System.Linq;
-using OPS.Util;
+using JPLOPS.Util;
 
-namespace OPS.Pipeline
+namespace JPLOPS.Pipeline
 {
     public class M2020OPGSProductId : OPGSProductId
     {

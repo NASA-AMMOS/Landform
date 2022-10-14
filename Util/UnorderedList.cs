@@ -1,8 +1,6 @@
-using System;
-using System.Collections;
 using System.Collections.Generic;
 
-namespace OPS.Util
+namespace JPLOPS.Util
 {
     /// <summary>
     /// List that has no order but allows for constant-time removal and random access

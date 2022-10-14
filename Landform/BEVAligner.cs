@@ -1,25 +1,22 @@
 using System;
 using System.IO;
 using System.Linq;
-using System.Collections;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
 using System.Threading;
-using System.Diagnostics;
 using Microsoft.Xna.Framework;
 using CommandLine;
 using Emgu.CV;
 using Emgu.CV.Util;
-using Emgu.CV.CvEnum;
 using Emgu.CV.Structure;
 using Emgu.CV.Features2D;
-using OPS.Util;
-using OPS.Imaging;
-using OPS.Imaging.Emgu;
-using OPS.Geometry;
-using OPS.Alignment;
-using OPS.Pipeline;
-using OPS.Pipeline.AlignmentServer;
+using JPLOPS.Util;
+using JPLOPS.Imaging;
+using JPLOPS.Imaging.Emgu;
+using JPLOPS.ImageFeatures;
+using JPLOPS.Geometry;
+using JPLOPS.Pipeline;
+using JPLOPS.Pipeline.AlignmentServer;
 
 /// <summary>
 /// Align sitedrives to each other using features detected in birds-eye-view renders.
@@ -55,7 +52,7 @@ using OPS.Pipeline.AlignmentServer;
 /// Landform.exe bev-align windjana --fixsitedrives 0311472
 ///
 /// </summary>
-namespace OPS.Landform
+namespace JPLOPS.Landform
 {
     public enum AlignmentMode { Pairwise, Simultaneous, None };
 
@@ -340,8 +337,7 @@ namespace OPS.Landform
                         var bev = bevs[siteDrive];
                         var mask = bev.MaskToImage(valid: 1, invalid: 0);
                         var feat = features[siteDrive];
-                        var img = FeatureDetecting.DrawFeaturesEmgu(bev, mask, feat, siteDrive.ToString(),
-                                                                    stretch: false);
+                        var img = ImageFeature.DrawFeaturesEmgu(bev, mask, feat, siteDrive.ToString(), stretch: false);
                         foreach (var otherSiteDrive in siteDrives)
                         {
                             var pixel = BEVPointToPixel(BestTransform, Vector3.Zero, otherSiteDrive, siteDrive);
@@ -370,17 +366,17 @@ namespace OPS.Landform
                              featuresNeeded.Count());
 
             var detectorOpts = new FeatureDetector.Options()
-                {
-                    DetectorType = options.DetectorType,
-                    MinResponse = options.MinFeatureResponse,
-                    MaxFeatures = options.MaxFeaturesPerImage,
-                    ExtraInvalidRadius = options.FeatureExtraInvalidRadius,
-                    FASTThreshold = options.FASTThreshold,
-                    FeaturesPerImageBucketSize = 1000,
-                    FeaturesPerSizeBucketSize = 5,
-                    FeaturesPerResponseBucketSize = 10,
-                };
-            FeatureDetector detector = new FeatureDetector(pipeline, masker, detectorOpts);
+            {
+                DetectorType = options.DetectorType,
+                MinResponse = options.MinFeatureResponse,
+                MaxFeatures = options.MaxFeaturesPerImage,
+                ExtraInvalidRadius = options.FeatureExtraInvalidRadius,
+                FASTThreshold = options.FASTThreshold,
+                FeaturesPerImageBucketSize = 1000,
+                FeaturesPerSizeBucketSize = 5,
+                FeaturesPerResponseBucketSize = 10,
+            };
+            FeatureDetector detector = new FeatureDetector(detectorOpts, pipeline);
 
             int nc = 0, np = 0;
             CoreLimitedParallel.ForEach(featuresNeeded, siteDrive => {
@@ -1021,7 +1017,7 @@ namespace OPS.Landform
 
                         if (options.WriteRansacDebug && matches[pairName].Length > 0)
                         {
-                            SaveImage(AlignmentUtils
+                            SaveImage(FeatureMatch
                                       .DrawMatches(bevs[model], bevs[data], features[model], features[data],
                                                    matches[pairName]
                                                    .Select(m => new KeyValuePair<int, int>(m.DataIndex, m.ModelIndex))
@@ -1032,7 +1028,7 @@ namespace OPS.Landform
 
                         if (ransacMatches[pairName].Length > 0)
                         {
-                            SaveImage(AlignmentUtils
+                            SaveImage(FeatureMatch
                                       .DrawMatches(bevs[model], bevs[data], features[model], features[data],
                                                    ransacMatches[pairName]
                                                    .Select(m => new KeyValuePair<int, int>(m.DataIndex, m.ModelIndex))
@@ -1043,7 +1039,7 @@ namespace OPS.Landform
 
                         if (spatialMatches[pairName].Length > 0)
                         {
-                            SaveMesh(AlignmentUtils
+                            SaveMesh(FeatureMatch
                                      .MakeMatchMesh(spatialMatches[pairName].Select(p => p.ModelPoint).ToArray(),
                                                     spatialMatches[pairName].Select(p => p.DataPoint).ToArray()),
                                      pairName + "_BEV_Matches");

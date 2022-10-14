@@ -1,13 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Microsoft.Xna.Framework;
 using System.Text.RegularExpressions;
 
-namespace OPS.Imaging
+namespace JPLOPS.Imaging
 {
     public class VICMetadataException : Exception
     {

@@ -1,8 +1,7 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
 
-namespace OPS.Util
+namespace JPLOPS.Util
 {
     //https://stackoverflow.com/questions/2081559/is-there-an-equivalent-for-java-weakhashmap-class-in-c
     //https://blogs.msdn.microsoft.com/jaredpar/2009/03/03/building-a-weakreference-hashtable

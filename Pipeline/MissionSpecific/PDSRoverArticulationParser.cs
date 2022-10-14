@@ -1,12 +1,10 @@
-﻿using OPS.Imaging;
+﻿using JPLOPS.Imaging;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
 
-namespace OPS.Pipeline
+namespace JPLOPS.Pipeline
 {
     public abstract class PDSRoverArticulationParser
     {

@@ -1,25 +1,14 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Microsoft.Xna.Framework;
-using Amazon.DynamoDBv2.DataModel;
-using OPS.Cloud;
-using OPS.Alignment;
-using OPS.Pipeline;
 
-namespace OPS.Pipeline.AlignmentServer
+namespace JPLOPS.Pipeline.AlignmentServer
 {
-    [DynamoDBTable("SpatialMatches")]
-    [DynamoDBReadCapacity(50, 100)]
-    [DynamoDBWriteCapacity(50, 100)]
     public class SpatialMatches
     {
-        [DynamoDBRangeKey]
+        [DBRangeKey]
         public string ProjectName;
 
-        [DynamoDBHashKey]
+        [DBHashKey]
         public string Name;
 
         public string ModelName;
@@ -37,7 +26,6 @@ namespace OPS.Pipeline.AlignmentServer
             }
         }
 
-        //This constructor must be public for DynamoDb but should not be used
         public SpatialMatches() { }
 
         protected SpatialMatches(string projectName, string name, string modelName, string dataName, Guid matchesGuid)

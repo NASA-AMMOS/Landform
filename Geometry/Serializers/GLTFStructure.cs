@@ -1,16 +1,14 @@
 ﻿using System;
 using System.IO;
-using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 using Newtonsoft.Json;
-using OPS.Util;
-using OPS.MathExtensions;
-using OPS.Imaging;
+using JPLOPS.Util;
+using JPLOPS.MathExtensions;
 
-namespace OPS.Geometry.GLTF
+namespace JPLOPS.Geometry.GLTF
 {
     /// <summary>
     /// Structures for serializing gltf files as JSON.

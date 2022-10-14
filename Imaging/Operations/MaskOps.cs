@@ -1,11 +1,7 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
-using System.Linq;
-using Microsoft.Xna.Framework;
-using OPS.MathExtensions;
 
-namespace OPS.Imaging
+namespace JPLOPS.Imaging
 {
     public static class MaskOps
     {

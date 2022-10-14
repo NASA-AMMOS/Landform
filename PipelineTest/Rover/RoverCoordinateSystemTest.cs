@@ -1,8 +1,7 @@
-﻿using System;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
+﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Microsoft.Xna.Framework;
-using OPS.Pipeline;
-using OPS.Geometry;
+using JPLOPS.Pipeline;
+using JPLOPS.Geometry;
 
 namespace PipelineTest
 {

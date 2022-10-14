@@ -1,14 +1,10 @@
 ﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
-using OPS.Pipeline;
-using System;
+using JPLOPS.Pipeline;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using OPS.Geometry;
-using OPS.Imaging;
+using JPLOPS.Geometry;
+using JPLOPS.Imaging;
 using Microsoft.Xna.Framework;
-using OPS.RayTrace;
+using JPLOPS.RayTrace;
 
 namespace PipelineTest
 {

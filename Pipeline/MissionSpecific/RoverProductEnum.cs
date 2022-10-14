@@ -2,10 +2,8 @@
 using System.Collections.Generic;
 using System.Collections.Concurrent;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
-namespace OPS.Pipeline
+namespace JPLOPS.Pipeline
 {
     public enum RoverProductCamera
     {
@@ -236,6 +234,10 @@ namespace OPS.Pipeline
 
     public static class RoverProduct
     {
+        public const string DEFAULT_IMAGE_RDR_TYPE = "RAS";
+
+        private static string imageRDRType = DEFAULT_IMAGE_RDR_TYPE;
+
         private static Dictionary<string, RoverProductType> pdsDerivedImageTypes =
             new Dictionary<string, RoverProductType>()
         {
@@ -251,13 +253,25 @@ namespace OPS.Pipeline
         private static Dictionary<string, RoverProductType> rdrProductTypes =
             new Dictionary<string, RoverProductType>()
         {
-            { "RAS", RoverProductType.Image },
+            { imageRDRType, RoverProductType.Image },
             { "MXY", RoverProductType.RoverMask },
             { "RNG", RoverProductType.Range },
             { "XYZ", RoverProductType.Points },
             { "UVW", RoverProductType.Normals },
             { "RNE", RoverProductType.RangeError },
         };
+
+        public static string GetImageRDRType()
+        {
+            return imageRDRType;
+        }
+
+        public static void SetImageRDRType(string rdrType)
+        {
+            rdrProductTypes.Remove(imageRDRType);
+            imageRDRType = rdrType;
+            rdrProductTypes.Add(imageRDRType, RoverProductType.Image);
+        }
 
         public static RoverProductType FromPDSDerivedImageType(string pdsType)
         {

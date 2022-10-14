@@ -1,14 +1,6 @@
-using System;
-using System.Linq;
-using System.Collections.Generic;
-using Amazon.DynamoDBv2.DataModel;
-using Amazon.DynamoDBv2.DocumentModel;
-using Newtonsoft.Json;
-using OPS.Util;
-using OPS.Geometry;
-using OPS.Imaging;
+using JPLOPS.Geometry;
 
-namespace OPS.Pipeline
+namespace JPLOPS.Pipeline
 {
     public class FaceCount : NodeComponent
     {

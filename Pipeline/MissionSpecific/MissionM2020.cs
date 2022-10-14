@@ -2,16 +2,14 @@ using System;
 using System.IO;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
-using OPS.Util;
-using OPS.Cloud;
-using OPS.Imaging;
-using OPS.Pipeline.AlignmentServer;
+using JPLOPS.Util;
+using JPLOPS.Cloud;
+using JPLOPS.Imaging;
+using JPLOPS.Pipeline.AlignmentServer;
 using Microsoft.Xna.Framework;
 
-namespace OPS.Pipeline
+namespace JPLOPS.Pipeline
 {
     public class MissionM2020Config : SingletonConfig<MissionM2020Config>
     {
@@ -185,10 +183,10 @@ namespace OPS.Pipeline
             while (!File.Exists(credssExe) && credssExe.LastIndexOf('/') >= 0)
             {
                 string dir = StringHelper.StripLastUrlPathSegment(credssExe);
-                string tryUtils = $"{dir}/Utils/{credssFilename}";
-                if (File.Exists(tryUtils))
+                string tryBin = $"{dir}/Bin/{credssFilename}";
+                if (File.Exists(tryBin))
                 {
-                    credssExe = tryUtils;
+                    credssExe = tryBin;
                     break;
                 }
                 string parent = dir.LastIndexOf('/') > 0 ? StringHelper.StripLastUrlPathSegment(dir) : null;
@@ -833,23 +831,23 @@ namespace OPS.Pipeline
             return GetAllowedProducers(MissionM2020Config.Instance.AllowedProducers);
         }
 
-        public override string GetSSMProcess()
+        public override string GetSSMWatchdogProcess()
         {
             return MissionM2020Config.Instance.WatchdogSSMProcess;
         }
 
-        public override string GetSSMCommand()
+        public override string GetSSMWatchdogCommand()
         {
             //https://docs.aws.amazon.com/systems-manager/latest/userguide/sysman-install-win.html
             return MissionM2020Config.Instance.WatchdogSSMCommand.Replace("{venue}", venue);
         }
 
-        public override string GetCloudWatchProcess()
+        public override string GetCloudWatchWatchdogProcess()
         {
             return MissionM2020Config.Instance.WatchdogCloudWatchProcess;
         }
 
-        public override string GetCloudWatchCommand()
+        public override string GetCloudWatchWatchdogCommand()
         {
             //https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/install-CloudWatch-Agent-on-EC2-Instance-fleet.html#start-CloudWatch-Agent-EC2-fleet
             string cmd = MissionM2020Config.Instance.WatchdogCloudWatchCommand.Replace("{venue}", venue);

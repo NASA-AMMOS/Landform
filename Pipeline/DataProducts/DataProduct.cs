@@ -3,7 +3,7 @@ using System;
 using System.Linq;
 using System.Security.Cryptography;
 
-namespace OPS.Pipeline
+namespace JPLOPS.Pipeline
 {
     public abstract class DataProduct
     {

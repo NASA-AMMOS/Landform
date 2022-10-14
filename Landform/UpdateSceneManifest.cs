@@ -1,24 +1,15 @@
 using System;
 using System.Linq;
-using System.Collections;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
-using System.Diagnostics;
-using System.Threading;
-using System.Threading.Tasks;
-using System.Text.RegularExpressions;
 using System.IO;
 using CommandLine;
-using log4net;
-using Newtonsoft.Json;
-using Microsoft.Xna.Framework;
-using OPS.Util;
-using OPS.Cloud;
-using OPS.Imaging;
-using OPS.Geometry;
-using OPS.Pipeline.AlignmentServer;
-using OPS.Pipeline;
-using OPS.Landform;
+using JPLOPS.Util;
+using JPLOPS.Cloud;
+using JPLOPS.Imaging;
+using JPLOPS.Geometry;
+using JPLOPS.Pipeline.AlignmentServer;
+using JPLOPS.Pipeline;
 
 /// <summary>
 /// Utility to create or update a tileset scene manifest.
@@ -40,12 +31,12 @@ using OPS.Landform;
 /// their adjusted poses.
 ///
 /// The tilesets (tactical and contextual) must all have the same parent directory --tilesetdir and may either be local
-/// files on disk or on S3 (even without --cloud).
+/// files on disk or on S3.
 ///
 /// Unless --nourls is specified the RDRs must be available (for both tactical and contextual) under --rdrdir.  They can
-/// also be either local files on disk or on S3 (even without --cloud).
+/// also be either local files on disk or on S3.
 ///
-/// The manifest file can also be either a local file on disk or on S3 (even without --cloud).
+/// The manifest file can also be either a local file on disk or on S3.
 ///
 /// Examples:
 ///
@@ -94,9 +85,10 @@ using OPS.Landform;
 ///       --rdrdir s3://bucket/path/sol/#####/ids/rdr
 ///
 /// </summary>
-namespace OPS.Landform
+namespace JPLOPS.Landform
 {
     [Verb("update-scene-manifest", HelpText = "update scene manifest")]
+    [EnvVar("MANIFEST")]
     public class UpdateSceneManifestOptions : GeometryCommandOptions
     {
         [Value(0, HelpText = "Project name, optional if --nocontextual", Default = null)]
@@ -469,15 +461,11 @@ namespace OPS.Landform
             pdsExts = StringHelper.ParseExts(options.PDSRDRExts);
             pipeline.LogInfo("PDS extensions: {0}", string.Join(", ", pdsExts));
 
-            var cp = pipeline as CloudPipeline;
-
             awsProfile = !string.IsNullOrEmpty(options.AWSProfile) ? options.AWSProfile :
-                cp != null && !string.IsNullOrEmpty(cp.AWSProfile) ? cp.AWSProfile :
                 mission.GetDefaultAWSProfile();
             pipeline.LogInfo("AWS profile: {0}", awsProfile);
 
             awsRegion = !string.IsNullOrEmpty(options.AWSRegion) ? options.AWSRegion :
-                cp != null && !string.IsNullOrEmpty(cp.AWSRegion) ? cp.AWSRegion :
                 mission.GetDefaultAWSRegion();
             pipeline.LogInfo("AWS region: {0}", awsRegion);
 

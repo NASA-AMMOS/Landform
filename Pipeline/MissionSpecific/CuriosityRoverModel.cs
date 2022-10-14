@@ -1,14 +1,10 @@
 ﻿using System;
 using System.IO;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
-using OPS.Util;
-using OPS.Geometry;
+using JPLOPS.Util;
+using JPLOPS.Geometry;
 
-namespace OPS.Pipeline
+namespace JPLOPS.Pipeline
 {
     /// <summary>
     /// Geometric rover model. Instances of this class are safe to share between threads.

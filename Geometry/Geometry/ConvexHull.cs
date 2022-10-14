@@ -1,14 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
 using MIConvexHull;
-using OPS.MathExtensions;
-using OPS.Imaging;
+using JPLOPS.MathExtensions;
+using JPLOPS.Imaging;
 
-namespace OPS.Geometry
+namespace JPLOPS.Geometry
 {
     public class ConvexHull
     {

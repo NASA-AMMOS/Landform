@@ -1,21 +1,18 @@
 using System;
 using System.Linq;
-using System.Collections;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
 using System.Threading;
-using System.Diagnostics;
 using Microsoft.Xna.Framework;
 using CommandLine;
-using OPS.MathExtensions;
-using OPS.Util;
-using OPS.Imaging;
-using OPS.Geometry;
-using OPS.Alignment;
-using OPS.Pipeline;
-using OPS.Pipeline.AlignmentServer;
+using JPLOPS.MathExtensions;
+using JPLOPS.Util;
+using JPLOPS.Imaging;
+using JPLOPS.Geometry;
+using JPLOPS.Pipeline;
+using JPLOPS.Pipeline.AlignmentServer;
 
-namespace OPS.Landform
+namespace JPLOPS.Landform
 {
     public enum SiteDrivePriority { Newest, Oldest, Biggest, Smallest, ProjectThenBiggest };
     

@@ -1,13 +1,11 @@
 using System;
 using System.Collections.Generic;
-using System.Collections.Concurrent;
 using System.Linq;
 using System.IO;
-using System.Text;
 using System.Text.RegularExpressions;
-using OPS.Util;
+using JPLOPS.Util;
 
-namespace OPS.Pipeline
+namespace JPLOPS.Pipeline
 {
     public class SiteDriveList
     {
@@ -440,6 +438,7 @@ namespace OPS.Pipeline
         }
 
         //returns rejection reason iff rejected
+        //returns null if accepted, already present, or an equivalent URL (e.g. VIC vs IMG) is already present
         public string Add(string url)
         {
             var idStr = StringHelper.GetLastUrlPathSegment(url, stripExtension: true);
@@ -628,6 +627,10 @@ namespace OPS.Pipeline
         public static string GetRDRDir(string url)
         {
             int rdrSeg = url.ToLower().IndexOf("/rdr/");
+            if (rdrSeg < 0)
+            {
+                rdrSeg = url.ToLower().IndexOf("/fdr/");
+            }
             if (rdrSeg < 0)
             {
                 return null;

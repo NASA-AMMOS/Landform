@@ -3,7 +3,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Text;
 
-namespace OPS.Util
+namespace JPLOPS.Util
 {
     public class TarFile
     {

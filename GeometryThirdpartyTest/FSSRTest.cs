@@ -1,12 +1,13 @@
 ﻿using System;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using OPS.Geometry;
+using JPLOPS.Geometry;
 using System.Collections.Generic;
-using OPS.Util;
+using JPLOPS.Util;
 
 namespace GeometryThirdpartyTest
 {
     [TestClass]
+    [DeploymentItem("ExternalApps", "ExternalApps")]
     public class FSSRTest
     {
         [TestInitialize]

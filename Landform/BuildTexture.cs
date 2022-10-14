@@ -1,14 +1,6 @@
 ﻿using System;
-using System.IO;
-using System.Linq;
-using System.Collections;
-using System.Collections.Generic;
-using System.Collections.Concurrent;
 using CommandLine;
-using OPS.Util;
-using OPS.Imaging;
-using OPS.Geometry;
-using OPS.Pipeline;
+using JPLOPS.Util;
 
 /// <summary>
 /// Generate a full-scene texture by backprojecting observation images in a Landform alignment project.
@@ -30,9 +22,10 @@ using OPS.Pipeline;
 /// Landform.exe build-texture windjana windjana-textured.ply
 ///
 /// </summary>
-namespace OPS.Landform
+namespace JPLOPS.Landform
 {
     [Verb("build-texture", HelpText = "backproject a mesh texture and/or index image")]
+    [EnvVar("TEXTURE")]
     public class BuildTextureOptions : TextureCommandOptions
     {
         [Value(1, Required = false, HelpText = "URL, file, or file type (extension starting with \".\") to which to save textured scene mesh", Default = null)]

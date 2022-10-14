@@ -1,10 +1,6 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using Microsoft.Xna.Framework;
-using OPS.Imaging;
+using JPLOPS.Imaging;
 
-namespace OPS.Pipeline
+namespace JPLOPS.Pipeline
 {
     public class ImageStats : JsonDataProduct
     {

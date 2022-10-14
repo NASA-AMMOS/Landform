@@ -6,7 +6,7 @@
  * Author:   Felix Obermaier
  *
  ******************************************************************************
- * Copyright (c) 2012, Felix Obermaier
+ * Copyright (c) 2012-2018, Felix Obermaier
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -33,7 +33,7 @@ using System.Reflection;
 using Gdal = OSGeo.GDAL.Gdal;
 using Ogr = OSGeo.OGR.Ogr;
 
-namespace OPS.Imaging
+namespace JPLOPS.Imaging
 {
     public static partial class GdalConfiguration
     {
@@ -41,50 +41,55 @@ namespace OPS.Imaging
         private static volatile bool _configuredGdal;
 
         /// <summary>
-        /// Function to determine which platform we're on
-        /// </summary>
-        private static string GetPlatform()
-        {
-            return IntPtr.Size == 4 ? "x86" : "x64";
-        }
-
-
-        /// <summary>
         /// Construction of Gdal/Ogr
         /// </summary>
         static GdalConfiguration()
         {
-            var executingAssemblyFile = new Uri(Assembly.GetExecutingAssembly().GetName().CodeBase).LocalPath;
-            var executingDirectory = Path.GetDirectoryName(executingAssemblyFile);
+            string executingAssemblyFile = new Uri(Assembly.GetExecutingAssembly().GetName().CodeBase).LocalPath;
+            string executingDirectory = Path.GetDirectoryName(executingAssemblyFile);
 
             if (string.IsNullOrEmpty(executingDirectory))
                 throw new InvalidOperationException("cannot get executing directory");
 
 
-            var gdalPath = Path.Combine(executingDirectory, "gdal");
-            var nativePath = Path.Combine(gdalPath, GetPlatform());
+            string gdalPath = Path.Combine(executingDirectory, "gdal");
+            string path, nativePath;
+            if (IsWindows)
+            {
+                nativePath = Path.Combine(gdalPath, GetPlatform());
+                path = Environment.GetEnvironmentVariable("PATH");
+                path = nativePath + ";" + Path.Combine(nativePath, "plugins") + ";" + path;
+            }
+            else
+            {
+                nativePath = gdalPath;
+                path = Environment.GetEnvironmentVariable("LD_LIBRARY_PATH");
+                path = nativePath + ":" + Path.Combine(nativePath, "plugins") + ":" + path;
+            }
 
             // Prepend native path to environment path, to ensure the
             // right libs are being used.
-            var path = Environment.GetEnvironmentVariable("PATH");
-            path = nativePath + ";" + Path.Combine(nativePath, "plugins") + ";" + path;
             Environment.SetEnvironmentVariable("PATH", path);
 
-            // Set the additional GDAL environment variables.
-            var gdalData = Path.Combine(gdalPath, "data");
-            Environment.SetEnvironmentVariable("GDAL_DATA", gdalData);
-            Gdal.SetConfigOption("GDAL_DATA", gdalData);
+            // Set environment variables
+            if (IsWindows)
+            {
+                // Set the additional GDAL environment variables.
+                string gdalData = Path.Combine(gdalPath, "data");
+                Environment.SetEnvironmentVariable("GDAL_DATA", gdalData);
+                Gdal.SetConfigOption("GDAL_DATA", gdalData);
 
-            var driverPath = Path.Combine(nativePath, "plugins");
-            Environment.SetEnvironmentVariable("GDAL_DRIVER_PATH", driverPath);
-            Gdal.SetConfigOption("GDAL_DRIVER_PATH", driverPath);
+                string driverPath = Path.Combine(nativePath, "plugins");
+                Environment.SetEnvironmentVariable("GDAL_DRIVER_PATH", driverPath);
+                Gdal.SetConfigOption("GDAL_DRIVER_PATH", driverPath);
 
-            Environment.SetEnvironmentVariable("GEOTIFF_CSV", gdalData);
-            Gdal.SetConfigOption("GEOTIFF_CSV", gdalData);
+                Environment.SetEnvironmentVariable("GEOTIFF_CSV", gdalData);
+                Gdal.SetConfigOption("GEOTIFF_CSV", gdalData);
 
-            var projSharePath = Path.Combine(gdalPath, "share");
-            Environment.SetEnvironmentVariable("PROJ_LIB", projSharePath);
-            Gdal.SetConfigOption("PROJ_LIB", projSharePath);
+                string projSharePath = Path.Combine(gdalPath, "share");
+                Environment.SetEnvironmentVariable("PROJ_LIB", projSharePath);
+                Gdal.SetConfigOption("PROJ_LIB", projSharePath);
+            }
         }
 
         /// <summary>
@@ -117,6 +122,28 @@ namespace OPS.Imaging
             PrintDriversGdal();
         }
 
+
+        /// <summary>
+        /// Function to determine which platform we're on
+        /// </summary>
+        private static string GetPlatform()
+        {
+            if (IsWindows)
+                return IntPtr.Size == 4 ? "x86" : "x64";
+            return IntPtr.Size == 4 ? "i386" : "x86_x64";
+        }
+
+        /// <summary>
+        /// Gets a value indicating if we are on a windows platform
+        /// </summary>
+        private static bool IsWindows
+        {
+            get
+            {
+                return !(Environment.OSVersion.Platform == PlatformID.Unix ||
+                         Environment.OSVersion.Platform == PlatformID.MacOSX);
+            }
+        }
         private static void PrintDriversOgr()
         {
 #if DEBUG

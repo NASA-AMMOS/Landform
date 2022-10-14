@@ -1,7 +1,6 @@
 using Microsoft.Xna.Framework;
-using OPS.Cloud;
 
-namespace OPS.Pipeline
+namespace JPLOPS.Pipeline
 {
     public class SpatialMatch
     {

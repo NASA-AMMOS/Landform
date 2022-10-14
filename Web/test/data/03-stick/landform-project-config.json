@@ -1,8 +1,0 @@
-{
-  "name": "03-stick",
-  "options": "tilingscheme=QuadZ",
-  "inputs": [
-    { "mesh": "stick.ply", "texture": "stick.tif" }
-  ],
-  "maxTime": "1h"
-}
