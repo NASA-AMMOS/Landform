@@ -2761,7 +2761,7 @@ namespace JPLOPS.Landform
             var checkedKeys = new List<string>();
             foreach (string keyPath in keys)
             {
-                string key = string.Format("{0}/{1}extent", service, keyPath); //keyPath has trailing slash iff nonempty
+                string key = keyPath + "extent"; //keyPath has trailing slash iff nonempty
                 string overrideExtent = GetParameter(service, key);
                 if (overrideExtent != null)
                 {
@@ -2777,11 +2777,11 @@ namespace JPLOPS.Landform
                                          overrideExtent, key);
                     }
                 }
-                checkedKeys.Add(key);
+                checkedKeys.Add($"{keyBase}/{service}/{key}");
             }
 
             pipeline.LogInfo($"using default extent {options.Extent}m, no override extent in SSM keys:\n  " +
-                             string.Join("\n  ", checkedKeys.Select(k => $"{keyBase}/{service}/{k}")));
+                             string.Join("\n  ", checkedKeys));
 
             return options.Extent;
         }
