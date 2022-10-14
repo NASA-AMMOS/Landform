@@ -3264,13 +3264,13 @@ namespace JPLOPS.Landform
                         double age = now - placesDBCacheTime;
                         if (placesDBCache != null && placesDBCacheTime >= 0 && age > placesDBCacheMaxAgeSec)
                         {
-                            pipeline.LogInfo("clearing PlacesDB cache, age {0}s > {1}s",
+                            pipeline.LogInfo("clearing PlacesDB cache, age {0} > {1}",
                                              Fmt.HMS(1e3 * age), Fmt.HMS(1e3 * placesDBCacheMaxAgeSec));
                             placesDBCache = null;
                         }
                         if (placesDBCache != null)
                         {
-                            pipeline.LogInfo("re-using existing PlacesDB cache, age {0}s <= {1}s",
+                            pipeline.LogInfo("re-using existing PlacesDB cache, age {0} <= {1}",
                                              Fmt.HMS(1e3 * age), Fmt.HMS(1e3 * placesDBCacheMaxAgeSec));
                             placesDB.SetCache(placesDBCache);
                         }
