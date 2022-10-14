@@ -467,6 +467,9 @@ namespace JPLOPS.Landform
             {
                 throw new ArgumentException("--deletelru requires --accountexisting");
             }
+
+            logger.InfoFormat("accepted extensions: " + string.Join(",", acceptedExtensions));
+            logger.InfoFormat("prefer IMG to VIC: " + preferIMGToVIC);
         }
 
         private bool ShouldTrace(string url)
@@ -936,7 +939,7 @@ namespace JPLOPS.Landform
                 logger.InfoFormat("filtered {0}->{1} products by URL", urls.Count, filtered.Count);
             }
 
-            if (preferIMGToVIC && acceptedExtensions.Contains(".IMG") && acceptedExtensions.Contains(".VIC"))
+            if (acceptedExtensions.Contains(".IMG") && acceptedExtensions.Contains(".VIC"))
             {
                 var imgURLs = new Dictionary<string, string>(); //URL without ext -> full URL
                 var vicURLs = new Dictionary<string, string>();

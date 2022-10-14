@@ -1482,7 +1482,7 @@ namespace JPLOPS.Landform
 
         protected override bool UseMessageStopwatch()
         {
-            return false;
+            return !options.Master;
         }
 
         public static string MakeSolRanges(HashSet<int> sols)
