@@ -675,6 +675,11 @@ namespace JPLOPS.Landform
             return true;
         }
 
+        protected virtual bool SuppressRejections()
+        {
+            return false;
+        }
+
         protected virtual QueueMessage MakeRecycledMessage(QueueMessage msg)
         {
             throw new NotImplementedException("cannot make recycled messages");
@@ -1096,6 +1101,7 @@ namespace JPLOPS.Landform
             int maxAgeSec = GetMaxMessageAgeSec();
             int maxReceiveCount = GetMaxReceiveCount();
             bool messageStopwatch = UseMessageStopwatch();
+            bool suppressRejections = SuppressRejections();
             pipeline.LogInfo("running service loop on queue {0}, throttle {1}ms", messageQueue.Name, throttleMS);
 
             if (!string.IsNullOrEmpty(selfEC2InstanceID) && lvopts.IdleShutdownSec > 0 &&
@@ -1266,9 +1272,20 @@ namespace JPLOPS.Landform
                                               failMessageQueue != null ? "adding to" : "no");
                         }
 
-                        if (!accepted && !string.IsNullOrEmpty(rejectionReason))
+                        if (!accepted)
                         {
-                            pipeline.LogVerbose("rejected message: {0}", rejectionReason);
+                            if (string.IsNullOrEmpty(rejectionReason))
+                            {
+                                rejectionReason = "(unknown)";
+                            }
+                            if (suppressRejections)
+                            {
+                                pipeline.LogVerbose("rejected message: {0}", rejectionReason);
+                            }
+                            else
+                            {
+                                pipeline.LogInfo("rejected message: {0}", rejectionReason);
+                            }
                         }
 
                         if (recycle && deleted)

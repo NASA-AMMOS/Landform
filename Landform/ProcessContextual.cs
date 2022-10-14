@@ -1485,6 +1485,11 @@ namespace JPLOPS.Landform
             return !options.Master;
         }
 
+        protected override bool SuppressRejections()
+        {
+            return options.Master;
+        }
+
         public static string MakeSolRanges(HashSet<int> sols)
         {
             var ranges = new List<int[]>();
