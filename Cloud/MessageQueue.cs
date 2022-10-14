@@ -40,6 +40,9 @@ namespace JPLOPS.Cloud
         //this may be a lower bounds
         [JsonIgnore]
         public int ApproxReceiveCount = -1;
+
+        [JsonIgnore]
+        public string MessageText;
     }
 
     public class MessageQueue : IDisposable
@@ -271,6 +274,7 @@ namespace JPLOPS.Cloud
                             }
                         }
                         qm.ApproxReceiveMS = Math.Max(now, qm.ApproxFirstReceiveMS);
+                        qm.MessageText = msg.Body;
                     }
                     return m;
                 }

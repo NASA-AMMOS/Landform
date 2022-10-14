@@ -1278,13 +1278,15 @@ namespace JPLOPS.Landform
                             {
                                 rejectionReason = "(unknown)";
                             }
+                            string spew = string.Format("rejected {0} message \"{1}\": {2}",
+                                                        msg.GetType().Name, msg.MessageText, rejectionReason);
                             if (suppressRejections)
                             {
-                                pipeline.LogVerbose("rejected message: {0}", rejectionReason);
+                                pipeline.LogVerbose(spew);
                             }
                             else
                             {
-                                pipeline.LogInfo("rejected message: {0}", rejectionReason);
+                                pipeline.LogInfo(spew);
                             }
                         }
 
