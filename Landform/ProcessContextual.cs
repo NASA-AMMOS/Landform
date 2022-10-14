@@ -1067,13 +1067,22 @@ namespace JPLOPS.Landform
                     return true; //drop message
                 }
                 bool isFDR = fdrRegex != null && fdrRegex.IsMatch(url);
-                if (!options.NoOrbital && isFDR)
+                if (isFDR)
                 {
-                    AddChangedURL(changedOrbitalURLs, rdrDir, sd.Value, url);
+                    Interlocked.Exchange(ref eofTimestamp, 0);
+                    if (!options.NoOrbital)
+                    {
+                        AddChangedURL(changedOrbitalURLs, rdrDir, sd.Value, url);
+                    }
                 }
-                if (!options.NoSurface && !isFDR)
+                else
                 {
-                    AddChangedURL(changedContextualURLs, rdrDir, sd.Value, url);
+                    Interlocked.Exchange(ref eoxTimestamp, 0);
+                    Interlocked.Exchange(ref eopTimestamp, 0);
+                    if (!options.NoSurface)
+                    {
+                        AddChangedURL(changedContextualURLs, rdrDir, sd.Value, url);
+                    }
                 }
                 return true; //successfully processed, remove message from queue
             }
@@ -3559,10 +3568,10 @@ namespace JPLOPS.Landform
                 {
                     long lastChange = changedURLs[rdrDir].Values
                         .SelectMany(d => d.Values)
-                        .DefaultIfEmpty(-1)
+                        .DefaultIfEmpty(0)
                         .Max();
 
-                    bool debounceTimeout = lastChange >= 0 && (debounceMS <= 0 || lastChange <= (now - debounceMS));
+                    bool debounceTimeout = lastChange > 0 && (debounceMS <= 0 || lastChange <= (now - debounceMS));
 
                     if (eop || debounceTimeout)
                     {
@@ -3588,8 +3597,8 @@ namespace JPLOPS.Landform
             int targetPeriodSec = MASTER_LOOP_PERIOD_SEC;
             pipeline.LogInfo("running master loop, period {0}s, debounce {1}s", targetPeriodSec, debounceMS / 1000);
 
-            long latentEOP = -1;
-            string latentEOPMessage = null;
+            long latentEOP = 0;
+            string latentEOPMessage = "";
 
             while (!abort)
             {
@@ -3666,24 +3675,49 @@ namespace JPLOPS.Landform
                             fin = finalEOP;
                             eopMsg = string.Format("EOP{0} at {1}", fin ? " (final)" : "" , ToLocalTime(eopMS));
                         }
-                        if (!fin && latentEOP > eop)
+                        bool wasLatent = false;
+                        if (latentEOP > 0)
                         {
-                            eop = latentEOP;
-                            eopMsg = latentEOPMessage;
+                            long lastChange = changedContextualURLs.Values
+                                .SelectMany(d => d.Values)
+                                .SelectMany(d => d.Values)
+                                .DefaultIfEmpty(0).Max();
+                            if (latentEOP < lastChange)
+                            {
+                                pipeline.LogInfo("dropping latent {0}: {1} < last change {2}",
+                                                 latentEOPMessage, Fmt.HMS(latentEOP), Fmt.HMS(lastChange));
+                            }
+                            else if (eop > 0)
+                            {
+                                pipeline.LogInfo("dropping latent {0}, newer {1}", latentEOPMessage, eopMsg);
+                            }
+                            else
+                            {
+                                pipeline.LogInfo("restoring latent {0} from {1}", latentEOPMessage, Fmt.HMS(latentEOP));
+                                eop = latentEOP;
+                                eopMsg = latentEOPMessage;
+                                wasLatent = true;
+                            }
+                            latentEOP = 0;
+                            latentEOPMessage = "";
                         }
-                        latentEOP = -1;
-                        latentEOPMessage = null;
                         if (!fin && eopDebounceMS > 0)
                         {
-                            if ((UTCTime.Now() - eop) < eopDebounceMS)
+                            long now = (long)(UTCTime.Now());
+                            if (now - eop < eopDebounceMS)
                             {
+                                pipeline.LogInfo("saving latent {0} from {1} at {2} < {3}", latentEOPMessage,
+                                                 Fmt.HMS(latentEOP), Fmt.HMS(now), Fmt.HMS(latentEOP + eopDebounceMS));
                                 latentEOP = eop;
                                 latentEOPMessage = eopMsg;
-                                eop = -1;
+                                eop = 0;
                                 eopMsg = "";
                             }
                             else if (!string.IsNullOrEmpty(eopMsg))
                             {
+                                pipeline.LogInfo("{0} debounce expired for {1}{2} {3} >= {4}", Fmt.HMS(debounceMS),
+                                                 wasLatent ? "latent " : "", eopMsg, Fmt.HMS(now),
+                                                 Fmt.HMS(eop + debounceMS));
                                 eopMsg += $" ({(debounceMS / 1000):f3}s debounce expired)";
                             }
                         }
