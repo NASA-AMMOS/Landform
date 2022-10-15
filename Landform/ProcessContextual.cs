@@ -3693,8 +3693,8 @@ namespace JPLOPS.Landform
                             }
                             else
                             {
-                                pipeline.LogInfo("restoring latent {0} from {1}", latentEOPMessage,
-                                                 ToLocalTime(latentEOP));
+                                pipeline.LogVerbose("restoring latent {0} from {1}", latentEOPMessage,
+                                                    ToLocalTime(latentEOP));
                                 eop = latentEOP;
                                 eopMsg = latentEOPMessage;
                                 wasLatent = true;
@@ -3704,11 +3704,11 @@ namespace JPLOPS.Landform
                         }
                         if (!fin && eopDebounceMS > 0)
                         {
-                            long now = (long)(UTCTime.Now());
+                            long now = (long)(UTCTime.NowMS());
                             if (now - eop < eopDebounceMS)
                             {
-                                pipeline.LogInfo("saving latent {0} from {1} at {2} < {3}", eopMsg, ToLocalTime(eop),
-                                                 ToLocalTime(now), ToLocalTime(eop + eopDebounceMS));
+                                pipeline.LogVerbose("saving latent {0} from {1} at {2} < {3}", eopMsg, ToLocalTime(eop),
+                                                    ToLocalTime(now), ToLocalTime(eop + eopDebounceMS));
                                 latentEOP = eop;
                                 latentEOPMessage = eopMsg;
                                 eop = 0;
@@ -3716,9 +3716,9 @@ namespace JPLOPS.Landform
                             }
                             else if (!string.IsNullOrEmpty(eopMsg))
                             {
-                                pipeline.LogInfo("{0} debounce expired for {1}{2} {3} >= {4}", Fmt.HMS(debounceMS),
+                                pipeline.LogInfo("{0} debounce expired for {1}{2} {3} >= {4}", Fmt.HMS(eopDebounceMS),
                                                  wasLatent ? "latent " : "", eopMsg, ToLocalTime(now),
-                                                 ToLocalTime(eop + debounceMS));
+                                                 ToLocalTime(eop + eopDebounceMS));
                                 eopMsg += $" ({(debounceMS / 1000):f3}s debounce expired)";
                             }
                         }
