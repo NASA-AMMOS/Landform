@@ -3685,7 +3685,7 @@ namespace JPLOPS.Landform
                             if (latentEOP < lastChange)
                             {
                                 pipeline.LogInfo("dropping latent {0}: {1} < last change {2}",
-                                                 latentEOPMessage, Fmt.HMS(latentEOP), Fmt.HMS(lastChange));
+                                                 latentEOPMessage, ToLocalTime(latentEOP), ToLocalTime(lastChange));
                             }
                             else if (eop > 0)
                             {
@@ -3693,7 +3693,8 @@ namespace JPLOPS.Landform
                             }
                             else
                             {
-                                pipeline.LogInfo("restoring latent {0} from {1}", latentEOPMessage, Fmt.HMS(latentEOP));
+                                pipeline.LogInfo("restoring latent {0} from {1}", latentEOPMessage,
+                                                 ToLocalTime(latentEOP));
                                 eop = latentEOP;
                                 eopMsg = latentEOPMessage;
                                 wasLatent = true;
@@ -3706,8 +3707,8 @@ namespace JPLOPS.Landform
                             long now = (long)(UTCTime.Now());
                             if (now - eop < eopDebounceMS)
                             {
-                                pipeline.LogInfo("saving latent {0} from {1} at {2} < {3}", latentEOPMessage,
-                                                 Fmt.HMS(latentEOP), Fmt.HMS(now), Fmt.HMS(latentEOP + eopDebounceMS));
+                                pipeline.LogInfo("saving latent {0} from {1} at {2} < {3}", eopMsg, ToLocalTime(eop),
+                                                 ToLocalTime(now), ToLocalTime(eop + eopDebounceMS));
                                 latentEOP = eop;
                                 latentEOPMessage = eopMsg;
                                 eop = 0;
@@ -3716,8 +3717,8 @@ namespace JPLOPS.Landform
                             else if (!string.IsNullOrEmpty(eopMsg))
                             {
                                 pipeline.LogInfo("{0} debounce expired for {1}{2} {3} >= {4}", Fmt.HMS(debounceMS),
-                                                 wasLatent ? "latent " : "", eopMsg, Fmt.HMS(now),
-                                                 Fmt.HMS(eop + debounceMS));
+                                                 wasLatent ? "latent " : "", eopMsg, ToLocalTime(now),
+                                                 ToLocalTime(eop + debounceMS));
                                 eopMsg += $" ({(debounceMS / 1000):f3}s debounce expired)";
                             }
                         }
