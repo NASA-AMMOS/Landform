@@ -1043,8 +1043,9 @@ namespace JPLOPS.Landform
 
         protected bool CheckCredentials(bool force = false)
         {
-            if (!force && credentialRefreshSec <= 0)
+            if (credentialRefreshSec <= 0)
             {
+                //don't attempt refresh if refresh time is configured as non-positive, even if force
                 return false;
             }
 
