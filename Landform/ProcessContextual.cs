@@ -2716,17 +2716,19 @@ namespace JPLOPS.Landform
             return ret;
         }
 
-        // searches for extent overrides in parameter store
-        // in order from more specific to less specific
+        // searches for extent overrides in parameter store in order from more specific to less specific
         //
-        // /m20/{venue}/ids/landform/{contextual,orbital}/{sol}/{site}{drive}/extent
-        // /m20/{venue}/ids/landform/{contextual,orbital}/{sol}/{site}/{drive}/extent
-        // /m20/{venue}/ids/landform/{contextual,orbital}/{sol}_{site}{drive}/extent
-        // /m20/{venue}/ids/landform/{contextual,orbital}/{site}{drive}/extent
-        // /m20/{venue}/ids/landform/{contextual,orbital}/site/{site}/drive/{drive}/extent
-        // /m20/{venue}/ids/landform/{contextual,orbital}/site/{site}/extent
-        // /m20/{venue}/ids/landform/{contextual,orbital}/sol/{sol}/extent
-        // /m20/{venue}/ids/landform/{contextual,orbital}/extent
+        // {base}/{contextual,orbital}/{sol}/{site}{drive}/extent
+        // {base}/{contextual,orbital}/{sol}/{site}/{drive}/extent
+        // {base}/{contextual,orbital}/{sol}_{site}{drive}/extent
+        // {base}/{contextual,orbital}/{site}{drive}/extent
+        // {base}/{contextual,orbital}/site/{site}/drive/{drive}/extent
+        // {base}/{contextual,orbital}/site/{site}/extent
+        // {base}/{contextual,orbital}/sol/{sol}/extent
+        // {base}/{contextual,orbital}/extent
+        //
+        // {base} defaults to /m20/{venue}/ids/landform but can be overridden
+        // M20 deployments typically override by adding a /dyn suffix
         private double GetExtent(int primarySol, SiteDrive primarySD, String service = "contextual")
         {
             if (!IsService())
