@@ -1815,9 +1815,13 @@ namespace JPLOPS.Landform
             string pidFile = null;
             if (!string.IsNullOrEmpty(options.TilesetVersion))
             {
-                if (int.TryParse(options.TilesetVersion, out int v) && v > 0)
+                if (int.TryParse(options.TilesetVersion, out int v))
                 {
-                    version = "V" + v.ToString("D2");
+                    if (v > 0) { //leave version unset for non-positive integer
+                        version = "V" + v.ToString("D2");
+                    }
+                } else { //non-integer version 
+                    version = "V" + options.TilesetVersion;
                 }
                 versionedProject = project + version + projSfx;
                 pidFile = SavePID(destDir, versionedProject, "interlock");
