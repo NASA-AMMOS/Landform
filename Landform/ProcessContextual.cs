@@ -563,7 +563,7 @@ namespace JPLOPS.Landform
                     return false;
                 }
 
-                if (rdrDir != other.rdrDir)
+                if (ProcessContextual.NormalizeRDRDir(rdrDir) != ProcessContextual.NormalizeRDRDir(other.rdrDir))
                 {
                     if (logger != null)
                     {

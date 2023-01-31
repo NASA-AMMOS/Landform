@@ -142,7 +142,7 @@ namespace JPLOPS.Landform
         public const string STATS_TXT = "stats.txt";
         public const string PID_JSON = "pid.json";
 
-        public readonly string[] RDR_SUBDIRS = new string[] { "rdr", "fdr" };
+        public static readonly string[] RDR_SUBDIRS = new string[] { "rdr", "fdr" };
         public const string TILESET_SUBDIR = "tileset";
 
         public static readonly string[] VERBOSE_SAVE_SUFFIXES =
@@ -752,24 +752,29 @@ namespace JPLOPS.Landform
             return ms <= 0;
         }
 
+        protected static string NormalizeRDRDir(string path)
+        {
+            path = StringHelper.EnsureTrailingSlash(StringHelper.NormalizeSlashes(path));
+            int rdrIdx = -1;
+            foreach (string rdrSubdir in RDR_SUBDIRS)
+            {
+                string rdrSegment = string.Format("/{0}/", rdrSubdir.ToLower());
+                rdrIdx = path.ToLower().LastIndexOf(rdrSegment);
+                if (rdrIdx >= 0)
+                {
+                    break;
+                }
+            }
+            return rdrIdx >= 0 ? (path.Substring(0, rdrIdx) + "/rdr/") : path;
+        }
+
         protected string GetDestDir(string inputFolder, bool quiet = false)
         {
             if (!string.IsNullOrEmpty(outputFolder))
             {
                 return outputFolder;
             }
-            inputFolder = StringHelper.EnsureTrailingSlash(StringHelper.NormalizeSlashes(inputFolder));
-            int rdrIdx = -1;
-            foreach (string rdrSubdir in RDR_SUBDIRS)
-            {
-                string rdrSegment = string.Format("/{0}/", rdrSubdir.ToLower());
-                rdrIdx = inputFolder.ToLower().LastIndexOf(rdrSegment);
-                if (rdrIdx >= 0)
-                {
-                    break;
-                }
-            }
-            string ret = (rdrIdx >= 0 ? (inputFolder.Substring(0, rdrIdx) + "/rdr/") : inputFolder) + TILESET_SUBDIR;
+            string ret = NormalizeRDRDir(inputFolder) + TILESET_SUBDIR;
             foreach (string rb in StringHelper.ParseList(lsopts.ReadonlyBuckets))
             {
                 if (ret.StartsWith("s3://" + StringHelper.EnsureTrailingSlash(StringHelper.NormalizeSlashes(rb))))
