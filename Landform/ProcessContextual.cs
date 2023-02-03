@@ -402,11 +402,11 @@ namespace JPLOPS.Landform
 
         public const string FETCH_DIR = "fetched";
 
-        new public const int DEF_MAX_HANDLER_SEC = 6 * 60 * 60; //6 hours
-        new public const int DEF_MAX_MESSAGE_AGE_SEC = 6 * 60 * 60; //6 hours
+        new public const int DEF_MAX_HANDLER_SEC = 10 * 60 * 60; //10 hours
+        new public const int DEF_MAX_MESSAGE_AGE_SEC = 12 * 60 * 60; //12 hours since first receive
 
         public const int DEF_MASTER_MAX_HANDLER_SEC = 10 * 60; //10 minutes
-        public const int DEF_MASTER_MAX_MESSAGE_AGE_SEC = 1 * 60 * 60; //1 hour
+        public const int DEF_MASTER_MAX_MESSAGE_AGE_SEC = 1 * 60 * 60; //1 hour since first receive
 
         public const int DEF_WORKER_AUTOSTART_SEC = 5 * 60; //5 minutes
 
