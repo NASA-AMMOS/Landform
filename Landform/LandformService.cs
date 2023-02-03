@@ -182,7 +182,7 @@ namespace JPLOPS.Landform
         //under what circumstances can a messge possibly be culled due to max age?
         //one case is if workers actually spend more than an hour in aggegate trying to process the message,
         //making fewer than 10 total attempts, but always fail
-        public const int DEF_MAX_RECEIVE_COUNT = 10;
+        public const int DEF_MAX_RECEIVE_COUNT = 3;
 
         //ASG scale down trigger may watch for this text
         public const string LOG_IDLE_MSG = "service idle, shutdown requested";
