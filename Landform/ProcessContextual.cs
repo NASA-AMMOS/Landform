@@ -795,6 +795,19 @@ namespace JPLOPS.Landform
             }
         }
 
+        protected override double GetFirstSendMS(QueueMessage msg)
+        {
+            var cmm = msg as ContextualMeshMessage;
+            if (cmm != null && cmm.recycledFirstReceiveMS > 0)
+            {
+                return (double)(cmm.timestamp);
+            }
+            else
+            {
+                return base.GetFirstSendMS(msg);
+            }
+        }
+
         protected override int GetNumReceives(QueueMessage msg)
         {
             int nr = msg.ApproxReceiveCount;
