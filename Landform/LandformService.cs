@@ -211,7 +211,7 @@ namespace JPLOPS.Landform
         ///
         /// For example
         /// * HeartbeatLoop() acquires credentials when it needs to update SQS message timeouts.
-        /// * ProcessContextual.MasterLoop() acquires credentials while it may use PLACES or S3.
+        /// * ProcessContextual.MasterLoop() acquires credentials while it may use PLACES.
         /// </summary>
         protected object credentialRefreshLock = new Object(), longRunningCredentialRefreshLock = new Object();
 

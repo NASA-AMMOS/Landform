@@ -345,6 +345,9 @@ namespace JPLOPS.Landform
         [Option(Default = ProcessContextual.DEF_PLACESDB_CACHE_MAX_AGE_SEC, HelpText = "Cache PlacesDB results for up to this long, disabled if 0, default if negative")]
         public int MasterPlacesDBCacheMaxAgeSec { get; set; }
 
+        [Option(Default = false, HelpText = "Don't re-initialize PlacesDB for each query when running as service. Default is to re-init, which means that credential locking will be more fine-grained.  Batch mode does not re-init.")]
+        public bool MasterNoReinitPlacesDBPerQuery { get; set; }
+
         [Option(Default = false, HelpText = "Worker message queue(s) Landform owned")]
         public bool LandformOwnedWorkerQueue { get; set; }
 
@@ -2073,8 +2076,8 @@ namespace JPLOPS.Landform
                     CheckCredentials();
                     RunCommand("ingest", project, "--mission", fullMissionStr, "--meshframe", sdStr, 
                                "--onlyforsitedrives", sdsStr, "--onlyforsols", solRanges,
-                               "--inputpath", ingestDir + "/" + (options.RecursiveSearch ? "**" : "*"), noSurface,
-                               noOrbital, orbitalDEMFileOpt, orbitalImageFileOpt, camerasOpt);
+                               "--inputpath", ingestDir + "/" + (options.RecursiveSearch ? "**" : "*"),
+                               noSurface, noOrbital, orbitalDEMFileOpt, orbitalImageFileOpt, camerasOpt);
                 }
 
                 if (!options.NoAlign && !orbitalOnly &&
@@ -2914,19 +2917,26 @@ namespace JPLOPS.Landform
                                      "PlacesDB not available to check distance <= {2}", sd, primarySD, maxDistance);
                     continue;
                 }
-                
+
                 try
                 {
-                    double dist = placesDB.GetOffset(primarySD, sd).Length();
-                    if (dist <= maxDistance)
-                    {
-                        keepers[sd] = filtered;
-                        distance[sd] = dist;
-                    }
-                    else
-                    {
-                        pipeline.LogInfo("not including sitedrive {0} in contextual mesh for {1}, " +
-                                         "PlacesDB distance {2:F3} > {3:F3}", sd, primarySD, dist, maxDistance);
+                    bool reinit = serviceMode && !options.MasterNoReinitPlacesDBPerQuery;
+                    lock (reinit ? longRunningCredentialRefreshLock : new Object()) {
+                        if (reinit)
+                        {
+                            placesDB = InitPlacesDB(quiet: true);
+                        }
+                        double dist = placesDB.GetOffset(primarySD, sd).Length();
+                        if (dist <= maxDistance)
+                        {
+                            keepers[sd] = filtered;
+                            distance[sd] = dist;
+                        }
+                        else
+                        {
+                            pipeline.LogInfo("not including sitedrive {0} in contextual mesh for {1}, " +
+                                             "PlacesDB distance {2:F3} > {3:F3}", sd, primarySD, dist, maxDistance);
+                        }
                     }
                 }
                 catch (Exception ex)
@@ -3261,11 +3271,11 @@ namespace JPLOPS.Landform
 
         private bool UsePlacesDB()
         {
-            var placesCfg = PlacesConfig.Instance;
-            return !string.IsNullOrEmpty(placesCfg.Url) && !string.IsNullOrEmpty(placesCfg.View);
+            var cfg = PlacesConfig.Instance;
+            return mission.AllowPlacesDB() && !string.IsNullOrEmpty(cfg.Url) && !string.IsNullOrEmpty(cfg.View);
         }
 
-        private PlacesDB InitPlacesDB()
+        private PlacesDB InitPlacesDB(bool quiet = false)
         {
             if (UsePlacesDB())
             {
@@ -3285,8 +3295,11 @@ namespace JPLOPS.Landform
                         }
                         if (placesDBCache != null)
                         {
-                            pipeline.LogInfo("re-using existing PlacesDB cache, age {0} <= {1}",
-                                             Fmt.HMS(1e3 * age), Fmt.HMS(1e3 * placesDBCacheMaxAgeSec));
+                            if (!quiet)
+                            {
+                                pipeline.LogInfo("re-using existing PlacesDB cache, age {0} <= {1}",
+                                                 Fmt.HMS(1e3 * age), Fmt.HMS(1e3 * placesDBCacheMaxAgeSec));
+                            }
                             placesDB.SetCache(placesDBCache);
                         }
                         else
@@ -3296,7 +3309,7 @@ namespace JPLOPS.Landform
                             pipeline.LogInfo("saving PlacesDB cache for later re-use");
                         }
                     }
-                    else
+                    else if (!quiet)
                     {
                         pipeline.LogInfo("not restoring PlacesDB cache, max age{0}s", placesDBCacheMaxAgeSec);
                     }
@@ -3307,7 +3320,10 @@ namespace JPLOPS.Landform
                     pipeline.LogError("error initializing PlacesDB: {0}", ex.Message);
                 }
             }
-            pipeline.LogInfo("not using PlacesDB");
+            if (!quiet)
+            {
+                pipeline.LogInfo("not using PlacesDB");
+            }
             return null;
         }
 
@@ -3458,7 +3474,7 @@ namespace JPLOPS.Landform
             foreach (var rdrDir in urls.Keys)
             {
                 Dictionary<SiteDrive, Stamped<SiteDriveList>> sdLists = null;
-                lock (longRunningCredentialRefreshLock)
+                lock (options.UseDefaultAWSProfileForS3Client ? new Object() : longRunningCredentialRefreshLock)
                 {
                     sdLists = LoadSiteDriveLists(rdrDir, urls[rdrDir]);
                 }
@@ -3528,7 +3544,8 @@ namespace JPLOPS.Landform
                 //better to try on each pass rather than once ever
                 var msgs = new List<Stamped<ContextualMeshMessage>>();
                 bool usePlaces = UsePlacesDB();
-                lock (usePlaces ? longRunningCredentialRefreshLock : new Object())
+                bool reinitPlaces = !options.MasterNoReinitPlacesDBPerQuery;
+                lock (usePlaces && !reinitPlaces ? longRunningCredentialRefreshLock : new Object())
                 {
                     var placesDB = usePlaces ? InitPlacesDB() : null;
                     foreach (var changedSD in changedSDs)
