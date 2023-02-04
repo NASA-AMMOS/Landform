@@ -74,11 +74,8 @@ namespace JPLOPS.Landform
         [Option(Default = 0, HelpText = "Maximum handler runtime, nonpositive to use default")]
         public int MaxHandlerSec { get; set; }
 
-        [Option(Default = 0, HelpText = "Maximum unhandled message age since first receive, nonpositive to use default")]
-        public int MaxMessageAgeSec { get; set; }
-
         [Option(Default = 0, HelpText = "Maximum unhandled message age since first send, nonpositive to use default")]
-        public int MaxMessageTotalAgeSec { get; set; }
+        public int MaxMessageAgeSec { get; set; }
 
         [Option(Default = LandformService.DEF_MAX_RECEIVE_COUNT, HelpText = "Maximum message receive count, nonpositive for unlimited")]
         public int MaxReceiveCount { get; set; }
@@ -150,8 +147,7 @@ namespace JPLOPS.Landform
         public const int IDLE_EVENT_THROTTLE_SEC = 60;
 
         public const int DEF_MAX_HANDLER_SEC = 10 * 60; //10 minutes
-        public const int DEF_MAX_MESSAGE_AGE_SEC = 60 * 60; //1 hour since first receive
-        public const int DEF_MAX_MESSAGE_TOTAL_AGE_SEC = 24 * 60 * 60; //1 day since first sent
+        public const int DEF_MAX_MESSAGE_AGE_SEC = 24 * 60 * 60; //1 day since first sent
 
         public const double DEF_WATCHDOG_PERIOD = 5; //seconds
         public const double DEF_WATCHDOG_WARN_GB = 20;
@@ -198,7 +194,7 @@ namespace JPLOPS.Landform
         protected MessageQueue messageQueue;
         protected MessageQueue failMessageQueue;
 
-        protected int defMaxHandlerSec, defMaxMessageAgeSec, defMaxMessageTotalAgeSec;
+        protected int defMaxHandlerSec, defMaxMessageAgeSec;
 
         /// <summary>
         /// ServiceLoop() acquires credentialRefreshLock before calling RefreshCredentials().
@@ -277,7 +273,6 @@ namespace JPLOPS.Landform
             this.lvopts = options;
             defMaxHandlerSec = DEF_MAX_HANDLER_SEC;
             defMaxMessageAgeSec = DEF_MAX_MESSAGE_AGE_SEC;
-            defMaxMessageTotalAgeSec = DEF_MAX_MESSAGE_TOTAL_AGE_SEC;
         }
 
         public int Run()
@@ -466,8 +461,7 @@ namespace JPLOPS.Landform
                 int timeoutSec = messageQueue != null ? messageQueue.TimeoutSec : GetDefaultMessageTimeoutSec();
                 pipeline.LogInfo("message timeout: {0}", Fmt.HMS(timeoutSec * 1e3));
                 pipeline.LogInfo("max handler time: {0}", Fmt.HMS(GetMaxHandlerSec() * 1e3));
-                pipeline.LogInfo("max message age since first receive: {0}", Fmt.HMS(GetMaxMessageAgeSec() * 1e3));
-                pipeline.LogInfo("max message age since first send: {0}", Fmt.HMS(GetMaxMessageTotalAgeSec() * 1e3));
+                pipeline.LogInfo("max message age since first send: {0}", Fmt.HMS(GetMaxMessageAgeSec() * 1e3));
                 
                 int mrc = GetMaxReceiveCount();
                 pipeline.LogInfo("max receive count: {0}", mrc < int.MaxValue ? ("" + mrc) : "unlimited");
@@ -656,23 +650,12 @@ namespace JPLOPS.Landform
         }
 
         /// <summary>
-        /// Messages that keep being received longer than this many seconds
-        /// since the first time they are received by any worker
-        /// (e.g. because they keep failing to be processed)
+        /// Messages that are older than this many seconds since they were first sent
         /// will be culled from the queue.
         /// </summary>
         protected virtual int GetMaxMessageAgeSec()
         {
             return lvopts.MaxMessageAgeSec > 0 ? lvopts.MaxMessageAgeSec : defMaxMessageAgeSec;
-        }
-
-        /// <summary>
-        /// Messages that are older than this many seconds since they were first sent
-        /// will be culled from the queue.
-        /// </summary>
-        protected virtual int GetMaxMessageTotalAgeSec()
-        {
-            return lvopts.MaxMessageTotalAgeSec > 0 ? lvopts.MaxMessageTotalAgeSec : defMaxMessageTotalAgeSec;
         }
 
         protected virtual int GetMaxReceiveCount()
@@ -698,11 +681,6 @@ namespace JPLOPS.Landform
         protected virtual QueueMessage MakeRecycledMessage(QueueMessage msg)
         {
             throw new NotImplementedException("cannot make recycled messages");
-        }
-
-        protected virtual double GetFirstReceiveMS(QueueMessage msg)
-        {
-            return msg.ApproxFirstReceiveMS;
         }
 
         protected virtual double GetFirstSendMS(QueueMessage msg)
@@ -1120,7 +1098,6 @@ namespace JPLOPS.Landform
         {
             int throttleMS = GetDequeueThrottleMS();
             int maxAgeSec = GetMaxMessageAgeSec();
-            int maxTotalAgeSec = GetMaxMessageTotalAgeSec();
             int maxReceiveCount = GetMaxReceiveCount();
             bool messageStopwatch = UseMessageStopwatch();
             bool suppressRejections = SuppressRejections();
@@ -1204,11 +1181,11 @@ namespace JPLOPS.Landform
                         idlePendingStartTime = -1;
 
                         string desc = DescribeMessage(msg);
-                        int ageSec = (int)(0.001 * (msg.ApproxReceiveMS - GetFirstReceiveMS(msg)));
-                        int totalAgeSec = (int)(0.001 * (msg.ApproxReceiveMS - GetFirstSendMS(msg)));
+
+                        double nowMS = 1e3 * UTCTime.Now();
+                        int ageSec = (int)(0.001 * (nowMS - GetFirstSendMS(msg)));
                         int receiveCount = GetNumReceives(msg);
-                        bool tooOld =
-                            ageSec > maxAgeSec || totalAgeSec > maxTotalAgeSec || receiveCount > maxReceiveCount;
+                        bool tooOld = ageSec > maxAgeSec || receiveCount > maxReceiveCount;
                         bool accepted = AcceptMessage(msg, out string rejectionReason);
                         bool handled = false;
                         bool recycle = false;
@@ -1225,8 +1202,8 @@ namespace JPLOPS.Landform
                             currentMessage = msg;
                             lastHeartbeatSec = messageStartSec = (uint)UTCTime.Now();
                             
-                            pipeline.LogInfo("processing {0} (age {1}, {2} since first receive, {3} receives)", desc,
-                                             Fmt.HMS(totalAgeSec * 1e3), Fmt.HMS(ageSec * 1e3), receiveCount);
+                            pipeline.LogInfo("processing {0} (age {1}, {2} receives)",
+                                             desc, Fmt.HMS(ageSec * 1e3), receiveCount);
 
                             try
                             {

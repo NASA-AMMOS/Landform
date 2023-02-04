@@ -403,10 +403,7 @@ namespace JPLOPS.Landform
         public const string FETCH_DIR = "fetched";
 
         new public const int DEF_MAX_HANDLER_SEC = 10 * 60 * 60; //10 hours
-        new public const int DEF_MAX_MESSAGE_AGE_SEC = 12 * 60 * 60; //12 hours since first receive
-
         public const int DEF_MASTER_MAX_HANDLER_SEC = 10 * 60; //10 minutes
-        public const int DEF_MASTER_MAX_MESSAGE_AGE_SEC = 1 * 60 * 60; //1 hour since first receive
 
         public const int DEF_WORKER_AUTOSTART_SEC = 5 * 60; //5 minutes
 
@@ -531,7 +528,6 @@ namespace JPLOPS.Landform
             public bool orbitalOnly;
             public long timestamp; //UTC milliseconds since epoch when message was created
             public int numFailedAttempts;
-            public long recycledFirstReceiveMS; //UTC ms since epoch when recycled message was originally first received
             public double extent = -1; //in meters, non-positive to use default
 #pragma warning restore 0649
 
@@ -746,7 +742,6 @@ namespace JPLOPS.Landform
         {
             this.options = options;
             defMaxHandlerSec = options.Master ? DEF_MASTER_MAX_HANDLER_SEC : DEF_MAX_HANDLER_SEC;
-            defMaxMessageAgeSec = options.Master ? DEF_MASTER_MAX_MESSAGE_AGE_SEC : DEF_MAX_MESSAGE_AGE_SEC;
         }
 
         protected override void RunBatch()
@@ -761,61 +756,28 @@ namespace JPLOPS.Landform
 
         protected override QueueMessage MakeRecycledMessage(QueueMessage msg)
         {
-            if (!options.Master)
-            {
-                var cmm = msg as ContextualMeshMessage;
-                if (cmm != null)
-                {
-                    cmm.recycledFirstReceiveMS = cmm.numFailedAttempts > 0 && cmm.recycledFirstReceiveMS > 0 ?
-                        cmm.recycledFirstReceiveMS : (long)(msg.ApproxFirstReceiveMS);
-                    cmm.numFailedAttempts++;
-                    return cmm;
-                }
-                else
-                {
-                    throw new NotImplementedException("cannot make recycled message, not a contextual mesh message");
-                }
-            }
-            else
-            {
-                throw new NotImplementedException("cannot make recycled messages in master mode");
-            }
-        }
-
-        protected override double GetFirstReceiveMS(QueueMessage msg)
-        {
             var cmm = msg as ContextualMeshMessage;
-            if (cmm != null && cmm.recycledFirstReceiveMS > 0)
+            if (cmm != null)
             {
-                return (double)(cmm.recycledFirstReceiveMS);
+                cmm.numFailedAttempts++;
+                return cmm;
             }
             else
             {
-                return base.GetFirstReceiveMS(msg);
+                throw new NotImplementedException("cannot make recycled message, not a contextual mesh message");
             }
         }
 
         protected override double GetFirstSendMS(QueueMessage msg)
         {
             var cmm = msg as ContextualMeshMessage;
-            if (cmm != null && cmm.recycledFirstReceiveMS > 0)
-            {
-                return (double)(cmm.timestamp);
-            }
-            else
-            {
-                return base.GetFirstSendMS(msg);
-            }
+            return cmm != null ? (double)(cmm.timestamp) : base.GetFirstSendMS(msg);
         }
 
         protected override int GetNumReceives(QueueMessage msg)
         {
-            int nr = msg.ApproxReceiveCount;
-            if (msg is ContextualMeshMessage)
-            {
-                nr += (msg as ContextualMeshMessage).numFailedAttempts;
-            }
-            return nr;
+            var cmm = msg as ContextualMeshMessage;
+            return (cmm != null ? cmm.numFailedAttempts : 0) + msg.ApproxReceiveCount;
         }
 
         protected override string DescribeMessage(QueueMessage msg, bool verbose = false)
@@ -3050,7 +3012,7 @@ namespace JPLOPS.Landform
         /// Also optionally removes messages for tilesets which are already processed (or being processed).
         /// The messages must all have the same RDR dir.
         /// De-dupes, preferring newer-created messages to older.
-        /// enforces options.MaxSiteDrivesPerSol
+        /// enforces options.MaxSiteDrivesPerSol, options.MaxMessageAge, options.MaxReceiveCount
         /// Returns messages sorted first by decreasing sol, then by decreasing number of wedges.
         /// </summary>
         private List<ContextualMeshMessage> CoalesceMessages(List<ContextualMeshMessage> newMsgsOldestToNewest,
@@ -3118,8 +3080,7 @@ namespace JPLOPS.Landform
             //keep only unique messages
             //this is where ContextualMeshMessage GetHashCode() and Equals() get used
             var keepers = new HashSet<ContextualMeshMessage>();
-
-            void keepNewest(List<ContextualMeshMessage> msgs, string kind)
+            void keepUniqueNewest(List<ContextualMeshMessage> msgs, string kind)
             {
                 for (int i = msgs.Count - 1; i >= 0; i--) //iterate newest -> oldest
                 {
@@ -3136,13 +3097,12 @@ namespace JPLOPS.Landform
             }
 
             //it is possible, but unlikely, that there are dupes even in new messages
-            keepNewest(newMsgsOldestToNewest, "new");
+            keepUniqueNewest(newMsgsOldestToNewest, "new");
 
             //now reap all the existing messages in the worker queue for the same rdrDir
             //and keep any that aren't dupes of new messages
             //really there should be no dupes among the old messages
             //but just in case, keep them in order
-            int oldMsgsCount = 0;
             var oldMsgsOldestToNewest = new List<ContextualMeshMessage>();
             while (true)
             {
@@ -3154,14 +3114,57 @@ namespace JPLOPS.Landform
                 if (msg.rdrDir == rdrDir)
                 {
                     queue.DeleteMessage(msg);
+                    if (!options.DeprioritizeRetries && msg.ApproxReceiveCount > 1)
+                    {
+                        //with DeprioritizeRetries worker will recycle message and increment numFailedAttempts
+                        //but otherwise we need to bookeep the receive count here
+                        //(minus one because we just received it)
+                        msg.numFailedAttempts += (msg.ApproxReceiveCount - 1);
+                    }
                     oldMsgsOldestToNewest.Add(msg);
                 }
             }
-            pipeline.LogInfo("dequeued {0} {1} messages from {2}", oldMsgsOldestToNewest.Count, what, queue.Name);
+            int oldMsgsCount = oldMsgsOldestToNewest.Count;
+            pipeline.LogInfo("dequeued {0} {1} messages from {2}", oldMsgsCount, what, queue.Name);
             
-            keepNewest(oldMsgsOldestToNewest, "old");
-            
-            oldMsgsCount += oldMsgsOldestToNewest.Count;
+            keepUniqueNewest(oldMsgsOldestToNewest, "old");
+
+            int maxAgeSec = GetMaxMessageAgeSec();
+            int maxReceiveCount = GetMaxReceiveCount();
+            double nowMS = 1e3 * UTCTime.Now();
+            var live = new List<ContextualMeshMessage>();
+            foreach (var msg in keepers) {
+                int ageSec = (int)(0.001 * (nowMS - GetFirstSendMS(msg)));
+                string reason =
+                    (ageSec > maxAgeSec) ?
+                    string.Format("too old {0} > {1}", Fmt.HMS(ageSec * 1e3), Fmt.HMS(maxAgeSec * 1e3)) :
+                    (msg.numFailedAttempts > maxReceiveCount) ?
+                    string.Format("too many retries {0} > {1}", msg.numFailedAttempts, maxReceiveCount) :
+                    null;
+                if (string.IsNullOrEmpty(reason))
+                {
+                    live.Add(msg);
+                }
+                else
+                {
+                    string desc = DescribeMessage(msg);
+                    pipeline.LogError("{0} {1}, removing from queue, {2} fail queue", desc, reason,
+                                      failMessageQueue != null ? "adding to" : "no");
+                    if (failMessageQueue != null)
+                    {
+                        try
+                        {
+                            failMessageQueue.Enqueue(msg);
+                        }
+                        catch (Exception failQueueException)
+                        {
+                            pipeline.LogException(failQueueException, "adding message to fail queue");
+                        }
+                    }
+                }
+            }
+            keepers.Clear();
+            keepers.UnionWith(live);
 
             if (options.MaxSiteDrivesPerSol > 0 && keepers.Any(msg => !msg.orbitalOnly))
             {
