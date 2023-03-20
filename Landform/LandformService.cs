@@ -165,23 +165,6 @@ namespace JPLOPS.Landform
 
         public const int MAX_OPEN_QUEUE_RETRIES = 2;
 
-        //there is an interplay between the max message age and the max receive count
-        //because each time a message is received it becomes invisible for at least the visibility timeout of the queue
-        //which is typically 30s
-        //(our heartbeat loop may further extend the visibility timeout, but it is always at least that)
-        //so e.g. 10 receives should mean that the message is at least 300s (5 min) old
-        //
-        //if the max message age is e.g. 1 hour, and there are active and available consumers on the queue,
-        //then a bad message might typically get culled due to max receive count well before it reaches max age
-        //
-        //note that message "age" is actually computed as the time since the first receive of the message
-        //so messages posted to queues while there are no active or available consumers can wait in the queue
-        //for an arbitrary amount of time before they are first received
-        //
-        //so if max message age is 1 hour, max receive count is 10, and queue visibility timeout is 30s
-        //under what circumstances can a messge possibly be culled due to max age?
-        //one case is if workers actually spend more than an hour in aggegate trying to process the message,
-        //making fewer than 10 total attempts, but always fail
         public const int DEF_MAX_RECEIVE_COUNT = 3;
 
         //ASG scale down trigger may watch for this text
