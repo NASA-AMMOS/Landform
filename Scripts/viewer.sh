@@ -58,14 +58,22 @@ baseurl=$hproxy:$port/$viewer/index.html
 scriptdir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
 if [ ! -f $out/$viewer/index.html ]; then
-    if [ ! -f out/$viewer.zip ]; then aws --profile=credss-default s3 cp s3://$lfbucket/$viewer.zip $out/$viewer.zip; fi
+    if [ ! -f $out/$viewer.zip ]; then aws --profile=credss-default s3 cp s3://$lfbucket/$viewer.zip $out/$viewer.zip; fi
     if [[ `uname -s` == MINGW* ]]; then
         powershell $scriptdir/unzip.ps1 ./$out/$viewer.zip ./$out
     else
         unzip ./$out/$viewer.zip -d ./$out
     fi
     # see $docurl...
-    sed -i '/<script.*nity.*oader.js.*script>/i <script>XMLHttpRequest.prototype.originalOpen = XMLHttpRequest.prototype.open; var newOpen = function(_, url) { var original = this.originalOpen.apply(this, arguments); if (url.match(/https:\\/\\/[^/]*\\.m20\\.jpl\\.nasa\\.gov.*/g)) this.withCredentials = true; return original; }; XMLHttpRequest.prototype.open = newOpen;</script>' $out/$viewer/index.html
+    scr1='/<script.*nity.*oader.js.*script>/i'
+    scr2='<script>XMLHttpRequest.prototype.originalOpen = XMLHttpRequest.prototype.open; var newOpen = function(_, url) { var original = this.originalOpen.apply(this, arguments); if (url.match(/https:\\/\\/[^/]*\\.m20\\.jpl\\.nasa\\.gov.*/g)) this.withCredentials = true; return original; }; XMLHttpRequest.prototype.open = newOpen;</script>'
+    if [[ `uname -s` == Darwin ]]; then
+        scr1=$scr1$'\\\n'
+        sed "$scr1$scr2" $out/$viewer/index.html > $out/$viewer/tmp.html
+        mv $out/$viewer/tmp.html $out/$viewer/index.html
+    else
+        sed -i "$scr1 $scr2" $out/$viewer/index.html
+    fi
 fi
 
 pem=localhost-${venue}.pem

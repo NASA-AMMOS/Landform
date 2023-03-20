@@ -345,6 +345,9 @@ namespace JPLOPS.Landform
         [Option(Default = ProcessContextual.DEF_PLACESDB_CACHE_MAX_AGE_SEC, HelpText = "Cache PlacesDB results for up to this long, disabled if 0, default if negative")]
         public int MasterPlacesDBCacheMaxAgeSec { get; set; }
 
+        [Option(Default = false, HelpText = "Don't re-initialize PlacesDB for each query when running as service. Default is to re-init, which means that credential locking will be more fine-grained.  Batch mode does not re-init.")]
+        public bool MasterNoReinitPlacesDBPerQuery { get; set; }
+
         [Option(Default = false, HelpText = "Worker message queue(s) Landform owned")]
         public bool LandformOwnedWorkerQueue { get; set; }
 
@@ -399,11 +402,8 @@ namespace JPLOPS.Landform
 
         public const string FETCH_DIR = "fetched";
 
-        new public const int DEF_MAX_HANDLER_SEC = 6 * 60 * 60; //6 hours
-        new public const int DEF_MAX_MESSAGE_AGE_SEC = 6 * 60 * 60; //6 hours
-
+        new public const int DEF_MAX_HANDLER_SEC = 10 * 60 * 60; //10 hours
         public const int DEF_MASTER_MAX_HANDLER_SEC = 10 * 60; //10 minutes
-        public const int DEF_MASTER_MAX_MESSAGE_AGE_SEC = 1 * 60 * 60; //1 hour
 
         public const int DEF_WORKER_AUTOSTART_SEC = 5 * 60; //5 minutes
 
@@ -528,7 +528,6 @@ namespace JPLOPS.Landform
             public bool orbitalOnly;
             public long timestamp; //UTC milliseconds since epoch when message was created
             public int numFailedAttempts;
-            public long recycledFirstReceiveMS; //UTC ms since epoch when recycled message was originally first received
             public double extent = -1; //in meters, non-positive to use default
 #pragma warning restore 0649
 
@@ -563,7 +562,7 @@ namespace JPLOPS.Landform
                     return false;
                 }
 
-                if (rdrDir != other.rdrDir)
+                if (ProcessContextual.NormalizeRDRDir(rdrDir) != ProcessContextual.NormalizeRDRDir(other.rdrDir))
                 {
                     if (logger != null)
                     {
@@ -743,7 +742,6 @@ namespace JPLOPS.Landform
         {
             this.options = options;
             defMaxHandlerSec = options.Master ? DEF_MASTER_MAX_HANDLER_SEC : DEF_MAX_HANDLER_SEC;
-            defMaxMessageAgeSec = options.Master ? DEF_MASTER_MAX_MESSAGE_AGE_SEC : DEF_MAX_MESSAGE_AGE_SEC;
         }
 
         protected override void RunBatch()
@@ -758,48 +756,28 @@ namespace JPLOPS.Landform
 
         protected override QueueMessage MakeRecycledMessage(QueueMessage msg)
         {
-            if (!options.Master)
+            var cmm = msg as ContextualMeshMessage;
+            if (cmm != null)
             {
-                var cmm = msg as ContextualMeshMessage;
-                if (cmm != null)
-                {
-                    cmm.recycledFirstReceiveMS = cmm.numFailedAttempts > 0 && cmm.recycledFirstReceiveMS > 0 ?
-                        cmm.recycledFirstReceiveMS : (long)(msg.ApproxFirstReceiveMS);
-                    cmm.numFailedAttempts++;
-                    return cmm;
-                }
-                else
-                {
-                    throw new NotImplementedException("cannot make recycled message, not a contextual mesh message");
-                }
+                cmm.numFailedAttempts++;
+                return cmm;
             }
             else
             {
-                throw new NotImplementedException("cannot make recycled messages in master mode");
+                throw new NotImplementedException("cannot make recycled message, not a contextual mesh message");
             }
         }
 
-        protected override double GetFirstReceiveMS(QueueMessage msg)
+        protected override double GetFirstSendMS(QueueMessage msg)
         {
             var cmm = msg as ContextualMeshMessage;
-            if (cmm != null && cmm.recycledFirstReceiveMS > 0)
-            {
-                return (double)(cmm.recycledFirstReceiveMS);
-            }
-            else
-            {
-                return base.GetFirstReceiveMS(msg);
-            }
+            return cmm != null ? (double)(cmm.timestamp) : base.GetFirstSendMS(msg);
         }
 
         protected override int GetNumReceives(QueueMessage msg)
         {
-            int nr = msg.ApproxReceiveCount;
-            if (msg is ContextualMeshMessage)
-            {
-                nr += (msg as ContextualMeshMessage).numFailedAttempts;
-            }
-            return nr;
+            var cmm = msg as ContextualMeshMessage;
+            return (cmm != null ? cmm.numFailedAttempts : 0) + msg.ApproxReceiveCount;
         }
 
         protected override string DescribeMessage(QueueMessage msg, bool verbose = false)
@@ -1815,9 +1793,13 @@ namespace JPLOPS.Landform
             string pidFile = null;
             if (!string.IsNullOrEmpty(options.TilesetVersion))
             {
-                if (int.TryParse(options.TilesetVersion, out int v) && v > 0)
+                if (int.TryParse(options.TilesetVersion, out int v))
                 {
-                    version = "V" + v.ToString("D2");
+                    if (v > 0) { //leave version unset for non-positive integer
+                        version = "V" + v.ToString("D2");
+                    }
+                } else { //non-integer version 
+                    version = "V" + options.TilesetVersion;
                 }
                 versionedProject = project + version + projSfx;
                 pidFile = SavePID(destDir, versionedProject, "interlock");
@@ -2069,8 +2051,8 @@ namespace JPLOPS.Landform
                     CheckCredentials();
                     RunCommand("ingest", project, "--mission", fullMissionStr, "--meshframe", sdStr, 
                                "--onlyforsitedrives", sdsStr, "--onlyforsols", solRanges,
-                               "--inputpath", ingestDir + "/" + (options.RecursiveSearch ? "**" : "*"), noSurface,
-                               noOrbital, orbitalDEMFileOpt, orbitalImageFileOpt, camerasOpt);
+                               "--inputpath", ingestDir + "/" + (options.RecursiveSearch ? "**" : "*"),
+                               noSurface, noOrbital, orbitalDEMFileOpt, orbitalImageFileOpt, camerasOpt);
                 }
 
                 if (!options.NoAlign && !orbitalOnly &&
@@ -2910,19 +2892,26 @@ namespace JPLOPS.Landform
                                      "PlacesDB not available to check distance <= {2}", sd, primarySD, maxDistance);
                     continue;
                 }
-                
+
                 try
                 {
-                    double dist = placesDB.GetOffset(primarySD, sd).Length();
-                    if (dist <= maxDistance)
-                    {
-                        keepers[sd] = filtered;
-                        distance[sd] = dist;
-                    }
-                    else
-                    {
-                        pipeline.LogInfo("not including sitedrive {0} in contextual mesh for {1}, " +
-                                         "PlacesDB distance {2:F3} > {3:F3}", sd, primarySD, dist, maxDistance);
+                    bool reinit = serviceMode && !options.MasterNoReinitPlacesDBPerQuery;
+                    lock (reinit ? longRunningCredentialRefreshLock : new Object()) {
+                        if (reinit)
+                        {
+                            placesDB = InitPlacesDB(quiet: true);
+                        }
+                        double dist = placesDB.GetOffset(primarySD, sd).Length();
+                        if (dist <= maxDistance)
+                        {
+                            keepers[sd] = filtered;
+                            distance[sd] = dist;
+                        }
+                        else
+                        {
+                            pipeline.LogInfo("not including sitedrive {0} in contextual mesh for {1}, " +
+                                             "PlacesDB distance {2:F3} > {3:F3}", sd, primarySD, dist, maxDistance);
+                        }
                     }
                 }
                 catch (Exception ex)
@@ -3023,7 +3012,7 @@ namespace JPLOPS.Landform
         /// Also optionally removes messages for tilesets which are already processed (or being processed).
         /// The messages must all have the same RDR dir.
         /// De-dupes, preferring newer-created messages to older.
-        /// enforces options.MaxSiteDrivesPerSol
+        /// enforces options.MaxSiteDrivesPerSol, options.MaxMessageAge, options.MaxReceiveCount
         /// Returns messages sorted first by decreasing sol, then by decreasing number of wedges.
         /// </summary>
         private List<ContextualMeshMessage> CoalesceMessages(List<ContextualMeshMessage> newMsgsOldestToNewest,
@@ -3091,8 +3080,7 @@ namespace JPLOPS.Landform
             //keep only unique messages
             //this is where ContextualMeshMessage GetHashCode() and Equals() get used
             var keepers = new HashSet<ContextualMeshMessage>();
-
-            void keepNewest(List<ContextualMeshMessage> msgs, string kind)
+            void keepUniqueNewest(List<ContextualMeshMessage> msgs, string kind)
             {
                 for (int i = msgs.Count - 1; i >= 0; i--) //iterate newest -> oldest
                 {
@@ -3109,13 +3097,12 @@ namespace JPLOPS.Landform
             }
 
             //it is possible, but unlikely, that there are dupes even in new messages
-            keepNewest(newMsgsOldestToNewest, "new");
+            keepUniqueNewest(newMsgsOldestToNewest, "new");
 
             //now reap all the existing messages in the worker queue for the same rdrDir
             //and keep any that aren't dupes of new messages
             //really there should be no dupes among the old messages
             //but just in case, keep them in order
-            int oldMsgsCount = 0;
             var oldMsgsOldestToNewest = new List<ContextualMeshMessage>();
             while (true)
             {
@@ -3127,14 +3114,57 @@ namespace JPLOPS.Landform
                 if (msg.rdrDir == rdrDir)
                 {
                     queue.DeleteMessage(msg);
+                    if (!options.DeprioritizeRetries && msg.ApproxReceiveCount > 1)
+                    {
+                        //with DeprioritizeRetries worker will recycle message and increment numFailedAttempts
+                        //but otherwise we need to bookeep the receive count here
+                        //(minus one because we just received it)
+                        msg.numFailedAttempts += (msg.ApproxReceiveCount - 1);
+                    }
                     oldMsgsOldestToNewest.Add(msg);
                 }
             }
-            pipeline.LogInfo("dequeued {0} {1} messages from {2}", oldMsgsOldestToNewest.Count, what, queue.Name);
+            int oldMsgsCount = oldMsgsOldestToNewest.Count;
+            pipeline.LogInfo("dequeued {0} {1} messages from {2}", oldMsgsCount, what, queue.Name);
             
-            keepNewest(oldMsgsOldestToNewest, "old");
-            
-            oldMsgsCount += oldMsgsOldestToNewest.Count;
+            keepUniqueNewest(oldMsgsOldestToNewest, "old");
+
+            int maxAgeSec = GetMaxMessageAgeSec();
+            int maxReceiveCount = GetMaxReceiveCount();
+            double nowMS = 1e3 * UTCTime.Now();
+            var live = new List<ContextualMeshMessage>();
+            foreach (var msg in keepers) {
+                int ageSec = (int)(0.001 * (nowMS - GetFirstSendMS(msg)));
+                string reason =
+                    (ageSec > maxAgeSec) ?
+                    string.Format("too old {0} > {1}", Fmt.HMS(ageSec * 1e3), Fmt.HMS(maxAgeSec * 1e3)) :
+                    (msg.numFailedAttempts > maxReceiveCount) ?
+                    string.Format("too many retries {0} > {1}", msg.numFailedAttempts, maxReceiveCount) :
+                    null;
+                if (string.IsNullOrEmpty(reason))
+                {
+                    live.Add(msg);
+                }
+                else
+                {
+                    string desc = DescribeMessage(msg);
+                    pipeline.LogError("{0} {1}, removing from queue, {2} fail queue", desc, reason,
+                                      failMessageQueue != null ? "adding to" : "no");
+                    if (failMessageQueue != null)
+                    {
+                        try
+                        {
+                            failMessageQueue.Enqueue(msg);
+                        }
+                        catch (Exception failQueueException)
+                        {
+                            pipeline.LogException(failQueueException, "adding message to fail queue");
+                        }
+                    }
+                }
+            }
+            keepers.Clear();
+            keepers.UnionWith(live);
 
             if (options.MaxSiteDrivesPerSol > 0 && keepers.Any(msg => !msg.orbitalOnly))
             {
@@ -3257,11 +3287,11 @@ namespace JPLOPS.Landform
 
         private bool UsePlacesDB()
         {
-            var placesCfg = PlacesConfig.Instance;
-            return !string.IsNullOrEmpty(placesCfg.Url) && !string.IsNullOrEmpty(placesCfg.View);
+            var cfg = PlacesConfig.Instance;
+            return mission.AllowPlacesDB() && !string.IsNullOrEmpty(cfg.Url) && !string.IsNullOrEmpty(cfg.View);
         }
 
-        private PlacesDB InitPlacesDB()
+        private PlacesDB InitPlacesDB(bool quiet = false)
         {
             if (UsePlacesDB())
             {
@@ -3281,8 +3311,11 @@ namespace JPLOPS.Landform
                         }
                         if (placesDBCache != null)
                         {
-                            pipeline.LogInfo("re-using existing PlacesDB cache, age {0} <= {1}",
-                                             Fmt.HMS(1e3 * age), Fmt.HMS(1e3 * placesDBCacheMaxAgeSec));
+                            if (!quiet)
+                            {
+                                pipeline.LogInfo("re-using existing PlacesDB cache, age {0} <= {1}",
+                                                 Fmt.HMS(1e3 * age), Fmt.HMS(1e3 * placesDBCacheMaxAgeSec));
+                            }
                             placesDB.SetCache(placesDBCache);
                         }
                         else
@@ -3292,7 +3325,7 @@ namespace JPLOPS.Landform
                             pipeline.LogInfo("saving PlacesDB cache for later re-use");
                         }
                     }
-                    else
+                    else if (!quiet)
                     {
                         pipeline.LogInfo("not restoring PlacesDB cache, max age{0}s", placesDBCacheMaxAgeSec);
                     }
@@ -3303,7 +3336,10 @@ namespace JPLOPS.Landform
                     pipeline.LogError("error initializing PlacesDB: {0}", ex.Message);
                 }
             }
-            pipeline.LogInfo("not using PlacesDB");
+            if (!quiet)
+            {
+                pipeline.LogInfo("not using PlacesDB");
+            }
             return null;
         }
 
@@ -3454,7 +3490,7 @@ namespace JPLOPS.Landform
             foreach (var rdrDir in urls.Keys)
             {
                 Dictionary<SiteDrive, Stamped<SiteDriveList>> sdLists = null;
-                lock (longRunningCredentialRefreshLock)
+                lock (options.UseDefaultAWSProfileForS3Client ? new Object() : longRunningCredentialRefreshLock)
                 {
                     sdLists = LoadSiteDriveLists(rdrDir, urls[rdrDir]);
                 }
@@ -3524,7 +3560,8 @@ namespace JPLOPS.Landform
                 //better to try on each pass rather than once ever
                 var msgs = new List<Stamped<ContextualMeshMessage>>();
                 bool usePlaces = UsePlacesDB();
-                lock (usePlaces ? longRunningCredentialRefreshLock : new Object())
+                bool reinitPlaces = !options.MasterNoReinitPlacesDBPerQuery;
+                lock (usePlaces && !reinitPlaces ? longRunningCredentialRefreshLock : new Object())
                 {
                     var placesDB = usePlaces ? InitPlacesDB() : null;
                     foreach (var changedSD in changedSDs)

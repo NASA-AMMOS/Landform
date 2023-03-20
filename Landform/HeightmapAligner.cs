@@ -28,8 +28,8 @@ using JPLOPS.Pipeline.AlignmentServer;
 /// sitedrive, is aligned to it. All sitedrives that failed to align in the first stage are then aligned to the orbital
 /// DEM.
 ///
-/// Either ICP (iterated closest point) is typically used to perform each alignment, but simulated annealing can
-/// optionally be enabled as well.
+/// ICP (iterated closest point) is typically used to perform each alignment, but simulated annealing can optionally be
+/// used as well.
 ///
 /// Debug meshes can be optionally saved with the aligned and unaligned heightmaps and the sample point pair matches
 /// used to perform the alignments.  Only the portion of the orbital DEM near the base sitedrive is saved.

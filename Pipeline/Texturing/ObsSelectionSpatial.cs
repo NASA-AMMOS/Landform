@@ -25,8 +25,8 @@ namespace JPLOPS.Pipeline.Texturing
 
     // a strategy that samples the mesh at a fixed distribution on the surface
     // exhaustive results are calculated for each sampling point. when final sortings are 
-    // performed they use nearby precomputed results accordong to SelectionMode.
-    // the goal is higher fidelity than greedy and tunable noisiness that is better than exhaustive. 
+    // performed they use nearby precomputed results according to SelectionMode
+    // the goal is higher fidelity than greedy and tunable noisiness that is better than exhaustive
     public class ObsSelectionSpatial : ObsSelectionStrategy
     {
         public override ObsSelectionStrategyName Name { get { return ObsSelectionStrategyName.Spatial; } }
