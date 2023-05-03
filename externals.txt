@@ -1,0 +1,23 @@
+AWS SDK Apache2.0 https://aws.amazon.com/sdk-for-net https://github.com/aws/aws-sdk-net/blob/master/License.txt
+log4net Apache2.0 https://logging.apache.org/log4net https://logging.apache.org/log4net/license.html
+Newtonsoft Json.NET MIT https://www.newtonsoft.com/json https://github.com/JamesNK/Newtonsoft.Json/blob/master/LICENSE.md
+Math.NET Numerics MIT https://numerics.mathdotnet.com https://github.com/mathnet/mathnet-numerics/blob/master/LICENSE.md
+MIConvexHull MIT https://designengrlab.github.io/MIConvexHull https://github.com/DesignEngrLab/MIConvexHull/blob/master/LICENSE.txt
+OptimizedPriorityQueue MIT https://github.com/BlueRaja/High-Speed-Priority-Queue-for-C-Sharp https://github.com/BlueRaja/High-Speed-Priority-Queue-for-C-Sharp/blob/master/LICENSE.txt
+RTree LGPL https://github.com/drorgl/cspatialindexrt https://github.com/drorgl/cspatialindexrt/blob/master/RTree/LICENSE.txt
+Sharp3DBinPacking MIT https://github.com/303248153/Sharp3DBinPacking https://github.com/303248153/Sharp3DBinPacking/blob/master/LICENSE.txt
+Supercluster.KDTree MIT https://github.com/ericreg/Supercluster.KDTree https://github.com/ericreg/Supercluster.KDTree/blob/master/LICENSE
+** Triangle.NET UNCLEAR https://github.com/wo80/Triangle.NET https://github.com/wo80/Triangle.NET#license
+GDAL MIT https://gdal.org https://gdal.org/license.html
+UVAtlas.NET MIT https://github.com/Microsoft/UVAtlas https://github.com/microsoft/UVAtlas/blob/main/LICENSE
+** EmguCV GPLv3/commercial https://www.emgu.com/wiki/index.php/Emgu_CV https://www.emgu.com/wiki/index.php/Licensing:
+OpenTK MIT https://opentk.net https://opentk.net/#license
+ZedGraph LGPL 2.1 https://github.com/ZedGraph/ZedGraph https://github.com/ZedGraph/ZedGraph/blob/master/License-LGPL.txt
+ColorMine MIT https://github.com/colormine/colormine https://github.com/colormine/colormine/blob/master/LICENSE
+CSharpFITS BSD 3-clause? https://github.com/rwg0/csharpfits https://github.com/rwg0/csharpfits/blob/master/license.txt
+** SixLabors ImageSharp Apache2.0/commercial https://github.com/SixLabors/ImageSharp https://github.com/SixLabors/ImageSharp/blob/main/LICENSE
+CommandLine MIT https://github.com/commandlineparser/commandline https://github.com/commandlineparser/commandline/blob/master/License.md
+RestSharp Apache2.0 https://restsharp.dev https://github.com/restsharp/RestSharp/blob/dev/LICENSE.txt
+Embree.NET BSD 2-clause, Apache2.0 https://github.com/TomCrypto/Embree.NET https://github.com/TomCrypto/Embree.NET/blob/master/LICENSE
+PoissonRecon MIT https://github.com/mkazhdan/PoissonRecon https://github.com/mkazhdan/PoissonRecon/blob/master/LICENSE
+** fssrecon GPLv3 https://github.com/pmoulon/fssr https://github.com/pmoulon/fssr/blob/master/COPYING.txt
