@@ -1545,7 +1545,7 @@ namespace JPLOPS.Landform
             string ssmCommand =
                 (lvopts.WatchdogSSMCommand == "mission") ? mission.GetSSMWatchdogCommand() : lvopts.WatchdogSSMCommand;
             bool ssmEnabled = !string.IsNullOrEmpty(ssmProcess) && !string.IsNullOrEmpty(ssmCommand);
-            if (ssmEnabled)
+            if (ssmEnabled && serviceMode)
             {
                 procNames.Add(ssmProcess);
                 procCmds.Add(ssmCommand);
@@ -1564,7 +1564,7 @@ namespace JPLOPS.Landform
                 (lvopts.WatchdogCloudWatchCommand == "mission") ? mission.GetCloudWatchWatchdogCommand() :
                 lvopts.WatchdogCloudWatchCommand;
             bool cwEnabled = !string.IsNullOrEmpty(cwProcess) && !string.IsNullOrEmpty(cwCommand);
-            if (cwEnabled)
+            if (cwEnabled && serviceMode)
             {
                 procNames.Add(cwProcess);
                 procCmds.Add(cwCommand);
@@ -1701,6 +1701,11 @@ namespace JPLOPS.Landform
                     memWarned = true;
                 }
 
+                if (processName.Length == 0)
+                {
+                    continue;
+                }
+                    
                 try
                 {
                     ILogger logger = lvopts.Verbose ? pipeline : null;
