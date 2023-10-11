@@ -201,6 +201,8 @@ namespace JPLOPS.Pipeline.TilingServer
                                                             warn: msg => pipeline.LogWarn($"tile {id}: {msg}"));
                     if (pair != null)
                     {
+                        LogVerbose("loaded mesh with {0} triangles for user defined tile {0}",
+                                   pair.Mesh.Faces.Count, id);
                         var meshBounds = pair.Mesh.Bounds();
                         if (meshBounds.IsEmpty())
                         {

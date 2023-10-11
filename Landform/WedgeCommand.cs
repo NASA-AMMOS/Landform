@@ -25,7 +25,7 @@ namespace JPLOPS.Landform
         [Option(HelpText = "Wedge image auto decimation target resolution", Default = 1024)]
         public virtual int TargetWedgeImageResolution { get; set; }
 
-        [Option(HelpText = "Mesh decimation method (EdgeCollapse, ResampleFSSR, ResamplePoisson, MeshLab, MeshLabResample)", Default = MeshDecimationMethod.ResampleFSSR)]
+        [Option(HelpText = "Mesh decimation method (EdgeCollapse, ResampleFSSR, ResamplePoisson)", Default = MeshDecimationMethod.ResampleFSSR)]
         public virtual MeshDecimationMethod MeshDecimator { get; set; }
 
         [Option(HelpText = "Only use specific surface observations, comma separated (e.g. MLF_452276219RASLS0311330MCAM02600M1)", Default = null)]

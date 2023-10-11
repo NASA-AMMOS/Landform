@@ -55,6 +55,9 @@ namespace JPLOPS.Landform
 
         [Option(Default = false, HelpText = "Disable texture fallback if embedded texture missing or not found")]
         public bool NoEmbeddedTextureFallback { get; set; }
+
+        [Option(Required = false, HelpText = "Don't clean mesh")]
+        public bool NoClean { get; set; }
     }
 
     public class ConvertIV
@@ -208,7 +211,11 @@ namespace JPLOPS.Landform
                             logger.InfoFormat("texture file {0}", tft != null ? tft : "(not found)");
                             for (int lod = 0; lod < lodMeshes.Count; lod++)
                             {
-                                CleanMesh(lodMeshes[lod]);
+                                LoadedMesh(lodMeshes[lod]);
+                                if (!options.NoClean)
+                                {
+                                    CleanMesh(lodMeshes[lod]);
+                                }
                                 string dest = string.Format("{0}_LOD{1:00}{2}", bn, lod, ext);
                                 logger.InfoFormat("saving {0} ({1} tris)", dest, Fmt.KMG(lodMeshes[lod].Faces.Count));
                                 lodMeshes[lod].Save(Path.Combine(destDir, dest), tft); //destDir="" ok
@@ -220,7 +227,11 @@ namespace JPLOPS.Landform
                             logger.InfoFormat("converting {0} to {1}{2}", files[i], ext, dirMsg);
                             tft = handleEmbeddedTexureFilename(tfe);
                             logger.InfoFormat("texture file {0}", tft != null ? tft : "(not found)");
-                            CleanMesh(mesh);
+                            LoadedMesh(mesh);
+                            if (!options.NoClean)
+                            {
+                                CleanMesh(mesh);
+                            }
                             mesh.Save(Path.Combine(destDir, bn + ext), tft); //destDir="" ok
                         }
                     }          
@@ -235,11 +246,15 @@ namespace JPLOPS.Landform
             return 0;
         }
 
-        private void CleanMesh(Mesh mesh)
+        private void LoadedMesh(Mesh mesh)
         {
             logger.InfoFormat("loaded mesh with {0} vertices, {1} faces, {2} normals, {3} colors, {4} texcoords",
                               mesh.Vertices.Count, mesh.Faces.Count, mesh.HasNormals ? "with" : "without",
                               mesh.HasColors ? "with" : "without", mesh.HasUVs ? "with" : "without");
+        }
+
+        private void CleanMesh(Mesh mesh)
+        {
             mesh.Clean(verbose: msg => logger.Info(msg), warn: msg => logger.Warn(msg));
             logger.InfoFormat("cleaned mesh has {0} vertices, {1} faces, {2} normals, {3} colors, {4} texcoords",
                               mesh.Vertices.Count, mesh.Faces.Count, mesh.HasNormals ? "with" : "without",

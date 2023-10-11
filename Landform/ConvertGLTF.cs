@@ -39,6 +39,9 @@ namespace JPLOPS.Landform
 
         [Option(Required = false, HelpText = "Output file type (ply, obj, gltf, glb, b3dm)")]
         public string OutputType { get; set; }
+
+        [Option(Required = false, HelpText = "Don't clean mesh")]
+        public bool NoClean { get; set; }
     }
 
     public class ConvertGLTF
@@ -182,7 +185,13 @@ namespace JPLOPS.Landform
                 case "b3dm": mesh = B3DMSerializer.Load(gltfFile, imageHandler, indexHandler); break;
                 default: throw new Exception("unsupported glTF type: " + gltfType);
             }
-            CleanMesh(mesh);
+            logger.InfoFormat("loaded mesh with {0} vertices, {1} faces, {2} normals, {3} colors, {4} texcoords",
+                              mesh.Vertices.Count, mesh.Faces.Count, mesh.HasNormals ? "with" : "without",
+                              mesh.HasColors ? "with" : "without", mesh.HasUVs ? "with" : "without");
+            if (!options.NoClean)
+            {
+                CleanMesh(mesh);
+            }
             logger.InfoFormat("converting {0} to {1}", gltfFile, destFile);
             mesh.Save(destFile, destTexture);
         }
@@ -208,9 +217,6 @@ namespace JPLOPS.Landform
 
         private void CleanMesh(Mesh mesh)
         {
-            logger.InfoFormat("loaded mesh with {0} vertices, {1} faces, {2} normals, {3} colors, {4} texcoords",
-                              mesh.Vertices.Count, mesh.Faces.Count, mesh.HasNormals ? "with" : "without",
-                              mesh.HasColors ? "with" : "without", mesh.HasUVs ? "with" : "without");
             mesh.Clean(verbose: msg => logger.Info(msg), warn: msg => logger.Warn(msg));
             logger.InfoFormat("cleaned mesh has {0} vertices, {1} faces, {2} normals, {3} colors, {4} texcoords",
                               mesh.Vertices.Count, mesh.Faces.Count, mesh.HasNormals ? "with" : "without",

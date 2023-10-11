@@ -615,14 +615,16 @@ namespace JPLOPS.Pipeline
             {
                 if (TextureImage != null)
                 {
-                    mesh.ProjectTexture(TextureImage, removeVertsOutsideView: opts.RemoveVertsOutsideView);
+                    mesh.ProjectTexture(TextureImage, removeVertsOutsideView: opts.RemoveVertsOutsideView,
+                                        removeBackfacingTriangles: false); //organized mesh should not make backfaces
                 }
                 else if (PointsImage != null && PointsImage.CameraModel != null)
                 {
                     //PointsImage.CameraModel is null when the PointsImage was decimated
                     pipeline.LogWarn("no texture image for {0}, using points image to project texture coordinates",
                                      refObs.Name);
-                    mesh.ProjectTexture(PointsImage, removeVertsOutsideView: opts.RemoveVertsOutsideView);
+                    mesh.ProjectTexture(PointsImage, removeVertsOutsideView: opts.RemoveVertsOutsideView,
+                                        removeBackfacingTriangles: false);
                 }
                 else
                 {

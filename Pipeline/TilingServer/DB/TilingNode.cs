@@ -482,10 +482,13 @@ namespace JPLOPS.Pipeline.TilingServer
                     if (pair.Mesh != null)
                     {
                         Mesh tilesetMesh = pair.Mesh;
-                        if (tilesetMesh.HasFaces && project.SkirtMode != SkirtMode.None)
+                        if (tilesetMesh.HasFaces && project.SkirtMode != SkirtMode.None && Id != "root")
                         {
                             tilesetMesh = new Mesh(tilesetMesh);
+                            int prevNT = tilesetMesh.Faces.Count;
                             tilesetMesh.AddSkirt(project.SkirtMode);
+                            int postNT = tilesetMesh.Faces.Count;
+                            pipeline.LogVerbose($"added skirt to  mesh for tile {Id}: {prevNT} -> {postNT} triangles");
                             SetBoundsWithSkirt(BoundingBoxExtensions.Union(GetBounds().Value, tilesetMesh.Bounds()));
                         }
                         else
