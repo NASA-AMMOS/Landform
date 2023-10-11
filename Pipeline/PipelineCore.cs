@@ -438,7 +438,7 @@ namespace JPLOPS.Pipeline
         /// </summary>
         /// <param name="url">source URL, if constrainToStorage = true must start with StorageURL/Venue</param>
         /// <param name="cacheFolder">cache subfolder (ex. project name)</param>
-        /// <param name="filename">filename to use in cache, or null to compute from url SHA1</param>
+        /// <param name="filename">filename to use in cache, or null to compute from url hash</param>
         /// <returns>path on disk</returns>
         public abstract string GetFileCached(string url, string cacheFolder = null, string filename = null,
                                              bool constrainToStorage = false);

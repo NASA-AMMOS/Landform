@@ -475,7 +475,7 @@ namespace JPLOPS.Landform
                                      bool dryRun = false)
         {
             string filename = filenameUnique ? StringHelper.GetLastUrlPathSegment(url) :
-                StringHelper.SHA1(url, preserveExtension: true);
+                StringHelper.hashHex40Char(url, preserveExtension: true);
             string path = null;
 
             pipeline.LogInfo("{0}getting {1}", dryRun ? "dry " : "", url);

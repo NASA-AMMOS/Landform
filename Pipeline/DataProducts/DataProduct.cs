@@ -15,14 +15,14 @@ namespace JPLOPS.Pipeline
             T res = new T();
             res.Deserialize(data);
 
-            SHA1 sha = SHA1.Create();
+            SHA256 sha = SHA256.Create(); //HCL AppScan reports Cryptography.InsecureAlgorithm if we use SHA1...
             res.Guid = new Guid(sha.ComputeHash(data).Take(16).ToArray());
             return res;
         }
 
         public void UpdateGuid()
         {
-            SHA1 sha = SHA1.Create();
+            SHA256 sha = SHA256.Create();
             Guid = new Guid(sha.ComputeHash(Serialize()).Take(16).ToArray());
         }
 

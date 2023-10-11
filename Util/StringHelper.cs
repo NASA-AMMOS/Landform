@@ -355,11 +355,12 @@ namespace JPLOPS.Util
             return RemoveMultiple(str, pairs);
         }
 
-        public static string SHA1(string str, bool preserveExtension = false)
+        public static string hashHex40Char(string str, bool preserveExtension = false)
         {
             string ext = preserveExtension ? GetUrlExtension(str) : "";
-            var sha1 = (new SHA1Managed()).ComputeHash(Encoding.UTF8.GetBytes(str));
-            return string.Concat(sha1.Select(b => b.ToString("x2"))) + ext;
+            //HCL AppScan reports Cryptography.InsecureAlgorithm if we use SHA1...
+            var hash = SHA256.Create().ComputeHash(Encoding.UTF8.GetBytes(str)).Take(20).ToArray();
+            return string.Concat(hash.Select(b => b.ToString("x2"))) + ext;
         }
 
         public static string UppercaseFirst(string str)

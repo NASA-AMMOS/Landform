@@ -35,7 +35,7 @@ namespace JPLOPS.Pipeline.AlignmentServer
         public string ProjectName;
 
         [DBHashKey]
-        public string Name; //SSSDDDD-OptionsSHA1
+        public string Name; //SSSDDDD-OptionsHASH
 
         [JsonIgnore]
         public SiteDrive SiteDrive
@@ -101,7 +101,7 @@ namespace JPLOPS.Pipeline.AlignmentServer
 
         private static string MakeName(SiteDrive siteDrive, BEVOptions opts)
         {
-            return string.Format("{0}-{1}", siteDrive.ToString(), StringHelper.SHA1(opts.Serialize()));
+            return string.Format("{0}-{1}", siteDrive.ToString(), StringHelper.hashHex40Char(opts.Serialize()));
         }
 
         public BirdsEyeView() { }
