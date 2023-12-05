@@ -22,6 +22,12 @@ Landform was originally developed at the Jet Propulsion Laboratory, California I
 
 Individual contributors include Marsette Vona, Bob Crocco, Alexander Menzies, Charles Goddard, Thomas Schibler, Gailin Pease, Nicholas Charchut, Nicholas Anastas, Keavon Chambers, Benjamin Nuernberger, and Andrew Zhang.
 
+## Contributors
+
+Landform was originally developed at the Jet Propulsion Laboratory, California Institute of Technology for use in ground data processing for planetary surface missions under a contract with the National Aeronautics and Space Administration.
+
+Individual contributors include Marsette Vona, Bob Crocco, Alexander Menzies, Charles Goddard, Thomas Schibler, Gailin Pease, Nicholas Charchut, Nicholas Anastas,  Keavon Chambers, and Benjamin Nuernberger.
+
 ## License
 
 See [LICENSE.txt](LICENSE.txt).
