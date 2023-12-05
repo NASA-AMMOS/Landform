@@ -8,6 +8,12 @@ Landform can be run as a command-line toolset or optionally deployed to AWS as a
 
 Landform is written in C#.  Landform currently builds only with Visual Studio 2019 on Windows and only runs on Intel Windows platforms.
 
+## Contributors
+
+Landform was originally developed at the Jet Propulsion Laboratory, California Institute of Technology for use in ground data processing for planetary surface missions under a contract with the National Aeronautics and Space Administration.
+
+Individual contributors include Marsette Vona, Bob Crocco, Alexander Menzies, Charles Goddard, Thomas Schibler, Gailin Pease, Nicholas Charchut, Nicholas Anastas,  Keavon Chambers, and Benjamin Nuernberger.
+
 ## License
 
 [Apache 2.0](LICENSE.md)
