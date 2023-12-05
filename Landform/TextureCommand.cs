@@ -1129,6 +1129,41 @@ namespace JPLOPS.Landform
                 FixupLODs(ranges);
             }
 
+            //if texture projection is enabled vertices outside the camera frustum and backfaces can be discarded
+            //even if we're not actually requiring UVs
+            if (canGenUVs && tcopts.AtlasMode == AtlasMode.Project)
+            {
+                int lodCountWas = meshLOD.Count;
+                for (int i = 0; i < meshLOD.Count; i++)
+                {
+                    bool applyUVs = requireUVs && !meshLOD[i].HasUVs;
+                    meshLOD[i].ProjectTexture(sceneTexture, meshToCamera.Value, applyUVs: applyUVs,
+                                              verbose: msg => pipeline.LogVerbose($"LOD {i}:  {msg}"));
+                    if (applyUVs)
+                    {
+                        numProjectAtlas++;
+                    }
+                }
+
+                meshLOD = meshLOD
+                    .Where(m => m != null && m.Faces.Count > 0)
+                    .OrderByDescending(m => m.Faces.Count)
+                    .ToList();
+                
+                if (meshLOD.Count == 0)
+                {
+                    pipeline.LogWarn("0 non-empty levels of detail after texture projection");
+                    meshLOD = new List<Mesh>() { new Mesh(hasNormals: requireNormals, hasUVs: requireUVs) };
+                }
+                else if (meshLOD.Count < lodCountWas)
+                {
+                    pipeline.LogWarn("discarded {0} empty LODs after texture projection",
+                                     (lodCountWas - meshLOD.Count));
+                }
+
+                mesh = meshLOD.First();
+            }
+
             if (requireUVs)
             {
                 int lodCountWas = meshLOD.Count;
@@ -1147,9 +1182,6 @@ namespace JPLOPS.Landform
                         }
                     }
                 }
-
-                //if texture projecting is enabled then mesh vertices outside the camera frustum can be discarded
-                //generally that shouldn't happen (much)
 
                 meshLOD = meshLOD
                     .Where(m => m != null && m.Faces.Count > 0)
@@ -1179,6 +1211,13 @@ namespace JPLOPS.Landform
                         meshLOD[i].GenerateVertexNormals();
                     }
                 }
+            }
+
+            pipeline.LogInfo("loaded {0} LODs:", meshLOD.Count);
+            for (int lod = 0; lod < meshLOD.Count; lod++)
+            {
+                pipeline.LogInfo("LOD {0}: {1} vertices, {2} faces",
+                                 lod, Fmt.KMG(meshLOD[lod].Vertices.Count), Fmt.KMG(meshLOD[lod].Faces.Count));
             }
         }
 
@@ -1296,7 +1335,7 @@ namespace JPLOPS.Landform
                 throw new Exception("cannot project texture coordinates, no mesh-to-image transform");
             }
             int vertsWas = mesh.Vertices.Count;
-            mesh.ProjectTexture(sceneTexture, meshToCamera.Value);
+            mesh.ProjectTexture(sceneTexture, meshToCamera.Value, verbose: msg => pipeline.LogVerbose(msg));
             if (mesh.Vertices.Count == 0)
             {
                 pipeline.LogWarn("all {0} verts of {1}mesh outside camera frustum and removed by texture projection",

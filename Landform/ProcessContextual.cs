@@ -2901,16 +2901,19 @@ namespace JPLOPS.Landform
                         {
                             placesDB = InitPlacesDB(quiet: true);
                         }
-                        double dist = placesDB.GetOffset(primarySD, sd).Length();
-                        if (dist <= maxDistance)
+                        if (placesDB != null)
                         {
-                            keepers[sd] = filtered;
-                            distance[sd] = dist;
-                        }
-                        else
-                        {
-                            pipeline.LogInfo("not including sitedrive {0} in contextual mesh for {1}, " +
-                                             "PlacesDB distance {2:F3} > {3:F3}", sd, primarySD, dist, maxDistance);
+                            double dist = placesDB.GetOffset(primarySD, sd).Length();
+                            if (dist <= maxDistance)
+                            {
+                                keepers[sd] = filtered;
+                                distance[sd] = dist;
+                            }
+                            else
+                            {
+                                pipeline.LogInfo("not including sitedrive {0} in contextual mesh for {1}, " +
+                                                 "PlacesDB distance {2:F3} > {3:F3}", sd, primarySD, dist, maxDistance);
+                            }
                         }
                     }
                 }

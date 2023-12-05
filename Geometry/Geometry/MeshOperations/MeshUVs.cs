@@ -477,22 +477,28 @@ namespace JPLOPS.Geometry
         /// <summary>
         /// add texture coordinates to a mesh by projecting vertices onto an image
         /// also optionally removes any vertices of the mesh that aren't visible in the image
+        /// also optionally removes any triangles that are backfacing relative to the camera model
         /// </summary>
         public static void ProjectTexture(this Mesh mesh, Image image, Matrix? meshToImage = null,
-                                          bool removeVertsOutsideView = true, bool processVertsInParallel = false)
+                                          bool removeVertsOutsideView = true, bool removeBackfacingTriangles = true,
+                                          bool processVertsInParallel = false, bool applyUVs = true,
+                                          Action<string> verbose = null)
         {
             if (image.CameraModel == null)
             {
                 throw new ArgumentException("image camera model required to project texture");
             }
-            mesh.ProjectTexture(image.Width, image.Height, image.CameraModel, meshToImage,
-                                removeVertsOutsideView, processVertsInParallel);
+            mesh.ProjectTexture(image.Width, image.Height, image.CameraModel, meshToImage, removeVertsOutsideView,
+                                removeBackfacingTriangles, processVertsInParallel, applyUVs, verbose);
         }
 
         public static void ProjectTexture(this Mesh mesh, int imgWidth, int imgHeight, CameraModel cameraModel,
                                           Matrix? meshToImage = null, bool removeVertsOutsideView = true,
-                                          bool processVertsInParallel = false)
+                                          bool removeBackfacingTriangles = true, bool processVertsInParallel = false,
+                                          bool applyUVs = true, Action<string> verbose = null)
         {
+            verbose = verbose ?? (msg => {});
+
             Matrix xform = meshToImage ?? Matrix.Identity;
             ConcurrentBag<Vertex> verticesToRemove = new ConcurrentBag<Vertex>();
             Action<Vertex> generateUV = v =>
@@ -513,7 +519,7 @@ namespace JPLOPS.Geometry
                 {
                     verticesToRemove.Add(v);
                 }
-                else
+                else if (applyUVs)
                 {
                     // TODO: review this half pixel offset
                     //v.UV =  new Vector2((px.Value.X - 0.5) / (image.Width+1),
@@ -532,11 +538,41 @@ namespace JPLOPS.Geometry
                 mesh.Vertices.ForEach(generateUV);
             }
 
-            mesh.HasUVs = true;
+            mesh.HasUVs |= applyUVs;
 
-            if (removeVertsOutsideView)
+            if (removeVertsOutsideView && verticesToRemove.Count > 0)
             {
+                int nv = mesh.Vertices.Count;
+                int nr = verticesToRemove.Count;
+                verbose($"projecting texture: removing {Fmt.KMG(nr)}/{Fmt.KMG(nv)} vertices outside camera model");
                 mesh.RemoveVertices(verticesToRemove);
+            }
+
+            if (removeBackfacingTriangles && (cameraModel is CAHV))
+            {
+                Vector3 a = Vector3.Normalize((cameraModel as CAHV).A);
+                if (a.Length() > MathE.EPSILON)
+                {
+                    var camToMesh = Matrix.Invert(xform);
+                    a = Vector3.Normalize(Vector3.TransformNormal(a, camToMesh));
+                    List<Face> frontFaces = new List<Face>();
+                    foreach (var f in mesh.Faces)
+                    {
+                        var t = mesh.FaceToTriangle(f);
+                        if (t.TryComputeNormal(out Vector3 tn) && Vector3.Dot(tn, a) < 0)
+                        {
+                            frontFaces.Add(f);
+                        }
+                    }
+                    if (frontFaces.Count < mesh.Faces.Count)
+                    {
+                        int nt = mesh.Faces.Count;
+                        int nr = nt - frontFaces.Count;
+                        verbose($"projecting texture: removing {Fmt.KMG(nr)}/{Fmt.KMG(nt)} backfaces");
+                        mesh.Faces = frontFaces;
+                        mesh.RemoveUnreferencedVertices();
+                    }
+                }
             }
         }
     }
