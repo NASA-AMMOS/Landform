@@ -43,7 +43,7 @@ These are managed with the NuGet package manager and will be automatically downl
 * [GDAL](https://gdal.org)
 * [EmguCV](https://www.emgu.com/wiki/index.php/Emgu_CV)
 * [OpenTK](https://opentk.net)
-* [ZedGraph](ttps://github.com/ZedGraph/ZedGraph)
+* [ZedGraph](https://github.com/ZedGraph/ZedGraph)
 * [ColorMine](https://github.com/colormine/colormine)
 * [CSharpFITS](https://github.com/rwg0/csharpfits)
 * [SixLabors ImageSharp](https://github.com/SixLabors/ImageSharp)
