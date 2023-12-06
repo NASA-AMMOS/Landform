@@ -41,7 +41,7 @@ These are managed with the NuGet package manager and will be automatically downl
 * [Supercluster KDTree](https://github.com/ericreg/Supercluster.KDTree)
 * [Triangle dot NET](https://github.com/wo80/Triangle.NET)
 * [GDAL](https://gdal.org)
-* [EmguCV](https://www.emgu.com/wiki/index.php/Emgu_CV)
+* [EmguCV](https://www.emgu.com/wiki/index.php/Emgu_CV) (this dependency has a GPL license)
 * [OpenTK](https://opentk.net)
 * [ZedGraph](https://github.com/ZedGraph/ZedGraph)
 * [ColorMine](https://github.com/colormine/colormine)
