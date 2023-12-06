@@ -1712,9 +1712,10 @@ namespace JPLOPS.Landform
         }
 
         public enum TilesetStatus { absent, found, done, processing, zombie };
-        private TilesetStatus CheckForTileset(ContextualMeshMessage msg, string destDir, int version)
+        private TilesetStatus CheckForTileset(ContextualMeshMessage msg, string destDir, int version,
+                                              int? overrideSol = null)
         {
-            string project = string.Format("{0}_{1}{2}{3}", SolToString(msg.primarySol),
+            string project = string.Format("{0}_{1}{2}{3}", SolToString(overrideSol ?? msg.primarySol),
                                            msg.primarySiteDrive.ToString(),
                                            version > 0 ? "V" + version.ToString("D2") : "",
                                            msg.orbitalOnly ? "_orbital" : "");
@@ -3061,7 +3062,7 @@ namespace JPLOPS.Landform
                         //for orbital this might mean we recreate the tileset even though it exists in another sol
                         //but that's not the end of the world
                         string solDir = StringHelper.ReplaceIntWildcards(rdrDir, sol);
-                        var status = CheckForTileset(msg, GetDestDir(solDir, quiet: true), 0);
+                        var status = CheckForTileset(msg, GetDestDir(solDir, quiet: true), 0, sol);
                         if ((status == TilesetStatus.done) || (status == TilesetStatus.processing))
                         {
                             foundSol = sol;
