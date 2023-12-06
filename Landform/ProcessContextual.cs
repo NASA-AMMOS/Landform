@@ -41,15 +41,10 @@ using DictionaryOfChangedURLs =
 /// As a command line tool, process-contextual can be used to build individual contextual mesh tilesets.  It can either
 /// operate entirely locally, reading from and writing to disk, or it can read from and write to S3.
 ///
-/// Also see Scripts/process-contextual.sh, which has overlapping functionality for the batch-mode case.
-/// (process-contextual.sh does not implement the service case.)  process-contextual.sh is intended for use by
-/// developers only, and has additional options for development and debugging workflows.  process-contextual
-/// (ProcessContextual.cs) can be used by developers but is mainly intended for deployment and production use.
+/// Also see ProcessTactical.cs which automates the tactical mesh tileset workflow.
 ///
-/// Also see ProcessTactical.cs and process-tactical.sh which automate the tactical mesh tileset workflow.
-///
-/// ProcessContextual only works with OPGS product IDs.  To work with e.g. MSSS product IDs for MSL, use
-/// process-contextual.sh or manually run the pipeline.
+/// ProcessContextual only works with OPGS product IDs for M2020 and MSL.  To work with e.g. MSSS product IDs for MSL,
+/// manually run the pipeline.
 ///
 /// A contextual mesh is generated for a specific primary sol and primary sitedrive.  It combines data from a set of
 /// sols and sitedrives (which must contain the primary sol/sitedrive), as well as orbital assets if available.
