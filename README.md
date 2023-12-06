@@ -2,7 +2,7 @@
 
 # Landform
 
-Landform is a terrain mesh processing toolkit that can generate [3DTiles](https://www.ogc.org/standard/3dtiles/) datasets.  It is used by the Mars 2020 mission in ground data processing to convert textured terrain meshes into the 3DTiles format, as well as to create [contextual meshes](ContextualMesh.md) that combine up to thousands of in-situ and orbital observations.  Several contextual meshes with Mars 2020 data have been made available for interactive public viewing on the [Explore with Perseverance](https://mars.nasa.gov/mars2020/surface-experience/) website.
+Landform is a terrain mesh processing toolkit that can generate [3DTiles](https://www.ogc.org/standard/3dtiles/) datasets.  It is used by the Mars 2020 mission in ground data processing to convert textured terrain meshes into the 3DTiles format, as well as to create [contextual meshes](ContextualMesh.md) that combine up to thousands of in-situ and orbital observations.  Landform can read mesh, image, and pointcloud input data in a variety of formats including a limited subset of the OpenInventor binary iv format, GLTF, OBJ, PLY, PNG, JPG, TIFF, FITS, [GeoTIFF](https://www.ogc.org/standard/geotiff/), [VICAR](https://www-mipl.jpl.nasa.gov/external/VICAR_file_fmt.pdf), and [PDS ODL-wrapped VICAR](https://pds.nasa.gov/tools/about/) (IMG).  Landform can write mesh and image data in many formats including 3DTiles, GLTF, OBJ, PLY, PNG, JPG, TIFF, and FITS.
 
 Landform can be run as a command-line toolset or optionally deployed to AWS as a terrain processing service.  It can also be used as a library for building other terrain mesh processing tools.  It can read mesh, image, and pointcloud input data in a variety of formats including a limited subset of the OpenInventor binary iv format, GLTF, OBJ, PLY, PNG, JPG, TIFF, FITS, [GeoTIFF](https://www.ogc.org/standard/geotiff/), [VICAR](https://www-mipl.jpl.nasa.gov/external/VICAR_file_fmt.pdf), and [PDS ODL-wrapped VICAR](https://pds.nasa.gov/tools/about/) (IMG), and it can write mesh and image data in many formats including 3DTiles, GLTF, OBJ, PLY, PNG, JPG, TIFF, and FITS.
 
@@ -26,7 +26,7 @@ Individual contributors include Marsette Vona, Bob Crocco, Alexander Menzies, Ch
 
 Landform was originally developed at the Jet Propulsion Laboratory, California Institute of Technology for use in ground data processing for planetary surface missions under a contract with the National Aeronautics and Space Administration.
 
-Individual contributors include Marsette Vona, Bob Crocco, Alexander Menzies, Charles Goddard, Thomas Schibler, Gailin Pease, Nicholas Charchut, Nicholas Anastas,  Keavon Chambers, and Benjamin Nuernberger.
+Individual contributors include Marsette Vona, Bob Crocco, Alexander Menzies, Charles Goddard, Thomas Schibler, Gailin Pease, Nicholas Charchut, Nicholas Anastas, Keavon Chambers, Benjamin Nuernberger, and Andrew Zhang.
 
 ## License
 
