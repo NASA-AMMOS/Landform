@@ -2908,6 +2908,7 @@ namespace JPLOPS.Landform
                 try
                 {
                     bool reinit = serviceMode && !options.MasterNoReinitPlacesDBPerQuery;
+                    //if !reinit then the master loop already acquired longRunningCredentialRefreshLock
                     lock (reinit ? longRunningCredentialRefreshLock : new Object()) {
                         if (reinit)
                         {
@@ -3444,7 +3445,7 @@ namespace JPLOPS.Landform
             }
         }
 
-        //uses SQS, called only by MasterLoop() while holding credentialRefreshLock
+        //uses SQS and EC2, called only by MasterLoop() while holding credentialRefreshLock
         private void WorkerAutoStart(string what, MessageQueue queue, List<string> instances)
         {
             try
@@ -3485,7 +3486,8 @@ namespace JPLOPS.Landform
                         }
                     }
                 }
-                lock (credentialRefreshLock)
+                lock (opts.UseDefaultAWSProfileForEC2Client && opts.UseDefaultAWSProfileForSQSClient ? new Object() :
+                      credentialRefreshLock)
                 {
                     var queue = orbitalWorkerQueue ?? workerQueue;
                     bool cullExisting = !options.RecreateExistingOrbital;
@@ -3594,7 +3596,8 @@ namespace JPLOPS.Landform
                         }
                     }
                 }
-                lock (credentialRefreshLock)
+                lock (opts.UseDefaultAWSProfileForEC2Client && opts.UseDefaultAWSProfileForSQSClient ? new Object() :
+                      credentialRefreshLock)
                 {
                     bool cullExisting = options.NoRecreateExistingContextual;
                     if (EnqueueMessages(msgs, "contextual", workerQueue, rdrDir, cullExisting, 0) > 0 &&
@@ -3668,7 +3671,9 @@ namespace JPLOPS.Landform
                         (UTCTime.Now() - lastWorkerAutoStartSec) >= options.WorkerAutoStartSec)
                     {
                         lastWorkerAutoStartSec = UTCTime.Now();
-                        lock (credentialRefreshLock)
+
+                        lock (opts.UseDefaultAWSProfileForEC2Client && opts.UseDefaultAWSProfileForSQSClient ?
+                              new Object() : credentialRefreshLock)
                         {
                             if (workerQueue != null)
                             {
