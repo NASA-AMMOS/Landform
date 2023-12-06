@@ -1172,7 +1172,7 @@ namespace JPLOPS.Pipeline
 
         public virtual string FilterContextualMeshWedge(RoverProductId id, string url)
         {
-            string reason = FilterContextualmeshProduct(id, url);
+            string reason = FilterContextualMeshProduct(id, url);
             if (reason != null)
             {
                 return reason;
@@ -1197,7 +1197,7 @@ namespace JPLOPS.Pipeline
 
         public virtual string FilterContextualMeshTexture(RoverProductId id, string url)
         {
-            string reason = FilterContextualmeshProduct(id, url);
+            string reason = FilterContextualMeshProduct(id, url);
             if (reason != null)
             {
                 return reason;
@@ -1215,7 +1215,7 @@ namespace JPLOPS.Pipeline
             return null;
         }
 
-        protected virtual string FilterContextualmeshProduct(RoverProductId id, string url)
+        protected virtual string FilterContextualMeshProduct(RoverProductId id, string url)
         {
             if (id is OPGSProductId)
             {
