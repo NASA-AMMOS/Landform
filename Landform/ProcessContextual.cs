@@ -1994,6 +1994,8 @@ namespace JPLOPS.Landform
                     return;
                 }
 
+                SaveMessage(destDir, project);
+
                 string tilesetDir = venueDir + "/" + TilingCommand.TILESET_DIR + "/" + project;
 
                 if (!options.NoFetch && !orbitalOnly && rdrDir.StartsWith("s3://") &&
@@ -2149,8 +2151,6 @@ namespace JPLOPS.Landform
                                "--sols", solRanges, "--sitedrives", sdsStr,
                                "--awsprofile", awsProfile, "--awsregion", awsRegion);
                 }
-
-                SaveMessage(destDir, project);
 
                 DeletePID(destDir, project, pidFile);
 
