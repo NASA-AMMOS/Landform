@@ -330,11 +330,14 @@ namespace JPLOPS.Landform
             return MissionSpecific.GetInstance(lsopts.Mission);
         } 
 
-        protected virtual void RefreshCredentials()
+        protected virtual void RefreshCredentials(bool force = false)
         {
             pipeline.LogInfo("refreshing credentials");
 
-            if (mission != null)
+            if (mission != null && (force ||
+                                    !lsopts.UseDefaultAWSProfileForS3Client ||
+                                    !lsopts.UseDefaultAWSProfileForEC2Client ||
+                                    !lsopts.UseDefaultAWSProfileForSSMClient))
             {
                 var newProfile = mission.RefreshCredentials(originalAWSProfile, awsRegion, !pipeline.Verbose,
                                                             lsopts.DryRun, throwOnFail: false, logger: pipeline);
@@ -343,7 +346,7 @@ namespace JPLOPS.Landform
 
             lock (storageHelperLock)
             {
-                if (_storageHelper != null)
+                if (_storageHelper != null && !lsopts.UseDefaultAWSProfileForS3Client)
                 {
                     _storageHelper.Dispose();
                     _storageHelper = null;
@@ -352,7 +355,7 @@ namespace JPLOPS.Landform
 
             lock (computeHelperLock)
             {
-                if (_computeHelper != null)
+                if (_computeHelper != null && !lsopts.UseDefaultAWSProfileForEC2Client)
                 {
                     _computeHelper.Dispose();
                     _computeHelper = null;
@@ -361,7 +364,7 @@ namespace JPLOPS.Landform
 
             lock (parameterStoreLock)
             {
-                if (_parameterStore != null)
+                if (_parameterStore != null && !lsopts.UseDefaultAWSProfileForSSMClient)
                 {
                     _parameterStore.Dispose();
                     _parameterStore = null;
