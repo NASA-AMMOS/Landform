@@ -15,11 +15,22 @@ namespace JPLOPS.Util
         /// <param name="value"></param>
         /// <returns></returns>
         public static string WildcardToRegularExpressionString(string value, bool fullMatch = true,
-                                                               bool matchSlashes = true)
+                                                               bool matchSlashes = true,
+                                                               bool allowAlternation = false)
         {
             string any = matchSlashes ? "." : @"[^/\\]";
             string regex = Regex.Escape(value).Replace("\\?", any).Replace("\\*", any + "*");
+            if (allowAlternation) {
+                regex = regex.Replace("\\(", "(").Replace("\\)", ")").Replace("\\|", "|");
+            }
             return fullMatch ? ("^" + regex + "$") : regex;
+        }
+
+        public static Regex WildcardToRegularExpression(string value, bool fullMatch = true, bool matchSlashes = true,
+                                                        bool allowAlternation = false,
+                                                        RegexOptions opts = RegexOptions.None)
+        {
+            return new Regex(WildcardToRegularExpressionString(value, fullMatch, matchSlashes, allowAlternation), opts);
         }
 
         public static Regex WildcardToRegularExpression(string value, bool fullMatch = true, bool matchSlashes = true,

@@ -301,6 +301,9 @@ namespace JPLOPS.Landform
         [Option(Default = ProcessContextual.DEF_FDR_PATTERN, HelpText = "Master service FDR filename pattern for triggering orbital meshes, case insensitive, null, empty,or \"none\" to reject FDR files (in that case orbital meshes will be triggered on wedge and/or texture files).  Extension must be .IMG, .VIC or .auto to use mission-specific preferred format.")]
         public string FDRPattern { get; set; }
 
+        [Option(Default = ProcessContextual.DEF_VCE_PATTERN, HelpText = "Master service VCE filename pattern, case insensitive, null, empty,or \"none\" to not filter out VCE files.")]
+        public string VCEPattern { get; set; }
+
         [Option(Default = ProcessContextual.DEF_EOP_FILE_PATTERN, HelpText = "Master service end-of-processing file pattern, case insensitive, null, empty,or \"none\" to reject EOP files")]
         public string EOPFilePattern { get; set; }
 
@@ -434,6 +437,7 @@ namespace JPLOPS.Landform
         public const string DEF_WEDGE_PATTERN = "*XYZ*.auto";
         public const string DEF_TEXTURE_PATTERN = "*mission*.auto";
         public const string DEF_FDR_PATTERN = "*FDR*.auto";
+        public const string DEF_VCE_PATTERN = "*VCE|TRAV*"
 
         //EDRGen notifications
         //where INST is e.g. fcam, rcam, zcam, ncam, etc
@@ -472,7 +476,7 @@ namespace JPLOPS.Landform
 
         protected ProcessContextualOptions options;
 
-        private Regex listRegex, wedgeRegex, textureRegex, fdrRegex;
+        private Regex listRegex, wedgeRegex, textureRegex, fdrRegex, vceRegex;
         private Regex eopFileRegex, eofFileRegex, eoxFileRegex;
         private Regex eopMessageRegex, eofMessageRegex, eoxMessageRegex;
 
@@ -874,10 +878,11 @@ namespace JPLOPS.Landform
                     bool isWedge = wedgeRegex != null && wedgeRegex.IsMatch(url);
                     bool isTexture = textureRegex != null && textureRegex.IsMatch(url);
                     bool isFDR = fdrRegex != null && fdrRegex.IsMatch(url);
+                    bool isVCE = vceRegex != null && vceRegex.IsMatch(url);
                     bool isEOP = eopFileRegex != null && eopFileRegex.IsMatch(url);
                     bool isEOF = eofFileRegex != null && eofFileRegex.IsMatch(url);
                     bool isEOX = eoxFileRegex != null && eoxFileRegex.IsMatch(url);
-                    if (!isList && !isWedge && !isTexture && !isFDR && !isEOP && !isEOF && !isEOX)
+                    if ((!isList && !isWedge && !isTexture && !isFDR && !isEOP && !isEOF && !isEOX) || isVCE)
                     {
                         reason = "unhandled file type: " + url;
                         return false;
@@ -1119,7 +1124,8 @@ namespace JPLOPS.Landform
         private Regex MakeURLRegex(string filenamePattern)
         {
             string pat =
-                StringHelper.WildcardToRegularExpressionString(filenamePattern, fullMatch: false, matchSlashes: false);
+                StringHelper.WildcardToRegularExpressionString(filenamePattern, fullMatch: false, matchSlashes: false,
+                                                               allowAlternation: true);
             return new Regex("^.*/" + pat + "$", RegexOptions.IgnoreCase);
         }
 
@@ -1170,6 +1176,13 @@ namespace JPLOPS.Landform
                 pipeline.LogInfo("FDR regex: " + fdrRegex);
             }
             
+            if (!string.IsNullOrEmpty(options.VCEPattern) &&
+                !string.Equals(options.VCEPattern, "none", StringComparison.OrdinalIgnoreCase))
+            {
+                vceRegex = MakeURLRegex(options.VCEPattern);
+                pipeline.LogInfo("VCE regex: " + vceRegex);
+            }
+
             if (options.Master)
             {
                 if (!string.IsNullOrEmpty(options.ListPattern) &&
@@ -1191,7 +1204,7 @@ namespace JPLOPS.Landform
                 {
                     eopMessageRegex =
                         StringHelper.WildcardToRegularExpression(options.EOPMessagePattern, fullMatch: true,
-                                                                 opts: RegexOptions.IgnoreCase);
+                                                                 allowAlternation: true, opts: RegexOptions.IgnoreCase);
                     pipeline.LogInfo("EOP message regex: " + eopMessageRegex);
                 }
 
@@ -1207,7 +1220,7 @@ namespace JPLOPS.Landform
                 {
                     eofMessageRegex =
                         StringHelper.WildcardToRegularExpression(options.EOFMessagePattern, fullMatch: true,
-                                                                 opts: RegexOptions.IgnoreCase);
+                                                                 allowAlternation: true, opts: RegexOptions.IgnoreCase);
                     pipeline.LogInfo("EOF message regex: " + eofMessageRegex);
                 }
 
@@ -1223,7 +1236,7 @@ namespace JPLOPS.Landform
                 {
                     eoxMessageRegex =
                         StringHelper.WildcardToRegularExpression(options.EOXMessagePattern, fullMatch: true,
-                                                                 opts: RegexOptions.IgnoreCase);
+                                                                 allowAlternation: true, opts: RegexOptions.IgnoreCase);
                     pipeline.LogInfo("EOX message regex: " + eoxMessageRegex);
                 }
 
@@ -2264,13 +2277,13 @@ namespace JPLOPS.Landform
             if (wedgeRegex != null) //handle "none"
             {
                 wp = StringHelper.WildcardToRegularExpressionString(options.WedgePattern, fullMatch: false,
-                                                                    matchSlashes: false);
+                                                                    matchSlashes: false, allowAlternation: true);
             }
             string tp = null;
             if (textureRegex != null) //handle "none"
             {
                 tp = StringHelper.WildcardToRegularExpressionString(options.TexturePattern, fullMatch: false,
-                                                                    matchSlashes: false);
+                                                                    matchSlashes: false, allowAlternation: true);
             }
             if (wp != null && tp != null)
             {
