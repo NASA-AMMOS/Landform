@@ -239,9 +239,15 @@ namespace JPLOPS.Pipeline
                         response.StatusCode == HttpStatusCode.OK)
                     {
                         string content = response.Content;
-                        cache[query] = content;
-                        Debug("request: {0}, response:\n{1}", config.Url + "/" + query, content);
-                        return content;
+                        if (content.StartsWith("{") || IsValidXml(content)) {
+                            cache[query] = content;
+                            Debug("request: {0}/{1}, response:\n{2}", config.Url, query, content);
+                            return content;
+                        } else {
+                            Debug("invalid response content for query {0}/{1}: not valid JSON or XML:\n{2}",
+                                  config.Url, query, content);
+                            break;
+                        }
                     }
                     else
                     {
@@ -304,6 +310,19 @@ namespace JPLOPS.Pipeline
             {
                 throw new Exception(string.Format("PlacesDB: error parsing response for request {0}: {1}",
                                                   query, ex.Message));
+            }
+        }
+
+        private bool IsValidXml(string response)
+        {
+            try
+            {
+                (new XmlDocument()).LoadXml(response);
+                return true;
+            }
+            catch (System.Xml.XmlException ex)
+            {
+                return false;
             }
         }
 
