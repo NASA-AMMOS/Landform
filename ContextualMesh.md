@@ -12,12 +12,6 @@ Landform's contextual mesh pipeline differs from most other generic photogrammet
 
 Several contextual meshes with Mars 2020 data have been made available for interactive public viewing on the [Explore with Perseverance](https://mars.nasa.gov/mars2020/surface-experience/) website.
 
-## Compatible Visualization Software
-
-Landform contextual mesh products are typically viewed by software such as ASTTRO which downloads the tileset data on demand and integrates with mission-specific interfaces.  ASTTRO uses the Landform AMMOS [Unity3DTiles](https://github.com/NASA-AMMOS/Unity3DTiles) component to load and render 3DTiles tilesets.  The Unity3DTiles software also includes a simple stand-alone web-based viewer.  A similar JavasScript component was also recently developed, AMMOS [3DTilesRendererJS](https://github.com/NASA-AMMOS/3DTilesRendererJS), and is being incorporated into the AMMOS MMGIS 3D view.
-
-Landform can optionally also produce contextual meshes in more traditional textured mesh formats such as PLY or OBJ.  This can be done either as a single monolithic mesh with one texture image, or split up into multiple submeshes.  The monolithic form can suffer from limited texture resolution, even when using a relatively high resolution (e.g. 8k) image.  In that case Landform can optionally allocate a larger central portion of the image to the central detailed portion of the terrain, with the periphery of the image mapped to the remainder of the terrain at a lower resolution.
-
 ## Server Deployment
 
 The contextual mesh pipeline is fully automated and typically takes from 1 to 8 hours.  In a mission context the input parameters are: (1) a range of sols from which to collect data, and (2) a set of rover (site, drive) pairs defining the rover locations where surface observations were acquired during those sols.  A server component watches the arrival of newly downlinked data and uses some heuristics to decide when to trigger generation of new contextual meshes.
