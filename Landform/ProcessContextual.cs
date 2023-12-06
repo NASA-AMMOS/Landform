@@ -768,7 +768,13 @@ namespace JPLOPS.Landform
         protected override double GetFirstSendMS(QueueMessage msg)
         {
             var cmm = msg as ContextualMeshMessage;
-            return cmm != null ? (double)(cmm.timestamp) : base.GetFirstSendMS(msg);
+            if (cmm != null) {
+                double ts = (double)(cmm.timestamp);
+                if (ts > 0) {
+                    return ts;
+                }
+            }
+            return base.GetFirstSendMS(msg);
         }
 
         protected override int GetNumReceives(QueueMessage msg)
