@@ -13,7 +13,7 @@ using JPLOPS.Pipeline.AlignmentServer;
 /// <summary>
 /// Landform tactical mesh tileset workflow service and tool.
 ///
-/// Automates the tactical mesh tileset workflow:
+/// Automates the tactical mesh tileset workflow which converts tactical wedge meshes to 3DTiles format:
 ///
 /// 1. build-tiling-input
 /// 2. build-tileset
@@ -25,12 +25,7 @@ using JPLOPS.Pipeline.AlignmentServer;
 /// As a command line tool, process-tactical can be used to build one or more tactical mesh tilesets.  It can either
 /// operate entirely locally, reading from and writing to disk, or it can read from and write to S3.
 ///
-/// Also see Scripts/process-tactical.sh, which has overlapping functionality for the batch-mode case.
-/// (process-tactical.sh does not implement the service case.)  process-tactical.sh is intended for use by developers
-/// only, and has additional options for development and debugging workflows.  process-tactical (ProcessTactcial.cs)
-/// can be used by developers but is mainly intended for deployment and production use.
-///
-/// Also see ProcessContextual.cs and processContextual.sh which automate the contextual mesh tileset workflow.
+/// Also see ProcessContextual.cs which automates the contextual mesh tileset workflow.
 ///
 /// A tactical mesh is generated for a specific wedge mesh RDR, typically in IV or OBJ format.  No coordinate
 /// transformations are applied, it's basically a conversion from mesh to tileset format.  When run as a command line
