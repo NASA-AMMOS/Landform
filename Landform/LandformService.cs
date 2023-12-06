@@ -470,17 +470,17 @@ namespace JPLOPS.Landform
             return true;
         }
 
-        protected override void RefreshCredentials()
+        protected override void RefreshCredentials(bool force = false)
         {
-            base.RefreshCredentials();
+            base.RefreshCredentials(force || !lvopts.UseDefaultAWSProfileForSQSClient);
 
-            if (messageQueue != null)
+            if (messageQueue != null && !lvopts.UseDefaultAWSProfileForSQSClient)
             {
                 messageQueue.Dispose();
                 messageQueue = GetMessageQueue();
             }
 
-            if (failMessageQueue != null)
+            if (failMessageQueue != null && !lvopts.UseDefaultAWSProfileForSQSClient)
             {
                 failMessageQueue.Dispose();
                 failMessageQueue = GetFailMessageQueue();
