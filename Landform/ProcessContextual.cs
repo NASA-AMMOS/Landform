@@ -2576,7 +2576,7 @@ namespace JPLOPS.Landform
                 foreach (var listDir in listDirs)
                 {
                     pipeline.LogInfo("searching for additional list files in {0}", listDir);
-                    foreach (var listFile in SearchFiles(listDir, "*/" + options.ListPattern, recursive: false))
+                    foreach (var listFile in SearchFiles(listDir, options.ListPattern, recursive: false))
                     {
                         string url = StringHelper.NormalizeUrl(listFile);
                         if (!listURLs.Contains(url))
