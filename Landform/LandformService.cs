@@ -1401,7 +1401,7 @@ namespace JPLOPS.Landform
                         }
                         catch (Exception ex)
                         {
-                            pipeline.LogException(ex, "updating message timeout");
+                            pipeline.LogError("error updating SQS visibility timeout: {0}", ex.Message);
                             SleepSec(targetPeriod);
                         }
                     }
