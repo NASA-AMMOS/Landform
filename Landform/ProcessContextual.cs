@@ -373,6 +373,21 @@ namespace JPLOPS.Landform
         [Option(Default = ProcessContextual.DEF_MAX_ORBITAL_SITEDRIVES_PER_SOL, HelpText = "If positive, cull messages for older sitedrives to limit the total number of orbital messages per sol (existing messages are only included when combined with --coalesceexistingorbitalmessages)")]
         public int MaxOrbitalSiteDrivesPerSol { get; set; }
 
+        [Option(Default = null, HelpText = "Comma separated list of PLACES views for which to (re)build contextual tilesets when new solutions are added; null, empty, or \"none\" to disable triggering contextual on PLACES solution notifications")]
+        public string PLACESContextualSolutionViews { get; set; }
+
+        [Option(Default = null, HelpText = "Comma separated list of PLACES views for which to (re)build orbital tilesets when new solutions are added; null, empty, or \"none\" to disable triggering orbital on PLACES solution notifications")]
+        public string PLACESOrbitalSolutionViews { get; set; }
+
+        [Option(Default = false, HelpText = "Search for the latest sol containing each sitedrive for PLACES solution notifications.  Otherwise just use latest sol on S3")]
+        public bool SearchForSolContainingSiteDriveOnPLACESNotification { get; set; }
+
+        [Option(Default = false, HelpText = "Disable triggering contextual tilesets on FDR S3 ObjectCreated; they could still be triggered by PLACES solution notifications")]
+        public bool NoTrigerContextualOnRDRObjectCreated { get; set; }
+
+        [Option(Default = false, HelpText = "Disable triggering orbital tilesets on FDR S3 ObjectCreated; they could still be triggered by PLACES solution notifications")]
+        public bool NoTrigerOrbitalOnFDRObjectCreated { get; set; }
+
         [Option(Default = false, HelpText = "Allow rover observations for which no suitable rover mask is available or could be generated")]
         public bool AllowUnmaskedRoverObservations { get; set; }
 
@@ -492,6 +507,9 @@ namespace JPLOPS.Landform
         private int debounceMS, eopDebounceMS;
         private int solRange, maxSDs;
 
+        private SiteDrive landingSiteDrive;
+        private int latestRDRSol = -1;
+
         private int[] solBlacklist;
 
         private volatile MessageQueue workerQueue, orbitalWorkerQueue;
@@ -505,7 +523,78 @@ namespace JPLOPS.Landform
         private DictionaryOfChangedURLs changedContextualURLs = new DictionaryOfChangedURLs();
         private DictionaryOfChangedURLs changedOrbitalURLs = new DictionaryOfChangedURLs();
 
-        private Queue<DictionaryOfChangedURLs> contextualPassQueue = new Queue<DictionaryOfChangedURLs>();
+        private string[] placesContextualSolutionViews;
+        private string[] placesOrbitalSolutionViews;
+
+        private class SolutionNotificationMessage : SNSMessageWrapper
+        {
+            public int Site { get; private set; } = -1;
+            public int Drive { get; private set; } = -1;
+            public string View { get; private set; }
+
+            //see AssignSolAndRDRDir()
+            public int sol;
+            public string rdrDir;
+
+            private class SolutionNotification
+            {
+                public int site;
+                public int drive;
+                public string view;
+            }
+
+            public bool Parse(ILogger logger = null)
+            {
+                try
+                {
+                    var sn = JsonHelper.FromJson<SolutionNotification>(Message);
+                    Site = sn.site;
+                    Drive = sn.drive;
+                    View = sn.view;
+                    return true;
+                }
+                catch (Exception ex)
+                {
+                    if (logger != null)
+                    {
+                        logger.LogError("failed to parse SNS message as PLACES solution notification: " + Message);
+                    }
+                    return false;
+                }
+            }
+
+            public SiteDrive GetSiteDrive()
+            {
+                return new SiteDrive(Site, Drive);
+            }
+
+            public bool AssignedSolOrRDRDir()
+            {
+                return sol >= 0 || !string.IsNullOrEmpty(rdrDir);
+            }
+
+            public bool HasValidSolAndRDRDir()
+            {
+                return sol >= 0 && !string.IsNullOrEmpty(rdrDir) && rdrDir != "none";
+            }
+
+            public override string ToString()
+            {
+                return $"PLACES solution notification for ROVER({Site},{Drive}) in {View}";
+            }
+        }
+
+        private List<SolutionNotificationMessage> placesContextualSolutionNotifications =
+            new List<SolutionNotificationMessage>();
+        private List<SolutionNotificationMessage> placesOrbitalSolutionNotifications =
+            new List<SolutionNotificationMessage>();
+
+        private struct ContextualPass
+        {
+            public readonly DictionaryOfChangedURLs urls;
+            public readonly List<Stamped<ContextualMeshMessage>> forceMsgs;
+        }
+        private Queue<ContextualPass> contextualPassQueue = new Queue<ContextualPass>();
 
         //if EOP messages are enabled this is the timestamp of the latest EOP message in UTC milliseconds
         //when one of these becomes positive MasterLoop() will process all pending changed URLs after the EOP debounce
@@ -806,6 +895,10 @@ namespace JPLOPS.Landform
             {
                 return "EOX message: " + ((EOXMessage)msg).eox;
             }
+            else if (msg is SolutionNotificationMessage)
+            {
+                return msg.ToString();
+            }
             else if (msg is ContextualMeshMessage)
             {
                 try
@@ -879,7 +972,8 @@ namespace JPLOPS.Landform
             {
                 try
                 {
-                    if (msg is EOPMessage || msg is EOFMessage || msg is EOXMessage)
+                    if (msg is EOPMessage || msg is EOFMessage || msg is EOXMessage ||
+                        msg is SolutionNotificationMessage)
                     {
                         return true;
                     }
@@ -1009,6 +1103,31 @@ namespace JPLOPS.Landform
                     pipeline.LogInfo("received EOX message \"{0}\"{1}", txt, sign < 0 ? " (final)" : "");
                     return true; //successfully processed, remove message from queue
                 }
+                if (msg is SolutionNotificationMessage)
+                {
+                    var snm = msg as SolutionNotificationMessage;
+                    if (snm.Site < landingSiteDrive.Site || snm.Drive < landingSiteDrive.Drive)
+                    {
+                        pipeline.LogWarn("invalid RMC in " + snm);
+                    }
+                    if (!options.NoOrbital && placesContextualSolutionViews != null &&
+                        placesContextualSolutionViews.Any(v => v.Equals(snm.view)))
+                    {
+                        lock (placesContextualSolutionNotifications)
+                        {
+                            placesContextualSolutionNotifications.Add(snm);
+                        }
+                    }
+                    if (!options.NoSurface && placesOrbitalSolutionViews != null &&
+                        placesOrbitalSolutionViews.Any(v => v.Equals(snm.view)))
+                    {
+                        lock (placesOrbitalSolutionNotifications)
+                        {
+                            placesOrbitalSolutionNotifications.Add(snm);
+                        }
+                    }
+                    return true; //successfully processed, remove message from queue
+                }
                 string url = StringHelper.NormalizeUrl(GetUrlFromMessage(msg)); 
                 if (!FileExists(url))
                 {
@@ -1051,14 +1170,22 @@ namespace JPLOPS.Landform
                     pipeline.LogWarn("failed to parse RDR dir from URL {0}", url);
                     return true; //drop message
                 }
-                var sd = GetSiteDrive(url);
+                var idStr = StringHelper.GetLastUrlPathSegment(url, stripExtension: true);
+                var id = RoverProductId.Parse(idStr, mission, throwOnFail: false);
+                var sd = GetSiteDrive(url, id);
                 if (!sd.HasValue)
                 {
                     pipeline.LogWarn("failed to parse site drive from URL {0}", url);
                     return true; //drop message
                 }
                 bool isFDR = fdrRegex != null && fdrRegex.IsMatch(url);
-                if (isFDR)
+                bool isRDR = wedgeRegex != null && wedgeRegex.IsMatch(url) ||
+                    textureRegex != null && textureRegex.IsMatch(url);
+                if (isFDR || isRDR)
+                {
+                    latestRDRSol = Math.Max(latestRDRSol, SiteDriveList.GetSol(url, id));
+                }
+                if (isFDR && !options.NoTrigerOrbitalOnFDRObjectCreated)
                 {
                     Interlocked.Exchange(ref eofTimestamp, 0);
                     if (!options.NoOrbital)
@@ -1066,7 +1193,7 @@ namespace JPLOPS.Landform
                         AddChangedURL(changedOrbitalURLs, rdrDir, sd.Value, url);
                     }
                 }
-                else
+                if (isRDR && !options.NoTriggerContextualOnRDRObjectCreated)
                 {
                     Interlocked.Exchange(ref eoxTimestamp, 0);
                     Interlocked.Exchange(ref eopTimestamp, 0);
@@ -1116,6 +1243,11 @@ namespace JPLOPS.Landform
             if (eoxMessageRegex != null && eoxMessageRegex.IsMatch(txt))
             {
                 return new EOXMessage() { eox = txt };
+            }
+            var snm = TryParseSolutionNotification(txt);
+            if (snm != null)
+            {
+                return snm;
             }
             return base.AlternateMessageHandler(txt);
         }
@@ -1335,6 +1467,30 @@ namespace JPLOPS.Landform
             if (orbitalCompareIgnoreSol)
             {
                 pipeline.LogInfo("ignoring sol when comparing orbital tilesets");
+            }
+
+            landingSiteDrive = mission.GetLandingSiteDrive();
+
+            var fdrSearchDirs = mission.GetFDRSearchDirs();
+            if (fdrSearchDirs == null || fdrSearchDirs.Count == 0)
+            {
+                pipeline.LogWarn("disabling PLACES solution notifications, no FDR search dirds");
+                options.PLACESContextualSolutionViews = "none";
+                options.PLACESOrbitalSolutionViews = "none";
+            }
+            if (!string.IsNullOrEmpty(options.PLACESContextualSolutionViews)
+                !string.Equals(options.PLACESContextualSolutionViews, "none", StringComparison.OrdinalIgnoreCase))
+            {
+                pipeline.LogInfo("(re)building contextual meshes for new PLACES solutions in views: " +
+                                 options.PLACESContextualSolutionViews);
+                placesContextualSolutionViews = StringHelper.ParseList(options.PLACESContextualSolutionViews);
+            }
+            if (!string.IsNullOrEmpty(options.PLACESOrbitalSolutionViews) &&
+                !string.Equals(options.PLACESOrbitalSolutionViews, "none", StringComparison.OrdinalIgnoreCase))
+            {
+                pipeline.LogInfo("(re)building orbital meshes for new PLACES solutions in views: " +
+                                 options.PLACESOrbitalSolutionViews);
+                placesOrbitalSolutionViews = StringHelper.ParseList(options.PLACESOrbitalSolutionViews);
             }
 
             return true;
@@ -1571,13 +1727,16 @@ namespace JPLOPS.Landform
             return ret;
         }
 
-        private ContextualMeshParameters MakeBatchParameters()
+        private ContextualMeshParameters MakeBatchMeshParameters()
         {
-            string rdrDir = options.RDRDir;
-            string sols = options.Sols;
-            string siteDrives = options.SiteDrives;
-            bool orbitalOnly = options.NoSurface;
-            double extent = options.Extent;
+            return MakeContextualMeshParameters(options.RDRDir, options.Sols, options.SiteDrives, options.NoSurface,
+                                                options.Extent);
+        }
+                
+        private ContextualMeshParameters MakeContextualMeshParameters(string rdrDir, string sols, string siteDrives,
+                                                                      bool orbitalOnly, double extent,
+                                                                      Func<ContextualMeshMessage> msgCallback = null)
+        {
 
             int sep = sols.IndexOfAny(new char[] { ',', '-' });
             sep = sep < 0 ? sols.Length : sep;
@@ -1669,6 +1828,12 @@ namespace JPLOPS.Landform
                                      "did not meet contextual mesh criteria",
                                      string.Join(",", allSDs.Keys.Select(sd => sd.ToString())),
                                      sols, primarySol, primarySD);
+                    return null;
+                }
+
+                if (msgCallback != null)
+                {
+                    msgCallback(msg);
                     return null;
                 }
 
@@ -2228,10 +2393,13 @@ namespace JPLOPS.Landform
         private static readonly Regex LIST_FILENAME_REGEX =
             new Regex(@"[^_]+_(?:\d{4})?([0-9A-Z]{7})[A-Z]?(?:_[0-9A-Z]{1,2})?\.lis$", RegexOptions.IgnoreCase);
 
-        private SiteDrive? GetSiteDrive(string url)
+        private SiteDrive? GetSiteDrive(string url, RoverProductId id = null)
         {
-            var idStr = StringHelper.GetLastUrlPathSegment(url, stripExtension: true);
-            var id = RoverProductId.Parse(idStr, mission, throwOnFail: false);
+            if (id == null)
+            {
+                var idStr = StringHelper.GetLastUrlPathSegment(url, stripExtension: true);
+                id = RoverProductId.Parse(idStr, mission, throwOnFail: false);
+            }
             if (id is OPGSProductId)
             {
                 return (id as OPGSProductId).SiteDrive;
@@ -2257,6 +2425,109 @@ namespace JPLOPS.Landform
         private SiteDriveList MakeList(String rdrDir, SiteDrive sd)
         {
             return new SiteDriveList(rdrDir, sd, mission, pipeline, FilterWedge, FilterTexture);
+        }
+
+        private SolutionNotificationMessage TryParseSolutionNotification(txt msg)
+        {
+            if (msg == null || !msg.Contains("Message") ||
+                !msg.Contains("site") || !msg.Contains("drive") || !msg.Contains("view"))
+            {
+                return null;
+            }
+            var msg = JsonHelper.FromJson<SolutionNotificationMessage>(txt, autoTypes: false);
+            return msg.Parse(pipeline) ? msg : null;
+        }
+
+        private void AssignSolAndRDRDir(SolutionNotificationMessage msg)
+        {
+            if (msg.AssignedSolOrRDRDir())
+            {
+                return msg.HasValidSolAndRDRDir();
+            }
+            var sd = new SiteDrive(msg.Site, msg.Drive);
+            int latestSol = -1;
+            var sols = new HashSet<int>();
+            string latestDir = null;
+            foreach (string fdrDir in mission.GetFDRSearchDirs())
+            {
+                fdrDir = StringHelper.EnsureTrailingSlash(StringHelper.NormalizeUrl(fdrDir));
+                //e.g. s3://BUCKET/ods/VER/sol/#####/ids/fdr/ncam/
+                if (SiteDriveList.GetSolSpan(fdrDir, out int start, out int len))
+                {
+                    string dir = fdrDir.Substring(0, start); //e.g. s3://BUCKET/ods/VER/sol/
+                    if (latestDir == null || dir != latestDir) {
+                        sols.Clear();
+                        foreach (var s3Url in
+                                     storageHelper.SearchObjects(dir, recursive: false, folders: true, files: false))
+                        {
+                            var url = StringHelper.NormalizeUrl(s3Url); //e.g. s3://BUCKET/ods/VER/sol/00534/
+                            string solStr = StringHelper.GetLastUrlPathSegment(url.TrimEnd('/')); //e.g. 00534
+                            if (int.TryParse(solStr, out int sol))
+                            {
+                                sols.add(sol);
+                            }
+                        }
+                        latestDir = dir;
+                    }
+                    //unfortunately are lots of apparently bogus sol folders beyond the latest actual real sol on sops
+                    //so we can't just rely on sorting the output of an s3 ls and taking the last folder
+                    //instead we just keep track of the higest sol number as we get ObjectCreated messages
+                    //this is potentially fallible for a few reasons (e.g. an untimely server restart)
+                    //but in the common case we should typically get at least one ecam FDR in a sol before
+                    //we get a best_tactical PLACES solution notification due to mapping specialist manual localization
+                    if (latestRDRSol >= 0 && !options.SearchForSolContainingSiteDriveOnPLACESNotification)
+                    {
+                        latestSol = latestRDRSol;
+                    }
+                    else
+                    {
+                        foreach (int sol in sols.OrderByDescending().Where(sol => sol > latestSol).ToList())
+                        {
+                            if (sol < latestSol)
+                            {
+                                break; //latestSol was set to sol+1 in inner loop below in last iteration of outer loop
+                            }
+                            string solDir = StringHelper.ReplaceIntWildcards(fdrDir, sol);
+                            //e.g. s3://BUCKET/ods/VER/sol/00534/ids/fdr/ncam/
+                            string glob = fdrRegex != null ? options.FDRPattern :
+                                "*" + (mission.PreferIMGToVIC() ? ".IMG" : ".VIC");
+                            foreach (var fdrUrl in SearchFiles(solDir, glob, recursive: false))
+                            {
+                                var fdrSD = GetSiteDrive(StringHelper.NormalizeUrl(fdrUrl));
+                                if (fdrSD.HasValue && fdrSD.Value == sd)
+                                {
+                                    latestSol = sol;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    pipeline.LogWarn("could not find sol span in {0} while getting sol for {1}", fdrDir, msg);
+                }
+            } 
+            if (latestSol >= 0)
+            {
+                msg.sol = sol;
+                pipeline.LogInfo("using sol {0} for {1}", sol, msg);
+            }
+            else
+            {
+                pipeline.LogWarn("failed to find sol for {1}", msg)
+            }
+            if (latestDir != null)
+            {
+                msg.rdrDir = latestDir;
+                pipeline.LogInfo("using RDR dir {0} for {1}", latestDir, msg);
+            }
+            else
+            {
+                msg.rdrDir = "none";
+                pipeline.LogWarn("failed to find RDR dir for {1}", msg)
+            }
+            return msg.HasValidSolAndRDRDir();
         }
 
         private List<string> GetSolDirs(string rdrDir, Func<int, bool> filterSol) 
@@ -2821,6 +3092,16 @@ namespace JPLOPS.Landform
             };
         }
 
+        private ContextualMeshMessage MakeContextualMeshMessage(string rdrDir, int primarySol, SiteDrive primarySD)
+        {
+            ContextualMeshMessage cmm = null;
+            bool orbitalOnly = false;
+            var extent = !options.NoAllowOverrideExtent ? GetExtent(primarySol, primarySD) : options.Extent;
+            MakeContextualMeshParameters(rdrDir, primarySol + ",1-" + primarySol, primarySD + ",auto", orbitalOnly,
+                                         extent, msg => cmm = msg);
+            return cmm;
+        }
+
         /// <summary>
         /// Applys heruistics to possibly make a ContextualMesh for primarySD.
         /// Returns null if it decided not to make one, or if there was a problem.
@@ -3243,7 +3524,8 @@ namespace JPLOPS.Landform
         }
 
         //uses SQS, called only while holding credentialRefreshLock
-        private int EnqueueMessages(List<Stamped<ContextualMeshMessage>> msgs, string what, MessageQueue queue,
+        private int EnqueueMessages(List<Stamped<ContextualMeshMessage>> msgs,
+                                    List<Stamped<ContextualMeshMessage>> forceMsgs, string what, MessageQueue queue,
                                     string rdrDir, int checkExistingSolRange, bool includeExistingMessages,
                                     int maxSiteDrivesPerSol)
         {
@@ -3264,6 +3546,20 @@ namespace JPLOPS.Landform
             catch (Exception ex)
             {
                 pipeline.LogException(ex, $"error coalescing {what} mesh messages, proceeding with un-coaleseced");
+            }
+
+            if (forceMsgs != null && forceMsgs.Count > 0)
+            {
+                coalesced.AddRange(forceMsgs);
+                coalesced = coalesced.OrderBy(sm => sm.Timestamp).Select(sm => sm.Value).ToList();
+                try
+                {
+                    coalesced = CoalesceMessages(coalesced, what, queue, rdrDir, -1, false, -1);
+                }
+                catch (Exception ex)
+                {
+                    pipeline.LogException(ex, $"error coalescing {what} mesh messages, proceeding with un-coaleseced");
+                }
             }
             
             //TODO right about here we should try to determine if any workers
@@ -3468,7 +3764,8 @@ namespace JPLOPS.Landform
             }
         }
 
-        private void EnqueueOrbitalMessages(DictionaryOfChangedURLs urls)
+        private void EnqueueOrbitalMessages(DictionaryOfChangedURLs urls,
+                                            List<Stamped<ContextualMeshMessage>> forceMsgs = null)
         {
             foreach (var rdrDir in urls.Keys)
             {
@@ -3499,7 +3796,7 @@ namespace JPLOPS.Landform
                     var queue = orbitalWorkerQueue ?? workerQueue;
                     bool cullExisting = !options.RecreateExistingOrbital;
                     int checkExistingSolRange = cullExisting ? options.OrbitalCheckExistingSolRange : -1;
-                    int numEnqueued = EnqueueMessages(omsgs, "orbital", queue, rdrDir, checkExistingSolRange,
+                    int numEnqueued = EnqueueMessages(omsgs, forceMsgs, "orbital", queue, rdrDir, checkExistingSolRange,
                                                       options.CoalesceExistingOrbitalMessages,
                                                       options.MaxOrbitalSiteDrivesPerSol);
                     if (numEnqueued > 0 && options.AutoStartWorkers && options.WorkerAutoStartSec > 0)
@@ -3510,7 +3807,8 @@ namespace JPLOPS.Landform
             }
         }
 
-        private void EnqueueContextualMessages(DictionaryOfChangedURLs urls)
+        private void EnqueueContextualMessages(DictionaryOfChangedURLs urls,
+                                               List<Stamped<ContextualMeshMessage>> forceMsgs = null)
         {
             foreach (var rdrDir in urls.Keys)
             {
@@ -3583,8 +3881,8 @@ namespace JPLOPS.Landform
                 {
                     bool cullExisting = options.NoRecreateExistingContextual;
                     int checkExistingSolRange = cullExisting ? 0 : -1;
-                    int numEnqueued = EnqueueMessages(msgs, "contextual", workerQueue, rdrDir, checkExistingSolRange,
-                                                      options.CoalesceExistingContextualMessages,
+                    int numEnqueued = EnqueueMessages(msgs, forceMsgs, "contextual", workerQueue, rdrDir,
+                                                      checkExistingSolRange, options.CoalesceExistingContextualMessages,
                                                       options.MaxContextualSiteDrivesPerSol);
                     if (numEnqueued > 0 && options.AutoStartWorkers && options.WorkerAutoStartSec > 0)
                     {
@@ -3695,11 +3993,22 @@ namespace JPLOPS.Landform
                                                              gotEOX ? $"EOX at {ToLocalTime(eoxMS)}" :
                                                              gotEOP ? $"EOP at {ToLocalTime(eopMS)}" : "",
                                                              "orbital");
-                        if (orbitalURLs.Count > 0)
+
+                        var forceMsgs = new List<Stamped<ContextualMeshMessage>>();
+                        foreach (var msg in placesOrbitalSolutionNotifications)
                         {
-                            EnqueueOrbitalMessages(orbitalURLs);
+                            if (AssignSolAndRDRDir(msg))
+                            {
+                                forceMsgs.Add(MakeOrbitalMeshMessage(msg.rdrDir, msg.sol, msg.GetSiteDrive()));
+                            }
+                        }
+
+                        if (orbitalURLs.Count > 0 || forceMsgs.Count > 0)
+                        {
+                            EnqueueOrbitalMessages(orbitalURLs, forceMsgs);
                         }
                     }
+                    placesOrbitalSolutionNotifications.Clear();
 
                     if (!options.NoSurface)
                     {
@@ -3768,7 +4077,21 @@ namespace JPLOPS.Landform
 
                         var contextualURLs = ProcessChangedURLs(changedContextualURLs, eop > 0, eopMsg, "contextual");
 
-                        if (contextualURLs.Count > 0)
+                        var forceMsgs = new List<Stamped<ContextualMeshMessage>>();
+                        foreach (var msg in placesContextualSolutionNotifications)
+                        {
+                            //placesContextualSolutionNotifications and placesOrbitalSolutionNotifications contain
+                            //references to the same underlying set of SolutionNotificationMessage objects
+                            //and AssignSolAndRDRDir() will early out if it's already been run on msg
+                            if (AssignSolAndRDRDir(msg))
+                            {
+                                forceMsgs.Add(MakeContextualMeshMessage(msg.rdrDir, msg.sol, msg.GetSiteDrive()));
+                                //TODO optionally make message for *previous* drive endpoint sitedrive
+                            }
+                        }
+
+
+                        if (contextualURLs.Count > 0 || forceMsgs.Count > 0)
                         {
                             lock (contextualPassQueue)
                             {
@@ -3776,7 +4099,8 @@ namespace JPLOPS.Landform
                                 {
                                     //don't delay orbital meshes while we collect adjacent sitedrives for contextual
                                     //in practice that can take like ~30min
-                                    contextualPassQueue.Enqueue(contextualURLs);
+                                    //https://github.jpl.nasa.gov/OnSight/Landform/issues/1224
+                                    contextualPassQueue.Enqueue(new ContextualPass(contextualURLs, forceMsgs));
                                     pipeline.LogInfo("enqueued batch of URLs for contextual processing, queue size {0}",
                                                  contextualPassQueue.Count);
                                 }
@@ -3789,6 +4113,7 @@ namespace JPLOPS.Landform
                             }
                         }
                     }
+                    placesContextualSolutionNotifications.Clear();
                 }
                 catch (Exception masterException)
                 {
@@ -3821,14 +4146,14 @@ namespace JPLOPS.Landform
                     {
                         if (contextualPassQueue.Count > 0)
                         {
-                            urls = contextualPassQueue.Dequeue();
-                            pipeline.LogInfo("dequeued batch of URLs for contextual processing, queue size {0}",
+                            pass = contextualPassQueue.Dequeue();
+                            pipeline.LogInfo("dequeued pass for contextual processing, queue size {0}",
                                              contextualPassQueue.Count);
                         }
                     }
                     if (urls != null)
                     {
-                        EnqueueContextualMessages(urls);
+                        EnqueueContextualMessages(pass.urls, pass.forceMsgs);
                     }
                 }
                 catch (Exception ex)

@@ -1403,5 +1403,10 @@ namespace JPLOPS.Pipeline
         {
             return MissionConfig.Instance.ServiceSSMEncrypted;
         }
+
+        public virtual List<string> GetFDRSearchDirs()
+        {
+            return null;
+        }
     }
 }

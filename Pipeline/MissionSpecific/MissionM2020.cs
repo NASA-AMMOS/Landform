@@ -90,6 +90,15 @@ namespace JPLOPS.Pipeline
         [ConfigEnvironmentVariable("LANDFORM_WATCHDOG_CLOUDWATCH_COMMAND")]
         public string WatchdogCloudWatchCommand { get; set; } =
             "powershell -Command \"& {cwagentctl} -a fetch-config -m ec2 -s -c file:C:\\landform\\config_files\\amazon-cloudwatch-agent.json\"";
+
+        //comma separated list of S3 URLs of FDR directories with sol number replaced by #####
+        //{venue} will be replaced
+        [ConfigEnvironmentVariable("LANDFORM_FDR_SEARCH_DIRS")]
+        public string FDRSearchDirs { get; set; } =
+            "s3://m20-{venue}-ods/ods/surface/sol/#####/ids/fdr/fcam/," +
+            "s3://m20-{venue}-ods/ods/surface/sol/#####/ids/fdr/rcam/," +
+            "s3://m20-{venue}-ods/ods/surface/sol/#####/ids/fdr/ncam/";
+            
     }
     
     public class MissionM2020 : MissionSpecific
@@ -845,6 +854,11 @@ namespace JPLOPS.Pipeline
             string cmd = MissionM2020Config.Instance.WatchdogCloudWatchCommand.Replace("{venue}", venue);
             return cmd.Replace("{cwagentctl}",
                                "'C:\\Program Files\\Amazon\\AmazonCloudWatchAgent\\amazon-cloudwatch-agent-ctl.ps1'");
+        }
+
+        public override List<string> GetFDRSearchDirs()
+        {
+            return MissionM2020Config.FDRSearchDirs.Split(",").Select(d => d.Replace("{venue}", venue).ToList();
         }
     }
 }
