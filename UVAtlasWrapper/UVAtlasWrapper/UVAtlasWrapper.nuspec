@@ -1,0 +1,28 @@
+<?xml version="1.0"?>
+<package >
+  <metadata>
+    <id>UVAtlas.NET</id>
+    <version>1.1.0.2</version>
+    <title>UVAtlasNET</title>
+    <authors>Thomas Schibler</authors>
+    <owners>Alex Menzies</owners>
+    <projectUrl>https://github.com/Microsoft/UVAtlas</projectUrl>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <description>C# wrapper for UVAtlas</description>
+    <copyright>Copyright 2017</copyright>
+    <releaseNotes>
+      Removed CoInitializeEx which caused failures under some conditions
+      Modified success return value from a bool to a return code enum
+    </releaseNotes>
+    <references>
+      <reference file="UVAtlasWrapper.dll" />      
+    </references>
+    <tags>uv atlas wrapper</tags>
+  </metadata>
+  <files>
+    <!-- Add a readme -->
+    <file src="..\x64\Release\UVAtlasLib_x64.dll" target="build" />
+    <file src="..\Win32\Release\UVAtlasLib_x32.dll" target="build" />
+    <file src="UVAtlas.NET.targets" target="build" />
+  </files>
+</package>
