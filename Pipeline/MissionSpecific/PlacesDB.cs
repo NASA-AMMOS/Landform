@@ -138,10 +138,7 @@ namespace JPLOPS.Pipeline
             {
                 throw new Exception("no PlacesDB views");
             }
-            if (logger != null)
-            {
-                logger.LogInfo("PlacesDB url: {0}; views {1}", config.Url, String.Join(",", views));
-            }
+            Debug("PlacesDB url: {0}; views {1}", config.Url, String.Join(",", views));
 
             if (!string.IsNullOrEmpty(config.AuthCookieValue))
             {
@@ -160,10 +157,7 @@ namespace JPLOPS.Pipeline
                 }
                 try
                 {
-                    if (logger != null)
-                    {
-                        logger.LogInfo("reading PlacesDB auth cookie from file \"{0}\"", path);
-                    }
+                    Debug("reading PlacesDB auth cookie from file \"{0}\"", path);
                     cookieValue = File.ReadAllText(path);
                     if (string.IsNullOrEmpty(cookieValue))
                     {
