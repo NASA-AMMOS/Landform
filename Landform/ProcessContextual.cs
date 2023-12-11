@@ -359,7 +359,7 @@ namespace JPLOPS.Landform
         public int MinPrimarySiteDriveWedges { get; set; }
 
         [Option(Default = ProcessContextual.DEF_MAX_SITEDRIVES, HelpText = "Max number of site drives to include in contextual mesh, non-positive for no limit.  See MissionSpecific for finer grained limits on the number of products per instrument per sitedrive.")]
-        public int MaxSiteDrives{ get; set; }
+        public int MaxSiteDrives { get; set; }
 
         [Option(Default = ProcessContextual.DEF_MAX_SITEDRIVE_DISTANCE, HelpText = "Max distance in meters from origin of a site drive to origin of primary site drive to include in contextual mesh, non-positive for no limit")]
         public double MaxSiteDriveDistance { get; set; }
@@ -367,11 +367,11 @@ namespace JPLOPS.Landform
         [Option(Default = ProcessContextual.DEF_MAX_SOL_RANGE, HelpText = "Max difference between sol and primary sol to include in contextual mesh, negative to use default")]
         public int MaxSolRange { get; set; }
 
-        [Option(Default = ProcessContextual.DEF_MAX_SITEDRIVES_PER_SOL, HelpText = "If positive, cull messages for older sitedrives to limit the total number of contextual messages per sol")]
-        public int MaxSiteDrivesPerSol { get; set; }
+        [Option(Default = ProcessContextual.DEF_MAX_CONTEXTUAL_SITEDRIVES_PER_SOL, HelpText = "If positive, cull messages for older sitedrives to limit the total number of contextual messages per sol (existing messages are only included when combined with --coalesceexistingcontextualmessages)")]
+        public int MaxContextualSiteDrivesPerSol { get; set; }
 
-        [Option(Default = ProcessContextual.DEF_MAX_SITEDRIVES_PER_SOL_PER_PASS, HelpText = "If positive, cull messages for older sitedrives to limit the total number of new contextual messages per sol for each pass")]
-        public int MaxSiteDrivesPerSolPerPass { get; set; }
+        [Option(Default = ProcessContextual.DEF_MAX_ORBITAL_SITEDRIVES_PER_SOL, HelpText = "If positive, cull messages for older sitedrives to limit the total number of orbital messages per sol (existing messages are only included when combined with --coalesceexistingorbitalmessages)")]
+        public int MaxOrbitalSiteDrivesPerSol { get; set; }
 
         [Option(Default = false, HelpText = "Allow rover observations for which no suitable rover mask is available or could be generated")]
         public bool AllowUnmaskedRoverObservations { get; set; }
@@ -434,8 +434,11 @@ namespace JPLOPS.Landform
 
         public const int DEF_ORBITAL_CHECK_EXISTING_SOL_RANGE = 30;
 
-        public const int DEF_MAX_SITEDRIVES_PER_SOL = -1;
-        public const int DEF_MAX_SITEDRIVES_PER_SOL_PER_PASS = 1;
+        //only make at most one contextual mesh per sol at highest numbered sitedrive
+        public const int DEF_MAX_CONTEXTUAL_SITEDRIVES_PER_SOL = 1;
+
+        //don't limit the number of orbital meshes per sol
+        public const int DEF_MAX_ORBITAL_SITEDRIVES_PER_SOL = -1;
 
         public const string DEF_MAX_FETCH = "100G";
         public const string DEF_MAX_ORBITAL = "20G";
@@ -1306,11 +1309,10 @@ namespace JPLOPS.Landform
             pipeline.LogInfo("default extent {0}, surface extent {1}", options.Extent, options.SurfaceExtent);
             pipeline.LogInfo("max sol range {0}, max sitedrives {1}", solRange, maxSDs);
             pipeline.LogInfo("min wedges for primary sitedrive {0}", options.MinPrimarySiteDriveWedges);
-            pipeline.LogInfo("max sitedrives per sol {0}",
-                             options.MaxSiteDrivesPerSol > 0 ? options.MaxSiteDrivesPerSol.ToString() : "unlimited");
-            pipeline.LogInfo("max sitedrives per sol per pass {0}",
-                             options.MaxSiteDrivesPerSolPerPass > 0 ? options.MaxSiteDrivesPerSolPerPass.ToString() :
-                             "unlimited");
+            pipeline.LogInfo("max contextual sitedrives per sol {0}", options.MaxContextualSiteDrivesPerSol > 0 ?
+                             options.MaxContextualSiteDrivesPerSol.ToString() : "unlimited");
+            pipeline.LogInfo("max orbital sitedrives per sol {0}", options.MaxOrbitalSiteDrivesPerSol > 0 ?
+                             options.MaxOrbitalSiteDrivesPerSol.ToString() : "unlimited");
 
             pipeline.LogInfo("max wedges {0}, max textures {1}",
                              mission.GetContextualMeshMaxWedges(), mission.GetContextualMeshMaxTextures());
@@ -3036,12 +3038,13 @@ namespace JPLOPS.Landform
         /// Also optionally removes messages for tilesets which are already processed (or being processed).
         /// The messages must all have the same RDR dir.
         /// De-dupes, preferring newer-created messages to older.
-        /// enforces options.MaxSiteDrivesPerSol, options.MaxMessageAge, options.MaxReceiveCount
+        /// enforces max sitedrives per sol, max message age, max receive count
         /// Returns messages sorted first by decreasing sol, then by decreasing number of wedges.
         /// </summary>
         private List<ContextualMeshMessage> CoalesceMessages(List<ContextualMeshMessage> newMsgsOldestToNewest,
                                                              string what, MessageQueue queue, string rdrDir,
-                                                             int checkExistingSolRange, bool includeExistingMessages)
+                                                             int checkExistingSolRange, bool includeExistingMessages,
+                                                             int maxSiteDrivesPerSol)
         {
             if (newMsgsOldestToNewest.Count == 0)
             {
@@ -3187,10 +3190,10 @@ namespace JPLOPS.Landform
             }
             keepUniqueNewest(oldKeepers, "old");
 
-            if (options.MaxSiteDrivesPerSol > 0 && keepers.Any(msg => !msg.orbitalOnly))
+            if (maxSiteDrivesPerSol > 0)
             {
                 var msgsBySol = new Dictionary<int, List<ContextualMeshMessage>>();
-                foreach (var msg in keepers.Where(msg => !msg.orbitalOnly))
+                foreach (var msg in keepers)
                 {
                     if (!msgsBySol.ContainsKey(msg.primarySol))
                     {
@@ -3202,25 +3205,22 @@ namespace JPLOPS.Landform
                 {
                     var filtered = msgsBySol[sol]
                         .OrderByDescending(msg => msg.primarySiteDrive)
-                        .Take(options.MaxSiteDrivesPerSol)
+                        .Take(maxSiteDrivesPerSol)
                         .ToList();
                     if (filtered.Count < msgsBySol[sol].Count)
                     {
                         var discarded = msgsBySol[sol]
                             .OrderByDescending(msg => msg.primarySiteDrive)
-                            .Skip(options.MaxSiteDrivesPerSol)
+                            .Skip(maxSiteDrivesPerSol)
                             .ToList();
-                        pipeline.LogInfo("kept messages for {0} highest numbered sitedrives {1} for sol {2}, " +
-                                         "discarded {3} others for sitedrives {4}",
-                                         filtered.Count, string.Join(",", filtered.Select(msg => msg.primarySiteDrive)),
-                                         sol, discarded.Count,
-                                         string.Join(",", discarded.Select(msg => msg.primarySiteDrive)));
+                        pipeline.LogInfo("kept {0} messages for {1} highest numbered sitedrives {2} for sol {3}, " +
+                                         "discarded {4} others for sitedrives {5}", what, filtered.Count,
+                                         string.Join(",", filtered.Select(m => m.primarySiteDrive)), sol,
+                                         discarded.Count, string.Join(",", discarded.Select(m => m.primarySiteDrive)));
                     }   
                     msgsBySol[sol] = filtered;
                 }
-                var oo = keepers.Where(msg => msg.orbitalOnly).ToList();
                 keepers.Clear();
-                keepers.UnionWith(oo);
                 keepers.UnionWith(msgsBySol.Values.SelectMany(msgs => msgs));
             }
 
@@ -3244,7 +3244,8 @@ namespace JPLOPS.Landform
 
         //uses SQS, called only while holding credentialRefreshLock
         private int EnqueueMessages(List<Stamped<ContextualMeshMessage>> msgs, string what, MessageQueue queue,
-                                    string rdrDir, int checkExistingSolRange, bool includeExistingMessages)
+                                    string rdrDir, int checkExistingSolRange, bool includeExistingMessages,
+                                    int maxSiteDrivesPerSol)
         {
             if (queue == null)
             {
@@ -3258,7 +3259,7 @@ namespace JPLOPS.Landform
             {
                 //remove duplicates and order descending by sol, then sitedrive, then num wedges
                 coalesced = CoalesceMessages(coalesced, what, queue, rdrDir, checkExistingSolRange,
-                                             includeExistingMessages);
+                                             includeExistingMessages, maxSiteDrivesPerSol);
             }
             catch (Exception ex)
             {
@@ -3499,7 +3500,8 @@ namespace JPLOPS.Landform
                     bool cullExisting = !options.RecreateExistingOrbital;
                     int checkExistingSolRange = cullExisting ? options.OrbitalCheckExistingSolRange : -1;
                     int numEnqueued = EnqueueMessages(omsgs, "orbital", queue, rdrDir, checkExistingSolRange,
-                                                      options.CoalesceExistingOrbitalMessages);
+                                                      options.CoalesceExistingOrbitalMessages,
+                                                      options.MaxOrbitalSiteDrivesPerSol);
                     if (numEnqueued > 0 && options.AutoStartWorkers && options.WorkerAutoStartSec > 0)
                     {
                         StartWorkers(orbitalWorkerInstances, "orbital");
@@ -3549,33 +3551,6 @@ namespace JPLOPS.Landform
                     changedSDsBySol[sol].Add(sd);
                 }
                 
-                if (options.MaxSiteDrivesPerSolPerPass > 0)
-                {
-                    foreach (int sol in new HashSet<int>(changedSDsBySol.Keys))
-                    {
-                        var filtered = changedSDsBySol[sol]
-                            .OrderByDescending(sd => sd)
-                            .Take(options.MaxSiteDrivesPerSolPerPass)
-                            .ToList();
-                        if (filtered.Count < changedSDsBySol[sol].Count)
-                        {
-                            var discarded = changedSDsBySol[sol]
-                                .OrderByDescending(sd => sd)
-                                .Skip(options.MaxSiteDrivesPerSolPerPass)
-                                .ToList();
-                            pipeline.LogInfo("kept {0} highest numbered sitedrives {1} for sol {2} " +
-                                             "changed in this pass, discarded {3} other sitedrives {4}",
-                                             filtered.Count, string.Join(",", filtered), sol,
-                                             discarded.Count, string.Join(",", discarded));
-                        }   
-                        changedSDsBySol[sol] = filtered;
-                    }
-                    changedSDs = changedSDsBySol.Values
-                        .SelectMany(sds => sds)
-                        .OrderByDescending(sd => sd)
-                        .ToList();
-                }
-                
                 //try to connect to PlacesDB just for this pass
                 //rather than having a single long-lived PlacesDB connection
                 //for one thing our PlacesDB interface caches results, and the cache could become stale
@@ -3609,7 +3584,8 @@ namespace JPLOPS.Landform
                     bool cullExisting = options.NoRecreateExistingContextual;
                     int checkExistingSolRange = cullExisting ? 0 : -1;
                     int numEnqueued = EnqueueMessages(msgs, "contextual", workerQueue, rdrDir, checkExistingSolRange,
-                                                      options.CoalesceExistingContextualMessages);
+                                                      options.CoalesceExistingContextualMessages,
+                                                      options.MaxContextualSiteDrivesPerSol);
                     if (numEnqueued > 0 && options.AutoStartWorkers && options.WorkerAutoStartSec > 0)
                     {
                         StartWorkers(workerInstances);
