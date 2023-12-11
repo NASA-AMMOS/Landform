@@ -250,6 +250,12 @@ namespace JPLOPS.Landform
         [Option(Default = false, HelpText = "Don't recreate existing contextual tilesets")]
         public bool NoRecreateExistingContextual { get; set; }
 
+        [Option(Default = false, HelpText = "Coalesce existing orbital messages with new ones")]
+        public bool CoalesceExistingOrbitalMessages { get; set; }
+
+        [Option(Default = false, HelpText = "Coalesce existing contextual messages with new ones")]
+        public bool CoalesceExistingContextualMessages { get; set; }
+
         [Option(Default = null, HelpText = "option disabled for this command")]
         public override string MeshFormat { get; set; }
 
@@ -2816,10 +2822,11 @@ namespace JPLOPS.Landform
         /// <summary>
         /// Applys heruistics to possibly make a ContextualMesh for primarySD.
         /// Returns null if it decided not to make one, or if there was a problem.
-        /// If placesDB is null only the primary sitedrive is included unless options.MaxSiteDriveDistance <= 0.
+        /// If placesDB is null only the primary sitedrive is included
+        /// (unless options.MaxSiteDriveDistance <= 0, which disables filtering by distance)
         /// Similarly, if options.MaxSiteDriveDistance > 0 and PlacesDB fails to return an offset for any sitedrive
         /// other than the primary then that sitedrive will not be included.
-        /// Otherwise considers additional sitedrives from sdLists, which should all have same RDRDir as primarySDList.
+        /// Otherwise considers additional sitedrives from allSDs
         /// </summary>
         private ContextualMeshMessage MakeContextualMeshMessage(SiteDrive primarySD,
                                                                 Dictionary<int, List<SiteDrive>> changedSDsBySol,
@@ -3034,18 +3041,18 @@ namespace JPLOPS.Landform
         /// </summary>
         private List<ContextualMeshMessage> CoalesceMessages(List<ContextualMeshMessage> newMsgsOldestToNewest,
                                                              string what, MessageQueue queue, string rdrDir,
-                                                             bool cullExisting, int checkExistingSolRange)
+                                                             int checkExistingSolRange, bool includeExistingMessages)
         {
             if (newMsgsOldestToNewest.Count == 0)
             {
                 return newMsgsOldestToNewest;
             }
 
-            if (cullExisting)
+            if (checkExistingSolRange >= 0)
             {
                 checkExistingSolRange = Math.Max(0, checkExistingSolRange);
-                pipeline.LogInfo("checking {0} messages for already existing tilesets in +-{1} sols",
-                                 newMsgsOldestToNewest.Count, checkExistingSolRange);
+                pipeline.LogInfo("checking {0} messages for already existing {1} tilesets in +-{2} sols",
+                                 newMsgsOldestToNewest.Count, what, checkExistingSolRange);
                 var keep = new List<ContextualMeshMessage>();
                 foreach (var msg in newMsgsOldestToNewest)
                 {
@@ -3121,7 +3128,7 @@ namespace JPLOPS.Landform
             //really there should be no dupes among the old messages
             //but just in case, keep them in order
             var oldMsgsOldestToNewest = new List<ContextualMeshMessage>();
-            while (true)
+            while (includeExistingMessages)
             {
                 var msg = queue.DequeueOne<ContextualMeshMessage>() as ContextualMeshMessage;
                 if (msg == null)
@@ -3144,13 +3151,11 @@ namespace JPLOPS.Landform
             int oldMsgsCount = oldMsgsOldestToNewest.Count;
             pipeline.LogInfo("dequeued {0} {1} messages from {2}", oldMsgsCount, what, queue.Name);
             
-            keepUniqueNewest(oldMsgsOldestToNewest, "old");
-
             int maxAgeSec = GetMaxMessageAgeSec();
             int maxReceiveCount = GetMaxReceiveCount();
             double nowMS = 1e3 * UTCTime.Now();
-            var live = new List<ContextualMeshMessage>();
-            foreach (var msg in keepers) {
+            var oldKeepers = new List<ContextualMeshMessage>();
+            foreach (var msg in oldMsgsOldestToNewest) {
                 int ageSec = (int)(0.001 * (nowMS - GetFirstSendMS(msg)));
                 string reason =
                     (ageSec > maxAgeSec) ?
@@ -3160,7 +3165,7 @@ namespace JPLOPS.Landform
                     null;
                 if (string.IsNullOrEmpty(reason))
                 {
-                    live.Add(msg);
+                    oldKeepers.Add(msg);
                 }
                 else
                 {
@@ -3180,8 +3185,7 @@ namespace JPLOPS.Landform
                     }
                 }
             }
-            keepers.Clear();
-            keepers.UnionWith(live);
+            keepUniqueNewest(oldKeepers, "old");
 
             if (options.MaxSiteDrivesPerSol > 0 && keepers.Any(msg => !msg.orbitalOnly))
             {
@@ -3240,7 +3244,7 @@ namespace JPLOPS.Landform
 
         //uses SQS, called only while holding credentialRefreshLock
         private int EnqueueMessages(List<Stamped<ContextualMeshMessage>> msgs, string what, MessageQueue queue,
-                                    string rdrDir, bool cullExisting, int checkExistingSolRange)
+                                    string rdrDir, int checkExistingSolRange, bool includeExistingMessages)
         {
             if (queue == null)
             {
@@ -3253,7 +3257,8 @@ namespace JPLOPS.Landform
             try
             {
                 //remove duplicates and order descending by sol, then sitedrive, then num wedges
-                coalesced = CoalesceMessages(coalesced, what, queue, rdrDir, cullExisting, checkExistingSolRange);
+                coalesced = CoalesceMessages(coalesced, what, queue, rdrDir, checkExistingSolRange,
+                                             includeExistingMessages);
             }
             catch (Exception ex)
             {
@@ -3492,9 +3497,10 @@ namespace JPLOPS.Landform
                 {
                     var queue = orbitalWorkerQueue ?? workerQueue;
                     bool cullExisting = !options.RecreateExistingOrbital;
-                    int checkExistingSolRange = options.OrbitalCheckExistingSolRange;
-                    if (EnqueueMessages(omsgs, "orbital", queue, rdrDir, cullExisting, checkExistingSolRange) > 0 &&
-                        options.AutoStartWorkers && options.WorkerAutoStartSec > 0)
+                    int checkExistingSolRange = cullExisting ? options.OrbitalCheckExistingSolRange : -1;
+                    int numEnqueued = EnqueueMessages(omsgs, "orbital", queue, rdrDir, checkExistingSolRange,
+                                                      options.CoalesceExistingOrbitalMessages);
+                    if (numEnqueued > 0 && options.AutoStartWorkers && options.WorkerAutoStartSec > 0)
                     {
                         StartWorkers(orbitalWorkerInstances, "orbital");
                     }
@@ -3601,8 +3607,10 @@ namespace JPLOPS.Landform
                       credentialRefreshLock)
                 {
                     bool cullExisting = options.NoRecreateExistingContextual;
-                    if (EnqueueMessages(msgs, "contextual", workerQueue, rdrDir, cullExisting, 0) > 0 &&
-                        options.AutoStartWorkers && options.WorkerAutoStartSec > 0)
+                    int checkExistingSolRange = cullExisting ? 0 : -1;
+                    int numEnqueued = EnqueueMessages(msgs, "contextual", workerQueue, rdrDir, checkExistingSolRange,
+                                                      options.CoalesceExistingContextualMessages);
+                    if (numEnqueued > 0 && options.AutoStartWorkers && options.WorkerAutoStartSec > 0)
                     {
                         StartWorkers(workerInstances);
                     }
