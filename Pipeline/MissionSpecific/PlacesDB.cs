@@ -320,7 +320,7 @@ namespace JPLOPS.Pipeline
                 (new XmlDocument()).LoadXml(response);
                 return true;
             }
-            catch (System.Xml.XmlException ex)
+            catch (System.Xml.XmlException)
             {
                 return false;
             }
