@@ -79,6 +79,12 @@ namespace JPLOPS.Pipeline
         [ConfigEnvironmentVariable("LANDFORM_USE_ERROR_MAPS")]
         public bool UseErrorMaps { get; set; } = false;
 
+        [ConfigEnvironmentVariable("LANDFORM_USE_HAZCAM_FOR_CONTEXTUAL_TRIGGERING")]
+        public bool UseHazcamForContextualTriggering { get; set; } = true;
+
+        [ConfigEnvironmentVariable("LANDFORM_USE_HAZCAM_FOR_ORBITAL_TRIGGERING")]
+        public bool UseHazcamForOrbitalTriggering { get; set; } = true;
+
         [ConfigEnvironmentVariable("LANDFORM_USE_HAZCAM_FOR_ALIGNMENT")]
         public bool UseHazcamForAlignment { get; set; } = true;
 
@@ -87,6 +93,12 @@ namespace JPLOPS.Pipeline
 
         [ConfigEnvironmentVariable("LANDFORM_USE_HAZCAM_FOR_TEXTURING")]
         public bool UseHazcamForTexturing { get; set; } = true;
+
+        [ConfigEnvironmentVariable("LANDFORM_USE_REAR_HAZCAM_FOR_CONTEXTUAL_TRIGGERING")]
+        public bool UseRearHazcamForContextualTriggering { get; set; } = true;
+
+        [ConfigEnvironmentVariable("LANDFORM_USE_REAR_HAZCAM_FOR_ORBITAL_TRIGGERING")]
+        public bool UseRearHazcamForOrbitalTriggering { get; set; } = true;
 
         [ConfigEnvironmentVariable("LANDFORM_USE_REAR_HAZCAM_FOR_ALIGNMENT")]
         public bool UseRearHazcamForAlignment { get; set; } = true;
@@ -97,6 +109,12 @@ namespace JPLOPS.Pipeline
         [ConfigEnvironmentVariable("LANDFORM_USE_REAR_HAZCAM_FOR_TEXTURING")]
         public bool UseRearHazcamForTexturing { get; set; } = true;
 
+        [ConfigEnvironmentVariable("LANDFORM_USE_NAVCAM_FOR_CONTEXTUAL_TRIGGERING")]
+        public bool UseNavcamForContextualTriggering { get; set; } = true;
+
+        [ConfigEnvironmentVariable("LANDFORM_USE_NAVCAM_FOR_ORBITAL_TRIGGERING")]
+        public bool UseNavcamForOrbitalTriggering { get; set; } = true;
+
         [ConfigEnvironmentVariable("LANDFORM_USE_NAVCAM_FOR_ALIGNMENT")]
         public bool UseNavcamForAlignment { get; set; } = true;
 
@@ -106,6 +124,12 @@ namespace JPLOPS.Pipeline
         [ConfigEnvironmentVariable("LANDFORM_USE_NAVCAM_FOR_TEXTURING")]
         public bool UseNavcamForTexturing { get; set; } = true;
 
+        [ConfigEnvironmentVariable("LANDFORM_USE_MASTCAM_FOR_CONTEXTUAL_TRIGGERING")]
+        public bool UseMastcamForContextualTriggering { get; set; } = true;
+
+        [ConfigEnvironmentVariable("LANDFORM_USE_MASTCAM_FOR_ORBITAL_TRIGGERING")]
+        public bool UseMastcamForOrbitalTriggering { get; set; } = true;
+
         [ConfigEnvironmentVariable("LANDFORM_USE_MASTCAM_FOR_ALIGNMENT")]
         public bool UseMastcamForAlignment { get; set; } = false;
 
@@ -114,6 +138,12 @@ namespace JPLOPS.Pipeline
 
         [ConfigEnvironmentVariable("LANDFORM_USE_MASTCAM_FOR_TEXTURING")]
         public bool UseMastcamForTexturing { get; set; } = true;
+
+        [ConfigEnvironmentVariable("LANDFORM_USE_ARMCAM_FOR_CONTEXTUAL_TRIGGERING")]
+        public bool UseArmcamForContextualTriggering { get; set; } = true;
+
+        [ConfigEnvironmentVariable("LANDFORM_USE_ARMCAM_FOR_ORBITAL_TRIGGERING")]
+        public bool UseArmcamForOrbitalTriggering { get; set; } = true;
 
         [ConfigEnvironmentVariable("LANDFORM_USE_ARMCAM_FOR_ALIGNMENT")]
         public bool UseArmcamForAlignment { get; set; } = false;
@@ -570,6 +600,16 @@ namespace JPLOPS.Pipeline
             return MissionConfig.Instance.UseErrorMaps;
         }
 
+        public virtual bool UseHazcamForContextualTriggering()
+        {
+            return MissionConfig.Instance.UseHazcamForContextualTriggering;
+        }
+
+        public virtual bool UseHazcamForOrbitalTriggering()
+        {
+            return MissionConfig.Instance.UseHazcamForOrbitalTriggering;
+        }
+
         public virtual bool UseHazcamForAlignment()
         {
             return MissionConfig.Instance.UseHazcamForAlignment;
@@ -583,6 +623,16 @@ namespace JPLOPS.Pipeline
         public virtual bool UseHazcamForTexturing()
         {
             return MissionConfig.Instance.UseHazcamForTexturing;
+        }
+
+        public virtual bool UseRearHazcamForContextualTriggering()
+        {
+            return MissionConfig.Instance.UseRearHazcamForContextualTriggering;
+        }
+
+        public virtual bool UseRearHazcamForOrbitalTriggering()
+        {
+            return MissionConfig.Instance.UseRearHazcamForOrbitalTriggering;
         }
 
         public virtual bool UseRearHazcamForAlignment()
@@ -600,6 +650,16 @@ namespace JPLOPS.Pipeline
             return MissionConfig.Instance.UseRearHazcamForTexturing;
         }
 
+        public virtual bool UseNavcamForContextualTriggering()
+        {
+            return MissionConfig.Instance.UseNavcamForContextualTriggering;
+        }
+
+        public virtual bool UseNavcamForOrbitalTriggering()
+        {
+            return MissionConfig.Instance.UseNavcamForOrbitalTriggering;
+        }
+
         public virtual bool UseNavcamForAlignment()
         {
             return MissionConfig.Instance.UseNavcamForAlignment;
@@ -615,6 +675,16 @@ namespace JPLOPS.Pipeline
             return MissionConfig.Instance.UseNavcamForTexturing;
         }
 
+        public virtual bool UseMastcamForContextualTriggering()
+        {
+            return MissionConfig.Instance.UseMastcamForContextualTriggering;
+        }
+
+        public virtual bool UseMastcamForOrbitalTriggering()
+        {
+            return MissionConfig.Instance.UseMastcamForOrbitalTriggering;
+        }
+
         public virtual bool UseMastcamForAlignment()
         {
             return MissionConfig.Instance.UseMastcamForAlignment;
@@ -628,6 +698,16 @@ namespace JPLOPS.Pipeline
         public virtual bool UseMastcamForTexturing()
         {
             return MissionConfig.Instance.UseMastcamForTexturing;
+        }
+
+        public virtual bool UseArmcamForContextualTriggering()
+        {
+            return MissionConfig.Instance.UseArmcamForContextualTriggering;
+        }
+
+        public virtual bool UseArmcamForOrbitalTriggering()
+        {
+            return MissionConfig.Instance.UseArmcamForOrbitalTriggering;
         }
 
         public virtual bool UseArmcamForAlignment()
@@ -678,6 +758,44 @@ namespace JPLOPS.Pipeline
         public virtual string GetUnifiedMeshProductType()
         {
             return MissionConfig.Instance.UnifiedMeshProductType.Replace("auto", GetImageProductType());
+        }
+
+        public bool UseForContextualTriggering(PDSParser parser)
+        {
+            return UseForContextualTriggering(GetCamera(parser));
+        }
+
+        public bool UseForContextualTriggering(RoverProductId id)
+        {
+            return UseForContextualTriggering(id.Camera);
+        }
+
+        public virtual bool UseForContextualTriggering(RoverProductCamera cam)
+        {
+            return (IsHazcam(cam) && UseHazcamForContextualTriggering() &&
+                    (!IsRearHazcam(cam) || UseRearHazcamForContextualTriggering())) ||
+                (IsNavcam(cam) && UseNavcamForContextualTriggering()) ||
+                (IsMastcam(cam) && UseMastcamForContextualTriggering()) ||
+                (IsArmcam(cam) && UseArmcamForContextualTriggering());
+        }
+
+        public bool UseForOrbitalTriggering(PDSParser parser)
+        {
+            return UseForOrbitalTriggering(GetCamera(parser));
+        }
+
+        public bool UseForOrbitalTriggering(RoverProductId id)
+        {
+            return UseForOrbitalTriggering(id.Camera);
+        }
+
+        public virtual bool UseForOrbitalTriggering(RoverProductCamera cam)
+        {
+            return (IsHazcam(cam) && UseHazcamForOrbitalTriggering() &&
+                    (!IsRearHazcam(cam) || UseRearHazcamForOrbitalTriggering())) ||
+                (IsNavcam(cam) && UseNavcamForOrbitalTriggering()) ||
+                (IsMastcam(cam) && UseMastcamForOrbitalTriggering()) ||
+                (IsArmcam(cam) && UseArmcamForOrbitalTriggering());
         }
 
         public bool UseForAlignment(PDSParser parser)
