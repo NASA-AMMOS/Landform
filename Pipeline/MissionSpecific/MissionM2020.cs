@@ -858,7 +858,9 @@ namespace JPLOPS.Pipeline
 
         public override List<string> GetFDRSearchDirs()
         {
-            return MissionM2020Config.FDRSearchDirs.Split(",").Select(d => d.Replace("{venue}", venue).ToList();
+            return MissionM2020Config.Instance.FDRSearchDirs.Split(',')
+                .Select(d => d.Replace("{venue}", venue))
+                .ToList();
         }
     }
 }

@@ -33,15 +33,9 @@ namespace JPLOPS.Util
             return new Regex(WildcardToRegularExpressionString(value, fullMatch, matchSlashes, allowAlternation), opts);
         }
 
-        public static Regex WildcardToRegularExpression(string value, bool fullMatch = true, bool matchSlashes = true,
-                                                        RegexOptions opts = RegexOptions.None)
-        {
-            return new Regex(WildcardToRegularExpressionString(value, fullMatch, matchSlashes), opts);
-        }
-
         public static Regex WildcardToRegularExpression(string value, RegexOptions opts)
         {
-            return WildcardToRegularExpression(value, true, true, opts);
+            return WildcardToRegularExpression(value, opts: opts);
         }
 
         public static string ReplaceIntWildcards(string str, int value, char wildcardChar = '#')
