@@ -1185,7 +1185,7 @@ namespace JPLOPS.Landform
                 {
                     latestRDRSol = Math.Max(latestRDRSol, SiteDriveList.GetSol(url, id));
                 }
-                if (isFDR && !options.NoTrigerOrbitalOnFDRObjectCreated)
+                if (isFDR && !options.NoTrigerOrbitalOnFDRObjectCreated && mission.UseForOrbitalTriggering(id))
                 {
                     Interlocked.Exchange(ref eofTimestamp, 0);
                     if (!options.NoOrbital)
@@ -1193,7 +1193,7 @@ namespace JPLOPS.Landform
                         AddChangedURL(changedOrbitalURLs, rdrDir, sd.Value, url);
                     }
                 }
-                if (isRDR && !options.NoTriggerContextualOnRDRObjectCreated)
+                if (isRDR && !options.NoTriggerContextualOnRDRObjectCreated && mission.UseForContextualTriggering(id))
                 {
                     Interlocked.Exchange(ref eoxTimestamp, 0);
                     Interlocked.Exchange(ref eopTimestamp, 0);
