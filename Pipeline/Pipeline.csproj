@@ -216,7 +216,6 @@
     <Compile Include="TilingServer\DB\TilingInputChunk.cs" />
     <Compile Include="MissionSpecific\MSLLocations.cs" />
     <Compile Include="MissionSpecific\RoverCoordinateSystem.cs" />
-    <Compile Include="MissionSpecific\CuriosityRoverModel.cs" />
     <Compile Include="MissionSpecific\RoverReachability.cs" />
     <Compile Include="MissionSpecific\SolDateTime.cs" />
     <Compile Include="Tiling\AreaSplitCriteria.cs" />
@@ -247,36 +246,6 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config" />
-    <None Include="MissionSpecific\Resources\CuriosityMaskGeometry\Arm01.obj">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Include="MissionSpecific\Resources\CuriosityMaskGeometry\Arm02.obj">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Include="MissionSpecific\Resources\CuriosityMaskGeometry\Arm03.obj">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Include="MissionSpecific\Resources\CuriosityMaskGeometry\Arm04.obj">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Include="MissionSpecific\Resources\CuriosityMaskGeometry\Arm05.obj">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Include="MissionSpecific\Resources\CuriosityMaskGeometry\Body.obj">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Include="MissionSpecific\Resources\CuriosityMaskGeometry\LeftBogie.obj">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Include="MissionSpecific\Resources\CuriosityMaskGeometry\LeftRocker.obj">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Include="MissionSpecific\Resources\CuriosityMaskGeometry\RightBogie.obj">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Include="MissionSpecific\Resources\CuriosityMaskGeometry\RightRocker.obj">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>

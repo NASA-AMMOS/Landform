@@ -66,6 +66,10 @@
     <Compile Include="PathHelperTest.cs" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\Test\Test.csproj">
+      <Project>{42298ee4-6937-4b4c-a8b8-89effbc40e80}</Project>
+      <Name>Test</Name>
+    </ProjectReference>
     <ProjectReference Include="..\Util\Util.csproj">
       <Project>{8145aa65-ba61-4e27-81ff-b64217b49929}</Project>
       <Name>Util</Name>
