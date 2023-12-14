@@ -11,10 +11,16 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Imaging", "Imaging\Imaging.
 	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ImagingTest", "ImagingTest\ImagingTest.csproj", "{94D07323-456B-41DC-8FAC-7C1C77605E50}"
+	ProjectSection(ProjectDependencies) = postProject
+		{42298EE4-6937-4B4C-A8B8-89EFFBC40E80} = {42298EE4-6937-4B4C-A8B8-89EFFBC40E80}
+	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Xna", "Xna\Xna.csproj", "{46759719-42D9-473B-A8AD-0848A33BDAC6}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "XnaTest", "XnaTest\XnaTest.csproj", "{36B0F3D0-4409-4397-BC21-486DFDDF04F2}"
+	ProjectSection(ProjectDependencies) = postProject
+		{42298EE4-6937-4B4C-A8B8-89EFFBC40E80} = {42298EE4-6937-4B4C-A8B8-89EFFBC40E80}
+	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MathExtensions", "MathExtensions\MathExtensions.csproj", "{8C7C8A71-0A4B-4D75-9CB2-32803BD8F86F}"
 	ProjectSection(ProjectDependencies) = postProject
@@ -26,6 +32,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PipelineTest", "PipelineTes
 		{52A91B3E-1D95-4715-A7AD-2840B2F9C6AC} = {52A91B3E-1D95-4715-A7AD-2840B2F9C6AC}
 		{8145AA65-BA61-4E27-81FF-B64217B49929} = {8145AA65-BA61-4E27-81FF-B64217B49929}
 		{AE1B74CC-7CBB-4AAF-9BE6-68534D61D264} = {AE1B74CC-7CBB-4AAF-9BE6-68534D61D264}
+		{42298EE4-6937-4B4C-A8B8-89EFFBC40E80} = {42298EE4-6937-4B4C-A8B8-89EFFBC40E80}
 	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Geometry", "Geometry\Geometry.csproj", "{49A27854-2DB1-4E1C-893A-F60BDF5F3C86}"
@@ -33,7 +40,10 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GeometryTest", "GeometryTest\GeometryTest.csproj", "{402A9626-13E2-43F5-B74E-B98BFB9E957F}"
 	ProjectSection(ProjectDependencies) = postProject
 		{8145AA65-BA61-4E27-81FF-B64217B49929} = {8145AA65-BA61-4E27-81FF-B64217B49929}
+		{42298EE4-6937-4B4C-A8B8-89EFFBC40E80} = {42298EE4-6937-4B4C-A8B8-89EFFBC40E80}
 	EndProjectSection
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Test", "Test\Test.csproj", "{42298EE4-6937-4B4C-A8B8-89EFFBC40E80}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Landform", "Landform\Landform.csproj", "{B9104593-FAF8-4C00-965D-025678BE9D66}"
 EndProject
@@ -45,21 +55,31 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GeometryThirdparty", "Geome
 	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GeometryThirdpartyTest", "GeometryThirdpartyTest\GeometryThirdpartyTest.csproj", "{31F657A2-7F08-42B0-89DD-7FF679F1587B}"
+	ProjectSection(ProjectDependencies) = postProject
+		{42298EE4-6937-4B4C-A8B8-89EFFBC40E80} = {42298EE4-6937-4B4C-A8B8-89EFFBC40E80}
+	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Cloud", "Cloud\Cloud.csproj", "{52A91B3E-1D95-4715-A7AD-2840B2F9C6AC}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UtilTest", "UtilTest\UtilTest.csproj", "{65949ADB-C7A1-4353-9133-E606B066DD1B}"
+	ProjectSection(ProjectDependencies) = postProject
+		{42298EE4-6937-4B4C-A8B8-89EFFBC40E80} = {42298EE4-6937-4B4C-A8B8-89EFFBC40E80}
+	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ImagingEmgu", "ImagingEmgu\ImagingEmgu.csproj", "{9722C3B0-63D5-4B8A-9C4F-3381223BF3A2}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MathExtensionsTest", "MathExtensionsTest\MathExtensionsTest.csproj", "{3140AF23-F2F0-4836-8EB7-8D636E7A1CBD}"
 	ProjectSection(ProjectDependencies) = postProject
 		{46759719-42D9-473B-A8AD-0848A33BDAC6} = {46759719-42D9-473B-A8AD-0848A33BDAC6}
+		{42298EE4-6937-4B4C-A8B8-89EFFBC40E80} = {42298EE4-6937-4B4C-A8B8-89EFFBC40E80}
 	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ImageFeatures", "ImageFeatures\ImageFeatures.csproj", "{AE1B74CC-7CBB-4AAF-9BE6-68534D61D264}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ImageFeaturesTest", "ImageFeaturesTest\ImageFeaturesTest.csproj", "{6B99D0F6-F813-42E8-A217-856E7E8DD3F7}"
+	ProjectSection(ProjectDependencies) = postProject
+		{42298EE4-6937-4B4C-A8B8-89EFFBC40E80} = {42298EE4-6937-4B4C-A8B8-89EFFBC40E80}
+	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RayTrace", "RayTrace\RayTrace.csproj", "{0E8C60BB-4A68-480F-895A-2B326AEC002C}"
 	ProjectSection(ProjectDependencies) = postProject
@@ -67,6 +87,9 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RayTrace", "RayTrace\RayTra
 	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RayTraceTest", "RayTraceTest\RayTraceTest.csproj", "{DF083C64-D94B-467B-9023-E7F8C21D9F12}"
+	ProjectSection(ProjectDependencies) = postProject
+		{42298EE4-6937-4B4C-A8B8-89EFFBC40E80} = {42298EE4-6937-4B4C-A8B8-89EFFBC40E80}
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -150,10 +173,6 @@ Global
 		{AE1B74CC-7CBB-4AAF-9BE6-68534D61D264}.Debug|x64.Build.0 = Debug|Any CPU
 		{AE1B74CC-7CBB-4AAF-9BE6-68534D61D264}.Release|x64.ActiveCfg = Release|Any CPU
 		{AE1B74CC-7CBB-4AAF-9BE6-68534D61D264}.Release|x64.Build.0 = Release|Any CPU
-		{C943DEA6-FAA6-434B-A7FB-6EC8C621F4EC}.Debug|x64.ActiveCfg = Debug|Any CPU
-		{C943DEA6-FAA6-434B-A7FB-6EC8C621F4EC}.Debug|x64.Build.0 = Debug|Any CPU
-		{C943DEA6-FAA6-434B-A7FB-6EC8C621F4EC}.Release|x64.ActiveCfg = Release|Any CPU
-		{C943DEA6-FAA6-434B-A7FB-6EC8C621F4EC}.Release|x64.Build.0 = Release|Any CPU
 		{6B99D0F6-F813-42E8-A217-856E7E8DD3F7}.Debug|x64.ActiveCfg = Debug|Any CPU
 		{6B99D0F6-F813-42E8-A217-856E7E8DD3F7}.Debug|x64.Build.0 = Debug|Any CPU
 		{6B99D0F6-F813-42E8-A217-856E7E8DD3F7}.Release|x64.ActiveCfg = Release|Any CPU

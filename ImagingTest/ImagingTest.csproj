@@ -114,6 +114,10 @@
       <Project>{8C7C8A71-0A4B-4D75-9CB2-32803BD8F86F}</Project>
       <Name>MathExtensions</Name>
     </ProjectReference>
+    <ProjectReference Include="..\Test\Test.csproj">
+      <Project>{42298ee4-6937-4b4c-a8b8-89effbc40e80}</Project>
+      <Name>Test</Name>
+    </ProjectReference>
     <ProjectReference Include="..\Xna\Xna.csproj">
       <Project>{46759719-42d9-473b-a8ad-0848a33bdac6}</Project>
       <Name>Xna</Name>

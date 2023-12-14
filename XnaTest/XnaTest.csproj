@@ -64,6 +64,10 @@
     <Compile Include="Vector4Test.cs" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\Test\Test.csproj">
+      <Project>{42298ee4-6937-4b4c-a8b8-89effbc40e80}</Project>
+      <Name>Test</Name>
+    </ProjectReference>
     <ProjectReference Include="..\Xna\Xna.csproj">
       <Project>{46759719-42d9-473b-a8ad-0848a33bdac6}</Project>
       <Name>Xna</Name>

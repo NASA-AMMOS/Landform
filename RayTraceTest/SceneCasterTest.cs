@@ -99,20 +99,6 @@ namespace RayTraceTest
             return sc;
         }
 
-        [TestMethod]
-        public void SceneCasterRenderTest()
-        {
-            Matrix dinoMat = Matrix.Identity;
-            Matrix cameraMatrix = Matrix.CreateLookAt(new Vector3(0, 0, -10), new Vector3(0, 0, 0), Vector3.Up);
-            RenderRaptor("dinoIdent.png", dinoMat, cameraMatrix);
-            dinoMat = Matrix.CreateTranslation(new Vector3(20, 0, 0));
-            RenderRaptor("dinoNegX.png", dinoMat, cameraMatrix);
-            dinoMat = Matrix.CreateFromAxisAngle(Vector3.Up, Math.PI);
-            RenderRaptor("dinoRotate.png", dinoMat, cameraMatrix);
-            dinoMat = Matrix.CreateScale(0.5);
-            RenderRaptor("dinoScale.png", dinoMat, cameraMatrix);
-        }
-
         private void AlmostEqual(Vector2 a, Vector2 b, string msg)
         {
             Assert.IsTrue(Vector2.AlmostEqual(a, b), msg + " a=" + a + ", b=" + b);
