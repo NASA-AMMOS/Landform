@@ -132,6 +132,10 @@ namespace JPLOPS.Pipeline
         [ConfigEnvironmentVariable("LANDFORM_ORBITAL_IMAGE_IS_GEOTIFF")]
         public bool ImageIsGeoTIFF { get; set; } = true;
 
+        //if the orbital image is 8 bit then consider it to be in the sRGB colorspace
+        [ConfigEnvironmentVariable("LANDFORM_ORBITAL_BYTE_IMAGE_IS_SRGB")]
+        public bool ByteImageIsSRGB { get; set; } = true;
+
         //treat orbital DEM as orthographic
         //at least one of DEMIsGeoTIFF or DEMIsOrthographic must be true
         //GeoTIFF metadata is required if not; but even if so, GeoTIFF metadata is used if available
