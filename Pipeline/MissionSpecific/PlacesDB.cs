@@ -874,7 +874,7 @@ namespace JPLOPS.Pipeline
             int landingSite = 0;
 
             // Go back 5 sites (to avoid taking too long)
-            string searchStart = $"SITE({Math.max(landingSite, sd.Site - 5)})";
+            string searchStart = $"SITE({Math.Max(landingSite, sd.Site - 5)})";
 
             //always use SITE(x) instead of ROVER(x) or ROVER(x,0)
             string searchEnd = null;

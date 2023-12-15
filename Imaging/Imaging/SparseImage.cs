@@ -858,6 +858,8 @@ namespace JPLOPS.Imaging
         public const int CHUNK_SIZE = 512;
         public const int CHUNK_CACHE_SIZE = 400; //important: cache size > 0 limits memory usage
 
+        private bool byteDataIssRGB;
+
         public SparseGISImage(string path, CameraModel cameraModel = null, bool byteDataIssRGB = true)
             : base(path, chunkSize: CHUNK_SIZE, cacheSize: CHUNK_CACHE_SIZE)
         {
