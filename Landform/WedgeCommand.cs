@@ -486,7 +486,7 @@ namespace JPLOPS.Landform
             {
                 if (cfg.ImageIsGeoTIFF)
                 {
-                    asset = new SparseGISImage(filePath, cfg.ByteImageIsSRGB);
+                    asset = new SparseGISImage(filePath, null, cfg.ByteImageIsSRGB);
                 }
                 else
                 {
