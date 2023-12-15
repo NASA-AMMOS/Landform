@@ -385,8 +385,14 @@ namespace JPLOPS.Landform
         [Option(Default = null, HelpText = "Comma separated list of PLACES views for which to (re)build orbital tilesets when new solutions are added; null, empty, or \"none\" to disable triggering orbital on PLACES solution notifications")]
         public string PLACESOrbitalSolutionViews { get; set; }
 
-        [Option(Default = false, HelpText = "Search for the latest sol containing each sitedrive for PLACES solution notifications.  Otherwise just use latest sol on S3")]
+        [Option(Default = false, HelpText = "Search for the latest sol containing each sitedrive on PLACES solution notification.  Otherwise just use latest sol on S3")]
         public bool SearchForSolContainingSiteDriveOnPLACESNotification { get; set; }
+
+        [Option(Default = false, HelpText = "Rebuild contextual mesh for previous end-of-drive RMC on PLACES solution notification")]
+        public bool RebuildContextualMeshAtPreviousEndOfDriveOnPLACESNotification { get; set; }
+
+        [Option(Default = false, HelpText = "Only rebuild contextual mesh for previous end-of-drive RMC on PLACES solution notification")]
+        public bool OnlyRebuildContextualMeshAtPreviousEndOfDriveOnPLACESNotification { get; set; }
 
         [Option(Default = false, HelpText = "Disable triggering contextual tilesets on FDR S3 ObjectCreated; they could still be triggered by PLACES solution notifications")]
         public bool NoTriggerContextualOnRDRObjectCreated { get; set; }
@@ -601,11 +607,12 @@ namespace JPLOPS.Landform
         private class ContextualPass
         {
             public readonly DictionaryOfChangedURLs urls;
-            public readonly List<Stamped<ContextualMeshMessage>> forceMsgs;
+            public readonly List<Stamped<SolutionNotificationMessage>> solutionMsgs;
+
             public ContextualPass(DictionaryOfChangedURLs urls, 
-                                  List<Stamped<ContextualMeshMessage>> forceMsgs) {
+                                  List<Stamped<SolutionNotificationMessage>> solutionMsgs) {
                 this.urls = urls;
-                this.forceMsgs = forceMsgs;
+                this.solutionMsgs = solutionMsgs;
             }
         }
         private Queue<ContextualPass> contextualPassQueue = new Queue<ContextualPass>();
@@ -3779,9 +3786,31 @@ namespace JPLOPS.Landform
         }
 
         private void EnqueueOrbitalMessages(DictionaryOfChangedURLs urls,
-                                            List<Stamped<ContextualMeshMessage>> forceMsgs = null)
+                                            List<Stamped<SolutionNotificationMessage>> solutionMsgs = null)
         {
-            foreach (var rdrDir in urls.Keys)
+            var rdrDirs = new HashSet<string>(urls.Keys);
+            var forceMsgs = new List<Stamped<ContextualMeshMessage>>();
+            if (solutionMsgs != null)
+            {
+                foreach (var msg in solutionMsgs)
+                {
+                    var snm = msg.Value;
+                    try
+                    {
+                        if (AssignSolAndRDRDir(snm))
+                        {
+                            var omm = MakeOrbitalMeshMessage(snm.rdrDir, snm.sol, snm.GetSiteDrive());
+                            forceMsgs.Add(new Stamped<ContextualMeshMessage>(omm, msg.Timestamp));
+                            rdrDirs.Add(snm.rdrDir);
+                        }
+                    } 
+                    catch (Exception ex)
+                    {
+                        pipeline.LogException(ex, "error assigning sol and RDR dir for " + snm);
+                    }
+                }
+            }
+            foreach (var rdrDir in rdrDirs)
             {
                 var omsgs = new List<Stamped<ContextualMeshMessage>>();
                 foreach (var sd in urls[rdrDir].Keys.OrderByDescending(sd => sd).ToList())
@@ -3810,7 +3839,8 @@ namespace JPLOPS.Landform
                     var queue = orbitalWorkerQueue ?? workerQueue;
                     bool cullExisting = !options.RecreateExistingOrbital;
                     int checkExistingSolRange = cullExisting ? options.OrbitalCheckExistingSolRange : -1;
-                    int numEnqueued = EnqueueMessages(omsgs, forceMsgs, "orbital", queue, rdrDir, checkExistingSolRange,
+                    var force = forceMsgs.Where(m => m.Value.rdrDir == rdrDir).ToList();
+                    int numEnqueued = EnqueueMessages(omsgs, force, "orbital", queue, rdrDir, checkExistingSolRange,
                                                       options.CoalesceExistingOrbitalMessages,
                                                       options.MaxOrbitalSiteDrivesPerSol);
                     if (numEnqueued > 0 && options.AutoStartWorkers && options.WorkerAutoStartSec > 0)
@@ -3822,9 +3852,38 @@ namespace JPLOPS.Landform
         }
 
         private void EnqueueContextualMessages(DictionaryOfChangedURLs urls,
-                                               List<Stamped<ContextualMeshMessage>> forceMsgs = null)
+                                               List<Stamped<SolutionNotificationMessage>> solutionMsgs = null)
         {
-            foreach (var rdrDir in urls.Keys)
+            var rdrDirs = new HashSet<string>(urls.Keys);
+            if (solutionMsgs != null)
+            {
+                var tmp = new List<Stamped<SolutionNotificationMessage>>();
+                foreach (var msg in solutionMsgs)
+                {
+                    var snm = msg.Value;
+                    try
+                    {
+                        //placesContextualSolutionNotifications and placesOrbitalSolutionNotifications contain
+                        //references to the same underlying set of SolutionNotificationMessage objects
+                        //and AssignSolAndRDRDir() will early out if it's already been run on msg
+                        if (AssignSolAndRDRDir(snm))
+                        {
+                            tmp.Add(msg);
+                            rdrDirs.Add(snm.rdrDir);
+                        }
+                    } 
+                    catch (Exception ex)
+                    {
+                        pipeline.LogException(ex, "error assigning sol and RDR dir for " + snm);
+                    }
+                }
+                solutionMsgs = tmp;
+            }
+            else
+            {
+                solutionMsgs = new List<Stamped<SolutionNotificationMessage>>();
+            }
+            foreach (var rdrDir in rdrDirs)
             {
                 Dictionary<SiteDrive, Stamped<SiteDriveList>> sdLists = null;
                 lock (options.UseDefaultAWSProfileForS3Client ? new Object() : longRunningCredentialRefreshLock)
@@ -3869,6 +3928,7 @@ namespace JPLOPS.Landform
                 //also, particularly in certain dev scenarios, PlacesDB availability may be iffy
                 //better to try on each pass rather than once ever
                 var msgs = new List<Stamped<ContextualMeshMessage>>();
+                var forceMsgs = new List<Stamped<ContextualMeshMessage>>();
                 bool usePlaces = UsePlacesDB();
                 bool reinitPlaces = !options.MasterNoReinitPlacesDBPerQuery;
                 lock (usePlaces && !reinitPlaces ? longRunningCredentialRefreshLock : new Object())
@@ -3887,6 +3947,36 @@ namespace JPLOPS.Landform
                         catch (Exception ex)
                         {
                             pipeline.LogException(ex, "error processing sitedrive " + changedSD);
+                        }
+                    }
+                    foreach (var msg in solutionMsgs.Where(msg => msg.Value.rdrDir == rdrDir))
+                    {
+                        try
+                        {
+                            var snm = msg.Value;
+                            var sd = snm.GetSiteDrive();
+                            if (options.RebuildContextualMeshAtPreviousEndOfDriveOnPLACESNotification)
+                            {
+                                try
+                                {
+                                    var psd = placesDB.GetPreviousEndOfDrive(sd, snm.View);
+                                    var pmm = MakeContextualMeshMessage(snm.rdrDir, snm.sol, psd);
+                                    forceMsgs.Add(new Stamped<ContextualMeshMessage>(pmm, msg.Timestamp));
+                                }
+                                catch (Exception ex)
+                                {
+                                    pipeline.LogException(ex, "error in previous end-of-drive for " + msg.Value);
+                                }
+                            }
+                            if (!options.OnlyRebuildContextualMeshAtPreviousEndOfDriveOnPLACESNotification)
+                            {
+                                var cmm = MakeContextualMeshMessage(snm.rdrDir, snm.sol, sd);
+                                forceMsgs.Add(new Stamped<ContextualMeshMessage>(cmm, msg.Timestamp));
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            pipeline.LogException(ex, "error processing " + msg.Value);
                         }
                     }
                 }
@@ -4008,23 +4098,21 @@ namespace JPLOPS.Landform
                                                              gotEOP ? $"EOP at {ToLocalTime(eopMS)}" : "",
                                                              "orbital");
 
-                        var forceMsgs = new List<Stamped<ContextualMeshMessage>>();
-                        foreach (var msg in placesOrbitalSolutionNotifications)
+                        var solutionMsgs = new List<Stamped<SolutionNotificationMessage>>();
+                        lock (placesOrbitalSolutionNotifications)
                         {
-                            var snm = msg.Value;
-                            if (AssignSolAndRDRDir(snm))
-                            {
-                                var omm = MakeOrbitalMeshMessage(snm.rdrDir, snm.sol, snm.GetSiteDrive());
-                                forceMsgs.Add(new Stamped<ContextualMeshMessage>(omm, msg.Timestamp));
-                            }
+                            solutionMsgs.AddRange(placesOrbitalSolutionNotifications);
                         }
 
-                        if (orbitalURLs.Count > 0 || forceMsgs.Count > 0)
+                        if (orbitalURLs.Count > 0 || solutionMsgs.Count > 0)
                         {
-                            EnqueueOrbitalMessages(orbitalURLs, forceMsgs);
+                            EnqueueOrbitalMessages(orbitalURLs, solutionMsgs);
                         }
                     }
-                    placesOrbitalSolutionNotifications.Clear();
+                    lock (placesOrbitalSolutionNotifications)
+                    {
+                        placesOrbitalSolutionNotifications.Clear();
+                    }
 
                     if (!options.NoSurface)
                     {
@@ -4093,23 +4181,13 @@ namespace JPLOPS.Landform
 
                         var contextualURLs = ProcessChangedURLs(changedContextualURLs, eop > 0, eopMsg, "contextual");
 
-                        var forceMsgs = new List<Stamped<ContextualMeshMessage>>();
-                        foreach (var msg in placesContextualSolutionNotifications)
+                        var solutionMsgs = new List<Stamped<SolutionNotificationMessage>>();
+                        lock (placesContextualSolutionNotifications)
                         {
-                            var snm = msg.Value;
-                            //placesContextualSolutionNotifications and placesOrbitalSolutionNotifications contain
-                            //references to the same underlying set of SolutionNotificationMessage objects
-                            //and AssignSolAndRDRDir() will early out if it's already been run on msg
-                            if (AssignSolAndRDRDir(snm))
-                            {
-                                var cmm = MakeContextualMeshMessage(snm.rdrDir, snm.sol, snm.GetSiteDrive());
-                                forceMsgs.Add(new Stamped<ContextualMeshMessage>(cmm, msg.Timestamp));
-                                //TODO optionally make message for *previous* drive endpoint sitedrive
-                            }
+                            solutionMsgs.AddRange(placesContextualSolutionNotifications);
                         }
 
-
-                        if (contextualURLs.Count > 0 || forceMsgs.Count > 0)
+                        if (contextualURLs.Count > 0 || solutionMsgs.Count > 0)
                         {
                             lock (contextualPassQueue)
                             {
@@ -4118,7 +4196,7 @@ namespace JPLOPS.Landform
                                     //don't delay orbital meshes while we collect adjacent sitedrives for contextual
                                     //in practice that can take like ~30min
                                     //https://github.jpl.nasa.gov/OnSight/Landform/issues/1224
-                                    contextualPassQueue.Enqueue(new ContextualPass(contextualURLs, forceMsgs));
+                                    contextualPassQueue.Enqueue(new ContextualPass(contextualURLs, solutionMsgs));
                                     pipeline.LogInfo("enqueued batch of URLs for contextual processing, queue size {0}",
                                                  contextualPassQueue.Count);
                                 }
@@ -4131,7 +4209,10 @@ namespace JPLOPS.Landform
                             }
                         }
                     }
-                    placesContextualSolutionNotifications.Clear();
+                    lock (placesContextualSolutionNotifications)
+                    {
+                        placesContextualSolutionNotifications.Clear();
+                    }
                 }
                 catch (Exception masterException)
                 {
@@ -4171,7 +4252,7 @@ namespace JPLOPS.Landform
                     }
                     if (pass != null)
                     {
-                        EnqueueContextualMessages(pass.urls, pass.forceMsgs);
+                        EnqueueContextualMessages(pass.urls, pass.solutionMsgs);
                     }
                 }
                 catch (Exception ex)
