@@ -2139,6 +2139,8 @@ namespace JPLOPS.Landform
             string venueDir = storageDir + "/" + venue;
             string solDir = StringHelper.ReplaceIntWildcards(rdrDir, primarySol);
             string fetchDir = !string.IsNullOrEmpty(options.FetchDir) ? options.FetchDir : storageDir + "/" + FETCH_DIR;
+            string fetchExclude =
+                !string.IsNullOrEmpty(options.VCEPattern) ? $"--excludepattern={options.VCEPattern}" : "";
             string ingestDir = rdrDir.StartsWith("s3://") ? (fetchDir + "/rdrs") : solDir;
             string destDir = GetDestDir(solDir);
 
@@ -2202,7 +2204,7 @@ namespace JPLOPS.Landform
                         searchLocations = string.Join(",", rdrSubdirs.Select(d => $"{rdrDir}/{d}/"));
                     }
                     Fetch(options.MaxFetch, solRanges, ingestDir, searchLocations,
-                          "--onlyforsitedrives", sdsStr, "--nomeshes", "--summary");
+                          "--onlyforsitedrives", sdsStr, fetchExclude, "--nomeshes", "--summary");
                 }
 
                 if (!options.NoFetch && !options.NoOrbital &&
