@@ -995,7 +995,20 @@ namespace JPLOPS.Landform
 
             if (options.NoSurface)
             {
-                ComputePointCloudBounds(pointCloud); //normally this is done in MakeSurfaceHull()
+                //normally this is done in MakeSurfaceHull(), however that's not run in --nosurface mode
+                ComputePointCloudBounds(pointCloud);
+            }
+            else if (orbitalPointCloud != null)
+            {
+                //if we don't take orbital into account we can get holes in the final output
+                //because when we clip to envelope in Poisson we can cut off portions of the reconstructed mesh
+                //that are within the pointCloud XY bounds
+                //but not within the narrower pointCloud Z bounds that we previously computed
+                var ob = orbitalPointCloud.Bounds();
+                pointCloudBounds.Min.Z = Math.Min(pointCloudBounds.Min.Z, ob.Min.Z - options.ExpandEnvelopeBounds);
+                pointCloudBounds.Max.Z = Math.Max(pointCloudBounds.Max.Z, ob.Max.Z + options.ExpandEnvelopeBounds);
+                poissonOpts.Envelope = pointCloudBounds;
+                SaveDebugMesh(pointCloudBounds.ToMesh(), "surface-envelope-with-orbital-z");
             }
 
             if (options.WriteDebug && wedgeMeshOpts.NormalScale != NormalScale.None)
@@ -1019,7 +1032,7 @@ namespace JPLOPS.Landform
 
             poissonOpts.Envelope = pointCloudBounds;
 
-            SaveDebugMesh(pointCloudBounds.ToMesh(), "envelope");
+            SaveDebugMesh(pointCloudBounds.ToMesh(), "surface-envelope");
         }
 
         private void ReconstructMesh()
