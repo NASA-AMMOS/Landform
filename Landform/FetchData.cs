@@ -399,7 +399,6 @@ namespace JPLOPS.Landform
                 (string.Equals(options.PreferIMGToVIC, "true", StringComparison.OrdinalIgnoreCase) ||
                  (string.Equals(options.PreferIMGToVIC, "auto", StringComparison.OrdinalIgnoreCase) &&
                   (mission == null || mission.PreferIMGToVIC())));
-                
 
             if (options.WithPNG)
             {
