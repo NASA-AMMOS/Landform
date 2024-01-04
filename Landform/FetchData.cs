@@ -371,11 +371,11 @@ namespace JPLOPS.Landform
             }
 
             includeRegex = StringHelper.ParseList(options.IncludePattern)
-                .Select(s => StringHelper.WildcardToRegularExpression(s))
+                .Select(s => StringHelper.WildcardToRegularExpression(s, allowAlternation: true))
                 .ToList();
 
             excludeRegex = StringHelper.ParseList(options.ExcludePattern)
-                .Select(s => StringHelper.WildcardToRegularExpression(s))
+                .Select(s => StringHelper.WildcardToRegularExpression(s, allowAlternation: true))
                 .ToList();
 
             acceptedExtensions = new HashSet<string>();
