@@ -379,7 +379,7 @@ namespace JPLOPS.Landform
                 {
                     var obs = observationCache.GetObservation(Observation.ORBITAL_DEM_INDEX);
                     orbitalDEMToRoot = frameCache.GetBestPrior(obs.FrameName).Transform.Mean;
-                    orbitalDEMMetersPerPixel = (obs.CameraModel as ConformalCameraModel).AvgMetersPerPixel;
+                    //orbitalDEMMetersPerPixel = (obs.CameraModel as ConformalCameraModel).AvgMetersPerPixel;
                 }
 
                 orbitalTextureMetersPerPixel = cfg.ImageMetersPerPixel;
@@ -387,7 +387,7 @@ namespace JPLOPS.Landform
                 {
                     var obs = observationCache.GetObservation(Observation.ORBITAL_IMAGE_INDEX);
                     orbitalTextureToRoot = frameCache.GetBestPrior(obs.FrameName).Transform.Mean;
-                    orbitalTextureMetersPerPixel = (obs.CameraModel as ConformalCameraModel).AvgMetersPerPixel;
+                    //orbitalTextureMetersPerPixel = (obs.CameraModel as ConformalCameraModel).AvgMetersPerPixel;
                 }
             }
 
