@@ -33,11 +33,6 @@ namespace JPLOPS.Util
             return new Regex(WildcardToRegularExpressionString(value, fullMatch, matchSlashes, allowAlternation), opts);
         }
 
-        public static Regex WildcardToRegularExpression(string value, RegexOptions opts)
-        {
-            return WildcardToRegularExpression(value, opts: opts);
-        }
-
         public static string ReplaceIntWildcards(string str, int value, char wildcardChar = '#')
         {
             var r = new Regex(wildcardChar + "+");

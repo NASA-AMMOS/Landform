@@ -186,8 +186,8 @@ namespace JPLOPS.Cloud
         {
             S3Url location = new S3Url(s3url);
             var opts = ignoreCase ? RegexOptions.IgnoreCase : RegexOptions.None;
-            var regex =
-                patternIsRegex ? new Regex(pattern, opts) : StringHelper.WildcardToRegularExpression(pattern, opts);
+            var regex = patternIsRegex ? new Regex(pattern, opts) :
+                StringHelper.WildcardToRegularExpression(pattern, opts: opts);
             var client = GetClient(s3url);
             var request = new ListObjectsV2Request { BucketName = location.BucketName,
                                                      Encoding = new EncodingType("url") };
