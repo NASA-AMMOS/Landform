@@ -782,6 +782,10 @@ namespace JPLOPS.Landform
                 }
                 else
                 {
+                    if (ShouldTrace(url))
+                    {
+                        logger.InfoFormat("accepted {0}", url);
+                    }
                     return true;
                 }
             }
