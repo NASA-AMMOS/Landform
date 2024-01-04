@@ -1358,10 +1358,14 @@ namespace JPLOPS.Landform
             pipeline.LogInfo("making orbital point cloud{0}", nsm);
             orbitalPointCloud = MakeOrbitalMesh(orbitalFillSamplesPerPixel, surfaceBounds);
             orbitalPointCloud.Faces.Clear();
-            pipeline.LogInfo("clipping orbital point cloud to surface hull");
-            orbitalPointCloud.Vertices = orbitalPointCloud.Vertices
-                .Where(v => surfaceHullUVMeshOp.UVToBarycentric(new Vector2(v.Position.X, v.Position.Y)) != null)
-                .ToList();
+
+            //let the orbital point cloud go out to the surface bounds here
+            //to set up better boundary conditions for Poisson
+            //pipeline.LogInfo("clipping orbital point cloud to surface hull");
+            //orbitalPointCloud.Vertices = orbitalPointCloud.Vertices
+            //    .Where(v => surfaceHullUVMeshOp.UVToBarycentric(new Vector2(v.Position.X, v.Position.Y)) != null)
+            //    .ToList();
+
             if (ons != 1)
             {
                 foreach (Vertex v in orbitalPointCloud.Vertices)
