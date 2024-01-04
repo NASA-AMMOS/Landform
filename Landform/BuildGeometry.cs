@@ -1351,10 +1351,14 @@ namespace JPLOPS.Landform
         }
 
         private Mesh MakeOrbitalMesh(double subsample, Image.Subrect outerBounds, Image.Subrect innerBounds = null,
-                                     MeshOperator maskOp = null)
+                                     MeshOperator maskOp = null, Func<Vector3, bool> extraFilter = null)
         {
             Func<Vector3, bool> filter = pt => 
             {
+                if (extraFilter != null && !extraFilter(pt))
+                {
+                    return false;
+                }
                 pt = Vector3.Transform(pt, orbitalToMesh);
                 return maskOp == null || maskOp.UVToBarycentric(new Vector2(pt.X, pt.Y)) == null; //not in surf mesh
             };
@@ -1408,11 +1412,26 @@ namespace JPLOPS.Landform
                     SaveDebugMesh(orbitalMesh, "outer-orbital");
                 }
 
+                Func<Vector3, bool> extraFilter = null;
+                double padPixels = 0;
+                if (orbitalSamplesPerPixel < 1)
+                {
+                    padPixels = 1.0 / orbitalSamplesPerPixel;
+                    int ofs = (int)Math.Ceiling(padPixels);
+                    blendBounds.MinX -= ofs;
+                    blendBounds.MinY -= ofs;
+                    blendBounds.MaxX += ofs;
+                    blendBounds.MaxY += ofs;
+                    double filterRadius = (blendRadiusPixels + padPixels) * orbitalDEMMetersPerPixel + 0.001;
+                    extraFilter = pt => Math.Abs(pt.X - meshOriginInOrbital.X) <= filterRadius &&
+                        Math.Abs(pt.Y - meshOriginInOrbital.Y) <= filterRadius;
+                }
+
                 pipeline.LogInfo("making {0:f3}x{0:f3} orbital blend mesh at {1:f3} samples/meter",
-                                 2 * blendRadiusPixels * orbitalDEMMetersPerPixel,
+                                 2 * (blendRadiusPixels + padPixels) * orbitalDEMMetersPerPixel,
                                  orbitalBlendSamplesPerPixel / orbitalDEMMetersPerPixel);
 
-                var blendMesh = MakeOrbitalMesh(orbitalBlendSamplesPerPixel, blendBounds, null, maskOp);
+                var blendMesh = MakeOrbitalMesh(orbitalBlendSamplesPerPixel, blendBounds, null, maskOp, extraFilter);
 
                 SaveDebugMesh(blendMesh, "preblend-orbital");
 
