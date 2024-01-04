@@ -106,6 +106,9 @@ namespace JPLOPS.Landform
         [Option(HelpText = "Decimate the scene mesh to this target number of faces if positive", Default = 0)]
         public int TargetSceneMeshFaces { get; set; }
 
+        [Option(HelpText = "Decimate the surface mesh to this target number of faces if positive", Default = 0)]
+        public int TargetSurfaceMeshFaces { get; set; }
+
         [Option(Default = MeshReconstructionMethod.Poisson, HelpText = "Mesh reconstruction method (FSSR, Poisson)")]
         public MeshReconstructionMethod ReconstructionMethod { get; set; }
 
@@ -1076,6 +1079,11 @@ namespace JPLOPS.Landform
 
             SaveDebugMesh(mesh, "reconstructed");
 
+            if (options.TargetSurfaceMeshFaces > 0)
+            {
+                mesh = DecimateMesh(mesh, "surface", options.TargetSurfaceMeshFaces);
+            }
+
             pipeline.LogInfo("clipping reconstructed mesh to surface hull");
             ClipMeshToMask(surfaceHullUVMeshOp, strict: true);
 
@@ -1587,19 +1595,26 @@ namespace JPLOPS.Landform
 
         private void DecimateMesh()
         {
-            pipeline.LogInfo("decimating mesh with {0}, target {1} faces",
-                             options.MeshDecimator, Fmt.KMG(options.TargetSceneMeshFaces));
+            mesh = DecimateMesh(mesh, "scene", options.TargetSceneMeshFaces);
+        }
 
-            mesh = mesh.Decimated(options.TargetSceneMeshFaces, options.MeshDecimator); //preserves normals
+        private Mesh DecimateMesh(Mesh mesh, string what, int targetFaces)
+        {
+            pipeline.LogInfo("decimating {0} mesh with {1}, target {2} faces",
+                             what, options.MeshDecimator, Fmt.KMG(targetFaces));
 
-            pipeline.LogInfo("decimated mesh to {0} faces", Fmt.KMG(mesh.Faces.Count));
+            mesh = mesh.Decimated(targetFaces, options.MeshDecimator); //preserves normals
+
+            pipeline.LogInfo("decimated {0} mesh to {1} faces", what, Fmt.KMG(mesh.Faces.Count));
 
             if (mesh.Faces.Count == 0)
             {
-                throw new Exception("mesh is empty");
+                throw new Exception($"decimated {what} mesh is empty");
             }
 
-            SaveDebugMesh(mesh, "decimated");
+            SaveDebugMesh(mesh, $"{what}-decimated");
+
+            return mesh;
         }
 
         private void ReduceMesh()
