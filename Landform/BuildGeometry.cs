@@ -1703,7 +1703,8 @@ namespace JPLOPS.Landform
             }
             else
             {
-                //uvatlas or heightmap atlas central portion consisting of surface + orbital blend mesh
+                //atlas central portion consisting of surface + orbital blend mesh
+                //with whatever the configured atlas mode is
                 //always heightmap atlas outer orbital periphery
                 //we clip and then re-merge those two parts here rather than atlassing them before they are merged
                 //in BlendOrbitalToSurface() to handle workflows involving DecimateMesh() and/or ReduceMesh()
@@ -1718,21 +1719,13 @@ namespace JPLOPS.Landform
                 centralBounds = BoundsFromXYExtent(Vector3.Zero, blendExtent, meshBounds.Min.Z, meshBounds.Max.Z);
 
                 var centralMesh = mesh.Clipped(centralBounds);
-
                 SaveDebugMesh(centralMesh, "central");
 
-                switch (options.AtlasMode)
-                {
-                    case AtlasMode.UVAtlas: UVAtlasMesh(centralMesh, surfacePixels); break;
-                    case AtlasMode.Heightmap: HeightmapAtlasMesh(centralMesh); break;
-                    default: throw new ArgumentException("unsupported atlas mode: " + options.AtlasMode);
-                }
-
+                AtlasMesh(centralMesh, surfacePixels, "central");
                 SaveDebugMesh(centralMesh, "central-atlassed");
 
                 centralMesh.RescaleUVs(BoundingBoxExtensions.CreateXY(PointToUV(meshBounds, centralBounds.Min),
                                                                       PointToUV(meshBounds, centralBounds.Max)));
-
                 SaveDebugMesh(centralMesh, "central-atlassed-rescaled");
 
                 var peripheralMesh = mesh.Cutted(centralBounds);
