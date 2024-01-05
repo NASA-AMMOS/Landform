@@ -677,7 +677,7 @@ namespace JPLOPS.Pipeline
                 //indices of pixels that we're still trying to backproject to surface observations in this batch
                 var remaining = Enumerable.Range(startIdx, batchSize).ToList();
 
-                // remove which had no contexts
+                // remove pixels which had no contexts
                 int numFailed = 0;
                 var invisible = remaining
                     .GroupBy(i => sortedContexts[i] == null || sortedContexts[i].Count == 0)
