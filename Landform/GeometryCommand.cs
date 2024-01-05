@@ -19,7 +19,7 @@ namespace JPLOPS.Landform
         [Option(HelpText = "Max texture stretch, 0 for none, 1 for unlimited", Default = UVAtlas.DEF_MAX_STRETCH)]
         public virtual double MaxTextureStretch { get; set; }
 
-        [Option(HelpText = "Min fraction of texture space to use for surface data", Default =TexturingDefaults.MIN_SURFACE_TEXTURE_FRACTION)]
+        [Option(HelpText = "Min fraction of texture space to use for surface data", Default = TexturingDefaults.MIN_SURFACE_TEXTURE_FRACTION)]
         public double MinSurfaceTextureFraction { get; set; }
 
         [Option(HelpText = "Disable texture space warp", Default = false)]
