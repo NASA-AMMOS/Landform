@@ -846,6 +846,11 @@ namespace JPLOPS.Landform
 
         private void MergePointClouds()
         {
+            //typically we do CleverCombine across sitedrives
+            //but within sitedrives we just do MeshMerge with SITEDRIVE_MERGE_EPS
+            //so groups is typically a map from sitdrive -> list of obs wedge pointclouds
+            //however if clever combine is disabled or if intra-sitedrive clevercombine is enabled
+            //then groups is obs name -> obs wedge pointcloud
             var groups = new Dictionary<string, List<Mesh>>();
             foreach (var entry in observationPointClouds)
             {
@@ -861,8 +866,8 @@ namespace JPLOPS.Landform
             }
             observationPointClouds.Clear(); //reduce memory usage
 
-            var origins = new List<Vector3>();
-            var cloudList = new List<Mesh>();
+            var cloudList = new List<Mesh>(); //one cloud per entry in groups
+            var origins = new List<Vector3>(); //corresponding origin for clevercombine, if enabled
             foreach (var entry in groups)
             {
                 if (!options.NoCleverCombine)
@@ -901,7 +906,7 @@ namespace JPLOPS.Landform
                 var obsClouds = entry.Value;
                 if (obsClouds.Count == 1)
                 {
-                    if (SITEDRIVE_MERGE_EPS > 0)
+                    if (SiteDrive.IsSiteDriveString(entry.Key) && SITEDRIVE_MERGE_EPS > 0)
                     {
                         int ov = obsClouds[0].Vertices.Count;
                         obsClouds[0].MergeNearbyVertices(SITEDRIVE_MERGE_EPS);
@@ -913,6 +918,8 @@ namespace JPLOPS.Landform
                 }
                 else
                 {
+                    //more than one obs cloud in group means we're doing CleverCombine across but not within sitedrives
+                    //so merge this sitedrive directly
                     int ov = obsClouds.Sum(c => c.Vertices.Count);
                     var oc = obsClouds.ToArray();
                     var pc = MeshMerge.Merge(oc, clean: false, mergeNearbyVertices: SITEDRIVE_MERGE_EPS,
