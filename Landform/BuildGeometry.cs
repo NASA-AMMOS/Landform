@@ -172,6 +172,9 @@ namespace JPLOPS.Landform
         [Option(HelpText = "Discard observation point cloud normals with fewer than this many valid 8-neighbors", Default = 8)]
         public int NormalFilter { get; set; }
 
+        [Option(HelpText = "Flip downward facing normals", Default = false)]
+        public bool FlipDownwardFacingNormals { get; set; }
+
         [Option(HelpText = "Disable clever combine point cloud merging", Default = false)]
         public bool NoCleverCombine { get; set; }
 
@@ -225,9 +228,6 @@ namespace JPLOPS.Landform
 
         [Option(HelpText = "Filter out triangles whose barycenter is further than this from any input point", Default = 0)]
         public double FilterTriangles { get; set; }
-
-        [Option(HelpText = "Flip downward facing normals", Default = false)]
-        public bool FlipDownwardFacingNormals { get; set; }
 
         [Option(HelpText = "Generate full-mesh UVs", Default = false)]
         public bool GenerateUVs { get; set; }
