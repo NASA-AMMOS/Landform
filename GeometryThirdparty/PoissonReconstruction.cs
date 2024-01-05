@@ -56,7 +56,7 @@ namespace JPLOPS.Geometry
             //exe defaults: 1, recommends 1-5 clean data 15-20 noisy data
             public double MinOctreeSamplesPerCell = DEF_MIN_OCTREE_SAMPLES_PER_CELL;
 
-            //exe defaults: 2
+            //exe defaults: 1
             public int BSplineDegree = DEF_BSPLINE_DEGREE;
 
             //exe defaults: 0, if > 0 then apply this exponent to the length of normals and use as confidence
