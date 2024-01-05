@@ -38,7 +38,7 @@ namespace JPLOPS.Landform
         public double OrbitalPointsPerMeter { get; set; }
 
         [Option(HelpText = "UV generation mode for meshes if texture projection is not available (None, UVAtlas, Heightmap, Naive)", Default = TexturingDefaults.ATLAS_MODE)]
-        public AtlasMode AtlasMode { get; set; }
+        public virtual AtlasMode AtlasMode { get; set; }
 
         [Option(HelpText = "Max runtime for UVAtlas", Default = 10 * 60)]
         public virtual int MaxUVAtlasSec { get; set; }

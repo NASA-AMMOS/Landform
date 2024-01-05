@@ -31,7 +31,7 @@ namespace JPLOPS.Pipeline
         public static readonly float[] BACKPROJECT_NO_OBSERVATION_COLOR = new float[] { 0.5f, 0.5f, 0.5f };
 
         public const int SCENE_TEXTURE_RESOLUTION = 8192;
-        public const double MIN_SURFACE_TEXTURE_FRACTION = 0.5;
+        public const double MIN_SURFACE_TEXTURE_FRACTION = 0.8;
         public const double EASE_TEXTURE_WARP = 0.5;
         public const double EASE_SURFACE_PPM_FACTOR = 0.2;
         public const AtlasMode ATLAS_MODE = AtlasMode.Manifold; //will fall back to UVAtlas and then HeightmapAtlas
