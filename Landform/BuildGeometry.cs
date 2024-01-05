@@ -154,6 +154,9 @@ namespace JPLOPS.Landform
         [Option(HelpText = "Orbital sampling confidence to fill holes", Default = 0.2)]
         public double OrbitalFillPoissonConfidence { get; set; }
 
+        [Option(HelpText = "If positive, linearize confidence from 1 to this min", Default = 0)]
+        public double LinearMinPoissonConfidence { get; set; }
+
         [Option(HelpText = "Mask resolution for clipping surface/orbital", Default = 2)]
         public double ShrinkwrapPointsPerMeter { get; set; }
 
@@ -672,6 +675,28 @@ namespace JPLOPS.Landform
                             pipeline.LogVerbose("merged {0} -> {1} points in observation {2}, epsilon {3:f3}m",
                                                 Fmt.KMG(ov), Fmt.KMG(pc.Vertices.Count), ptsName, OBS_CLOUD_MERGE_EPS);
                         }
+                    }
+
+                    if (wedgeMeshOpts.NormalScale == NormalScale.Confidence && options.LinearMinPoissonConfidence > 0)
+                    {
+                        double maxLinearConfidence = 1.0;
+                        pc.RescaleNormals(l =>
+                        {
+                            double d = 1.0 / l;
+                            if (d < PDSImage.nearLimit)
+                            {
+                                return maxLinearConfidence;
+                            }
+                            else if (d > PDSImage.farLimit)
+                            {
+                                return options.LinearMinPoissonConfidence;
+                            }
+                            else
+                            {
+                                double t = (d - PDSImage.nearLimit) / (PDSImage.farLimit - PDSImage.nearLimit);
+                                return maxLinearConfidence * (1.0 - t) + options.LinearMinPoissonConfidence * t;
+                            }
+                        });
                     }
 
                     if (pc.Vertices.Count > 0)
