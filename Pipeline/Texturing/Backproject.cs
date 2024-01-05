@@ -643,7 +643,14 @@ namespace JPLOPS.Pipeline
                 failed = null; //will be treated as all failed below
             }
 
+            int backprojectedSurfacePixels = 0;
+            int numFallbacks = 0;
+
+#if NO_PARALLEL_RAYCASTS            
             for (int batch = 0; batch < numBatches; batch++)
+#else
+            CoreLimitedParallel.For(0, numBatches, batch =>
+#endif
             {
                 int startIdx = batch * TexturingDefaults.BACKPROJECT_MAX_SAMPLES_PER_BATCH;
                 int batchSize =
@@ -672,7 +679,7 @@ namespace JPLOPS.Pipeline
                 });
                 int maxNumLevels = sortedContexts.Values.Max(contexts => contexts != null ? contexts.Count : 0);
                 int minNumLevels = sortedContexts.Values.Min(contexts => contexts != null ? contexts.Count : 0);
-                info($"collected from {minNumLevels} to {maxNumLevels} contexts per pixel ({pt.HMSR})");
+                verbose($"collected from {minNumLevels} to {maxNumLevels} contexts per pixel ({pt.HMSR})");
 
                 //indices of pixels that we're still trying to backproject to surface observations in this batch
                 var remaining = Enumerable.Range(startIdx, batchSize).ToList();
@@ -686,7 +693,7 @@ namespace JPLOPS.Pipeline
                 {
                     failed.AddRange(invisible[true]);
                     numFailed += invisible[true].Count;
-                    verbose($"{Fmt.KMG(invisible.Count)} pixels visible in no observation");
+                    verbose($"{Fmt.KMG(invisible.Count)} pixels visible in no surface observation");
                     remaining = invisible.ContainsKey(false) ? invisible[false] : new List<int>();
                 }
 
@@ -701,7 +708,7 @@ namespace JPLOPS.Pipeline
                     {
                         failed.AddRange(obstructed[true]);
                         numFailed += obstructed[true].Count;
-                        verbose($"{Fmt.KMG(obstructed.Count)} pixels in frame but occluded in some observation");
+                        verbose($"{Fmt.KMG(obstructed.Count)} pixels in frame but occluded in some surface obs");
                     }
                     remaining = obstructed.ContainsKey(false) ? obstructed[false] : new List<int>();
                 }
@@ -720,7 +727,7 @@ namespace JPLOPS.Pipeline
                     {
                         failed.AddRange(dead[true]);
                         numFailed += dead[true].Count;
-                        verbose($"{Fmt.KMG(dead.Count)} pixels with no preference {level} or lower observation");
+                        verbose($"{Fmt.KMG(dead.Count)} pixels with no preference {level} or lower surface obs");
                         remaining = dead.ContainsKey(false) ? dead[false] : new List<int>();
                     }
                     
@@ -730,48 +737,67 @@ namespace JPLOPS.Pipeline
                     }
 
                     //group all remaining points by their current best context
-                    //the idea is to deal with one observation at a time for better disk and memory cache coherence
-                    //BackprojectSurfaceObs() will parallelize on each pixel
                     var groups = remaining.GroupBy(i => sortedContexts[i][level].Context);
                     
                     verbose($"attempting to backproject {Fmt.KMG(remaining.Count)} pixels into {groups.Count()} " +
-                            $"preference {level} observations");
+                            $"preference {level} surface observations");
 
                     var losers = new List<int>(remaining.Count);
                     int nw = 0, no = 0;
+#if NO_PARALLEL_RAYCASTS
                     foreach (var group in groups)
+#else
+                    CoreLimitedParallel.ForEach(groups, group =>
+#endif
                     {
                         var wl = BackprojectSurfaceObs(opts.pipeline, opts.project, opts.occlusionScene, masker,
                                                        opts.raycastTolerance, maxGlancingAngleCosine,
                                                        group.Key, samplePoints, group, results, opts.verbose);
-                        nw += wl.winners.Count;
-                        no += (wl.winners.Count > 0) ? 1 : 0;
-                        losers.AddRange(wl.losers);
+                        Interlocked.Add(ref nw, wl.winners.Count);
+                        Interlocked.Add(ref no, (wl.winners.Count > 0) ? 1 : 0);
+                        lock (losers)
+                        {
+                            losers.AddRange(wl.losers);
+                        }
                         if (opts.verbose)
                         {
                             verbose($"backprojected {Fmt.KMG(wl.winners.Count)}/{Fmt.KMG(group.Count())} pixels " +
-                                    $"into preference {level} observation {group.Key.Obs.Name}, " +
+                                    $"into preference {level} surface observation {group.Key.Obs.Name}, " +
                                     $"{Fmt.KMG(wl.losers.Count)} failed: " + wl.GetStats());
                         }
                     }
-                    remaining = losers;
+#if !NO_PARALLEL_RAYCASTS
+                    );
+#endif
+                    remaining.Clear();
+                    lock (losers)
+                    {
+                        remaining.AddRange(losers);
+                    }
                     numWinners += nw;
 
-                    verbose($"backprojected {Fmt.KMG(nw)} pixels into {no} preference {level} observations, " +
+                    verbose($"backprojected {Fmt.KMG(nw)} pixels into {no} preference {level} surface observations, " +
                             $"{Fmt.KMG(remaining.Count)} remaining pixels");
 
-                    stats.BackprojectedSurfacePixels += nw;
+                    Interlocked.Add(ref backprojectedSurfacePixels, nw);
                     maxUsedLevel = nw > 0 ? level : maxUsedLevel;
                 }
 
                 numFailed += remaining.Count;
                 failed.AddRange(remaining);
 
-                info($"backprojected {Fmt.KMG(numWinners)} pixels from preference 0 to " +
-                     $"{maxUsedLevel} observations, {Fmt.KMG(numFailed)} failed ({pt.HMSR})");
+                InterlockedExtensions.Max(ref numFallbacks, maxUsedLevel);
 
-                stats.NumFallbacks = Math.Max(stats.NumFallbacks, maxUsedLevel);
+                info($"finished batch {batch + 1}/{numBatches}: " +
+                     $"backprojected {Fmt.KMG(numWinners)} pixels from preference 0 to " +
+                     $"{maxUsedLevel} surface observations, {Fmt.KMG(numFailed)} failed ({pt.HMSR})");
             }
+#if !NO_PARALLEL_RAYCASTS
+            );
+#endif
+
+            stats.BackprojectedSurfacePixels = backprojectedSurfacePixels;
+            stats.NumFallbacks = numFallbacks;
 
             int nf = failed != null ? failed.Count : samplePoints.Count;
             if (nf > 0)
