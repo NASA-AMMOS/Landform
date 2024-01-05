@@ -106,7 +106,7 @@ namespace JPLOPS.Landform
         [Option(HelpText = "Decimate the scene mesh to this target number of faces if positive", Default = 0)]
         public int TargetSceneMeshFaces { get; set; }
 
-        [Option(HelpText = "Decimate the surface mesh to this target number of faces if positive", Default = 0)]
+        [Option(HelpText = "Decimate the surface mesh to this target number of faces if positive", Default = BuildGeometry.DEF_TARGET_SURFACE_MESH_FACES)]
         public int TargetSurfaceMeshFaces { get; set; }
 
         [Option(Default = MeshReconstructionMethod.Poisson, HelpText = "Mesh reconstruction method (FSSR, Poisson)")]
@@ -151,10 +151,10 @@ namespace JPLOPS.Landform
         [Option(HelpText = "Orbital sampling rate to fill holes, negative to use DEM resolution, 0 to disable", Default = 8)]
         public double OrbitalFillPointsPerMeter { get; set; }
 
-        [Option(HelpText = "Orbital sampling confidence to fill holes", Default = 0.2)]
+        [Option(HelpText = "Orbital sampling confidence to fill holes", Default = BuildGeometry.DEF_ORBITAL_FILL_POISSON_CONFIDENCE)]
         public double OrbitalFillPoissonConfidence { get; set; }
 
-        [Option(HelpText = "If positive, linearize confidence from 1 to this min", Default = 0)]
+        [Option(HelpText = "If positive, linearize confidence from 1 to this min", Default = BuildGeometry.DEF_LINEAR_MIN_POISSON_CONFIDENCE)]
         public double LinearMinPoissonConfidence { get; set; }
 
         [Option(HelpText = "Mask resolution for clipping surface/orbital", Default = 2)]
@@ -231,6 +231,9 @@ namespace JPLOPS.Landform
 
         [Option(HelpText = "Generate full-mesh UVs", Default = false)]
         public bool GenerateUVs { get; set; }
+
+        [Option(HelpText = "UV generation mode for meshes if texture projection is not available (None, UVAtlas, Heightmap, Naive)", Default = AtlasMode.UVAtlas)]
+        public override AtlasMode AtlasMode { get; set; }
     }
 
     public class BuildGeometry : GeometryCommand
@@ -248,6 +251,11 @@ namespace JPLOPS.Landform
         public const double SURFACE_HULL_MERGE_EPS = 0.1;
         public const double SITEDRIVE_MERGE_EPS = 0.01;
         public const double CROSS_SITEDRIVE_MERGE_EPS = 0.01;
+
+        public const int DEF_TARGET_SURFACE_MESH_FACES = 100000;
+
+        public const double DEF_ORBITAL_FILL_POISSON_CONFIDENCE = 0.05;
+        public const double DEF_LINEAR_MIN_POISSON_CONFIDENCE = 0.1;
 
         public const int SURFACE_HULL_FILL_HOLES = 10;
 

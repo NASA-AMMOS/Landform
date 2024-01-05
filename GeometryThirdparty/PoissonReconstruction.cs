@@ -32,9 +32,9 @@ namespace JPLOPS.Geometry
 
         public const PoissonReconstruction.BoundaryType DEF_BOUNDARY_TYPE = PoissonReconstruction.BoundaryType.Neumann;
         public const int DEF_OCTREE_DEPTH = 0;
-        public const double DEF_MIN_OCTREE_CELL_WIDTH_METERS = 0.05;
+        public const double DEF_MIN_OCTREE_CELL_WIDTH_METERS = 0.10;
         public const int DEF_MIN_OCTREE_SAMPLES_PER_CELL = 15;
-        public const int DEF_BSPLINE_DEGREE = 2;
+        public const int DEF_BSPLINE_DEGREE = 1;
         public const double DEF_CONFIDENCE_EXPONENT = 1;
         public const double DEF_TRIMMER_LEVEL = 9;
         public const double DEF_TRIMMER_LEVEL_LENIENT = 8;
