@@ -200,7 +200,12 @@ namespace JPLOPS.Landform
 
         protected virtual void AtlasMesh(Mesh mesh, int resolution, string name = null)
         {
-            switch (gcopts.AtlasMode)
+            AtlasMesh(mesh, resolution, name, gcopts.AtlasMode);
+        }
+
+        protected virtual void AtlasMesh(Mesh mesh, int resolution, string name, AtlasMode mode)
+        {
+            switch (mode)
             {
                 case AtlasMode.None: throw new Exception($"cannot atlas mesh, atlassing disabled");
                 case AtlasMode.UVAtlas: UVAtlasMesh(mesh, resolution, name); break;
@@ -208,7 +213,7 @@ namespace JPLOPS.Landform
                 case AtlasMode.Project: //fallthrough here, see TextureCommand.AtlasMesh()
                 case AtlasMode.Naive: NaiveAtlasMesh(mesh, name); break;
                 case AtlasMode.Manifold: ManifoldAtlasMesh(mesh, name); break;
-                default: throw new ArgumentException("unsupported atlas mode: " + gcopts.AtlasMode);
+                default: throw new ArgumentException("unsupported atlas mode: " + mode);
             }
         }
 
