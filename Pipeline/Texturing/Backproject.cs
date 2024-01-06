@@ -1,4 +1,5 @@
 //#define NO_PARALLEL_RAYCASTS
+//#define PARALLELIZE_CONTEXTS
 #define BACKPROJECT_CHECK_HULL
 
 using System;
@@ -647,10 +648,11 @@ namespace JPLOPS.Pipeline
             int numFallbacks = 0;
 
 #if NO_PARALLEL_RAYCASTS            
-            for (int batch = 0; batch < numBatches; batch++)
+            Serial.
 #else
-            CoreLimitedParallel.For(0, numBatches, batch =>
+            CoreLimitedParallel.
 #endif
+            For(0, numBatches, batch =>
             {
                 int startIdx = batch * TexturingDefaults.BACKPROJECT_MAX_SAMPLES_PER_BATCH;
                 int batchSize =
@@ -744,11 +746,18 @@ namespace JPLOPS.Pipeline
 
                     var losers = new List<int>(remaining.Count);
                     int nw = 0, no = 0;
-#if NO_PARALLEL_RAYCASTS
-                    foreach (var group in groups)
+
+                    //we typically don't parallelize here because in the typical tiling workflow
+                    //we are already backprojecting multiple tiles in parallel
+                    //and it's probably better for cache coherence to deal with one observation at a time here
+                    //(and when we're backprojecting a full scene mesh in BuildTexture we're already parallelizing on
+                    //batches)
+#if NO_PARALLEL_RAYCASTS || !PARALLELIZE_CONTEXTS
+                    Serial.
 #else
-                    CoreLimitedParallel.ForEach(groups, group =>
+                    CoreLimitedParallel.
 #endif
+                    ForEach(groups, group =>
                     {
                         var wl = BackprojectSurfaceObs(opts.pipeline, opts.project, opts.occlusionScene, masker,
                                                        opts.raycastTolerance, maxGlancingAngleCosine,
@@ -765,23 +774,22 @@ namespace JPLOPS.Pipeline
                                     $"into preference {level} surface observation {group.Key.Obs.Name}, " +
                                     $"{Fmt.KMG(wl.losers.Count)} failed: " + wl.GetStats());
                         }
-                    }
-#if !NO_PARALLEL_RAYCASTS
-                    );
-#endif
+                    });
+
+                    numWinners += nw;
+
                     remaining.Clear();
                     lock (losers)
                     {
                         remaining.AddRange(losers);
                     }
-                    numWinners += nw;
 
                     verbose($"backprojected {Fmt.KMG(nw)} pixels into {no} preference {level} surface observations, " +
                             $"{Fmt.KMG(remaining.Count)} remaining pixels");
 
                     Interlocked.Add(ref backprojectedSurfacePixels, nw);
                     maxUsedLevel = nw > 0 ? level : maxUsedLevel;
-                }
+                } //for each level
 
                 numFailed += remaining.Count;
                 failed.AddRange(remaining);
@@ -791,10 +799,7 @@ namespace JPLOPS.Pipeline
                 info($"finished batch {batch + 1}/{numBatches}: " +
                      $"backprojected {Fmt.KMG(numWinners)} pixels from preference 0 to " +
                      $"{maxUsedLevel} surface observations, {Fmt.KMG(numFailed)} failed ({pt.HMSR})");
-            }
-#if !NO_PARALLEL_RAYCASTS
-            );
-#endif
+            });
 
             stats.BackprojectedSurfacePixels = backprojectedSurfacePixels;
             stats.NumFallbacks = numFallbacks;
