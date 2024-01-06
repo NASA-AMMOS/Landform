@@ -74,6 +74,8 @@ using System.IO;
 /// </summary>
 namespace JPLOPS.Landform
 {
+    public enum OrbitalFillAdjust { None, Min, Max, Med };
+
     [Verb("build-geometry", HelpText = "create scene mesh from point clouds")]
     [EnvVar("GEOMETRY")]
     public class BuildGeometryOptions : GeometryCommandOptions
@@ -135,9 +137,6 @@ namespace JPLOPS.Landform
         [Option(HelpText = "Don't expand surface extent to fit surface data point cloud bounds", Default = false)]
         public bool NoAutoExpandSurfaceExtent { get; set; }
 
-        [Option(HelpText = "Extra padding when auto-expanding surface extent, 0 to disable", Default = BuildGeometry.DEF_AUTO_SURFACE_EXTENT_PADDING)]
-        public double AutoExpandSurfaceExtentPadding { get; set; }
-
         [Option(HelpText = "Max auto surface extent, non-positive to disable limit", Default = BuildGeometry.DEF_MAX_AUTO_SURFACE_EXTENT)]
         public double MaxAutoSurfaceExtent { get; set; }
 
@@ -147,11 +146,23 @@ namespace JPLOPS.Landform
         [Option(HelpText = "Don't fill surface extent with orbital samples to cover holes and make a square reconstruction boundary", Default = false)]
         public bool NoOrbitalFill { get; set; }
 
+        [Option(HelpText = "Extend surface extent by this amount for orbital fill to give better boundary conditions for surface reconstruction, 0 to disable", Default = BuildGeometry.DEF_ORBITAL_FILL_PADDING)]
+        public double OrbitalFillPadding { get; set; }
+
         [Option(HelpText = "Orbital sampling rate to fill holes, negative to use DEM resolution, 0 to disable", Default = BuildGeometry.DEF_ORBITAL_FILL_POINTS_PER_METER)]
         public double OrbitalFillPointsPerMeter { get; set; }
 
         [Option(HelpText = "Orbital sampling confidence to fill holes", Default = BuildGeometry.DEF_ORBITAL_FILL_POISSON_CONFIDENCE)]
         public double OrbitalFillPoissonConfidence { get; set; }
+
+        [Option(HelpText = "Orbital fill adjust mode (None, Min, Max, Med)", Default = BuildGeometry.DEF_ORBITAL_FILL_ADJUST)]
+        public OrbitalFillAdjust OrbitalFillAdjust { get; set; }
+
+        [Option(HelpText = "Orbital fill adjust blend factor", Default = BuildGeometry.DEF_ORBITAL_FILL_ADJUST_BLEND)]
+        public double OrbitalFillAdjustBlend { get; set; }
+
+        [Option(HelpText = "Orbital fill adjust width", Default = BuildGeometry.DEF_ORBITAL_FILL_ADJUST_WIDTH)]
+        public int OrbitalFillAdjustWidth { get; set; }
 
         [Option(HelpText = "If positive, linearize point sample confidence from 1 to this min", Default = BuildGeometry.DEF_LINEAR_MIN_POISSON_CONFIDENCE)]
         public double LinearMinPoissonConfidence { get; set; }
@@ -214,13 +225,16 @@ namespace JPLOPS.Landform
 
         public const double DEF_EXTENT = 1024;
         public const double DEF_SURFACE_EXTENT = 64;
-        public const double DEF_AUTO_SURFACE_EXTENT_PADDING = 2;
         public const double DEF_MAX_AUTO_SURFACE_EXTENT = 256;
         public const int DEF_NORMAL_FILTER = 8;
         public const double DEF_MIN_ISLAND_RATIO = 0.2;
         public const int DEF_TARGET_SURFACE_MESH_FACES = 100000;
+        public const double DEF_ORBITAL_FILL_PADDING = 2;
         public const int DEF_ORBITAL_FILL_POINTS_PER_METER = 8;
         public const double DEF_ORBITAL_FILL_POISSON_CONFIDENCE = 0.05;
+        public const OrbitalFillAdjust DEF_ORBITAL_FILL_ADJUST = OrbitalFillAdjust.None;
+        public const double DEF_ORBITAL_FILL_ADJUST_BLEND = 0.9;
+        public const int DEF_ORBITAL_FILL_ADJUST_WIDTH = 16;
         public const double DEF_LINEAR_MIN_POISSON_CONFIDENCE = 0.1;
         public const int DEF_SURFACE_MASK_POINTS_PER_METER = 2;
         public const double DEF_SURFACE_MASK_OFFSET = 0.05;
@@ -648,10 +662,6 @@ namespace JPLOPS.Landform
                     autoExtent = Math.Max(autoExtent, Math.Ceiling(e));
                     pcb.Add(bb);
                 }
-                if (options.AutoExpandSurfaceExtentPadding > 0)
-                {
-                    autoExtent += options.AutoExpandSurfaceExtentPadding;
-                }
                 if (options.MaxAutoSurfaceExtent > 0)
                 {
                     autoExtent = Math.Min(options.MaxAutoSurfaceExtent, autoExtent);
@@ -676,6 +686,14 @@ namespace JPLOPS.Landform
             double p = options.EnvelopePadding;
             surfaceBounds = BoundsFromXYExtent(Vector3.Zero, options.SurfaceExtent, b.Min.Z - p, b.Max.Z + p);
 
+            if (options.NoAutoExpandSurfaceExtent)
+            {
+                foreach (var pc in observationPointClouds.Values)
+                {
+                    pc.Clip(surfaceBounds);
+                }
+            }
+
             SaveDebugMesh(surfaceBounds.ToMesh(), "surface-bounds");
 
             int sz = observationPointClouds.Values.Sum(c => c.Vertices.Count);
@@ -689,8 +707,9 @@ namespace JPLOPS.Landform
         private void MakeOrbitalFillPointCloud()
         {
             Vector3 meshOriginInOrbital = Vector3.Transform(Vector3.Zero, meshToOrbital);
-            int surfaceRadiusPixels = (int)Math.Ceiling(0.5 * options.SurfaceExtent / orbitalDEMMetersPerPixel);
-            var surfaceSubrect = orbitalDEM.GetSubrectPixels(surfaceRadiusPixels, meshOriginInOrbital);
+            double extent = options.SurfaceExtent + options.OrbitalFillPadding;
+            int radiusPixels = (int)Math.Ceiling(0.5 * extent / orbitalDEMMetersPerPixel);
+            var subrect = orbitalDEM.GetSubrectPixels(radiusPixels, meshOriginInOrbital);
             double ons = 1;
             string nsm = "";
             switch (wedgeMeshOpts.NormalScale)
@@ -714,7 +733,7 @@ namespace JPLOPS.Landform
                 throw new ArgumentException($"orbital normal scale {ons} <= 0");
             }
             pipeline.LogInfo("making orbital point cloud{0}", nsm);
-            orbitalFillPointCloud = MakeOrbitalMesh(orbitalFillSamplesPerPixel, surfaceSubrect);
+            orbitalFillPointCloud = MakeOrbitalMesh(orbitalFillSamplesPerPixel, subrect);
             orbitalFillPointCloud.Faces.Clear();
             pipeline.LogInfo("orbital fill point cloud has {0} points", Fmt.KMG(orbitalFillPointCloud.Vertices.Count));
 
@@ -729,6 +748,125 @@ namespace JPLOPS.Landform
             var ob = orbitalFillPointCloud.Bounds();
             surfaceBounds.Min.Z = Math.Min(surfaceBounds.Min.Z, ob.Min.Z - options.EnvelopePadding);
             surfaceBounds.Max.Z = Math.Max(surfaceBounds.Max.Z, ob.Max.Z + options.EnvelopePadding);
+
+            if (options.OrbitalFillAdjust != OrbitalFillAdjust.None && !options.NoSurface)
+            {
+                int w = orbitalFillSamplesPerPixel * subrect.Width;
+                int h = orbitalFillSamplesPerPixel * subrect.Height;
+                double c = orbitalDEMMetersPerPixel / orbitalFillSamplesPerPixel;
+
+                pipeline.LogInfo("gridding {0} observation points into {1}x{2} {3}m grid for orbital fill {4} adjust",
+                                 Fmt.KMG(observationPointClouds.Values.Sum(pc => pc.Vertices.Count)), w, h, c,
+                                 options.OrbitalFillAdjust);
+
+                var ofb = orbitalFillPointCloud.Bounds();
+                var mmm = new Image(3, w, h); //min, max, med
+                mmm.CreateMask(true); //all masked
+                for (int i = 0; i < h; i++)
+                {
+                    for (int j = 0; j < w; j++)
+                    {
+                        mmm[0, i, j] = float.PositiveInfinity;
+                        mmm[1, i, j] = float.NegativeInfinity;
+                        mmm[2, i, j] = 0;
+                    }
+                }
+                foreach (var cloud in observationPointClouds.Values)
+                {
+                    foreach (var v in cloud.Vertices)
+                    {
+                        int i = Math.Min(h - 1, (int)((v.Position.Y - ofb.Min.Y) / c));
+                        int j = Math.Min(w - 1, (int)((v.Position.X - ofb.Min.X) / c));
+                        mmm.SetMaskValue(i, j, false);
+                        mmm[0, i, j] = (float)Math.Min(mmm[0, i, j], v.Position.Z);
+                        mmm[1, i, j] = (float)Math.Max(mmm[1, i, j], v.Position.Z);
+                    }
+                }
+                if (options.OrbitalFillAdjust == OrbitalFillAdjust.Med)
+                {
+                    for (int i = 0; i < h; i++)
+                    {
+                        for (int j = 0; j < w; j++)
+                        {
+                            if (mmm.IsValid(i, j))
+                            {
+                                mmm[2, i, j] = (float)(0.5 * (mmm[0, i, j] + mmm[1, i, j]));
+                            }
+                        }
+                    }
+                }
+
+                var ofz = new Image(1, w, h);
+                var ofn = new Image(3, w, h);
+                ofz.CreateMask(true);
+                foreach (var v in orbitalFillPointCloud.Vertices)
+                {
+                    int i = Math.Min(h - 1, (int)((v.Position.Y - ofb.Min.Y) / c));
+                    int j = Math.Min(w - 1, (int)((v.Position.X - ofb.Min.X) / c));
+                    ofz.SetMaskValue(i, j, false);
+                    ofz[0, i, j] = (float)(v.Position.Z);
+                    ofn[0, i, j] = (float)(v.Normal.X);
+                    ofn[1, i, j] = (float)(v.Normal.Y);
+                    ofn[2, i, j] = (float)(v.Normal.Z);
+                }
+
+                pipeline.LogInfo("adjusting orbital fill height to match {0} surface data height within {1} samples, " +
+                                 "falloff scale factor {2}", options.OrbitalFillAdjust,
+                                 options.OrbitalFillAdjustWidth, options.OrbitalFillAdjustBlend);
+
+                int band = 0;
+                switch (options.OrbitalFillAdjust)
+                {
+                    case OrbitalFillAdjust.Min: band = 0; break;
+                    case OrbitalFillAdjust.Max: band = 1; break;
+                    case OrbitalFillAdjust.Med: band = 2; break;
+                    default: throw new Exception("unsupported orbital fill adjust mode: " + options.OrbitalFillAdjust);
+                }
+
+                var adj = new Image(1, w, h);
+                adj.CreateMask(true);
+                for (int i = 0; i < h; i++)
+                {
+                    for (int j = 0; j < w; j++)
+                    {
+                        if (mmm.IsValid(i, j) && ofz.IsValid(i, j))
+                        {
+                            adj.SetMaskValue(i, j, false);
+                            adj[0, i, j] = (float)(mmm[band, i, j] - ofz[0, i, j]);
+                        }
+                    }
+                }
+
+                adj.Inpaint(options.OrbitalFillAdjustWidth, blend: (float)options.OrbitalFillAdjustBlend);
+
+                int nv = 0;
+                for (int i = 0; i < h; i++)
+                {
+                    for (int j = 0; j < w; j++)
+                    {
+                        if (adj.IsValid(i, j))
+                        {
+                            ofz[0, i, j] += adj[0, i, j];
+                            nv++;
+                        }
+                    }
+                }
+
+                orbitalFillPointCloud.Vertices.Clear();
+                orbitalFillPointCloud.Vertices.Capacity = nv;
+                for (int i = 0; i < h; i++)
+                {
+                    for (int j = 0; j < w; j++)
+                    {
+                        if (ofz.IsValid(i, j))
+                        {
+                            var v = new Vertex(ofb.Min.X + c * j, ofb.Min.Y + c * i, ofz[0, i, j],
+                                               ofn[0, i, j], ofn[1, i, j], ofn[2, i, j]);
+                            orbitalFillPointCloud.Vertices.Add(v);
+                        }
+                    }
+                }
+            }
         }
 
         private void MergePointClouds()
@@ -954,10 +1092,12 @@ namespace JPLOPS.Landform
                 case MeshReconstructionMethod.Poisson:
                 {
                     BoundingBox env = surfaceBounds;
+                    double pad = Math.Max(SURFACE_OVERLAP_ORBITAL, options.EnvelopePadding);
                     if (orbitalFillPointCloud != null)
                     {
                         pipeline.LogInfo("disabling Poisson trimmer, using orbital to fill holes");
                         poissonOpts.TrimmerLevel = 0;
+                        pad = Math.Max(pad, options.OrbitalFillPadding);
                         //already applied padding to surfceBounds Z 
                     }
                     else
@@ -967,7 +1107,6 @@ namespace JPLOPS.Landform
                         env.Max.Z += options.EnvelopePadding;
                     }
                     //add extra padding so if we decimate to TargetSurfaceMeshFaces we can still clip to surfaceBounds
-                    double pad = Math.Max(SURFACE_OVERLAP_ORBITAL, options.EnvelopePadding);
                     env.Min.X -= pad;
                     env.Max.X += pad;
                     env.Min.Y -= pad;
