@@ -8,21 +8,22 @@ namespace JPLOPS.Imaging
     public static class Inpainter
     {
         /// <summary>
-        /// Given an image with a mask, extend the image and the mask by border pixels in place
-        /// If border is negative (the default) continue inpainting until there are no
-        /// masked pixels left.  Inpainted pixels are an average of their non-masked neighbors
+        /// Given an image with a mask, extend the unmasked area into the masked area by border pixels in place.
+        /// If border is negative (the default) continue inpainting until there are no masked pixels left.
+        /// Inpainted values are either an average of their non-masked neighbors, or a copy of some neighbor.
         /// </summary>
         /// <param name="border"></param>
-        /// <param name="preserveMask">inpainting usually destroys the mask where pixels were inpainted, setting to true will preserve the original mask</param>
+        /// <param name="preserveMask">inpainting usually destroys the mask where pixels were inpainted, setting to
+        /// true will preserve the original mask</param>
         public static Image Inpaint(this Image img, int border = -1, bool preserveMask = false,
-                                    bool useAnyNeighbor = false)
+                                    bool useAnyNeighbor = false, float blend = 1)
         {
             if (img.HasMask && preserveMask)
             {
                 img.SaveMask();
             }
 
-            Apply(img, border, useAnyNeighbor);
+            Apply(img, border, useAnyNeighbor, blend);
 
             if (img.HasMask && preserveMask)
             {
@@ -66,7 +67,7 @@ namespace JPLOPS.Imaging
         /// <param name="r"></param>
         /// <param name="c"></param>
         /// <param name="image"></param>
-        private static void FillWithNeighborAverage(int r, int c, Image image)
+        private static void FillWithNeighborAverage(int r, int c, Image image, float blend)
         {
             float num = 0;
             float[] average = new float[image.Bands];
@@ -86,14 +87,15 @@ namespace JPLOPS.Imaging
                 }
             }
             // This method should only be called when at least one neighbor is valid so num should never be zero
+            float f = blend / num;
             for (int b = 0; b < image.Bands; b++)
             {
-                average[b] /= num;
+                average[b] *= f;
             }
             image.SetBandValues(r, c, average);
         }
 
-        private static void FillWithAnyNeighbor(int r, int c, Image image)
+        private static void FillWithAnyNeighbor(int r, int c, Image image, float blend)
         {
             float[] any = null;
             for (int r2 = Math.Max(0, r - 1); any == null && r2 <= Math.Min(image.Height - 1, r + 1); r2++)
@@ -106,6 +108,10 @@ namespace JPLOPS.Imaging
                     }
                 }
             }
+            for (int b = 0; b < image.Bands; b++)
+            {
+                any[b] *= blend;
+            }
             // This method should only be called when at least one neighbor is valid so any should never be null
             image.SetBandValues(r, c, any);
         }
@@ -115,7 +121,7 @@ namespace JPLOPS.Imaging
         /// </summary>
         /// <param name="image"></param>
         /// <param name="padWidth"></param>
-        private static void Apply(Image image, int padWidth = -1, bool useAnyNeighbor = false)
+        private static void Apply(Image image, int padWidth = -1, bool useAnyNeighbor = false, float blend = 1)
         {
             if(!image.HasMask)
             {
@@ -148,11 +154,11 @@ namespace JPLOPS.Imaging
                 {
                     if (useAnyNeighbor)
                     {
-                        FillWithAnyNeighbor((int)edge.X, (int)edge.Y, image);
+                        FillWithAnyNeighbor((int)edge.X, (int)edge.Y, image, blend);
                     }
                     else
                     {
-                        FillWithNeighborAverage((int)edge.X, (int)edge.Y, image);
+                        FillWithNeighborAverage((int)edge.X, (int)edge.Y, image, blend);
                     }
                 }   
                 foreach (Vector2 edge in edgePoints)
