@@ -1,4 +1,5 @@
 //#define NO_PARALLEL_RAYCASTS
+#define PARALLELIZE_BATCHES
 //#define PARALLELIZE_CONTEXTS
 #define BACKPROJECT_CHECK_HULL
 
@@ -517,11 +518,7 @@ namespace JPLOPS.Pipeline
         {
             stats = new Stats();
 
-#if NO_PARALLEL_RAYCASTS
-            var results = new Dictionary<Pixel, ObsPixel>();
-#else
             var results = new ConcurrentDictionary<Pixel, ObsPixel>();
-#endif
 
             string meshMsg = !string.IsNullOrEmpty(opts.meshName) ? $" for mesh {opts.meshName}" : "";
             Action<string> info = msg => { if (!opts.quiet || opts.verbose) opts.pipeline.LogInfo(msg + meshMsg); };
@@ -539,12 +536,12 @@ namespace JPLOPS.Pipeline
             int resolution = opts.outputResolution;
             info($"collecting sample points from mesh to {resolution}x{resolution} destination texture");
             List<PixelPoint> samplePoints = opts.meshOp.SampleUVSpace(resolution, resolution);
-            int np = samplePoints.Count;
-            info($"collected {Fmt.KMG(np)} sample points");
+            int numPixels = samplePoints.Count;
+            info($"collected {Fmt.KMG(numPixels)} sample points");
 
             if (opts.sampleTransform != null)
             {
-                info($"applying custom transform to {Fmt.KMG(np)} sample points");
+                info($"applying custom transform to {Fmt.KMG(numPixels)} sample points");
                 samplePoints = opts.sampleTransform(samplePoints);
             }
 
@@ -646,8 +643,9 @@ namespace JPLOPS.Pipeline
 
             int backprojectedSurfacePixels = 0;
             int numFallbacks = 0;
+            double lastSpew = UTCTime.Now();
 
-#if NO_PARALLEL_RAYCASTS            
+#if NO_PARALLEL_RAYCASTS || !PARALLELIZE_BATCHES
             Serial.
 #else
             CoreLimitedParallel.
@@ -688,31 +686,36 @@ namespace JPLOPS.Pipeline
 
                 // remove pixels which had no contexts
                 int numFailed = 0;
-                var invisible = remaining
-                    .GroupBy(i => sortedContexts[i] == null || sortedContexts[i].Count == 0)
-                    .ToDictionary(group => group.Key, group => group.ToList());
-                if (invisible.ContainsKey(true))
+                var invis = remaining.Where(i => sortedContexts[i] == null || sortedContexts[i].Count == 0).ToList();
+                if (invis.Count > 0)
                 {
-                    failed.AddRange(invisible[true]);
-                    numFailed += invisible[true].Count;
-                    verbose($"{Fmt.KMG(invisible.Count)} pixels visible in no surface observation");
-                    remaining = invisible.ContainsKey(false) ? invisible[false] : new List<int>();
+                    lock (failed)
+                    {
+                        failed.AddRange(invis);
+                    }
+                    numFailed += invis.Count;
+                    verbose($"{Fmt.KMG(invis.Count)} pixels visible in no surface observation");
+                    remaining = remaining.Where(i => sortedContexts[i] != null && sortedContexts[i].Count > 0).ToList();
                 }
 
                 if (opts.onlyCompletelyUnobstructed && opts.occlusionScene != null)
                 {
                     var contexts = intersectingContexts;
                     var obstructed = remaining
-                        .GroupBy(i => contexts.Any(c => IsObstructed(samplePoints[i].Point, opts.occlusionScene, c,
-                                                                     opts.raycastTolerance)))
-                        .ToDictionary(group => group.Key, group => group.ToList());
-                    if (obstructed.ContainsKey(true))
+                        .Where(i => contexts.Any(c => IsObstructed(samplePoints[i].Point, opts.occlusionScene, c,
+                                                                   opts.raycastTolerance)))
+                        .ToList();
+                    if (obstructed.Count > 0)
                     {
-                        failed.AddRange(obstructed[true]);
-                        numFailed += obstructed[true].Count;
+                        lock (failed)
+                        {
+                            failed.AddRange(obstructed);
+                        }
+                        numFailed += obstructed.Count;
                         verbose($"{Fmt.KMG(obstructed.Count)} pixels in frame but occluded in some surface obs");
+                        var obs = new HashSet<int>(obstructed);
+                        remaining = remaining.Where(i => !obs.Contains(i)).ToList();
                     }
-                    remaining = obstructed.ContainsKey(false) ? obstructed[false] : new List<int>();
                 }
                 
                 //try to backproject into best scoring observations first
@@ -722,15 +725,16 @@ namespace JPLOPS.Pipeline
                     verbose($"starting backproject into preference {level} observations");
 
                     // remove pixels that had all contexts fail (or which had no contexts)
-                    var dead = remaining
-                        .GroupBy(i => sortedContexts[i].Count <= level)
-                        .ToDictionary(group => group.Key, group => group.ToList());
-                    if (dead.ContainsKey(true))
+                    var dead = remaining.Where(i => sortedContexts[i].Count <= level).ToList();
+                    if (dead.Count > 0)
                     {
-                        failed.AddRange(dead[true]);
-                        numFailed += dead[true].Count;
+                        lock (failed)
+                        {
+                            failed.AddRange(dead);
+                        }
+                        numFailed += dead.Count;
                         verbose($"{Fmt.KMG(dead.Count)} pixels with no preference {level} or lower surface obs");
-                        remaining = dead.ContainsKey(false) ? dead[false] : new List<int>();
+                        remaining = remaining.Where(i => sortedContexts[i].Count > level).ToList();
                     }
                     
                     if (remaining.Count == 0)
@@ -739,9 +743,11 @@ namespace JPLOPS.Pipeline
                     }
 
                     //group all remaining points by their current best context
-                    var groups = remaining.GroupBy(i => sortedContexts[i][level].Context);
+                    var samplesByCtx = remaining
+                        .GroupBy(i => sortedContexts[i][level].Context)
+                        .ToDictionary(group => group.Key, group => group.ToList());
                     
-                    verbose($"attempting to backproject {Fmt.KMG(remaining.Count)} pixels into {groups.Count()} " +
+                    verbose($"attempting to backproject {Fmt.KMG(remaining.Count)} pixels into {samplesByCtx.Count} " +
                             $"preference {level} surface observations");
 
                     var losers = new List<int>(remaining.Count);
@@ -749,32 +755,57 @@ namespace JPLOPS.Pipeline
 
                     //we typically don't parallelize here because in the typical tiling workflow
                     //we are already backprojecting multiple tiles in parallel
-                    //and it's probably better for cache coherence to deal with one observation at a time here
-                    //(and when we're backprojecting a full scene mesh in BuildTexture we're already parallelizing on
-                    //batches)
+                    //and when we're backprojecting a full scene in BuildTexture we're already parallelizing on batches
 #if NO_PARALLEL_RAYCASTS || !PARALLELIZE_CONTEXTS
                     Serial.
 #else
                     CoreLimitedParallel.
 #endif
-                    ForEach(groups, group =>
+                    ForEach(samplesByCtx.Keys, ctx =>
                     {
+                        var samples = samplesByCtx[ctx];
                         var wl = BackprojectSurfaceObs(opts.pipeline, opts.project, opts.occlusionScene, masker,
                                                        opts.raycastTolerance, maxGlancingAngleCosine,
-                                                       group.Key, samplePoints, group, results, opts.verbose);
-                        Interlocked.Add(ref nw, wl.winners.Count);
-                        Interlocked.Add(ref no, (wl.winners.Count > 0) ? 1 : 0);
-                        lock (losers)
+                                                       ctx, samplePoints, samples, results, opts.verbose);
+                        int wc = wl.winners.Count;
+                        int lc = wl.losers.Count;
+                        if (wc > 0)
                         {
-                            losers.AddRange(wl.losers);
+                            Interlocked.Add(ref nw, wc);
+                            Interlocked.Add(ref no, 1);
+                            Interlocked.Add(ref backprojectedSurfacePixels, wc);
+                        }
+                        if (lc > 0)
+                        {
+                            lock (losers)
+                            {
+                                losers.AddRange(wl.losers);
+                            }
                         }
                         if (opts.verbose)
                         {
-                            verbose($"backprojected {Fmt.KMG(wl.winners.Count)}/{Fmt.KMG(group.Count())} pixels " +
-                                    $"into preference {level} surface observation {group.Key.Obs.Name}, " +
-                                    $"{Fmt.KMG(wl.losers.Count)} failed: " + wl.GetStats());
+                            verbose($"backprojected {Fmt.KMG(wc)}/{Fmt.KMG(samples.Count)} pixels " +
+                                    $"into preference {level} surface observation {ctx.Obs.Name}, " +
+                                    $"{Fmt.KMG(lc)} failed: " + wl.GetStats());
                         }
-                    });
+
+                        if (numBatches > 0)
+                        {
+                            double now = UTCTime.Now();
+                            if ((now - lastSpew) > 5)
+                            {
+                                int fc = 0;
+                                lock (failed)
+                                {
+                                    fc = failed.Count;
+                                }
+                                int bsp = backprojectedSurfacePixels;
+                                info($"backprojected {Fmt.KMG(bsp)} pixels, {Fmt.KMG(fc)} failed " +
+                                     $"({0.01*(int)((10000.0 * (bsp + fc)) / numPixels)}%)");
+                                lastSpew = now;
+                            }
+                        }
+                    }); //for each context
 
                     numWinners += nw;
 
@@ -787,19 +818,24 @@ namespace JPLOPS.Pipeline
                     verbose($"backprojected {Fmt.KMG(nw)} pixels into {no} preference {level} surface observations, " +
                             $"{Fmt.KMG(remaining.Count)} remaining pixels");
 
-                    Interlocked.Add(ref backprojectedSurfacePixels, nw);
-                    maxUsedLevel = nw > 0 ? level : maxUsedLevel;
+                    if (nw > 0)
+                    {
+                        maxUsedLevel = level;
+                    }
                 } //for each level
 
                 numFailed += remaining.Count;
-                failed.AddRange(remaining);
+                lock (failed)
+                {
+                    failed.AddRange(remaining);
+                }
 
                 InterlockedExtensions.Max(ref numFallbacks, maxUsedLevel);
 
                 info($"finished batch {batch + 1}/{numBatches}: " +
                      $"backprojected {Fmt.KMG(numWinners)} pixels from preference 0 to " +
                      $"{maxUsedLevel} surface observations, {Fmt.KMG(numFailed)} failed ({pt.HMSR})");
-            });
+            }); //for each batch
 
             stats.BackprojectedSurfacePixels = backprojectedSurfacePixels;
             stats.NumFallbacks = numFallbacks;
