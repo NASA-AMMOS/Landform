@@ -165,8 +165,8 @@ namespace JPLOPS.Landform
         [Option(HelpText = "Offset for creating surface mask when not using orbital for hole filling", Default = BuildGeometry.DEF_SURFACE_MASK_OFFSET)]
         public double SurfaceMaskOffset { get; set; }
 
-        [Option(HelpText = "Expand height of point cloud envelope up and down by this amount", Default = TilingDefaults.PARENT_CLIP_BOUNDS_EXPAND_HEIGHT)]
-        public double EnvelopeHeightPadding { get; set; }
+        [Option(HelpText = "Expand point cloud envelope by this amount", Default = TilingDefaults.PARENT_CLIP_BOUNDS_EXPAND_HEIGHT)]
+        public double EnvelopePadding { get; set; }
 
         [Option(HelpText = "Poisson cell size (meters), mutually exclusive with PoissonTreeDepth, 0 to disable", Default = PoissonReconstruction.DEF_MIN_OCTREE_CELL_WIDTH_METERS)]
         public double PoissonCellSize { get; set; }
@@ -230,6 +230,7 @@ namespace JPLOPS.Landform
         public const double SITEDRIVE_MERGE_EPS = 0.01;
         public const double CROSS_SITEDRIVE_MERGE_EPS = 0.01;
         public const int SURFACE_HULL_FILL_HOLES = 10;
+        public const double SURFACE_OVERLAP_ORBITAL = 0.1;
 
         private int dbgMeshCount;
 
@@ -441,7 +442,7 @@ namespace JPLOPS.Landform
             };
 
             if ((options.ReconstructionMethod == MeshReconstructionMethod.Poisson) &&
-                (optoins.PoissonConfidenceExponent != 0))
+                (options.PoissonConfidenceExponent != 0))
             {
                 wedgeMeshOpts.NormalScale = NormalScale.Confidence;
             }
@@ -641,11 +642,11 @@ namespace JPLOPS.Landform
                 double autoExtent = options.SurfaceExtent;
                 foreach (var pc in observationPointClouds.Values)
                 {
-                    var b = pc.Bounds();
-                    double e = 2 * Math.Max(Math.Max(Math.Abs(b.Min.X), Math.Abs(b.Max.X)),
-                                            Math.Max(Math.Abs(b.Min.Y), Math.Abs(b.Max.Y)));
+                    var bb = pc.Bounds();
+                    double e = 2 * Math.Max(Math.Max(Math.Abs(bb.Min.X), Math.Abs(bb.Max.X)),
+                                            Math.Max(Math.Abs(bb.Min.Y), Math.Abs(bb.Max.Y)));
                     autoExtent = Math.Max(autoExtent, Math.Ceiling(e));
-                    pcb.add(b);
+                    pcb.Add(bb);
                 }
                 if (options.AutoExpandSurfaceExtentPadding > 0)
                 {
@@ -668,11 +669,11 @@ namespace JPLOPS.Landform
             }
             else
             {
-                pcb = observationPointClouds.Select(pc => pc.Bounds()).ToList();
+                pcb = observationPointClouds.Values.Select(pc => pc.Bounds()).ToList();
             }
 
             BoundingBox b = BoundingBoxExtensions.Union(pcb.ToArray());
-            double p = options.EnvelopeHeightPadding;
+            double p = options.EnvelopePadding;
             surfaceBounds = BoundsFromXYExtent(Vector3.Zero, options.SurfaceExtent, b.Min.Z - p, b.Max.Z + p);
 
             SaveDebugMesh(surfaceBounds.ToMesh(), "surface-bounds");
@@ -726,8 +727,8 @@ namespace JPLOPS.Landform
             }
 
             var ob = orbitalFillPointCloud.Bounds();
-            surfaceBounds.Min.Z = Math.Min(surfaceBounds.Min.Z, ob.Min.Z - options.EnvelopeHeightPadding);
-            surfaceBounds.Max.Z = Math.Max(surfaceBounds.Max.Z, ob.Max.Z + options.EnvelopeHeightPadding);
+            surfaceBounds.Min.Z = Math.Min(surfaceBounds.Min.Z, ob.Min.Z - options.EnvelopePadding);
+            surfaceBounds.Max.Z = Math.Max(surfaceBounds.Max.Z, ob.Max.Z + options.EnvelopePadding);
         }
 
         private void MergePointClouds()
@@ -952,20 +953,27 @@ namespace JPLOPS.Landform
                 }
                 case MeshReconstructionMethod.Poisson:
                 {
+                    BoundingBox env = surfaceBounds;
                     if (orbitalFillPointCloud != null)
                     {
                         pipeline.LogInfo("disabling Poisson trimmer, using orbital to fill holes");
                         poissonOpts.TrimmerLevel = 0;
-                        poissonOpts.Envelope = surfaceBounds;
+                        //already applied padding to surfceBounds Z 
                     }
                     else
                     {
-                        var pcb = pointCloud.Bounds();
-                        pcb.Min.Z -= options.EnvelopeHeightPadding;
-                        pcb.Max.Z += options.EnvelopeHeightPadding;
-                        poissonOpts.Envelope = pcb;
-                        SaveDebugMesh(pcb.ToMesh(), "poisson-envelope");
+                        env = pointCloud.Bounds();
+                        env.Min.Z -= options.EnvelopePadding;
+                        env.Max.Z += options.EnvelopePadding;
                     }
+                    //add extra padding so if we decimate to TargetSurfaceMeshFaces we can still clip to surfaceBounds
+                    double pad = Math.Max(SURFACE_OVERLAP_ORBITAL, options.EnvelopePadding);
+                    env.Min.X -= pad;
+                    env.Max.X += pad;
+                    env.Min.Y -= pad;
+                    env.Max.Y += pad;
+                    poissonOpts.Envelope = env;
+                    SaveDebugMesh(env.ToMesh(), "poisson-envelope");
                     mesh = PoissonReconstruction.Reconstruct(pointCloud, poissonOpts,
                                                              rawReconstructedMeshFile: saveRawReconstructedMesh,
                                                              untrimmedMeshWithValueScaledNormals: saveUntrimmedMesh,
@@ -1042,7 +1050,12 @@ namespace JPLOPS.Landform
 
         private void ClipSurfaceMesh()
         {
-            ClipMesh(mesh, options.SurfaceExtent);
+            double ext = options.SurfaceExtent;
+            if (!options.NoOrbital && !options.NoPeripheralOrbital && options.Extent > options.SurfaceExtent)
+            {
+                ext += 2 * SURFACE_OVERLAP_ORBITAL; //paper over any gaps
+            }
+            ClipMesh(mesh, ext);
             CleanMesh();
             SaveDebugMesh(mesh, "clipped-surface");
         }
@@ -1225,7 +1238,7 @@ namespace JPLOPS.Landform
                 BoundingBox cut = surfaceBounds;
                 cut.Min.Z = Math.Min(cut.Min.Z, ob.Min.Z);
                 cut.Max.Z = Math.Max(cut.Max.Z, ob.Max.Z);
-                orbitalMesh.Cutted(cut);
+                orbitalMesh.Cut(cut);
             }
             SaveDebugMesh(orbitalMesh, "orbital");
         }
@@ -1310,14 +1323,12 @@ namespace JPLOPS.Landform
 
         private void AtlasMesh()
         {
-            double res = sceneTextureResolution;
-
             if (orbitalMesh == null || options.Extent <= options.SurfaceExtent || options.NoSurface ||
                 options.NoPeripheralOrbital)
             {
                 var mode = options.NoSurface ? AtlasMode.Heightmap : options.AtlasMode;
                 pipeline.LogInfo("no peripheral orbital, {0} atlassing mesh", mode);
-                AtlasMesh(mesh, res, "scene", mode);
+                AtlasMesh(mesh, sceneTextureResolution, "scene", mode);
                 SaveDebugMesh(mesh, "atlassed");
                 return;
             }
@@ -1331,7 +1342,7 @@ namespace JPLOPS.Landform
             ComputeTextureWarp(options.Extent, options.SurfaceExtent,
                                out double srcSurfaceFrac, out double dstSurfaceFrac);
 
-            int surfacePixels = (int)Math.Ceiling(dstSurfaceFrac * res);
+            int surfacePixels = (int)Math.Ceiling(dstSurfaceFrac * sceneTextureResolution);
             
             pipeline.LogInfo("{0} atlassing {1}x{1}m central submesh, resolution {2}x{2}",
                              options.AtlasMode, options.SurfaceExtent, surfacePixels);
@@ -1378,10 +1389,12 @@ namespace JPLOPS.Landform
                 pipeline.LogInfo("warping {0:F3}x{0:F3} central UVs to {1:F3}x{1:F3}, ease {2:F3}",
                                  srcSurfaceFrac, dstSurfaceFrac, options.EaseTextureWarp);
                 
-                pipeline.LogInfo("central meters per pixel: {0:F3}", options.SurfaceExtent / (dstSurfaceFrac * res));
+                pipeline.LogInfo("central meters per pixel: {0:F3}",
+                                 options.SurfaceExtent / (dstSurfaceFrac * sceneTextureResolution));
                 
                 pipeline.LogInfo("orbital meters per pixel: {0:F3}",
-                                 (options.Extent - options.SurfaceExtent) / ((1 - dstSurfaceFrac) * res));
+                                 (options.Extent - options.SurfaceExtent) /
+                                 ((1 - dstSurfaceFrac) * sceneTextureResolution));
 
                 var src = BoundingBoxExtensions.CreateXY(PointToUV(meshBounds, centralBounds.Min),
                                                          PointToUV(meshBounds, centralBounds.Max));
