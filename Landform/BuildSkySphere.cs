@@ -17,9 +17,9 @@ using JPLOPS.Pipeline.AlignmentServer;
 /// Creates a sky tileset to display behind the terrain.
 ///
 /// In --skymode=Box the sky geometry is the vertical sides of a box centered on a point c at rover mast height above
-/// the scene origin.  The diagonal of the box is twice the given --sphereradiusmeters, or is auto computed as half the
-/// scene XY bounds diagonal. Surface observations are backprojected onto the box, optionally using the scene mesh as an
-/// occluder. Sphere mode is the same as Box but uses sphere instead of box geometry.
+/// the scene origin.  The diagonal of the box is twice the given --sphereradiusmeters, which may be auto computed as
+/// half the scene XY bounds diagonal. Surface observations are backprojected onto the box, optionally using the scene
+/// mesh as an occluder. Sphere mode is the same as Box but uses sphere instead of box geometry.
 ///
 /// In --skymode=TopoSphere the sky geometry is a portion of a sphere centered on a point c at rover mast height above
 /// the scene origin.  If --sphereradiusmeters=auto then the radius defaults to half the scene XY box diagonal.  Each
@@ -89,10 +89,13 @@ namespace JPLOPS.Landform
         [Option(HelpText = "Sky sphere mesh max degrees above / below horizon", Default = 40)]
         public double MaxDegreesFromHorizon { get; set; }
 
-        [Option(HelpText = "Sky sphere mesh extra degrees below horizon in addition to visibility angle from mast to bottom of mesh", Default = 5)]
+        [Option(HelpText = "Sky sphere mesh extra degrees below horizon, in addition to visibility angle from mast to bottom of mesh unless --noautohorizonelevation is also given", Default = 5)]
         public double ExtraDegreesBelowHorizon { get; set; }
 
-        [Option(HelpText = "A quality/perf tradeoff spent caclulating which texture to use", Default = 24)]
+        [Option(HelpText = "Don't auto compute horizon elevation", Default = false)]
+        public bool NoAutoHorizonElevation { get; set; }
+
+        [Option(HelpText = "Backproject observation selection samples per tile if positive, overrides --backprojectquality", Default = 24)]
         public double BackprojectSamplesPerTile { get; set; }
 
         [Option(HelpText = "Sky sphere background color Red (0-255)", Default = 200)]
@@ -379,6 +382,10 @@ namespace JPLOPS.Landform
                 pipeline.LogInfo("auto set min backproject radius to {0:F3}m for sky mode {1}",
                                  minBackprojectRadius, options.SkyMode);
             }
+            else
+            {
+                minBackprojectRadius = double.Parse(options.MinBackprojectRadius);
+            }
             if (backprojectRadius < minBackprojectRadius)
             {
                 pipeline.LogInfo("clamping backproject radius {0:F3}m to {1:F3}m",
@@ -422,7 +429,7 @@ namespace JPLOPS.Landform
             //only need tiles to cover the lowest point visible from rover height
             //assume from center, angle would be different from the edge, but less savings
             angleBelowHorizon = MathHelper.ToRadians(options.ExtraDegreesBelowHorizon);
-            if (sceneMesh != null)
+            if (sceneMesh != null && !options.NoAutoHorizonElevation)
             {
                 angleBelowHorizon += sceneMesh.GetBounds().Value.GetCorners().Max(c =>
                 {
@@ -466,12 +473,21 @@ namespace JPLOPS.Landform
             double tileWidthOnSphereAtHorizon = backprojectRadius * tileSizeRad;
             double tileAreaOnSphereAtHorizon = tileWidthOnSphereAtHorizon * tileWidthOnSphereAtHorizon;
 
-            //select a good spacing of backproject points per tile
-            options.BackprojectQuality = options.BackprojectSamplesPerTile / tileAreaOnSphereAtHorizon;
-            options.BackprojectQuality /= TexturingDefaults.OBS_SEL_QUALITY_TO_SAMPLES_PER_SQUARE_METER; 
+            if (options.BackprojectSamplesPerTile > 0)
+            {
+                options.BackprojectQuality = options.BackprojectSamplesPerTile /
+                    (tileAreaOnSphereAtHorizon * TexturingDefaults.OBS_SEL_QUALITY_TO_SAMPLES_PER_SQUARE_METER); 
+            }
+            else
+            {
+                options.BackprojectSamplesPerTile = options.BackprojectQuality *
+                    tileAreaOnSphereAtHorizon * TexturingDefaults.OBS_SEL_QUALITY_TO_SAMPLES_PER_SQUARE_METER;
+            }
 
             pipeline.LogInfo("backproject quality: {0:f6} ({1} samples per {2:f3}m^2 tile)",
-                             options.BackprojectQuality, options.BackprojectSamplesPerTile, tileAreaOnSphereAtHorizon);
+                             options.BackprojectQuality, options.BackprojectSamplesPerTile,
+                             tileAreaOnSphereAtHorizon);
+
             pipeline.LogInfo("colorize: {0}", options.Colorize);
 
             skyColor = new float[] { (float)options.SkyColorRed / 255.0f,
@@ -746,6 +762,7 @@ namespace JPLOPS.Landform
 
             double azStep = 2 * Math.PI / sphereTileCols;
             double elStep = (angleBelowHorizon + angleAboveHorizon) / sphereTileRows;
+            double azOffset = options.SkyMode == SkyMode.Box && sphereTileCols == 4 ? -0.25 * Math.PI : 0;
 
             var root = new SceneNode("root");
             var rootBounds = BoundingBoxExtensions.CreateEmpty();
@@ -754,7 +771,7 @@ namespace JPLOPS.Landform
             {
                 for (int col = 0; col < sphereTileCols; col++)
                 {
-                    double leftAz = col * azStep;
+                    double leftAz = col * azStep + azOffset;
                     double rightAz = leftAz + azStep;
                     double topEl = angleAboveHorizon - row * elStep;
                     double bottomEl = topEl - elStep;
