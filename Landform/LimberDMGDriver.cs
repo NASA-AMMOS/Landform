@@ -31,38 +31,44 @@ namespace JPLOPS.Landform
         [Value(0, Required = true, HelpText = "image to blend")]
         public string InputImage { get; set; }
 
-        [Value(1, Required = true, HelpText = "index image, should have either one band or same number as input image; valid indices are in 2 - 65534, else treated as flags = NO_DATA | HOLD_CONSTANT")]
+        [Value(1, Required = true, HelpText = "index image, should have either one band or same number as input image; valid indices are in 2 - 65535, else treated as flags = NO_DATA | HOLD_CONSTANT")]
         public string IndexImage { get; set; }
 
-        [Option(Required = false, HelpText = "flags image (optional), should have either one band or same number as input image; NONE = 0, HOLD_CONSTANT = 1, GRADIENT_ONLY = 2, NO_DATA = 4")]
+        [Option(HelpText = "optional flags image, should have either one band or same number as input image; NONE = 0, HOLD_CONSTANT = 1, GRADIENT_ONLY = 2, NO_DATA = 4")]
         public string FlagsImage { get; set; }
-        
+
         [Option(HelpText = "output format, e.g. png, jpg, help for list; omit to use input format", Default = null)]
         public string OutputFormat { get; set; }
 
         [Option(HelpText = "apply output image as texture on this mesh", Default = null)]
         public string Mesh { get; set; }
 
-        [Option(Required = false, HelpText = "color conversion mode: None, RGBToLAB, RGBToLogLAB", Default = LimberDMG.DEF_COLOR_CONVERSION)]
+        [Option(HelpText = "color conversion mode: None, RGBToLAB, RGBToLogLAB", Default = LimberDMG.DEF_COLOR_CONVERSION)]
         public LimberDMG.ColorConversion ColorConversion { get; set; }
 
-        [Option(Required = false, HelpText = "acceptable error in solving the linear system", Default = LimberDMG.DEF_RESIDUAL_EPSILON)]
+        [Option(HelpText = "Disable conversion from/to sRGB for 8 bit image file formats", Default = false)]
+        public bool NoSRGBConversion { get; set; }
+
+        [Option(HelpText = "acceptable error in solving the linear system", Default = LimberDMG.DEF_RESIDUAL_EPSILON)]
         public double ResidualEpsilon { get; set; }
 
-        [Option(Required = false, HelpText = "number of iterations of relaxation to perform between multigrid iterations", Default = LimberDMG.DEF_NUM_RELAXATION_STEPS)]
+        [Option(HelpText = "number of iterations of relaxation to perform between multigrid iterations", Default = LimberDMG.DEF_NUM_RELAXATION_STEPS)]
         public int NumRelaxationSteps { get; set; }
 
-        [Option(Required = false, HelpText = "number of multigrid iterations to perform", Default = LimberDMG.DEF_NUM_MULTIGRID_ITERATIONS)]
+        [Option(HelpText = "number of multigrid iterations to perform", Default = LimberDMG.DEF_NUM_MULTIGRID_ITERATIONS)]
         public int NumMultigridIterations { get; set; }
 
-        [Option(Required = false, HelpText = "higher values will cause sharper transitions between images but better conform to the inputs", Default = LimberDMG.DEF_LAMBDA)]
+        [Option(HelpText = "higher values will cause sharper transitions between images but better conform to the inputs", Default = LimberDMG.DEF_LAMBDA)]
         public double Lambda { get; set; }
 
-        [Option(Required = false, HelpText = "boundary handling: Clamp, WrapSphere, WrapCylinder, WrapTorus", Default = LimberDMG.DEF_EDGE_BEHAVIOR)]
+        [Option(HelpText = "boundary handling: Clamp, WrapSphere, WrapCylinder, WrapTorus", Default = LimberDMG.DEF_EDGE_BEHAVIOR)]
         public LimberDMG.EdgeBehavior EdgeMode { get; set; }
 
-        [Option(Required = false, HelpText = "include 1 as valid and 65535 as an invalid index", Default = false)]
+        [Option(HelpText = "include 1 as valid and 65535 as an invalid index", Default = false)]
         public bool LegacyInvalidIndices { get; set; }
+
+        [Option(HelpText = "supplied index image is a backproject index: use only band 0", Default = false)]
+        public bool UseBackprojectIndex { get; set; }
     }
 
     public class LimberDMGDriver
@@ -103,12 +109,19 @@ namespace JPLOPS.Landform
             }
 
             Log("loading input image {0}...", options.InputImage);
-            Image composite = Image.Load(options.InputImage);
+            Image composite =
+                Image.Load(options.InputImage, options.NoSRGBConversion ? ImageConverters.ValueRangeToNormalizedImage :
+                           ImageConverters.ValueRangeSRGBToNormalizedImageLinearRGB);
 
             Log("loaded {0}x{1} image, {2} bands", composite.Width, composite.Height, composite.Bands);
 
             Log("loading index image {0}...", options.IndexImage);
             Image index = Image.Load(options.IndexImage, ImageConverters.PassThrough);
+
+            while (options.UseBackprojectIndex && index.Bands > 1)
+            {
+                index.RemoveBand(index.Bands - 1);
+            }
 
             Image flags = null;
             if (!string.IsNullOrEmpty(options.FlagsImage))
@@ -141,7 +154,8 @@ namespace JPLOPS.Landform
             var outFile = basename + "_dmg" + ext;
             var outPath = Path.Combine(dir, outFile);
             Log("saving {0}...", outPath);
-            output.Save<byte>(outPath);
+            output.Save<byte>(outPath, options.NoSRGBConversion ? ImageConverters.NormalizedImageToValueRange :
+                              ImageConverters.NormalizedImageLinearRGBToValueRangeSRGB);
 
             if (!string.IsNullOrEmpty(options.Mesh))
             {
@@ -155,7 +169,7 @@ namespace JPLOPS.Landform
             }
 
             stopwatch.Stop();
-            Log("elapsed time {0:F3}s", 0.001 * stopwatch.ElapsedMilliseconds);
+            Log("elapsed time {0}", Fmt.HMS(stopwatch.ElapsedMilliseconds));
 
             return 0;
         }
