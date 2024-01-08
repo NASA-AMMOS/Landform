@@ -161,7 +161,7 @@ namespace JPLOPS.Landform
         [Option(HelpText = "Orbital fill adjust blend factor", Default = BuildGeometry.DEF_ORBITAL_FILL_ADJUST_BLEND)]
         public double OrbitalFillAdjustBlend { get; set; }
 
-        [Option(HelpText = "Orbital fill adjust width", Default = BuildGeometry.DEF_ORBITAL_FILL_ADJUST_WIDTH)]
+        [Option(HelpText = "Orbital fill adjust infill width, 0 to disable, negative for unlimited", Default = BuildGeometry.DEF_ORBITAL_FILL_ADJUST_WIDTH)]
         public int OrbitalFillAdjustWidth { get; set; }
 
         [Option(HelpText = "If positive, linearize point sample confidence from 1 to this min", Default = BuildGeometry.DEF_LINEAR_MIN_POISSON_CONFIDENCE)]
@@ -234,7 +234,7 @@ namespace JPLOPS.Landform
         public const double DEF_ORBITAL_FILL_POISSON_CONFIDENCE = 0.05;
         public const OrbitalFillAdjust DEF_ORBITAL_FILL_ADJUST = OrbitalFillAdjust.None;
         public const double DEF_ORBITAL_FILL_ADJUST_BLEND = 0.9;
-        public const int DEF_ORBITAL_FILL_ADJUST_WIDTH = 16;
+        public const int DEF_ORBITAL_FILL_ADJUST_WIDTH = -1;
         public const double DEF_LINEAR_MIN_POISSON_CONFIDENCE = 0.1;
         public const int DEF_SURFACE_MASK_POINTS_PER_METER = 2;
         public const double DEF_SURFACE_MASK_OFFSET = 0.05;
@@ -710,6 +710,7 @@ namespace JPLOPS.Landform
             double extent = options.SurfaceExtent + options.OrbitalFillPadding;
             int radiusPixels = (int)Math.Ceiling(0.5 * extent / orbitalDEMMetersPerPixel);
             var subrect = orbitalDEM.GetSubrectPixels(radiusPixels, meshOriginInOrbital);
+
             double ons = 1;
             string nsm = "";
             switch (wedgeMeshOpts.NormalScale)
@@ -732,22 +733,10 @@ namespace JPLOPS.Landform
             {
                 throw new ArgumentException($"orbital normal scale {ons} <= 0");
             }
+
             pipeline.LogInfo("making orbital point cloud{0}", nsm);
             orbitalFillPointCloud = MakeOrbitalMesh(orbitalFillSamplesPerPixel, subrect);
             orbitalFillPointCloud.Faces.Clear();
-            pipeline.LogInfo("orbital fill point cloud has {0} points", Fmt.KMG(orbitalFillPointCloud.Vertices.Count));
-
-            if (ons != 1)
-            {
-                foreach (Vertex v in orbitalFillPointCloud.Vertices)
-                {
-                    v.Normal *= ons;
-                }
-            }
-
-            var ob = orbitalFillPointCloud.Bounds();
-            surfaceBounds.Min.Z = Math.Min(surfaceBounds.Min.Z, ob.Min.Z - options.EnvelopePadding);
-            surfaceBounds.Max.Z = Math.Max(surfaceBounds.Max.Z, ob.Max.Z + options.EnvelopePadding);
 
             if (options.OrbitalFillAdjust != OrbitalFillAdjust.None && !options.NoSurface)
             {
@@ -837,7 +826,10 @@ namespace JPLOPS.Landform
                     }
                 }
 
-                adj.Inpaint(options.OrbitalFillAdjustWidth, blend: (float)options.OrbitalFillAdjustBlend);
+                if (options.OrbitalFillAdjustWidth != 0 && options.OrbitalFillAdjustBlend > 0)
+                {
+                    adj.Inpaint(options.OrbitalFillAdjustWidth, blend: (float)options.OrbitalFillAdjustBlend);
+                }
 
                 int nv = 0;
                 for (int i = 0; i < h; i++)
@@ -861,12 +853,31 @@ namespace JPLOPS.Landform
                         if (ofz.IsValid(i, j))
                         {
                             var v = new Vertex(ofb.Min.X + c * j, ofb.Min.Y + c * i, ofz[0, i, j],
+                                               //the original normals are no longer correct
+                                               //now that we've (non-uniformly) adjusted the point heights
+                                               //we do need to pass normals to Poisson though
+                                               //and it would be annoying to recompute them entirely now
+                                               //so just fudge it and use the original normals
                                                ofn[0, i, j], ofn[1, i, j], ofn[2, i, j]);
                             orbitalFillPointCloud.Vertices.Add(v);
                         }
                     }
                 }
             }
+
+            pipeline.LogInfo("orbital fill point cloud has {0} points", Fmt.KMG(orbitalFillPointCloud.Vertices.Count));
+
+            if (ons != 1)
+            {
+                foreach (Vertex v in orbitalFillPointCloud.Vertices)
+                {
+                    v.Normal *= ons;
+                }
+            }
+
+            var ob = orbitalFillPointCloud.Bounds();
+            surfaceBounds.Min.Z = Math.Min(surfaceBounds.Min.Z, ob.Min.Z - options.EnvelopePadding);
+            surfaceBounds.Max.Z = Math.Max(surfaceBounds.Max.Z, ob.Max.Z + options.EnvelopePadding);
         }
 
         private void MergePointClouds()
