@@ -71,7 +71,7 @@ namespace JPLOPS.Geometry
                     double nl = func(l);
                     if (nl != l)
                     {
-                        vertex.Normal = Vector3.Multiply(vertex.Normal, nl / l);
+                        vertex.Normal *= (nl / l);
                     }
                 }
             }
