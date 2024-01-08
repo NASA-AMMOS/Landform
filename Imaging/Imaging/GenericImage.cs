@@ -635,6 +635,31 @@ namespace JPLOPS.Imaging
             return Bands - 1;
         }
 
+        public virtual void RemoveBand(int dead)
+        {
+            T[][] origData = data;
+
+            Bands -= 1;
+            if (Metadata != null)
+            {
+                Metadata.Bands = Bands;
+            }
+
+            data = new T[Bands][];
+
+            for (int b = 0; b < Bands + 1; b++)
+            {
+                if (b < dead)
+                {
+                    data[b] = origData[b];
+                }
+                else if (b > dead)
+                {
+                    data[b - 1] = origData[b];
+                }
+            }
+        }
+
         /// <summary>
         /// Convenience accessor for reading image data.  This is slower
         /// than directly accessing the data array with data[b][row*Width + col]
