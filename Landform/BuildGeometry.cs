@@ -22,31 +22,31 @@ using System.IO;
 ///
 /// The mesh frame is typically the frame of the primary sitedrive.  Detailed reconstruction incorporating both surface
 /// observations and orbital data, if available, is performed within a square bounding box centered on the origin of
-/// mesh frame, which is also typically the center of the primary sitedrive.  If orbital data is available, coarser
-/// reconstruction may also be performed outside that bounds to a larger square bounds.  The inner surface bounds are
-/// typically auto expanded to fit the available surface point clouds within the range 64-256m.  The outer bounds is
-/// typically set at 1024m.
+/// mesh frame.  If orbital data is available, coarser reconstruction may also be performed outside that bounds to a
+/// larger square bounds.  The inner surface bounds are typically auto expanded to fit the available surface point
+/// clouds within the range 64-256m.  The outer bounds is typically set at 1024m.
 ///
 /// The observation pointclouds are typically combined with CleverCombine which attempts to reject outlier points using
 /// a grid-based approach, and which also limits the total number of samples per XY grid cell.  Grid cells are typically
 /// 2.5cm square, and the limit is typically 6 samples for cell, or about 1 sample per square cm.  Orbital sample points
-/// are typically also added at a sampling rate of 8 points per lineal meter .  This both fills holes in the observation
-/// pointclouds and sets up a square boundary for the input point cloud, which helps with Poisson reconstruction.
+/// are typically also added at a sampling rate of 8 points per lineal meter.  This both fills holes in the observation
+/// pointclouds and sets up a square boundary for the input point cloud, which sets up better boundary conditions for
+/// mesh reconstruction.
 ///
 /// The mesh is then reconstructed on the combined point cloud, typically with Poisson reconstruction.  Mission normal
 /// map RDRs (UVW products) give each point a normal vector, which is usually required.  Points with bad or suspected
 /// bad normals are filtered before reconstruction.  The normals are typically scaled by an estimate of the confidence
 /// of each point, though at this time ingestion of mission RNE products is still TODO (and such products may not even
-/// be available) so we use distance from the camera as a proxy.  Orbital sample points have normals that point straight
-/// up and a fixed confidence, typically 0.05.
+/// be available) so we use distance from the camera as a proxy.  Orbital sample points have normals computed from a
+/// corresponding organized mesh and a fixed confidence.
 ///
 /// The reconstructed mesh is cleaned and clipped to the surface bounds.  Its vertex normals are recomputed from its
 /// faces to avoid issues with bad normals corrupting downstream operations such as reconstruction of parent tile
 /// meshes.
 ///
-/// An optional hole filling step is then performed.  This step is typically enabled only if orbital data is not
-/// available to fill holes.  The hole filling algorithm first computes an outer polygon boundary of the surface data.
-/// The reconstructed surface mesh is then trimmed again, but this time with less aggressive trimming options.  The
+/// An optional hole filling step is then performed.  This step is typically enabled only if orbital data is not used to
+/// fill holes.  The hole filling algorithm first computes an outer polygon boundary of the surface data.  The
+/// reconstructed surface mesh is then trimmed again, but this time with less aggressive trimming options.  The
 /// resulting mesh is clipped to the polygon boundary.  In this way the potential undesirable effects of less aggressive
 /// surface trimming around the outer boundary of the mesh are avoided, but the benefits of allowing more internal hole
 /// filling are gained.
