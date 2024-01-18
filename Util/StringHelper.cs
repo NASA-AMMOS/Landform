@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Globalization;
 using System.Text.RegularExpressions;
 using System.Security.Cryptography;
 
@@ -262,6 +263,28 @@ namespace JPLOPS.Util
         public static string[] ParseList(string list, char sep = ',')
         {
             return (list ?? "").Split(sep).Select(s => s.Trim()).Where(s => !string.IsNullOrEmpty(s)).ToArray();
+        }
+
+        public static float[] ParseFloatListSafe(string list, char sep = ',')
+        {
+            string[] fl = ParseList(list, sep);
+            try
+            {
+                float[] ret = new float[fl.Length];
+                for (int i = 0; i < fl.Length; i++)
+                {
+                    ret[i] = float.Parse(fl[i], CultureInfo.InvariantCulture);
+                }
+                return ret;
+            }
+            catch (FormatException)
+            {
+                return null;
+            }
+            catch (OverflowException)
+            {
+                return null;
+            }
         }
 
         public static List<string> ParseExts(string extsStr, bool bothCases = false)
