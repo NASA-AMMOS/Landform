@@ -74,7 +74,7 @@ namespace JPLOPS.Imaging
                         CreateMaskFromFillValues(img, fillValue);
                         return converter.Convert<ushort>(img);
                     }
-                    else if(metadata.SampleType == typeof(short))
+                    else if (metadata.SampleType == typeof(short))
                     {
                         for (int b = 0; b < img.Bands; b++)
                         {

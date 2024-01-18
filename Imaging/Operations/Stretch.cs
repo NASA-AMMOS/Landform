@@ -117,6 +117,11 @@ namespace JPLOPS.Imaging
             }
             return img;
         }
+
+        public static Image Normalize(this Image img, float min, float max)
+        {
+            return img.ScaleValues(min, max, 0, 1);
+        }
     }
 }
 
