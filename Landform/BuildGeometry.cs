@@ -707,7 +707,7 @@ namespace JPLOPS.Landform
         private void MakeOrbitalFillPointCloud()
         {
             Vector3 meshOriginInOrbital = Vector3.Transform(Vector3.Zero, meshToOrbital);
-            double extent = options.SurfaceExtent + options.OrbitalFillPadding;
+            double extent = options.SurfaceExtent + 2 * Math.Max(0, options.OrbitalFillPadding);
             int radiusPixels = (int)Math.Ceiling(0.5 * extent / orbitalDEMMetersPerPixel);
             var subrect = orbitalDEM.GetSubrectPixels(radiusPixels, meshOriginInOrbital);
 
@@ -1203,8 +1203,11 @@ namespace JPLOPS.Landform
             double ext = options.SurfaceExtent;
             if (!options.NoOrbital && !options.NoPeripheralOrbital && options.Extent > options.SurfaceExtent)
             {
+                ext += 2 * Math.Max(0, options.OrbitalFillPadding);
                 ext += 2 * SURFACE_OVERLAP_ORBITAL; //paper over any gaps
             }
+            ext = Math.Min(ext, options.Extent);
+            pipeline.LogInfo("clipping surface mesh to {0:f3}x{0:f3}m", ext, ext);
             ClipMesh(mesh, ext);
             CleanMesh();
             SaveDebugMesh(mesh, "clipped-surface");
@@ -1381,6 +1384,9 @@ namespace JPLOPS.Landform
             Vector3 meshOriginInOrbital = Vector3.Transform(Vector3.Zero, meshToOrbital);
             int orbitalRadiusPixels = (int)Math.Ceiling(0.5 * options.Extent / orbitalDEMMetersPerPixel);
             var orbitalBounds = orbitalDEM.GetSubrectPixels(orbitalRadiusPixels, meshOriginInOrbital);
+            double orbitalRadiusMeters = orbitalRadiusPixels * orbitalDEMMetersPerPixel;
+            pipeline.LogInfo("making {0:f3}x{0:f3}m peripheral orbital mesh, {1:f3} samples/m",
+                             2 * orbitalRadiusMeters, orbitalSamplesPerPixel / orbitalDEMMetersPerPixel);
             orbitalMesh = MakeOrbitalMesh(orbitalSamplesPerPixel, orbitalBounds);
             if (!options.NoSurface && options.SurfaceExtent < options.Extent)
             {
@@ -1388,6 +1394,23 @@ namespace JPLOPS.Landform
                 BoundingBox cut = surfaceBounds;
                 cut.Min.Z = Math.Min(cut.Min.Z, ob.Min.Z);
                 cut.Max.Z = Math.Max(cut.Max.Z, ob.Max.Z);
+                if (options.OrbitalFillPadding > 0)
+                {
+                    cut.Min.X -= options.OrbitalFillPadding;
+                    cut.Min.Y -= options.OrbitalFillPadding;
+                    cut.Max.X += options.OrbitalFillPadding;
+                    cut.Max.Y += options.OrbitalFillPadding;
+                }
+                if (Math.Abs(cut.Min.X) >= orbitalRadiusMeters || Math.Abs(cut.Min.Y) >= orbitalRadiusMeters ||
+                    Math.Abs(cut.Max.X) >= orbitalRadiusMeters || Math.Abs(cut.Max.Y) >= orbitalRadiusMeters)
+                {
+                    pipeline.LogInfo("disabling peripheral orbital mesh, " +
+                                     "central cutout {0:f3}x{1:f3}m would be larger than extent {2:f3}m",
+                                     cut.Max.X - cut.Min.X, cut.Max.Y - cut.Min.Y, 2 * orbitalRadiusMeters);
+                    orbitalMesh = null;
+                }
+                pipeline.LogInfo("cutting out central {0:f3}x{1:f3}m portion of peripheral orbital mesh",
+                                 cut.Max.X - cut.Min.X, cut.Max.Y - cut.Min.Y);
                 orbitalMesh.Cut(cut);
             }
             SaveDebugMesh(orbitalMesh, "orbital");
