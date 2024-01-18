@@ -11,8 +11,8 @@ tmp/
 tmp
 log/
 cfg/
-storage/
-storage
+storage*/
+storage*
 release/
 release
 TestResults/
