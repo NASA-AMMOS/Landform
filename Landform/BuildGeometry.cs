@@ -92,6 +92,9 @@ namespace JPLOPS.Landform
         [Option(HelpText = "Filter out surface reconstruction triangles whose barycenter is further than this from any input point, disabled if non-positive", Default = 0)]
         public double FilterTriangles { get; set; }
 
+        [Option(HelpText = "Text file with wedge product IDs to whitelist, one per line.  Wedges that do not have a points observation (falling back to range) in the whitelist are not used for meshing.  Each line may also contain an optional alternate URL to use for that product, separated by whitespace from the product ID, and that mechanism can be used to replace the points, range, normal, or mask product of any wedge.", Default = null)]
+        public string WedgeWhitelist { get; set; }
+
         [Option(HelpText = "Mesh reconstruction method (FSSR, Poisson)", Default = MeshReconstructionMethod.Poisson)]
         public MeshReconstructionMethod ReconstructionMethod { get; set; }
 
@@ -246,11 +249,13 @@ namespace JPLOPS.Landform
         public const int SURFACE_HULL_FILL_HOLES = 10;
         public const double SURFACE_OVERLAP_ORBITAL = 0.1;
 
-        private int dbgMeshCount;
-
         private BuildGeometryOptions options;
 
+        private int dbgMeshCount;
+
         private RoverObservation[] onlyForObs;
+
+        private Dictionary<string, string> wedgeWhitelist;
 
         private PoissonReconstruction.Options poissonOpts;
 
@@ -406,6 +411,26 @@ namespace JPLOPS.Landform
                 .Cast<RoverObservation>()
                 .ToArray();
 
+            if (!string.IsNullOrEmpty(options.WedgeWhitelist))
+            {
+                wedgeWhitelist = new Dictionary<string, string>();
+                foreach (string line in File.ReadLines(options.WedgeWhitelist))
+                {
+                    string[] split = line.Split(null); //split on whitespace
+                    if (split.Length > 0)
+                    {
+                        wedgeWhitelist[split[0]] = split.Length > 1 ? split[1] : "";
+                    }
+                }
+                pipeline.LogInfo("read wedge whitelist {0} with {1} entries:",
+                                 options.WedgeWhitelist, wedgeWhitelist.Count);
+                foreach (var entry in wedgeWhitelist)
+                {
+                    pipeline.LogInfo("whitelisting {0}{1}", entry.Key,
+                                     !string.IsNullOrEmpty(entry.Value) ? $" (replacement {entry.Value})" : "");
+                }
+            }
+
             poissonOpts = new PoissonReconstruction.Options
             {
                 Boundary = PoissonReconstruction.DEF_BOUNDARY_TYPE,
@@ -508,6 +533,44 @@ namespace JPLOPS.Landform
                 };
 
             var wedges = WedgeObservations.Collect(frameCache, observationCache, collectOpts);
+
+            if (wedgeWhitelist != null)
+            {
+                var keepers = new List<WedgeObservations>();
+                foreach (var w in wedges)
+                {
+                    bool whitelisted = false;
+                    foreach (var obs in new List<Observation>() { w.Points, w.Range, w.Normals, w.Mask, w.Texture })
+                    {
+                        if (obs != null)
+                        {
+                            string id = StringHelper.GetLastUrlPathSegment(obs.Url, stripExtension: true);
+                            if (wedgeWhitelist.ContainsKey(id))
+                            {
+                                string url = wedgeWhitelist[id];
+                                if (!string.IsNullOrEmpty(url))
+                                {
+                                    obs.Url = url;
+                                    pipeline.LogInfo("replacing URL for {0} with {1} from whitelist", id, url);
+                                }
+                                if (obs == w.Points || (w.Points == null && obs == w.Range))
+                                {
+                                    pipeline.LogInfo("whitelisting {0}", id);
+                                    keepers.Add(w);
+                                    whitelisted = true;
+                                }
+                            }
+                        }
+                    }
+                    if (!whitelisted)
+                    {
+                        string pid = StringHelper.GetLastUrlPathSegment(w.Points != null ? w.Points.Url : w.Range.Url,
+                                                                       stripExtension: true);
+                        pipeline.LogInfo("discarding wedge {0}: not in whitelist", pid);
+                    }
+                }
+                wedges = keepers;
+            }
 
             if (wedges.Count == 0)
             {
