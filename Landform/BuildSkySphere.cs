@@ -798,7 +798,7 @@ namespace JPLOPS.Landform
                     leaf.AddComponent(new MeshImagePair(mesh));
                     leaf.AddComponent(new NodeBounds(BoundingBox.CreateFromPoints(corners)));
                     leaf.AddComponent<NodeGeometricError>().Error = 0;
-                    //leaf name will be added to tileList.LeafNames in SaveTile()
+                    //leaf name will be added to tileList.LeafNames in SaveTileContent()
 
                     BoundingBoxExtensions.Extend(ref rootBounds, corners);
                 }

@@ -1,6 +1,6 @@
 //#define NO_PARALLEL_RAYCASTS
 #define PARALLELIZE_BATCHES
-//#define PARALLELIZE_CONTEXTS
+#define PARALLELIZE_CONTEXTS
 #define BACKPROJECT_CHECK_HULL
 
 using System;
@@ -789,21 +789,18 @@ namespace JPLOPS.Pipeline
                                     $"{Fmt.KMG(lc)} failed: " + wl.GetStats());
                         }
 
-                        if (numBatches > 0)
+                        double now = UTCTime.Now();
+                        if ((now - lastSpew) > 5)
                         {
-                            double now = UTCTime.Now();
-                            if ((now - lastSpew) > 5)
+                            int fc = 0;
+                            lock (failed)
                             {
-                                int fc = 0;
-                                lock (failed)
-                                {
-                                    fc = failed.Count;
-                                }
-                                int bsp = backprojectedSurfacePixels;
-                                info($"backprojected {Fmt.KMG(bsp)} pixels, {Fmt.KMG(fc)} failed " +
-                                     $"({0.01*(int)((10000.0 * (bsp + fc)) / numPixels)}%)");
-                                lastSpew = now;
+                                fc = failed.Count;
                             }
+                            int bsp = backprojectedSurfacePixels;
+                            info($"backprojected {Fmt.KMG(bsp)} pixels, {Fmt.KMG(fc)} failed " +
+                                 $"({0.01*(int)((10000.0 * (bsp + fc)) / numPixels)}%)");
+                            lastSpew = now;
                         }
                     }); //for each context
 
