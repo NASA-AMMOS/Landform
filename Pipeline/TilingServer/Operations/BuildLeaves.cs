@@ -185,7 +185,7 @@ namespace JPLOPS.Pipeline.TilingServer
                         mesh = clipper.Clip(bounds);
                         double texelsPerMeter = project.GetMaxTexelsPerMeter(bounds, surfaceBounds);
                         tileResolution = SceneNodeTilingExtensions
-                            .GetTileResolution(mesh, maxTexRes, texelsPerMeter, project.PowerOfTwoTextures);
+                            .GetTileResolution(mesh, maxTexRes, -1, texelsPerMeter, project.PowerOfTwoTextures);
                     }
 
                     if (project.TextureMode == TextureMode.Bake)

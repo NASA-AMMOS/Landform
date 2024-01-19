@@ -73,7 +73,7 @@ namespace JPLOPS.Pipeline
             if (area > 0)
             {
                 maxTextureSize = SceneNodeTilingExtensions.
-                    GetTileResolution(area, maxTextureSize, maxTexelsPerMeter, powerOfTwoTextures);
+                    GetTileResolution(area, maxTextureSize, -1, maxTexelsPerMeter, powerOfTwoTextures);
             }
             return ClipAndRemapPatches(patches, maxTextureSize);
         }
@@ -93,7 +93,7 @@ namespace JPLOPS.Pipeline
             if (maxTextureSize < 0 && maxTexelsPerMeter > 0)
             {
                 maxTextureSize = SceneNodeTilingExtensions.
-                    GetTileResolution(clippedMesh, maxTextureSize, maxTexelsPerMeter, powerOfTwoTextures);
+                    GetTileResolution(clippedMesh, maxTextureSize, -1, maxTexelsPerMeter, powerOfTwoTextures);
             }
             var patches = ComputePatches(clippedMesh, fullImage, fullImageIndex);
             return ClipAndRemapPatches(patches, maxTextureSize, clippedMesh);

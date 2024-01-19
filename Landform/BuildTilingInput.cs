@@ -95,7 +95,7 @@ namespace JPLOPS.Landform
         [Option(HelpText = "Ratio of observation pixels to tile texels that would trigger a split", Default = TilingDefaults.TEX_SPLIT_MAX_PIXELS_PER_TEXEL)]
         public double SplitByTextureMaxPixelsPerTexel { get; set; }
 
-        [Option(HelpText = "Tiling scheme (Bin, QuadX, QuadY, QuadZ, QuadAuto, Oct)", Default = TilingDefaults.TILING_SCHEME)]
+        [Option(HelpText = "Tiling scheme (Bin, QuadX, QuadY, QuadZ, QuadAuto, Oct, Flat)", Default = TilingDefaults.TILING_SCHEME)]
         public TilingScheme TilingScheme { get; set; }
 
         [Option(Default = "auto", HelpText = "Texture mode (None, Clip, Bake, Backproject, auto)")]
@@ -148,11 +148,16 @@ namespace JPLOPS.Landform
 
         [Option(HelpText = "Don't convert non-PDS input texture from SRGB to linear RGB", Default = false)]
         public bool NoConvertSRGBToLinearRGB { get; set; }
+
+        [Option(HelpText = "Don't texture tiles in parallel", Default = false)]
+        public bool NoTextureTilesInParallel { get; set; }
     }
 
     public class BuildTilingInput : TilingCommand
     {
         public const double SYNTHESIZE_LOD_RELATIVE_THRESHOLD = 0.1;
+
+        public const int MAX_PARALLEL_TEXTURE_RES = 2048;
 
         private BuildTilingInputOptions options;
 
@@ -301,7 +306,7 @@ namespace JPLOPS.Landform
 
             if (maxTileResolution < 0 && textureMode != TextureMode.Clip)
             {
-                throw new Exception("--tileresolution must be positive for texture mode " + textureMode);
+                throw new Exception("--maxtileresolution must be positive for texture mode " + textureMode);
             }
 
             pipeline.LogInfo("texture mode: {0}, max tile resolution {1}", textureMode, maxTileResolution);
@@ -761,6 +766,12 @@ namespace JPLOPS.Landform
 
         private bool CanUseTextureSplit()
         {
+            if (options.TilingScheme == TilingScheme.Flat)
+            {
+                pipeline.LogInfo("texture split disabled, flat tiling scheme");
+                return false;
+            }
+
             if (maxTileResolution < 0)
             {
                 pipeline.LogInfo("texture split disabled, unlimited tile resolution");
@@ -840,6 +851,7 @@ namespace JPLOPS.Landform
                 PercentPixelsSatisfied = options.SplitByTexturePercentSatisfied,
                 MaxPixelsPerTexel = options.SplitByTextureMaxPixelsPerTexel,
                 MaxTileResolution = maxTileResolution, //> 0 otherwise texture split would be disabled
+                MinTileResolution = minTileResolution,
                 MaxTexelsPerMeter = options.MaxTexelsPerMeter,
                 MaxOrbitalTexelsPerMeter = options.MaxOrbitalTexelsPerMeter,
                 MaxTextureStretch = maxTextureStretch,
@@ -878,7 +890,11 @@ namespace JPLOPS.Landform
                 }
             }
 
-            if (meshLOD.Count > 1)
+            if (options.TilingScheme == TilingScheme.Flat)
+            {
+                BuildFlatTileTree(meshBounds);
+            }
+            else if (meshLOD.Count > 1)
             {
                 if (!options.NoLimitTreeHeightToLODs)
                 {
@@ -906,6 +922,38 @@ namespace JPLOPS.Landform
 
             pipeline.Verbose = wasVerbose;
             pipeline.Debug = wasDebug;
+        }
+
+        private void BuildFlatTileTree(BoundingBox bounds)
+        {
+            float sx = (float)(bounds.Max.X - bounds.Min.X);
+            float sy = (float)(bounds.Max.Y - bounds.Min.Y);
+            int nx = (int)Math.Ceiling(sx / options.MinTileExtent);
+            int ny = (int)Math.Ceiling(sy / options.MinTileExtent);
+            float tx = sx / nx;
+            float ty = sy / ny;
+            pipeline.LogInfo("building {0}x{1} flat tile tree for {2:f3}x{3:f3}m scene, tile size {4:f3}x{5:f3}m",
+                             nx, ny, sx, sy, tx, ty);
+
+            tileTree = new SceneNode("root");
+            tileTree.AddComponent<NodeBounds>().Bounds = bounds;
+            float sd = (float)Math.Sqrt(sx * sx + sy * sy);
+            tileTree.AddComponent<NodeGeometricError>().Error = sd; //high enough that root shouldn't get used
+
+            //mission surface frames are X north, Y right, Z down
+            int k = 0;
+            for (int i = 0; i < nx; i++)
+            {
+                for (int j = 0; j < ny; j++)
+                {
+                    var min = new Vector3(bounds.Min.X + i       * tx, bounds.Min.Y + j       * ty, bounds.Min.Z);
+                    var max = new Vector3(bounds.Min.X + (i + 1) * tx, bounds.Min.Y + (j + 1) * ty, bounds.Max.Z);
+                    var leafBounds = new BoundingBox(min, max);
+                    var leaf = new SceneNode((k++).ToString(), tileTree.Transform);
+                    leaf.AddComponent(new NodeBounds(leafBounds));
+                    leaf.AddComponent<NodeGeometricError>().Error = 0;
+                }
+            }
         }
 
         private void BuildTileMeshes()
@@ -1202,9 +1250,17 @@ namespace JPLOPS.Landform
                 ParentNames = new List<string>(),
             };
 
+            if (options.TilingScheme == TilingScheme.Flat)
+            {
+                tileList.ParentNames.Add(tileTree.Name); //root is only parent in flat tiling
+            }
+
             tileList.RootTransform = meshTransform.HasValue ? Matrix.Invert(meshTransform.Value) : Matrix.Identity;
 
-            var tilesToTexture = tileTree.DepthFirstTraverse().Where(t => TileMeshExists(t.Name)).ToList();
+            var tilesToTexture = tileTree.DepthFirstTraverse()
+                .Where(t => TileMeshExists(t.Name))
+                .OrderByDescending(t => t.Name)
+                .ToList();
             int nn = tilesToTexture.Count;
 
             string texMsg = textureMode == TextureMode.Bake ? "baking" :
@@ -1376,10 +1432,21 @@ namespace JPLOPS.Landform
                 Interlocked.Decrement(ref np);
             }
 
-            //it used to be the case that it was a perf win to build the tiles serially at least when backprojecting
-            //but probably not anymore
-            //now that PipelineCore implements locking to prevent multiple threads from trying to load the same image
-            CoreLimitedParallel.ForEachNoPartition(tilesToTexture.OrderByDescending(t => t.Name), textureAndSaveTile);
+            bool textureTilesInParallel = !options.NoTextureTilesInParallel;
+            if (minTileResolution > MAX_PARALLEL_TEXTURE_RES)
+            {
+                textureTilesInParallel = false;
+            }
+
+            if (textureTilesInParallel)
+            {
+                CoreLimitedParallel.ForEachNoPartition(tilesToTexture, textureAndSaveTile);
+            }
+            else
+            {
+                pipeline.LogInfo("texturing tiles serially");
+                Serial.ForEach(tilesToTexture, textureAndSaveTile);
+            }
 
             if (withTextures && nf > 0)
             {
@@ -1438,11 +1505,17 @@ namespace JPLOPS.Landform
 
         private int GetTileResolution(Mesh tileMesh, BoundingBox tileBounds, string tileName = null)
         {
+            if (minTileResolution == maxTileResolution)
+            {
+                return maxTileResolution;
+            }
+
             double texelsPerMeter =
                 TilingProject.GetMaxTexelsPerMeter(tileBounds, surfaceBounds, options.MaxTexelsPerMeter,
                                                    options.MaxOrbitalTexelsPerMeter);
             return SceneNodeTilingExtensions.
-                GetTileResolution(tileMesh, maxTileResolution, texelsPerMeter, options.PowerOfTwoTextures,
+                GetTileResolution(tileMesh, maxTileResolution, minTileResolution, texelsPerMeter,
+                                  options.PowerOfTwoTextures,
                                   msg => pipeline.LogVerbose((tileName != null ? $"tile {tileName}: " : "") + msg));
         }
 
