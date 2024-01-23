@@ -28,9 +28,9 @@ using System.IO;
 ///
 /// The observation pointclouds are typically combined with CleverCombine which attempts to reject outlier points using
 /// a grid-based approach, and which also limits the total number of samples per XY grid cell.  Grid cells are typically
-/// 2.5cm square, and the limit is typically 6 samples for cell, or about 1 sample per square cm.  Orbital sample points
+/// 2.5cm square, and the limit is typically 6 samples per cell, or about 1 sample per square cm.  Orbital sample points
 /// are typically also added at a sampling rate of 8 points per lineal meter.  This both fills holes in the observation
-/// pointclouds and sets up a square boundary for the input point cloud, which sets up better boundary conditions for
+/// pointclouds and defines a square boundary for the input point cloud, which sets up better boundary conditions for
 /// mesh reconstruction.
 ///
 /// The mesh is then reconstructed on the combined point cloud, typically with Poisson reconstruction.  Mission normal
@@ -51,15 +51,15 @@ using System.IO;
 /// surface trimming around the outer boundary of the mesh are avoided, but the benefits of allowing more internal hole
 /// filling are gained.
 ///
-/// If the total clip extent is larger than the orbital fine mesh extent, then a coarse orbital mesh is also added,
-/// typically sampled at the native resolution of the orbital DEM.
+/// If the total extent is larger than the orbital fine mesh extent, then a coarse orbital mesh is also added, typically
+/// sampled at the native resolution of the orbital DEM.
 ///
 /// The resulting mesh is always saved to project storage as a PlyGZDataProduct, with metadata in a SceneMesh object.
 ///
-/// The scene mesh will always have normals but will typically not have texture coordinates.  Because its topology can
-/// be complex it can be non-trivial to atlas it.  In the typical contextual mesh workflow this is handled by only
-/// atlasing the leaf and parent tile meshes, which are typically much smaller.  Atlasing of the full scene mesh can be
-/// attempted by specifying --generateuvs.
+/// The scene mesh will always have normals but will typically not have texture coordinates.  Because it is usually
+/// large and its topology can be complex it can be non-trivial to atlas it.  In the typical contextual mesh workflow
+/// this is handled by only atlasing the leaf and parent tile meshes, which are typically much smaller.  Atlasing of the
+/// full scene mesh can be attempted by specifying --generateuvs.
 ///
 /// If a tileset is not required the full scene mesh can also be directly saved by specifying an output mesh as the
 /// second positional command line argument.  This can be either a relative or absolute disk path with an accepted mesh
@@ -782,17 +782,17 @@ namespace JPLOPS.Landform
             switch (wedgeMeshOpts.NormalScale)
             {
                 case NormalScale.Confidence:
-                    {
-                        ons = options.OrbitalFillPoissonConfidence;
-                        nsm = $", confidence {ons:f3}";
-                        break;
-                    }
+                {
+                    ons = options.OrbitalFillPoissonConfidence;
+                    nsm = $", confidence {ons:f3}";
+                    break;
+                }
                 case NormalScale.PointScale:
-                    {
-                        ons = 2 * orbitalDEMMetersPerPixel / orbitalFillSamplesPerPixel;
-                        nsm = $", point scale {ons:f3}";
-                        break;
-                    }
+                {
+                    ons = 2 * orbitalDEMMetersPerPixel / orbitalFillSamplesPerPixel;
+                    nsm = $", point scale {ons:f3}";
+                    break;
+                }
                 case NormalScale.None: break;
             }
             if (ons <= 0)
@@ -1039,6 +1039,7 @@ namespace JPLOPS.Landform
             {
                 pipeline.LogInfo("adding orbital point cloud for hole filling");
                 cloudList.Add(orbitalFillPointCloud);
+                //no corresponding entry in origins disables CleverCombine origin filter for orbital fill cloud
             }
 
             var clouds = cloudList.ToArray();
@@ -1169,12 +1170,16 @@ namespace JPLOPS.Landform
                 case MeshReconstructionMethod.Poisson:
                 {
                     BoundingBox env = surfaceBounds;
-                    double pad = Math.Max(SURFACE_OVERLAP_ORBITAL, options.EnvelopePadding);
+                    double pad = options.EnvelopePadding;
+                    double soo =
+                        !options.NoOrbital && !options.NoPeripheralOrbital && options.Extent > options.SurfaceExtent ?
+                        SURFACE_OVERLAP_ORBITAL : 0.0;
+                    pad = Math.Max(pad, soo);
                     if (orbitalFillPointCloud != null)
                     {
                         pipeline.LogInfo("disabling Poisson trimmer, using orbital to fill holes");
                         poissonOpts.TrimmerLevel = 0;
-                        pad = Math.Max(pad, options.OrbitalFillPadding);
+                        pad = Math.Max(pad, Math.Max(options.OrbitalFillPadding, 0) + soo);
                         //already applied padding to surfceBounds Z 
                     }
                     else
@@ -1183,7 +1188,6 @@ namespace JPLOPS.Landform
                         env.Min.Z -= options.EnvelopePadding;
                         env.Max.Z += options.EnvelopePadding;
                     }
-                    //add extra padding so if we decimate to TargetSurfaceMeshFaces we can still clip to surfaceBounds
                     env.Min.X -= pad;
                     env.Max.X += pad;
                     env.Min.Y -= pad;
@@ -1241,8 +1245,12 @@ namespace JPLOPS.Landform
             ext = Math.Min(ext, options.Extent);
 
             pipeline.LogInfo("clipping surface mesh to {0:f3}x{0:f3}m", ext, ext);
-            ClipMesh(mesh, ext);
-
+            var mb = mesh.Bounds();
+            mesh.Clip(BoundsFromXYExtent(Vector3.Zero, ext, mb.Min.Z, mb.Max.Z));
+            if (mesh.Faces.Count == 0)
+            {
+                throw new Exception("clipped mesh is empty");
+            }
             SaveDebugMesh(mesh, "clipped-surface");
 
             pipeline.LogInfo("keeping only largest island by vertex count");
@@ -1459,22 +1467,9 @@ namespace JPLOPS.Landform
                                  cut.Max.X - cut.Min.X, cut.Max.Y - cut.Min.Y);
                 orbitalMesh.Cut(cut);
             }
-            SaveDebugMesh(orbitalMesh, "orbital");
-        }
-
-        private void ClipMesh(Mesh mesh, double extent)
-        {
-            if (extent > 0)
+            if (orbitalMesh != null)
             {
-                pipeline.LogInfo("clipping mesh to {0:f3} meter box around {1} frame origin in XY plane",
-                                 extent, meshFrame);
-                var mb = mesh.Bounds();
-                mesh.Clip(BoundsFromXYExtent(Vector3.Zero, extent, mb.Min.Z, mb.Max.Z));
-            }
-
-            if (mesh.Faces.Count == 0)
-            {
-                throw new Exception("clipped mesh is empty");
+                SaveDebugMesh(orbitalMesh, "orbital");
             }
         }
 
