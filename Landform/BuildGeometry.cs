@@ -234,7 +234,7 @@ namespace JPLOPS.Landform
         public const double DEF_MAX_AUTO_SURFACE_EXTENT = 256;
         public const int DEF_NORMAL_FILTER = 8;
         public const double DEF_MIN_ISLAND_RATIO = 0.2;
-        public const int DEF_TARGET_SURFACE_MESH_FACES = 100000;
+        public const int DEF_TARGET_SURFACE_MESH_FACES = 500000;
         public const double DEF_ORBITAL_FILL_PADDING = 2;
         public const int DEF_ORBITAL_FILL_POINTS_PER_METER = 8;
         public const double DEF_ORBITAL_FILL_POISSON_CONFIDENCE = 0.05;
