@@ -315,7 +315,7 @@ namespace JPLOPS.Landform
                     {
                         RunPhase("retrim surface", RetrimSurface); //alternate hole filling approach
                     }
-                    RunPhase("clip surface mesh", ClipSurfaceMesh);
+                    RunPhase("clip surface mesh", ClipAndCleanSurfaceMesh);
                 }
 
                 if (!options.NoOrbital)
@@ -1205,11 +1205,6 @@ namespace JPLOPS.Landform
             }
 
             SaveDebugMesh(mesh, "reconstructed");
-
-            if (options.TargetSurfaceMeshFaces > 0)
-            {
-                mesh = DecimateMesh(mesh, "surface", options.TargetSurfaceMeshFaces);
-            }
         }
 
         private void FilterReconstructedMesh()
@@ -1235,12 +1230,28 @@ namespace JPLOPS.Landform
             SaveDebugMesh(mesh, "filtered");
         }
 
-        private void CleanMesh()
+        private void ClipAndCleanSurfaceMesh()
         {
-            if (options.MinIslandRatio > 0)
+            double ext = options.SurfaceExtent;
+            if (!options.NoOrbital && !options.NoPeripheralOrbital && options.Extent > options.SurfaceExtent)
             {
-                int nr = mesh.RemoveIslands(options.MinIslandRatio);
-                pipeline.LogInfo("removed {0} islands", nr);
+                ext += 2 * Math.Max(0, options.OrbitalFillPadding);
+                ext += 2 * SURFACE_OVERLAP_ORBITAL; //paper over any gaps
+            }
+            ext = Math.Min(ext, options.Extent);
+
+            pipeline.LogInfo("clipping surface mesh to {0:f3}x{0:f3}m", ext, ext);
+            ClipMesh(mesh, ext);
+
+            SaveDebugMesh(mesh, "clipped-surface");
+
+            pipeline.LogInfo("keeping only largest island by vertex count");
+            int nr = mesh.RemoveIslands(minIslandRatio: 1.0, useVertexCount: true);
+            pipeline.LogInfo("removed {0} islands", nr);
+
+            if (options.TargetSurfaceMeshFaces > 0)
+            {
+                mesh = DecimateMesh(mesh, "surface", options.TargetSurfaceMeshFaces);
             }
 
             //both FSSR and Poisson require normals on their input mesh and write normals to their output mesh
@@ -1252,6 +1263,7 @@ namespace JPLOPS.Landform
             //because we're dealing with natural terrain it is pretty reasonable to compute vertex normals from faces
             //i.e. no sharp crease angles expected
 
+            pipeline.LogInfo("cleaning surface mesh");
             mesh.Clean(); //removes degenerate faces
 
             mesh.GenerateVertexNormals();
@@ -1262,21 +1274,8 @@ namespace JPLOPS.Landform
             }
 
             pipeline.LogInfo("cleaned mesh has {0} faces", Fmt.KMG(mesh.Faces.Count));
-        }
 
-        private void ClipSurfaceMesh()
-        {
-            double ext = options.SurfaceExtent;
-            if (!options.NoOrbital && !options.NoPeripheralOrbital && options.Extent > options.SurfaceExtent)
-            {
-                ext += 2 * Math.Max(0, options.OrbitalFillPadding);
-                ext += 2 * SURFACE_OVERLAP_ORBITAL; //paper over any gaps
-            }
-            ext = Math.Min(ext, options.Extent);
-            pipeline.LogInfo("clipping surface mesh to {0:f3}x{0:f3}m", ext, ext);
-            ClipMesh(mesh, ext);
-            CleanMesh();
-            SaveDebugMesh(mesh, "clipped-surface");
+            SaveDebugMesh(mesh, "cleaned-surface");
         }
 
         private void RetrimSurface()
@@ -1398,41 +1397,22 @@ namespace JPLOPS.Landform
                 SaveDebugMesh(mesh, "retrimmed-raw");
                     
                 pipeline.LogInfo("clipping reconstructed mesh to surface mask");
-                ClipMeshToMask(mo, strict: false);
+                bool checkVert(int index)
+                {
+                    var xy = new Vector2(mesh.Vertices[index].Position.X, mesh.Vertices[index].Position.Y);
+                    return mo.UVToBarycentric(xy) != null;
+                }
+                mesh.Faces = mesh.Faces
+                    .Where(face => checkVert(face.P0) || checkVert(face.P1) || checkVert(face.P2))
+                    .ToList();
+                mesh.RemoveUnreferencedVertices();
                 
                 SaveDebugMesh(mesh, "retrimmed");
-
-                if (options.TargetSurfaceMeshFaces > 0)
-                {
-                    mesh = DecimateMesh(mesh, "retrimmed-decimated", options.TargetSurfaceMeshFaces);
-                }
             }
             catch (Exception ex)
             {
                 pipeline.LogException(ex, "error retrimming surface", stackTrace: true);
             }
-        }
-
-        private void ClipMeshToMask(MeshOperator uvMeshOp, bool strict)
-        {
-            bool checkVert(int index)
-            {
-                var xy = new Vector2(mesh.Vertices[index].Position.X, mesh.Vertices[index].Position.Y);
-                return uvMeshOp.UVToBarycentric(xy) != null;
-            }
-            if (strict)
-            {
-                mesh.Faces = mesh.Faces
-                    .Where(face => checkVert(face.P0) && checkVert(face.P1) && checkVert(face.P2))
-                    .ToList();
-            }
-            else
-            {
-                mesh.Faces = mesh.Faces
-                    .Where(face => checkVert(face.P0) || checkVert(face.P1) || checkVert(face.P2))
-                    .ToList();
-            }
-            CleanMesh();
         }
 
         private Mesh MakeOrbitalMesh(double subsample, Image.Subrect bounds)
