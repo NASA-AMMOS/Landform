@@ -28,9 +28,15 @@ namespace JPLOPS.Geometry
     /// http://www.cs.jhu.edu/~misha/Code/PoissonRecon
     public class PoissonReconstruction
     {
-        public enum BoundaryType { Free = 1, Dirichlet = 2, Neumann = 3 };
+        public enum BoundaryType {
+            Free = 1,
+            Dirichlet = 2, //constrain finite element boundary to surface position
+            Neumann = 3 //(exe default) constrain finite element boundary to surface normal
+        };
 
-        public const PoissonReconstruction.BoundaryType DEF_BOUNDARY_TYPE = PoissonReconstruction.BoundaryType.Neumann;
+        public const PoissonReconstruction.BoundaryType
+            DEF_BOUNDARY_TYPE = PoissonReconstruction.BoundaryType.Dirichlet;
+
         public const int DEF_OCTREE_DEPTH = 0;
         public const double DEF_MIN_OCTREE_CELL_WIDTH_METERS = 0.10;
         public const int DEF_MIN_OCTREE_SAMPLES_PER_CELL = 15;
