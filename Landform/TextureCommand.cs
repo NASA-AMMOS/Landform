@@ -134,6 +134,9 @@ namespace JPLOPS.Landform
 
         [Option(HelpText = "Higher values will cause sharper transitions between images but better conform to the inputs", Default = LimberDMG.DEF_LAMBDA)]
         public double BlendLambda { get; set; }
+
+        [Option(HelpText = "Don't blend leaves parallel", Default = false)]
+        public bool NoBlendLeavesInParallel { get; set; }
     }
 
     public class TextureCommand : GeometryCommand
@@ -895,13 +898,12 @@ namespace JPLOPS.Landform
 
             pipeline.LogInfo("replacing leaf textures in {0} with {1} variant",
                              pipeline.GetStorageUrl(leafFolder, project.Name), textureVariant);
+
             int curLeafNum = 0, leafCount = tileList.LeafNames.Count;
             int numSurfacePixels = 0, numOrbitalPixels = 0, numMissingPixels = 0, numFallbacks = 0;
             double lastSpew = UTCTime.Now();
-            //order access to improve cache coherence
-            //(either forward or reverse ordering would group leaves spatially
-            //but reverse order builds deepest leaves first, which might be a little better)
-            CoreLimitedParallel.ForEach(tileList.LeafNames.OrderByDescending(name => name), leaf =>
+
+            void blendLeaf(string leaf)
             {
                 Interlocked.Increment(ref curLeafNum);
                 double now = UTCTime.Now();
@@ -929,9 +931,35 @@ namespace JPLOPS.Landform
                 {
                     texture.Save<byte>(tmpFile);
                     string textureUrl = pipeline.GetStorageUrl(leafFolder, project.Name, leaf + tileList.ImageExt);
+                    if (pipeline.FileExists(textureUrl))
+                    {
+                        pipeline.LogInfo("overwriting {0} with {1} variant", textureUrl, textureVariant);
+                        string unblendedUrl = pipeline.GetStorageUrl(leafFolder, project.Name,
+                                                                     leaf + "_unblended" + tileList.ImageExt);
+                        if (tcopts.WriteDebug && !File.Exists(unblendedUrl))
+                        {
+                            pipeline.LogInfo("saving backup of {0} to {1}", textureUrl, unblendedUrl);
+                            pipeline.GetFile(textureUrl, tmp => pipeline.SaveFile(tmp, unblendedUrl));
+                        }
+                    }
                     pipeline.SaveFile(tmpFile, textureUrl);
                 });
-            });
+            }
+
+            //order access to improve cache coherence
+            //(either forward or reverse ordering would group leaves spatially
+            //but reverse order builds deepest leaves first, which might be a little better)
+            var leaves = tileList.LeafNames.OrderByDescending(name => name).ToList();
+
+            if (!tcopts.NoBlendLeavesInParallel)
+            {
+                CoreLimitedParallel.ForEach(leaves, blendLeaf);
+            }
+            else
+            {
+                pipeline.LogInfo("blending leaves serially");
+                Serial.ForEach(leaves, blendLeaf);
+            }
 
             pipeline.LogInfo("built {0} leaf textures using {1} surface pixels, {2} orbital pixels, " +
                              "{3} missing pixels, {4} fallbacks to original observation textures",
