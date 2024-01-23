@@ -200,6 +200,9 @@ namespace JPLOPS.Landform
         [Option(HelpText = "Remove islands whose bounding box diameter is less than this ratio of the max island bounding box diameter", Default = BuildGeometry.DEF_MIN_ISLAND_RATIO)]
         public double MinIslandRatio { get; set; }
 
+        [Option(HelpText = "Poisson reconstruction boundary type, one of Free, Dirichlet, Neumann", Default = PoissonReconstruction.DEF_BOUNDARY_TYPE)]
+        public PoissonReconstruction.BoundaryType PoissonBoundaryType { get; set; }
+
         [Option(HelpText = "Min required samples per octree cell in Poisson reconstruction, higher for noiser data", Default = PoissonReconstruction.DEF_MIN_OCTREE_SAMPLES_PER_CELL)]
         public int PoissonMinSamplesPerCell { get; set; }
 
@@ -433,7 +436,7 @@ namespace JPLOPS.Landform
 
             poissonOpts = new PoissonReconstruction.Options
             {
-                Boundary = PoissonReconstruction.DEF_BOUNDARY_TYPE,
+                Boundary = options.PoissonBoundaryType,
                 MinOctreeCellWidthMeters = options.PoissonCellSize,
                 OctreeDepth = options.PoissonTreeDepth,
                 MinOctreeSamplesPerCell = options.PoissonMinSamplesPerCell,
