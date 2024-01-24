@@ -381,9 +381,9 @@ namespace JPLOPS.Landform
                     throw new Exception("failed to load input mesh or input mesh empty");
                 }
 
-                var meshBounds = mesh.Bounds();
-                var meshExtent = meshBounds.Extent();
-                double xyExtent = 0.5 * (meshExtent.X + meshExtent.Y);
+                var sceneBounds = inputMesh.Bounds();
+                var sceneExtent = sceneBounds.Extent();
+                double xyExtent = 0.5 * (sceneExtent.X + sceneExtent.Y);
                 double res = sceneTextureResolution;
 
                 pipeline.LogInfo("generating shrinkwrap mesh in frame {0} from input mesh with {1} faces" +
@@ -423,8 +423,8 @@ namespace JPLOPS.Landform
 
                         var surfaceBounds = BoundingBoxExtensions.CreateXY(srcSurfaceFrac * xyExtent);
 
-                        var src = BoundingBoxExtensions.CreateXY(PointToUV(meshBounds, surfaceBounds.Min),
-                                                                 PointToUV(meshBounds, surfaceBounds.Max));
+                        var src = BoundingBoxExtensions.CreateXY(PointToUV(sceneBounds, surfaceBounds.Min),
+                                                                 PointToUV(sceneBounds, surfaceBounds.Max));
                         var dst = BoundingBoxExtensions.CreateXY(0.5 * Vector2.One, dstSurfaceFrac);
 
                         mesh.WarpUVs(src, dst, options.EaseTextureWarp);
