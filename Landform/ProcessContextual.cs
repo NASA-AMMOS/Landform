@@ -614,6 +614,9 @@ namespace JPLOPS.Landform
             }
         }
 
+        //PLACES solution notifications that have been received by the main thread
+        //and that are waiting to be processed by MasterLoop()
+        //synchronized by locking the list itself
         private List<Stamped<SolutionNotificationMessage>> placesContextualSolutionNotifications =
             new List<Stamped<SolutionNotificationMessage>>();
         private List<Stamped<SolutionNotificationMessage>> placesOrbitalSolutionNotifications =
@@ -630,18 +633,22 @@ namespace JPLOPS.Landform
                 this.solutionMsgs = solutionMsgs;
             }
         }
+
+        //pending contextual passes waiting to be processed by ContextualPassLoop()
+        //synchronized by locking the queue itself
         private Queue<ContextualPass> contextualPassQueue = new Queue<ContextualPass>();
 
         //if EOP messages are enabled this is the timestamp of the latest EOP message in UTC milliseconds
         //when one of these becomes positive MasterLoop() will process all pending changed URLs after the EOP debounce
         //a final eop is marked as a negative timestamp which will skip the debounce
+        //synchronized by Interlocked
         private long eopTimestamp;
         private long eofTimestamp; //orbital meshes can begin processing as soon as FDRs are done
         private long eoxTimestamp; //contextual meshes can begin processing as soon as XYZ,UVW,MXY,RAS are done
 
-        private Dictionary<string, string> placesDBCache;
-        private int placesDBCacheMaxAgeSec;
-        private double placesDBCacheTime;
+        private Dictionary<string, string> placesDBCache; //synchronized by locking in PlacesDB.cs
+        private long placesDBCacheMaxAgeMS;
+        private long placesDBCacheTimeMS; //synchronized by Interlocked
 
         //message sent from master to worker
         //defines the job of building one contextual mesh
@@ -1527,9 +1534,10 @@ namespace JPLOPS.Landform
                                     options.MasterEOPDebounceSec : DEF_EOP_DEBOUNCE_SEC);
             pipeline.LogInfo("EOP debounce time {0}s", eopDebounceMS / 1000);
 
-            placesDBCacheMaxAgeSec = (options.MasterPlacesDBCacheMaxAgeSec >= 0 ?
-                                      options.MasterPlacesDBCacheMaxAgeSec : DEF_PLACESDB_CACHE_MAX_AGE_SEC);
-            pipeline.LogInfo("PlacesDB cache max age: {0}", Fmt.HMS(placesDBCacheMaxAgeSec * 1e3));
+            placesDBCacheMaxAgeMS =
+                (long)(1e3 * (options.MasterPlacesDBCacheMaxAgeSec >= 0 ? options.MasterPlacesDBCacheMaxAgeSec :
+                              DEF_PLACESDB_CACHE_MAX_AGE_SEC));
+            pipeline.LogInfo("PlacesDB cache max age: {0}", Fmt.HMS(placesDBCacheMaxAgeMS));
 
             solRange = options.MaxSolRange >= 0 ? options.MaxSolRange : DEF_MAX_SOL_RANGE;
             maxSDs = options.MaxSiteDrives > 0 ? options.MaxSiteDrives : int.MaxValue;
@@ -3731,14 +3739,14 @@ namespace JPLOPS.Landform
                 {
                     var placesDB = new PlacesDB(pipeline);
                     pipeline.LogInfo("using PlacesDB " + PlacesConfig.Instance.Url);
-                    if (placesDBCacheMaxAgeSec > 0)
+                    if (placesDBCacheMaxAgeMS > 0)
                     {
-                        double now = UTCTime.Now();
-                        double age = now - placesDBCacheTime;
-                        if (placesDBCache != null && placesDBCacheTime >= 0 && age > placesDBCacheMaxAgeSec)
+                        long nowMS = (long)(1e3 * UTCTime.Now());
+                        long ageMS = nowMS - placesDBCacheTimeMS;
+                        if (placesDBCache != null && placesDBCacheTimeMS >= 0 && ageMS > placesDBCacheMaxAgeMS)
                         {
                             pipeline.LogInfo("clearing PlacesDB cache, age {0} > {1}",
-                                             Fmt.HMS(1e3 * age), Fmt.HMS(1e3 * placesDBCacheMaxAgeSec));
+                                             Fmt.HMS(ageMS), Fmt.HMS(placesDBCacheMaxAgeMS));
                             placesDBCache = null;
                         }
                         if (placesDBCache != null)
@@ -3746,20 +3754,20 @@ namespace JPLOPS.Landform
                             if (!quiet)
                             {
                                 pipeline.LogInfo("re-using existing PlacesDB cache, age {0} <= {1}",
-                                                 Fmt.HMS(1e3 * age), Fmt.HMS(1e3 * placesDBCacheMaxAgeSec));
+                                                 Fmt.HMS(ageMS), Fmt.HMS(placesDBCacheMaxAgeMS));
                             }
                             placesDB.SetCache(placesDBCache);
                         }
                         else
                         {
                             placesDBCache = placesDB.GetCache();
-                            placesDBCacheTime = now;
+                            placesDBCacheTimeMS = nowMS;
                             pipeline.LogInfo("saving PlacesDB cache for later re-use");
                         }
                     }
                     else if (!quiet)
                     {
-                        pipeline.LogInfo("not restoring PlacesDB cache, max age{0}s", placesDBCacheMaxAgeSec);
+                        pipeline.LogInfo("not restoring PlacesDB cache, max age {0}", Fmt.HMS(placesDBCacheMaxAgeMS));
                     }
                     return placesDB;
                 }
@@ -4243,10 +4251,14 @@ namespace JPLOPS.Landform
                         bool wasLatent = false;
                         if (latentEOP > 0)
                         {
-                            long lastChange = changedContextualURLs.Values
-                                .SelectMany(d => d.Values)
-                                .SelectMany(d => d.Values)
-                                .DefaultIfEmpty(0).Max();
+                            long lastChange = -1;
+                            lock (changedContextualURLs)
+                            {
+                                lastChange = changedContextualURLs.Values
+                                    .SelectMany(d => d.Values)
+                                    .SelectMany(d => d.Values)
+                                    .DefaultIfEmpty(0).Max();
+                            }
                             if (latentEOP < lastChange)
                             {
                                 pipeline.LogInfo("dropping latent {0}: {1} < last change {2}",
