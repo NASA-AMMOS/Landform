@@ -1695,12 +1695,12 @@ namespace JPLOPS.Landform
         {
             base.RefreshCredentials(force);
 
-            if (workerQueue != null)
+            if (workerQueue != null && !options.UseDefaultAWSProfileForSQSClient)
             {
                 workerQueue.Dispose();
                 workerQueue = GetWorkerMessageQueue();
             }
-            if (orbitalWorkerQueue != null)
+            if (orbitalWorkerQueue != null && !options.UseDefaultAWSProfileForSQSClient)
             {
                 orbitalWorkerQueue.Dispose();
                 orbitalWorkerQueue = GetOrbitalWorkerMessageQueue();
