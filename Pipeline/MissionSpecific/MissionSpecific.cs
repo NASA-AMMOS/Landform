@@ -277,9 +277,14 @@ namespace JPLOPS.Pipeline
             return "root";
         }
 
-        public virtual SiteDrive GetLandingSiteDrive()
+        public virtual SiteDrive GetMinSiteDrive()
         {
             return new SiteDrive(1, 0);
+        }
+
+        public virtual SiteDrive GetLandingSiteDrive()
+        {
+            return GetMinSiteDrive();
         }
 
         public virtual Vector2? GetExpectedLandingLonLat()

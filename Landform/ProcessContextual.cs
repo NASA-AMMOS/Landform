@@ -512,7 +512,7 @@ namespace JPLOPS.Landform
         private int debounceMS, eopDebounceMS;
         private int solRange, maxSDs;
 
-        private SiteDrive landingSiteDrive;
+        private SiteDrive minSiteDrive;
 
         private int[] solBlacklist;
 
@@ -549,15 +549,15 @@ namespace JPLOPS.Landform
 #pragma warning restore 0649
             }
 
-            public bool Parse(ILogger logger = null)
+            public bool Parse(int minDrive = 0, ILogger logger = null)
             {
                 try
                 {
                     var sn = JsonHelper.FromJson<SolutionNotification>(Message);
-                    if (sn.site >= 0 && sn.drive >= 0 && !string.IsNullOrEmpty(sn.view))
+                    if (sn.site >= 0 && !string.IsNullOrEmpty(sn.view))
                     {
                         Site = sn.site;
-                        Drive = sn.drive;
+                        Drive = Math.Max(minDrive, sn.drive);
                         View = sn.view;
                         return true;
                     }
@@ -1153,7 +1153,7 @@ namespace JPLOPS.Landform
                 if (msg is SolutionNotificationMessage)
                 {
                     var snm = msg as SolutionNotificationMessage;
-                    if (snm.Site < landingSiteDrive.Site || snm.Drive < landingSiteDrive.Drive)
+                    if (snm.Site < minSiteDrive.Site || snm.Drive < minSiteDrive.Drive)
                     {
                         pipeline.LogWarn("ignoring {0}, invalid RMC", snm);
                     }
@@ -1591,7 +1591,7 @@ namespace JPLOPS.Landform
                 pipeline.LogInfo("ignoring sol when comparing orbital tilesets");
             }
 
-            landingSiteDrive = mission.GetLandingSiteDrive();
+            minSiteDrive = mission.GetMinSiteDrive();
 
             var fdrSearchDirs = mission.GetFDRSearchDirs();
             if (fdrSearchDirs == null || fdrSearchDirs.Count == 0)
@@ -2555,7 +2555,7 @@ namespace JPLOPS.Landform
             try
             {
                 var msg = JsonHelper.FromJson<SolutionNotificationMessage>(txt, autoTypes: false);
-                return (msg != null && msg.Parse()) ? msg : null;
+                return (msg != null && msg.Parse(minSiteDrive.Drive)) ? msg : null;
             }
             catch (Exception)
             {
