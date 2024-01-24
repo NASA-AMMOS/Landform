@@ -39,7 +39,8 @@ namespace JPLOPS.Pipeline
         public const int BLEND_SHRINKWRAP_GRID_RESOLUTION = 1024;
         public const VertexProjection.ProjectionAxis BLEND_SHRINKWRAP_AXIS = VertexProjection.ProjectionAxis.Z;
         public const Shrinkwrap.ShrinkwrapMode BLEND_SHRINKWRAP_MODE = Shrinkwrap.ShrinkwrapMode.Project;
-        public const Shrinkwrap.ProjectionMissResponse BLEND_SHRINKWRAP_MISS_RESPONSE = Shrinkwrap.ProjectionMissResponse.Delaunay;
+        public const Shrinkwrap.ProjectionMissResponse
+            BLEND_SHRINKWRAP_MISS_RESPONSE = Shrinkwrap.ProjectionMissResponse.Delaunay;
         
         public const int OBSERVATION_BLUR_RADIUS = 7;
         public const int DIFF_BLUR_RADIUS = 7;
