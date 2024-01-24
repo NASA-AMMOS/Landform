@@ -51,8 +51,7 @@ namespace JPLOPS.Pipeline
         public bool CSSOPasswordParameterInSSMEncrypted { get; set; } = true;
 
         [ConfigEnvironmentVariable("LANDFORM_CSSO_CREDENTIAL_REFRESH_SEC")]
-        //public int CSSOCredentialRefreshSec { get; set; } = 4 * 60 * 60; //4h
-        public int CSSOCredentialRefreshSec { get; set; } = 0; //https://jira.jpl.nasa.gov/browse/MSTRIAGE-8139
+        public int CSSOCredentialRefreshSec { get; set; } = 4 * 60 * 60; //4h
 
         [ConfigEnvironmentVariable("LANDFORM_CSSO_CREDENTIAL_DURATION_SEC")]
         public int CSSOCredentialDurationSec { get; set; } = 8 * 60 * 60; //8h
