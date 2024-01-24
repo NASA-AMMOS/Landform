@@ -378,8 +378,8 @@ namespace JPLOPS.Landform
         [Option(Default = null, HelpText = "Comma separated list of PLACES views for which to (re)build orbital tilesets when new solutions are added; null, empty, or \"none\" to disable triggering orbital on PLACES solution notifications")]
         public string PLACESOrbitalSolutionViews { get; set; }
 
-        [Option(Default = false, HelpText = "Search for the latest sol containing each sitedrive on PLACES solution notification.  Otherwise just use latest sol on S3")]
-        public bool SearchForSolContainingSiteDriveOnPLACESNotification { get; set; }
+        [Option(Default = false, HelpText = "Don't search for the latest sol containing sitedrive on PLACES solution notification, if not already known from S3 ObjectCreated messages.")]
+        public bool NoSearchForSolContainingSiteDriveOnPLACESNotification { get; set; }
 
         [Option(Default = false, HelpText = "Rebuild contextual mesh for previous end-of-drive RMC on PLACES solution notification")]
         public bool RebuildContextualAtPreviousEndOfDriveOnPLACESNotification { get; set; }
@@ -513,7 +513,6 @@ namespace JPLOPS.Landform
         private int solRange, maxSDs;
 
         private SiteDrive landingSiteDrive;
-        private int latestRDRSol = -1;
 
         private int[] solBlacklist;
 
@@ -616,6 +615,22 @@ namespace JPLOPS.Landform
             new List<Stamped<SolutionNotificationMessage>>();
         private List<Stamped<SolutionNotificationMessage>> placesOrbitalSolutionNotifications =
             new List<Stamped<SolutionNotificationMessage>>();
+
+        private class SolAndRDRDir
+        {
+            public int Sol { get; private set; } = -1;
+            public string RDRDir { get; private set; }
+            public SolAndRDRDir(int sol, string rdrDir)
+            {
+                this.Sol = sol;
+                this.RDRDir = rdrDir;
+            }
+        }
+
+        //sitedrive -> latest SOL and RDR dir from S3 ObjectCreated messages for recognized FDRs and RDRs, if any
+        //"any" -> latest overall, if any
+        //synchronized by locking the dictionary itself
+        private Dictionary<string, SolAndRDRDir> latestSolAndRDRDir = new Dictionary<string, SolAndRDRDir>();
 
         private class ContextualPass
         {
@@ -1229,11 +1244,25 @@ namespace JPLOPS.Landform
                 if (isFDR || isRDR)
                 {
                     int sol = SiteDriveList.GetSol(url, id);
-                    if (sol > latestRDRSol)
+                    if (sol >= 0)
                     {
-                        pipeline.LogInfo("increasing latest FDR/RDR sol from {0} to {1} for {2}",
-                                         latestRDRSol, sol, url);
-                        latestRDRSol = sol;
+                        string sdStr = sd.ToString();
+                        lock (latestSolAndRDRDir)
+                        {
+                            foreach (string key in new string[] { sdStr, "any" })
+                            {
+                                if (!latestSolAndRDRDir.ContainsKey(key) || latestSolAndRDRDir[key].Sol < sol)
+                                {
+                                    pipeline.LogInfo("setting latest RDR sol to {0} in RDR dir {1} for sitedrive {2}",
+                                                     sol, rdrDir, key);
+                                    latestSolAndRDRDir[key] = new SolAndRDRDir(sol, rdrDir);
+                                }
+                            }
+                        }
+                    }
+                    else
+                    {
+                        pipeline.LogWarn("failed to parse sol from {0} ({1})", url, id);
                     }
                 }
                 string what = "", reason = null;
@@ -2541,33 +2570,49 @@ namespace JPLOPS.Landform
                 return msg.HasValidSolAndRDRDir();
             }
 
-            var fdrSearchDirs = mission.GetFDRSearchDirs();
-            if (fdrSearchDirs == null || fdrSearchDirs.Count == 0)
-            {
-                pipeline.LogWarn("failed to find RDR dir for {1}, mission has no FDR search dirs", msg);
-                return false;
-            }
-            fdrSearchDirs = fdrSearchDirs
-                .Select(d => StringHelper.EnsureTrailingSlash(StringHelper.NormalizeUrl(d)))
-                .ToList();
-
-            //e.g. s3://BUCKET/ods/VER/sol/#####/ids/fdr/
-            string rdrDir = SiteDriveList.GetRDRDir(fdrSearchDirs.First());
-
             //unfortunately are lots of apparently bogus sol folders beyond the latest actual real sol on sops
             //so we can't just rely on sorting the output of an s3 ls and taking the last folder
             //instead we just keep track of the higest sol number as we get ObjectCreated messages
             //this is potentially fallible for a few reasons (e.g. an untimely server restart)
             //but in the common case we should typically get at least one ecam FDR in a sol before
             //we get a best_tactical PLACES solution notification due to mapping specialist manual localization
+
             int latestSol = -1;
-            if (latestRDRSol >= 0 && !options.SearchForSolContainingSiteDriveOnPLACESNotification)
+            string rdrDir = null;
+
+            var sd = new SiteDrive(msg.Site, msg.Drive);
+
+            lock (latestSolAndRDRDir)
             {
-                latestSol = latestRDRSol;
+                foreach (string key in new string[] { sd.ToString(), "any" })
+                {
+                    if (latestSolAndRDRDir.ContainsKey(key))
+                    {
+                        var val = latestSolAndRDRDir[key];
+                        latestSol = val.Sol;
+                        rdrDir = val.RDRDir;
+                        pipeline.LogInfo("using latest known sol {0} and RDR directory {1} for {2}",
+                                         latestSol, rdrDir, msg);
+                        break;
+                    }
+                }
             }
 
-            if (latestSol < 0)
+            if ((latestSol < 0 || string.IsNullOrEmpty(rdrDir)) &&
+                !options.NoSearchForSolContainingSiteDriveOnPLACESNotification)
             {
+                pipeline.LogInfo("searching for latest sol and RDR directory containing sitedrive for {1}", msg);
+
+                var fdrSearchDirs = mission.GetFDRSearchDirs();
+                if (fdrSearchDirs == null || fdrSearchDirs.Count == 0)
+                {
+                    pipeline.LogWarn("failed to find RDR dir for {1}, mission has no FDR search dirs", msg);
+                    return false;
+                }
+                fdrSearchDirs = fdrSearchDirs
+                    .Select(d => StringHelper.EnsureTrailingSlash(StringHelper.NormalizeUrl(d)))
+                    .ToList();
+                
                 var sols = new HashSet<int>();
                 string lastSolSearchDir = null;
                 foreach (string fdrSearchDir in fdrSearchDirs) //e.g. s3://BUCKET/ods/VER/sol/#####/ids/fdr/ncam/
@@ -2592,7 +2637,6 @@ namespace JPLOPS.Landform
 
                         //e.g. s3://BUCKET/ods/VER/sol/#####/ids/fdr/
                         string rdrSearchDir = SiteDriveList.GetRDRDir(fdrSearchDir);
-                        var sd = new SiteDrive(msg.Site, msg.Drive);
                         foreach (int sol in sols.OrderByDescending(s => s).Where(sol => sol > latestSol).ToList())
                         {
                             //e.g. s3://BUCKET/ods/VER/sol/00534/ids/fdr/ncam/
