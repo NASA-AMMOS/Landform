@@ -140,7 +140,7 @@ namespace JPLOPS.Landform
             {
                 destType = "ply";
             }
-            string[] allowedFormats = new string[] { "ply", "obj" };
+            string[] allowedFormats = new string[] { "ply", "obj", "gltf", "glb", "b3dm" };
             if (!allowedFormats.Any(f => f == destType))
             {
                 throw new Exception("unsupported output type: " + destType);

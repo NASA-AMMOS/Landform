@@ -34,6 +34,7 @@ namespace JPLOPS.Pipeline
         public double MaxPixelsPerTexel = TilingDefaults.TEX_SPLIT_MAX_PIXELS_PER_TEXEL;
 
         public int MaxTileResolution = TilingDefaults.MAX_TILE_RESOLUTION;
+        public int MinTileResolution = TilingDefaults.MIN_TILE_RESOLUTION;
         public double MaxTexelsPerMeter = TilingDefaults.MAX_TEXELS_PER_METER;
         public double MaxOrbitalTexelsPerMeter = TilingDefaults.MAX_ORBITAL_TEXELS_PER_METER;
         public double MaxTextureStretch = TilingDefaults.MAX_TEXTURE_STRETCH;
@@ -121,7 +122,8 @@ namespace JPLOPS.Pipeline
                 options.SurfaceBounds.Value.Contains(bounds) == ContainmentType.Disjoint;
             double texelsPerMeter = orbital ? options.MaxOrbitalTexelsPerMeter : options.MaxTexelsPerMeter;
             int texRes = SceneNodeTilingExtensions.
-                GetTileResolution(meshArea, options.MaxTileResolution, texelsPerMeter, options.PowerOfTwoTextures);
+                GetTileResolution(meshArea, options.MaxTileResolution, options.MinTileResolution, texelsPerMeter,
+                                  options.PowerOfTwoTextures);
 
             if (options.RespectMaxTexelsPerMeter && texRes < options.MaxTileResolution)
             {

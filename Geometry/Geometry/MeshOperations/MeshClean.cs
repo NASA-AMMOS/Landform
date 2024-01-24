@@ -424,10 +424,13 @@ namespace JPLOPS.Geometry
             }
         }
 
-        //remove disconnected islands whose bounding box diameter
-        //is less than minIslandRatio times the largest island bounding box diameter
+        //remove disconnected islands
+        //less than minIslandRatio times the largest island
+        //or just return single largest island if minIslandRatio = 1
+        //island size is diameter of bounding box
+        //unless useVertexCount = true in which case it's number of vertices
         //returns number of removed islands
-        public static int RemoveIslands(this Mesh mesh, double minIslandRatio = 0.1)
+        public static int RemoveIslands(this Mesh mesh, double minIslandRatio = 0.1, bool useVertexCount = false)
         {
             var disjointSet = new DisjointSet(mesh.Vertices.Count);
             foreach (Face f in mesh.Faces)
@@ -436,36 +439,85 @@ namespace JPLOPS.Geometry
                 disjointSet.Union(f.P1, f.P2);
             }
 
-            var islands = new Dictionary<int, BoundingBox>();
-            for (int i = 0; i < mesh.Vertices.Count; i++)
-            {
-                int p = disjointSet.Find(i);
-                if (islands.ContainsKey(p))
-                {
-                    var tmp = islands[p];
-                    islands[p] = BoundingBoxExtensions.Extend(ref tmp, mesh.Vertices[i].Position);
-                }
-                else
-                {
-                    islands[p] = BoundingBoxExtensions.CreateFromPoint(mesh.Vertices[i].Position);
-                }
-            }
-
             var islandSizes = new Dictionary<int, double>();
-            foreach (var entry in islands)
+            int maxIsland = -1;
+            double maxIslandSize = double.NegativeInfinity;
+
+            if (!useVertexCount)
             {
-                islandSizes[entry.Key] = entry.Value.Diameter();
+                var islandSize = new Dictionary<int, BoundingBox>();
+                for (int i = 0; i < mesh.Vertices.Count; i++)
+                {
+                    int p = disjointSet.Find(i);
+                    if (islandSize.ContainsKey(p))
+                    {
+                        var tmp = islandSize[p];
+                        islandSize[p] = BoundingBoxExtensions.Extend(ref tmp, mesh.Vertices[i].Position);
+                    }
+                    else
+                    {
+                        islandSize[p] = BoundingBoxExtensions.CreateFromPoint(mesh.Vertices[i].Position);
+                    }
+                }
+                foreach (var entry in islandSize)
+                {
+                    double size = entry.Value.Diameter();
+                    islandSizes[entry.Key] = size;
+                    if (size > maxIslandSize)
+                    {
+                        maxIsland = entry.Key;
+                        maxIslandSize = size;
+                    }
+                }
+            }
+            else
+            {
+                var islandSize = new Dictionary<int, int>();
+                for (int i = 0; i < mesh.Vertices.Count; i++)
+                {
+                    int p = disjointSet.Find(i);
+                    if (islandSize.ContainsKey(p))
+                    {
+                        islandSize[p] = islandSize[p] + 1;
+                    }
+                    else
+                    {
+                        islandSize[p] = 1;
+                    }
+                }
+                foreach (var entry in islandSize)
+                {
+                    double size = entry.Value;
+                    islandSizes[entry.Key] = size;
+                    if (size > maxIslandSize)
+                    {
+                        maxIsland = entry.Key;
+                        maxIslandSize = size;
+                    }
+                }
             }
 
-            double maxIslandSize = islandSizes.Count > 0 ? islandSizes.Values.Max() : 0;
+            if (maxIsland < 0)
+            {
+                return 0;
+            }
 
-            double threshold = minIslandRatio * maxIslandSize;
-
-            mesh.Faces = mesh.Faces.Where(f => islandSizes[disjointSet.Find(f.P0)] >= threshold).ToList();
+            int nr = 0;
+            if (minIslandRatio < 1)
+            {
+                double threshold = minIslandRatio * maxIslandSize;
+                mesh.Faces = mesh.Faces.Where(f => islandSizes[disjointSet.Find(f.P0)] >= threshold).ToList();
+                nr = islandSizes.Values.Count(d => d < threshold);
+            }
+            else if (islandSizes.Count > 1)
+            {
+                mesh.Faces = mesh.Faces.Where(f => disjointSet.Find(f.P0) == maxIsland).ToList();
+                nr = islandSizes.Count - 1;
+            }
 
             mesh.RemoveUnreferencedVertices();
 
-            return islandSizes.Values.Count(d => d < threshold);
+            return nr;
         }
 
         public static void FilterFaces(this Mesh mesh, Func<Face, bool> filter)

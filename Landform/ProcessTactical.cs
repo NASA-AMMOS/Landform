@@ -25,12 +25,7 @@ using JPLOPS.Pipeline.AlignmentServer;
 /// As a command line tool, process-tactical can be used to build one or more tactical mesh tilesets.  It can either
 /// operate entirely locally, reading from and writing to disk, or it can read from and write to S3.
 ///
-/// Also see Scripts/process-tactical.sh, which has overlapping functionality for the batch-mode case.
-/// (process-tactical.sh does not implement the service case.)  process-tactical.sh is intended for use by developers
-/// only, and has additional options for development and debugging workflows.  process-tactical (ProcessTactcial.cs)
-/// can be used by developers but is mainly intended for deployment and production use.
-///
-/// Also see ProcessContextual.cs and processContextual.sh which automate the contextual mesh tileset workflow.
+/// Also see ProcessContextual.cs which automates the contextual mesh tileset workflow.
 ///
 /// A tactical mesh is generated for a specific wedge mesh RDR, typically in IV or OBJ format.  No coordinate
 /// transformations are applied, it's basically a conversion from mesh to tileset format.  When run as a command line
@@ -1079,6 +1074,8 @@ namespace JPLOPS.Landform
 
                 string pidFile = SavePID(destDir, project, "fetch");
 
+                SaveMessage(destDir, project);
+
                 string meshFile = GetFile(mi.mesh);
                 string imageFile = GetFile(mi.image);
 
@@ -1114,8 +1111,6 @@ namespace JPLOPS.Landform
 
                     SavePID(destDir, project, "save", pidFile);
                     SaveTileset(tilesetDir, project, destDir);
-
-                    SaveMessage(destDir, project);
 
                     DeletePID(destDir, project, pidFile);
                 }

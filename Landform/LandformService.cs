@@ -470,17 +470,17 @@ namespace JPLOPS.Landform
             return true;
         }
 
-        protected override void RefreshCredentials()
+        protected override void RefreshCredentials(bool force = false)
         {
-            base.RefreshCredentials();
+            base.RefreshCredentials(force || !lvopts.UseDefaultAWSProfileForSQSClient);
 
-            if (messageQueue != null)
+            if (messageQueue != null && !lvopts.UseDefaultAWSProfileForSQSClient)
             {
                 messageQueue.Dispose();
                 messageQueue = GetMessageQueue();
             }
 
-            if (failMessageQueue != null)
+            if (failMessageQueue != null && !lvopts.UseDefaultAWSProfileForSQSClient)
             {
                 failMessageQueue.Dispose();
                 failMessageQueue = GetFailMessageQueue();
@@ -1403,7 +1403,7 @@ namespace JPLOPS.Landform
                         }
                         catch (Exception ex)
                         {
-                            pipeline.LogException(ex, "updating message timeout");
+                            pipeline.LogError("error updating SQS visibility timeout: {0}", ex.Message);
                             SleepSec(targetPeriod);
                         }
                     }

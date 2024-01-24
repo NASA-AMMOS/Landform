@@ -450,8 +450,8 @@ namespace JPLOPS.Geometry
                                   Func<Vector3, bool> filter = null, bool withUV = false, bool withNormals = false,
                                   bool reverseWinding = false, bool quadsOnly = false)
         {
-            int w = (int)Math.Ceiling((outerBounds.Width - 1) * subsample + 1);
-            int h = (int)Math.Ceiling((outerBounds.Height - 1) * subsample + 1);
+            int w = (int)Math.Ceiling(outerBounds.Width * subsample);
+            int h = (int)Math.Ceiling(outerBounds.Height * subsample);
             double eps = 0.1;
             var pc = new Image(3, w, h);
             pc.CreateMask();

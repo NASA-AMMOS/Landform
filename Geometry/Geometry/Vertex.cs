@@ -36,6 +36,12 @@ namespace JPLOPS.Geometry
             this.Position = new Vector3(x, y, z);
         }
 
+        public Vertex(double x, double y, double z, double nx, double ny, double nz)
+        {
+            this.Position = new Vector3(x, y, z);
+            this.Normal = new Vector3(nx, ny, nz);
+        }
+
         public Vertex(double x, double y, double z,
                       double nx, double ny, double nz,
                       double u, double v,

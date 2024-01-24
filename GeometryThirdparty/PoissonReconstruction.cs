@@ -28,13 +28,19 @@ namespace JPLOPS.Geometry
     /// http://www.cs.jhu.edu/~misha/Code/PoissonRecon
     public class PoissonReconstruction
     {
-        public enum BoundaryType { Free = 1, Dirichlet = 2, Neumann = 3 };
+        public enum BoundaryType {
+            Free = 1,
+            Dirichlet = 2, //constrain finite element boundary to surface position
+            Neumann = 3 //(exe default) constrain finite element boundary to surface normal
+        };
 
-        public const PoissonReconstruction.BoundaryType DEF_BOUNDARY_TYPE = PoissonReconstruction.BoundaryType.Neumann;
+        public const PoissonReconstruction.BoundaryType
+            DEF_BOUNDARY_TYPE = PoissonReconstruction.BoundaryType.Dirichlet;
+
         public const int DEF_OCTREE_DEPTH = 0;
-        public const double DEF_MIN_OCTREE_CELL_WIDTH_METERS = 0.05;
+        public const double DEF_MIN_OCTREE_CELL_WIDTH_METERS = 0.10;
         public const int DEF_MIN_OCTREE_SAMPLES_PER_CELL = 15;
-        public const int DEF_BSPLINE_DEGREE = 2;
+        public const int DEF_BSPLINE_DEGREE = 1;
         public const double DEF_CONFIDENCE_EXPONENT = 1;
         public const double DEF_TRIMMER_LEVEL = 9;
         public const double DEF_TRIMMER_LEVEL_LENIENT = 8;
@@ -56,7 +62,7 @@ namespace JPLOPS.Geometry
             //exe defaults: 1, recommends 1-5 clean data 15-20 noisy data
             public double MinOctreeSamplesPerCell = DEF_MIN_OCTREE_SAMPLES_PER_CELL;
 
-            //exe defaults: 2
+            //exe defaults: 1
             public int BSplineDegree = DEF_BSPLINE_DEGREE;
 
             //exe defaults: 0, if > 0 then apply this exponent to the length of normals and use as confidence

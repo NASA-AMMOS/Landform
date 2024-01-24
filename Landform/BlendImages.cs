@@ -110,16 +110,16 @@ namespace JPLOPS.Landform
         [Option(HelpText = "Canned blend strategy (Default, Barycentric, Inpaint)", Default = BlendStrategy.Auto)]
         public BlendStrategy BlendStrategy { get; set; }
 
-        [Option(HelpText = "Shrinkwrap mesh grid resolution", Default = 1024)]
+        [Option(HelpText = "Shrinkwrap mesh grid resolution", Default = TexturingDefaults.BLEND_SHRINKWRAP_GRID_RESOLUTION)]
         public int GridResolution { get; set; }
 
-        [Option(HelpText = "Shrinkwrap mesh projection axis (X, Y, Z)", Default = VertexProjection.ProjectionAxis.Z)]
+        [Option(HelpText = "Shrinkwrap mesh projection axis (X, Y, Z)", Default = TexturingDefaults.BLEND_SHRINKWRAP_AXIS)]
         public VertexProjection.ProjectionAxis ProjectionAxis { get; set; }
 
-        [Option(HelpText = "Shrinkwrap mode (Project, NearestPoint)", Default = Shrinkwrap.ShrinkwrapMode.Project)]
+        [Option(HelpText = "Shrinkwrap mode (Project, NearestPoint)", Default = TexturingDefaults.BLEND_SHRINKWRAP_MODE)]
         public Shrinkwrap.ShrinkwrapMode ShrinkwrapMode { get; set; }
 
-        [Option(HelpText = "Shrinkwrap Project miss behaviour (None, Delaunay, Inpaint)", Default = Shrinkwrap.ProjectionMissResponse.Delaunay)]
+        [Option(HelpText = "Shrinkwrap Project miss behaviour (None, Delaunay, Inpaint)", Default = TexturingDefaults.BLEND_SHRINKWRAP_MISS_RESPONSE)]
         public Shrinkwrap.ProjectionMissResponse ShrinkwrapMiss { get; set; }
 
         [Option(HelpText = "Preadjust image luminance towards global median before blending, 0 to disable, 1 for max", Default = TexturingDefaults.BLEND_PREADJUST_LUMINANCE)]
@@ -138,6 +138,8 @@ namespace JPLOPS.Landform
     public class BlendImages : TextureCommand
     {
         private const string OUT_DIR = "texturing/BlendProducts";
+
+        private const double WARP_SHRINKWRAP_UV_THRESHOLD = 1.1;
 
         private BlendImagesOptions options;
 
@@ -382,13 +384,18 @@ namespace JPLOPS.Landform
                     throw new Exception("failed to load input mesh or input mesh empty");
                 }
 
+                var sceneBounds = inputMesh.Bounds();
+                var sceneExtent = sceneBounds.Extent();
+                double xyExtent = 0.5 * (sceneExtent.X + sceneExtent.Y);
+                double res = sceneTextureResolution;
+
                 pipeline.LogInfo("generating shrinkwrap mesh in frame {0} from input mesh with {1} faces" +
                                  ": grid resolution {2}, projection axis {3}, mode {4}, miss behavior {5}",
                                  meshFrame, Fmt.KMG(inputMesh.Faces.Count), options.GridResolution,
                                  options.ProjectionAxis, options.ShrinkwrapMode, options.ShrinkwrapMiss);
 
                 Mesh gridMesh = Shrinkwrap.BuildGrid(inputMesh, options.GridResolution, options.GridResolution,
-                                                     options.ProjectionAxis);
+                                                     options.ProjectionAxis, xyExtent > 1 ? 0.01 : 0);
 
                 mesh = Shrinkwrap.Wrap(gridMesh, inputMesh, options.ShrinkwrapMode, options.ProjectionAxis,
                                        options.ShrinkwrapMiss);
@@ -396,15 +403,10 @@ namespace JPLOPS.Landform
                 mesh.SwapUVs(); //see comments in GeometryCommand.HeightmapAtlasMesh()
 
                 pipeline.LogInfo("built shrinkwrap mesh with {0} faces", Fmt.KMG(mesh.Faces.Count));
-
-                if (surfaceExtent > 0 && orbitalTextureMetersPerPixel > 0 && !options.NoTextureWarp)
+                
+                if (surfaceExtent > 0 && xyExtent > WARP_SHRINKWRAP_UV_THRESHOLD * surfaceExtent &&
+                    orbitalTextureMetersPerPixel > 0 && !options.NoTextureWarp)
                 {
-                    double res = sceneTextureResolution;
-
-                    var meshBounds = mesh.Bounds();
-                    var bs = meshBounds.Extent();
-                    double xyExtent = 0.5 * (bs.X + bs.Y);
-
                     ComputeTextureWarp(xyExtent, surfaceExtent, out double srcSurfaceFrac, out double dstSurfaceFrac);
 
                     if (dstSurfaceFrac > srcSurfaceFrac)
@@ -424,8 +426,8 @@ namespace JPLOPS.Landform
 
                         var surfaceBounds = BoundingBoxExtensions.CreateXY(srcSurfaceFrac * xyExtent);
 
-                        var src = BoundingBoxExtensions.CreateXY(PointToUV(meshBounds, surfaceBounds.Min),
-                                                                 PointToUV(meshBounds, surfaceBounds.Max));
+                        var src = BoundingBoxExtensions.CreateXY(PointToUV(sceneBounds, surfaceBounds.Min),
+                                                                 PointToUV(sceneBounds, surfaceBounds.Max));
                         var dst = BoundingBoxExtensions.CreateXY(0.5 * Vector2.One, dstSurfaceFrac);
 
                         mesh.WarpUVs(src, dst, options.EaseTextureWarp);
