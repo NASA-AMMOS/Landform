@@ -149,14 +149,14 @@ namespace JPLOPS.Pipeline
             {
                 using (var ps = new ParameterStore(awsProfile, awsRegion))
                 {
-                    logger.LogInfo("opened parameter store to fetch CSSO credentials, profile={0}, region={1}",
-                                   awsProfile, awsRegion);
+                    logger.LogVerbose("opened parameter store to fetch CSSO credentials, profile={0}, region={1}",
+                                      awsProfile, awsRegion);
 
                     string userKey = cfg.CSSOUsernameParameterInSSM.Replace("{venue}", venue);
                     bool userEncrypted = cfg.CSSOUsernameParameterInSSMEncrypted;
                     if (logger != null)
                     {
-                        logger.LogInfo("fetching CSSO username from {0}, encrypted={1}", userKey, userEncrypted);
+                        logger.LogVerbose("fetching CSSO username from {0}, encrypted={1}", userKey, userEncrypted);
                     }
                     user = ps.GetParameter(userKey, userEncrypted);
                     if (string.IsNullOrEmpty(user))
@@ -169,7 +169,7 @@ namespace JPLOPS.Pipeline
                     bool passEncrypted = cfg.CSSOPasswordParameterInSSMEncrypted;
                     if (logger != null)
                     {
-                        logger.LogInfo("fetching CSSO password from {0}, encrypted={1}", passKey, passEncrypted);
+                        logger.LogVerbose("fetching CSSO password from {0}, encrypted={1}", passKey, passEncrypted);
                     }
                     pass = ps.GetParameter(passKey, passEncrypted);
                     if (string.IsNullOrEmpty(user))
@@ -220,7 +220,7 @@ namespace JPLOPS.Pipeline
 
             if (logger != null)
             {
-                logger.LogInfo("{0}running {1} {2}", dryRun ? "dry " : "", credssExe, cmd);
+                logger.LogVerbose("{0}running {1} {2}", dryRun ? "dry " : "", credssExe, cmd);
             }
 
             //avoid plaintexting credentials in log
