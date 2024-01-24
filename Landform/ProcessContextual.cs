@@ -2543,10 +2543,10 @@ namespace JPLOPS.Landform
                 pipeline.LogWarn("failed to find sol for {1}", msg);
             }
 
-            if (latestDir != null)
+            if (rdrDir != null)
             {
-                msg.rdrDir = latestDir;
-                pipeline.LogInfo("using RDR dir {0} for {1}", latestDir, msg);
+                msg.rdrDir = rdrDir;
+                pipeline.LogInfo("using RDR dir {0} for {1}", rdrDir, msg);
             }
             else
             {
