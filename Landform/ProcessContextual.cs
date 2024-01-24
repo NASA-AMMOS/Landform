@@ -537,7 +537,7 @@ namespace JPLOPS.Landform
             public string View { get; private set; }
 
             //see AssignSolAndRDRDir()
-            public int sol;
+            public int sol = -1;
             public string rdrDir;
 
             private class SolutionNotification
@@ -593,19 +593,11 @@ namespace JPLOPS.Landform
                 string ret = $"PLACES solution notification for ROVER({Site},{Drive}) in {View}";
                 if (sol >= 0)
                 {
-                    ret += ", sol {sol}";
-                }
-                else
-                {
-                    ret += ", sol unassigned";
+                    ret += $", sol {sol}";
                 }
                 if (!string.IsNullOrEmpty(rdrDir))
                 {
-                    ret += ", FDR/RDR dir {rdrDir}";
-                }
-                else
-                {
-                    ret += ", FDR/RDR dir unassigned";
+                    ret += $", FDR/RDR dir {rdrDir}";
                 }
                 return ret;
             }
@@ -2567,7 +2559,16 @@ namespace JPLOPS.Landform
         {
             if (msg.AssignedSolOrRDRDir())
             {
-                return msg.HasValidSolAndRDRDir();
+                bool valid = msg.HasValidSolAndRDRDir();
+                if (valid)
+                {
+                    pipeline.LogInfo("already assigned valid sol and RDR dir for {0}", msg);
+                }
+                else
+                {
+                    pipeline.LogWarn("already assigned invalid sol and/or RDR dir for {0}", msg);
+                }
+                return valid;
             }
 
             //unfortunately are lots of apparently bogus sol folders beyond the latest actual real sol on sops
@@ -2591,15 +2592,27 @@ namespace JPLOPS.Landform
                         var val = latestSolAndRDRDir[key];
                         latestSol = val.Sol;
                         rdrDir = val.RDRDir;
-                        pipeline.LogInfo("using latest known sol {0} and RDR directory {1} for {2}",
-                                         latestSol, rdrDir, msg);
+                        if (key == "any")
+                        {
+                            pipeline.LogWarn("no S3 notifications for sitedrive {0}, " +
+                                             "using latest sol and RDR directory across all sitedrives", sd);
+                        }
                         break;
                     }
                 }
             }
 
-            if ((latestSol < 0 || string.IsNullOrEmpty(rdrDir)) &&
-                !options.NoSearchForSolContainingSiteDriveOnPLACESNotification)
+            if (latestSol >= 0 && !string.IsNullOrEmpty(rdrDir))
+            {
+                pipeline.LogInfo("using latest known sol {0} and RDR directory {1} from S3 notifications for {2}",
+                                 latestSol, rdrDir, msg);
+            }
+            else if (options.NoSearchForSolContainingSiteDriveOnPLACESNotification)
+            {
+                pipeline.LogWarn("search disabled and no S3 notifications to assign sol and RDR directory for {0}",
+                                 msg);
+            }
+            else
             {
                 pipeline.LogInfo("searching for latest sol and RDR directory containing sitedrive for {1}", msg);
 
