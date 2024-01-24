@@ -544,8 +544,8 @@ namespace JPLOPS.Landform
             private class SolutionNotification
             {
 #pragma warning disable 0649
-                public int site;
-                public int drive;
+                public int site = -1;
+                public int drive = -1;
                 public string view;
 #pragma warning restore 0649
             }
@@ -555,19 +555,23 @@ namespace JPLOPS.Landform
                 try
                 {
                     var sn = JsonHelper.FromJson<SolutionNotification>(Message);
-                    Site = sn.site;
-                    Drive = sn.drive;
-                    View = sn.view;
-                    return true;
+                    if (sn.site >= 0 && sn.drive >= 0 && !string.IsNullOrEmpty(sn.view))
+                    {
+                        Site = sn.site;
+                        Drive = sn.drive;
+                        View = sn.view;
+                        return true;
+                    }
                 }
                 catch (Exception)
                 {
-                    if (logger != null)
-                    {
-                        logger.LogError("failed to parse SNS message as PLACES solution notification: " + Message);
-                    }
-                    return false;
+                    //pass through
                 }
+                if (logger != null)
+                {
+                    logger.LogError("failed to parse SNS message as PLACES solution notification: " + Message);
+                }
+                return false;
             }
 
             public SiteDrive GetSiteDrive()
@@ -587,7 +591,24 @@ namespace JPLOPS.Landform
 
             public override string ToString()
             {
-                return $"PLACES solution notification for ROVER({Site},{Drive}) in {View}";
+                string ret = $"PLACES solution notification for ROVER({Site},{Drive}) in {View}";
+                if (sol >= 0)
+                {
+                    ret += ", sol {sol}";
+                }
+                else
+                {
+                    ret += ", sol unassigned";
+                }
+                if (!string.IsNullOrEmpty(rdrDir))
+                {
+                    ret += ", FDR/RDR dir {rdrDir}";
+                }
+                else
+                {
+                    ret += ", FDR/RDR dir unassigned";
+                }
+                return ret;
             }
         }
 
@@ -833,10 +854,6 @@ namespace JPLOPS.Landform
                 {
                     ret += string.Format("; {0} wedges", p.NumWedges);
                 }
-                if (p.OrbitalOnly)
-                {
-                    ret += string.Format("; orbital only");
-                }
                 if (p.Timestamp > 0)
                 {
                     ret += string.Format("; timestamp {0} UTC", UTCTime.MSSinceEpochToDate(p.Timestamp));
@@ -1067,10 +1084,9 @@ namespace JPLOPS.Landform
             }
         }
 
-        private void AddChangedURL(string what, DictionaryOfChangedURLs changedURLs, string rdrDir, SiteDrive sd,
-                                   string url)
+        private void AddChangedURL(DictionaryOfChangedURLs changedURLs, string rdrDir, SiteDrive sd, string url,
+                                   long now)
         {
-            pipeline.LogInfo("registered changed URL for {0} triggering: {1}", what, url);
             lock (changedURLs)
             {
                 if (!changedURLs.ContainsKey(rdrDir))
@@ -1081,7 +1097,7 @@ namespace JPLOPS.Landform
                 {
                     changedURLs[rdrDir][sd] = new Dictionary<string, long>();
                 }
-                changedURLs[rdrDir][sd][url] = (long)UTCTime.NowMS();
+                changedURLs[rdrDir][sd][url] = now;
             }
         }
 
@@ -1124,23 +1140,36 @@ namespace JPLOPS.Landform
                     var snm = msg as SolutionNotificationMessage;
                     if (snm.Site < landingSiteDrive.Site || snm.Drive < landingSiteDrive.Drive)
                     {
-                        pipeline.LogWarn("invalid RMC in " + snm);
+                        pipeline.LogWarn("ignoring {0}, invalid RMC", snm);
                     }
-                    if (!options.NoSurface && placesContextualSolutionViews != null &&
-                        placesContextualSolutionViews.Any(v => v.Equals(snm.View)))
+                    else
                     {
-                        lock (placesContextualSolutionNotifications)
+                        bool forContextual = false, forOrbital = false;
+                        if (!options.NoSurface && placesContextualSolutionViews != null &&
+                            placesContextualSolutionViews.Any(v => v.Equals(snm.View)))
                         {
-                            placesContextualSolutionNotifications.Add(new Stamped<SolutionNotificationMessage>(snm));
+                            forContextual = true;
+                            lock (placesContextualSolutionNotifications)
+                            {
+                                placesContextualSolutionNotifications
+                                    .Add(new Stamped<SolutionNotificationMessage>(snm));
+                            }
                         }
-                    }
-                    if (!options.NoOrbital && placesOrbitalSolutionViews != null &&
-                        placesOrbitalSolutionViews.Any(v => v.Equals(snm.View)))
-                    {
-                        lock (placesOrbitalSolutionNotifications)
+                        if (!options.NoOrbital && placesOrbitalSolutionViews != null &&
+                            placesOrbitalSolutionViews.Any(v => v.Equals(snm.View)))
                         {
-                            placesOrbitalSolutionNotifications.Add(new Stamped<SolutionNotificationMessage>(snm));
+                            forOrbital = true;
+                            lock (placesOrbitalSolutionNotifications)
+                            {
+                                placesOrbitalSolutionNotifications
+                                    .Add(new Stamped<SolutionNotificationMessage>(snm));
+                            }
                         }
+                        pipeline.LogInfo("{0}registering {1} for {2} triggering",
+                                         (forContextual || forOrbital) ? "" : "not ", snm,
+                                         (forContextual && forOrbital) ? "both contextual and orbital" :
+                                         forContextual ? "only contextual" : forOrbital ? "only orbital" :
+                                         "contextual or orbital");
                     }
                     return true; //successfully processed, remove message from queue
                 }
@@ -1199,26 +1228,72 @@ namespace JPLOPS.Landform
                     textureRegex != null && textureRegex.IsMatch(url);
                 if (isFDR || isRDR)
                 {
-                    latestRDRSol = Math.Max(latestRDRSol, SiteDriveList.GetSol(url, id));
+                    int sol = SiteDriveList.GetSol(url, id);
+                    if (sol > latestRDRSol)
+                    {
+                        pipeline.LogInfo("increasing latest FDR/RDR sol from {0} to {1} for {2}",
+                                         latestRDRSol, sol, url);
+                        latestRDRSol = sol;
+                    }
                 }
+                string what = "", reason = null;
+                long now = (long)UTCTime.NowMS();
                 if (isFDR)
                 {
+                    what = "orbital ";
                     Interlocked.Exchange(ref eofTimestamp, 0);
-                    if (!options.NoOrbital && !options.NoTriggerOrbitalOnFDRCreated &&
-                        mission.UseForOrbitalTriggering(id))
+                    if (options.NoOrbital)
                     {
-                        AddChangedURL("orbital", changedOrbitalURLs, rdrDir, sd.Value, url);
+                        reason = "orbital data disabled";
+                    }
+                    else if (options.NoTriggerOrbitalOnFDRCreated)
+                    {
+                        reason = "orbital FDR trigger disabled";
+                    }
+                    else if (!mission.UseForOrbitalTriggering(id))
+                    {
+                        reason = "product ID disabled by mission for orbital trigger";
+                    }
+                    else
+                    {
+                        AddChangedURL(changedOrbitalURLs, rdrDir, sd.Value, url, now);
                     }
                 }
-                if (isRDR)
+                else if (isRDR)
                 {
+                    what = "contextual ";
                     Interlocked.Exchange(ref eoxTimestamp, 0);
                     Interlocked.Exchange(ref eopTimestamp, 0);
-                    if (!options.NoSurface && !options.NoTriggerContextualOnRDRCreated &&
-                        mission.UseForContextualTriggering(id))
+                    if (options.NoSurface)
                     {
-                        AddChangedURL("contextual", changedContextualURLs, rdrDir, sd.Value, url);
+                        reason = "surface data disabled";
                     }
+                    else if (options.NoTriggerContextualOnRDRCreated)
+                    {
+                        reason = "contextual RDR trigger disabled";
+                    }
+                    else if (!mission.UseForContextualTriggering(id))
+                    {
+                        reason = "product ID disabled by mission for contextual trigger";
+                    }
+                    else
+                    {
+                        AddChangedURL(changedContextualURLs, rdrDir, sd.Value, url, now);
+                    }
+                }
+                else
+                {
+                    reason = "not a recognized FDR or RDR wedge or texture";
+                }
+                if (string.IsNullOrEmpty(reason))
+                {
+                    pipeline.LogInfo("registered changed URL for {0}triggering on EOP or timeout at {1}: {2}",
+                                     what, ToLocalTime(now), url);
+                }
+                else
+                {
+                    pipeline.LogInfo("not registering changed URL for {0}triggering on EOP or timeout at {1}, {2}: {3}",
+                                     what, ToLocalTime(now), reason, url);
                 }
                 return true; //successfully processed, remove message from queue
             }
@@ -1510,6 +1585,9 @@ namespace JPLOPS.Landform
                                  options.PLACESOrbitalSolutionViews);
                 placesOrbitalSolutionViews = StringHelper.ParseList(options.PLACESOrbitalSolutionViews);
             }
+
+            options.RebuildContextualAtPreviousEndOfDriveOnPLACESNotification |=
+                options.OnlyRebuildContextualAtPreviousEndOfDriveOnPLACESNotification;
 
             return true;
         }
@@ -2445,8 +2523,15 @@ namespace JPLOPS.Landform
             {
                 return null;
             }
-            var msg = JsonHelper.FromJson<SolutionNotificationMessage>(txt, autoTypes: false);
-            return msg.Parse(pipeline) ? msg : null;
+            try
+            {
+                var msg = JsonHelper.FromJson<SolutionNotificationMessage>(txt, autoTypes: false);
+                return (msg != null && msg.Parse()) ? msg : null;
+            }
+            catch (Exception)
+            {
+                return null;
+            }
         }
 
         private bool AssignSolAndRDRDir(SolutionNotificationMessage msg)
@@ -3805,13 +3890,21 @@ namespace JPLOPS.Landform
                         if (AssignSolAndRDRDir(snm))
                         {
                             var omm = MakeOrbitalMeshMessage(snm.rdrDir, snm.sol, snm.GetSiteDrive());
+                            pipeline.LogInfo("creating orbital mesh message for {0}: {1}",
+                                             snm, DescribeMessage(omm, verbose: true));
                             forceMsgs.Add(new Stamped<ContextualMeshMessage>(omm, msg.Timestamp));
                             rdrDirs.Add(snm.rdrDir);
+                        }
+                        else
+                        {
+                            pipeline.LogWarn("failed to assign sol and/or RDR dir for {0}, " +
+                                             "not creating orbital mesh message", snm);
                         }
                     } 
                     catch (Exception ex)
                     {
-                        pipeline.LogException(ex, "error assigning sol and RDR dir for " + snm);
+                        pipeline.LogException(ex, "error assigning sol and RDR dir for " + snm +
+                                              ", not creating orbital mesh message");
                     }
                 }
             }
@@ -3876,10 +3969,16 @@ namespace JPLOPS.Landform
                             tmp.Add(msg);
                             rdrDirs.Add(snm.rdrDir);
                         }
+                        else
+                        {
+                            pipeline.LogWarn("failed to assign sol and/or RDR dir for {0}, " +
+                                             "not creating contextual mesh message", snm);
+                        }
                     } 
                     catch (Exception ex)
                     {
-                        pipeline.LogException(ex, "error assigning sol and RDR dir for " + snm);
+                        pipeline.LogException(ex, "error assigning sol and RDR dir for " + snm +
+                                              ", not creating contextual mesh message");
                     }
                 }
                 solutionMsgs = tmp;
@@ -3956,9 +4055,9 @@ namespace JPLOPS.Landform
                     }
                     foreach (var msg in solutionMsgs.Where(msg => msg.Value.rdrDir == rdrDir))
                     {
+                        var snm = msg.Value;
                         try
                         {
-                            var snm = msg.Value;
                             var sd = snm.GetSiteDrive();
                             if (options.RebuildContextualAtPreviousEndOfDriveOnPLACESNotification)
                             {
@@ -3966,22 +4065,27 @@ namespace JPLOPS.Landform
                                 {
                                     var psd = placesDB.GetPreviousEndOfDrive(sd, snm.View);
                                     var pmm = MakeContextualMeshMessage(snm.rdrDir, snm.sol, psd);
+                                    pipeline.LogInfo(
+                                        "creating contextual mesh message for {0} at previous end-of-drive: {1}",
+                                        snm, DescribeMessage(pmm, verbose: true));
                                     forceMsgs.Add(new Stamped<ContextualMeshMessage>(pmm, msg.Timestamp));
                                 }
                                 catch (Exception ex)
                                 {
-                                    pipeline.LogException(ex, "error in previous end-of-drive for " + msg.Value);
+                                    pipeline.LogException(ex, "error getting previous end-of-drive for " + snm);
                                 }
                             }
                             if (!options.OnlyRebuildContextualAtPreviousEndOfDriveOnPLACESNotification)
                             {
                                 var cmm = MakeContextualMeshMessage(snm.rdrDir, snm.sol, sd);
+                                pipeline.LogInfo("creating contextual mesh message for {0}: {1}",
+                                                 snm, DescribeMessage(cmm, verbose: true));
                                 forceMsgs.Add(new Stamped<ContextualMeshMessage>(cmm, msg.Timestamp));
                             }
                         }
                         catch (Exception ex)
                         {
-                            pipeline.LogException(ex, "error processing " + msg.Value);
+                            pipeline.LogException(ex, "error processing " + snm);
                         }
                     }
                 }
