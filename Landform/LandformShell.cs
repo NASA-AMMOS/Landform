@@ -47,7 +47,7 @@ namespace JPLOPS.Landform
         [Option(Default = null, HelpText = "AWS region or omit to use default, e.g. us-west-1, us-gov-west-1 (can be \"none\")")]
         public string AWSRegion { get; set; }
 
-        [Option(HelpText = "Credential refresh period in seconds, -1 for mission default, 0 to disable", Default = -1)]
+        [Option(HelpText = "Credential refresh period in seconds, -1 for default, 0 to disable", Default = -1)]
         public int CredentialRefreshSec { get; set; }
 
         [Option(HelpText = "Tile mesh format, e.g. b3dm.  Empty or \"default\" to use default (" + TilingDefaults.TILESET_MESH_FORMAT + ")", Default = null)]
@@ -119,14 +119,14 @@ namespace JPLOPS.Landform
         [Option(HelpText = "Skirt up direction (X, Y, Z, None, Normal)", Default = TilingDefaults.SKIRT_MODE)]
         public virtual SkirtMode SkirtMode { get; set; }
 
-        [Option(HelpText = "Use default AWS profile (vs profile from credential refresh) for S3 client", Default = false)]
-        public bool UseDefaultAWSProfileForS3Client { get; set; }
+        [Option(HelpText = "Don't use default AWS profile (vs profile from credential refresh) for S3 client", Default = false)]
+        public bool NoUseDefaultAWSProfileForS3Client { get; set; }
 
-        [Option(HelpText = "Use default AWS profile (vs profile from credential refresh) for EC2 client", Default = false)]
-        public bool UseDefaultAWSProfileForEC2Client { get; set; }
+        [Option(HelpText = "Don't use default AWS profile (vs profile from credential refresh) for EC2 client", Default = false)]
+        public bool NoUseDefaultAWSProfileForEC2Client { get; set; }
 
-        [Option(HelpText = "Use default AWS profile (vs profile from credential refresh) for SSM client", Default = false)]
-        public bool UseDefaultAWSProfileForSSMClient { get; set; }
+        [Option(HelpText = "Don't use default AWS profile (vs profile from credential refresh) for SSM client", Default = false)]
+        public bool NoUseDefaultAWSProfileForSSMClient { get; set; }
 
         [Option(HelpText = "Comma separated list of input S3 buckets (or bucket/path) that should be treated as read-only, also requires --readonlybucketaltdest", Default = null)]
         public string ReadonlyBuckets { get; set; }
@@ -141,6 +141,8 @@ namespace JPLOPS.Landform
         public const string SCENE_JSON = "scene.json";
         public const string STATS_TXT = "stats.txt";
         public const string PID_JSON = "pid.json";
+
+        public const double CREDENTIAL_REFRESH_RATIO = 0.5;
 
         public static readonly string[] RDR_SUBDIRS = new string[] { "rdr", "fdr" };
         public const string TILESET_SUBDIR = "tileset";
@@ -177,7 +179,7 @@ namespace JPLOPS.Landform
                 {
                     if (_storageHelper == null)
                     {
-                        string profile = lsopts.UseDefaultAWSProfileForS3Client ? null : awsProfile;
+                        string profile = lsopts.NoUseDefaultAWSProfileForS3Client ? awsProfile : null;
                         _storageHelper = new StorageHelper(profile, awsRegion, pipeline.Logger);
                     }
                     return _storageHelper;
@@ -195,7 +197,7 @@ namespace JPLOPS.Landform
                 {
                     if (_computeHelper == null)
                     {
-                        string profile = lsopts.UseDefaultAWSProfileForEC2Client ? null : awsProfile;
+                        string profile = lsopts.NoUseDefaultAWSProfileForEC2Client ? awsProfile : null;
                         _computeHelper = new ComputeHelper(profile, awsRegion, pipeline);
                     }
                     return _computeHelper;
@@ -213,7 +215,7 @@ namespace JPLOPS.Landform
                 {
                     if (_parameterStore == null)
                     {
-                        string profile = lsopts.UseDefaultAWSProfileForSSMClient ? null : awsProfile;
+                        string profile = lsopts.NoUseDefaultAWSProfileForSSMClient ? awsProfile : null;
                         _parameterStore = new ParameterStore(profile, awsRegion);
                     }
                     return _parameterStore;
@@ -304,8 +306,9 @@ namespace JPLOPS.Landform
             originalAWSProfile = awsProfile;
 
             credentialRefreshSec = lsopts.CredentialRefreshSec >= 0 ? lsopts.CredentialRefreshSec :
-                mission != null ? mission.GetDefaultCredentialRefreshSec() : 0;
-            pipeline.LogInfo("AWS credential refresh: {0}",
+                (RequiresCredentialRefresh() && mission != null) ?
+                (int) (CREDENTIAL_REFRESH_RATIO * mission.GetCredentialDurationSec()) : 0;
+            pipeline.LogInfo("CSSO credential refresh: {0}",
                              credentialRefreshSec > 0 ? Fmt.HMS(credentialRefreshSec * 1e3) : "disabled");
 
             subcommandLogFile = GetSubcommandLogFile();
@@ -330,23 +333,29 @@ namespace JPLOPS.Landform
             return MissionSpecific.GetInstance(lsopts.Mission);
         } 
 
-        protected virtual void RefreshCredentials(bool force = false)
+        protected virtual bool RequiresCredentialRefresh()
         {
-            pipeline.LogInfo("refreshing credentials");
+            return lsopts.NoUseDefaultAWSProfileForS3Client ||
+                lsopts.NoUseDefaultAWSProfileForEC2Client ||
+                lsopts.NoUseDefaultAWSProfileForSSMClient;
+        }
 
-            if (mission != null && (force ||
-                                    !lsopts.UseDefaultAWSProfileForS3Client ||
-                                    !lsopts.UseDefaultAWSProfileForEC2Client ||
-                                    !lsopts.UseDefaultAWSProfileForSSMClient))
+        protected virtual void RefreshCredentials()
+        {
+            if (mission == null)
             {
-                var newProfile = mission.RefreshCredentials(originalAWSProfile, awsRegion, !pipeline.Verbose,
-                                                            lsopts.DryRun, throwOnFail: false, logger: pipeline);
-                awsProfile = newProfile ?? originalAWSProfile;
+                return;
             }
+
+            pipeline.LogInfo("refreshing credentials");
+            
+            var newProfile = mission.RefreshCredentials(originalAWSProfile, awsRegion, !pipeline.Verbose,
+                                                        lsopts.DryRun, throwOnFail: false, logger: pipeline);
+            awsProfile = newProfile ?? originalAWSProfile;
 
             lock (storageHelperLock)
             {
-                if (_storageHelper != null && !lsopts.UseDefaultAWSProfileForS3Client)
+                if (_storageHelper != null && lsopts.NoUseDefaultAWSProfileForS3Client)
                 {
                     _storageHelper.Dispose();
                     _storageHelper = null;
@@ -355,7 +364,7 @@ namespace JPLOPS.Landform
 
             lock (computeHelperLock)
             {
-                if (_computeHelper != null && !lsopts.UseDefaultAWSProfileForEC2Client)
+                if (_computeHelper != null && lsopts.NoUseDefaultAWSProfileForEC2Client)
                 {
                     _computeHelper.Dispose();
                     _computeHelper = null;
@@ -364,7 +373,7 @@ namespace JPLOPS.Landform
 
             lock (parameterStoreLock)
             {
-                if (_parameterStore != null && !lsopts.UseDefaultAWSProfileForSSMClient)
+                if (_parameterStore != null && lsopts.NoUseDefaultAWSProfileForSSMClient)
                 {
                     _parameterStore.Dispose();
                     _parameterStore = null;
