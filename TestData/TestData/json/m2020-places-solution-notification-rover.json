@@ -1,0 +1,11 @@
+{
+  "Type" : "Notification",
+  "MessageId" : "20277ff9-2c7e-545e-ab95-21d2b70ac959",
+  "TopicArn" : "arn:aws-us-gov:sns:us-gov-west-1:017717573760:m20-ids-g-sns-places",
+  "Message" : "{\"site\":40,\"view\":\"best_tactical\",\"drive\":1706}",
+  "Timestamp" : "2024-01-24T23:11:48.142Z",
+  "SignatureVersion" : "1",
+  "Signature" : "3Ya55yxOs6QieUp5YFkqm+wYsi3yuVwbcRm114XoSTsSlkrLKvlJn7T+7hcNovcjalCrzFLYb623QrHrkXnF42bzeYxMSJ0qNDx3yUXQknsgYOHjTUc5xrT/UmVQOL2OIZE63mLFelAaIMUP77QrjzSnhCVryEtR8ufLDbj55SzlI5vxkKwrfGiY3W/4JXfJIs4EoVMpMXVstEWlRwBX9MMMDNWBFuBWLDF/VrNmtLxVexbLVraD0tyHyWTyCsEaozdA/M2a33XsG4bOUAKMHySMlsrGfqAIG3oYMRyn8RmFeFxNJD8aPrXOBZ80giRJtXGW6LpHuWGh4uNGcdNKDA==",
+  "SigningCertURL" : "https://sns.us-gov-west-1.amazonaws.com/SimpleNotificationService-b7be6158edbb2b4b12e294bdb7f631ee.pem",
+  "UnsubscribeURL" : "https://sns.us-gov-west-1.amazonaws.com/?Action=Unsubscribe&SubscriptionArn=arn:aws-us-gov:sns:us-gov-west-1:017717573760:m20-ids-g-sns-places:1b3b9a8c-222e-40e4-acff-d63d21fc6a67"
+}
