@@ -766,6 +766,10 @@ namespace JPLOPS.Landform
 
         protected static string NormalizeRDRDir(string path)
         {
+            if (string.IsNullOrEmpty(path))
+            {
+                return path;
+            }
             path = StringHelper.EnsureTrailingSlash(StringHelper.NormalizeSlashes(path));
             int rdrIdx = -1;
             foreach (string rdrSubdir in RDR_SUBDIRS)
