@@ -3730,7 +3730,8 @@ namespace JPLOPS.Landform
                     }
                     msgsBySol[msg.primarySol].Add(msg);
                 }
-                foreach (int sol in msgsBySol.Keys)
+                var sols = msgsBySol.Keys.ToList(); //avoid (InvalidOperationException) Collection was modified
+                foreach (int sol in sols)
                 {
                     var filtered = msgsBySol[sol]
                         .OrderByDescending(msg => msg.primarySiteDrive)
