@@ -2614,7 +2614,8 @@ namespace JPLOPS.Landform
 
             if (latestSol >= 0 && !string.IsNullOrEmpty(rdrDir))
             {
-                pipeline.LogInfo("using latest known sol {0} and RDR directory {1} from S3 notifications for {2}",
+                pipeline.LogInfo("skipping S3 search, " +
+                                 "got latest sol {0} and RDR directory {1} from S3 notifications for {2}",
                                  latestSol, rdrDir, msg);
             }
             else if (options.NoSearchForSolContainingSiteDriveOnPLACESNotification)
@@ -3612,7 +3613,10 @@ namespace JPLOPS.Landform
                 }
             }
             int oldMsgsCount = oldMsgsOldestToNewest.Count;
-            pipeline.LogInfo("dequeued {0} {1} messages from {2}", oldMsgsCount, what, queue.Name);
+            if (includeExistingMessages)
+            {
+                pipeline.LogInfo("dequeued {0} {1} messages from {2}", oldMsgsCount, what, queue.Name);
+            }
             
             int maxAgeSec = GetMaxMessageAgeSec();
             int maxReceiveCount = GetMaxReceiveCount();
