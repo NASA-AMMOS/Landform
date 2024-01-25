@@ -3,7 +3,6 @@ using System.IO;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Text.RegularExpressions;
@@ -257,12 +256,6 @@ namespace JPLOPS.Landform
             this.lvopts = options;
             defMaxHandlerSec = DEF_MAX_HANDLER_SEC;
             defMaxMessageAgeSec = DEF_MAX_MESSAGE_AGE_SEC;
-
-            //attempt to stop "A WebException with status SecureChannelFailure was thrown" in some AWS communications
-            //https://stackoverflow.com/a/28333370
-            //https://stackoverflow.com/a/47551905
-            System.Net.ServicePointManager.SecurityProtocol = 
-                SecurityProtocolType.Tls | SecurityProtocolType.Tls11 | SecurityProtocolType.Tls12;
         }
 
         public int Run()
