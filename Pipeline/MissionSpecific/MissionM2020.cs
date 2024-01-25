@@ -89,12 +89,13 @@ namespace JPLOPS.Pipeline
 
         //comma separated list of S3 URLs of FDR directories with sol number replaced by #####
         //{venue} will be replaced
+        //for testing in dev venue override like this in contextual master EC2 userdata:
+        //set LANDFORM_FDR_SEARCH_DIRS=s3://m20-ids-g-landform/M2020/sol/####/ids/fdr/ncam/
         [ConfigEnvironmentVariable("LANDFORM_FDR_SEARCH_DIRS")]
         public string FDRSearchDirs { get; set; } =
             "s3://m20-{venue}-ods/ods/surface/sol/#####/ids/fdr/fcam/," +
             "s3://m20-{venue}-ods/ods/surface/sol/#####/ids/fdr/rcam/," +
             "s3://m20-{venue}-ods/ods/surface/sol/#####/ids/fdr/ncam/";
-            
     }
     
     public class MissionM2020 : MissionSpecific
