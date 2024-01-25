@@ -1673,16 +1673,22 @@ namespace JPLOPS.Landform
             return ret.Count > 0 ? ret : null;
         }
 
-        protected override void RefreshCredentials(bool force = false)
+        protected override bool RequiresCredentialRefresh()
         {
-            base.RefreshCredentials(force);
+            return true; //CSSO credentials are needed for PlacesDB
+        }
 
-            if (workerQueue != null && !options.UseDefaultAWSProfileForSQSClient)
+        protected override void RefreshCredentials()
+        {
+            base.RefreshCredentials();
+
+            if (workerQueue != null && options.NoUseDefaultAWSProfileForSQSClient)
             {
                 workerQueue.Dispose();
                 workerQueue = GetWorkerMessageQueue();
             }
-            if (orbitalWorkerQueue != null && !options.UseDefaultAWSProfileForSQSClient)
+
+            if (orbitalWorkerQueue != null && options.NoUseDefaultAWSProfileForSQSClient)
             {
                 orbitalWorkerQueue.Dispose();
                 orbitalWorkerQueue = GetOrbitalWorkerMessageQueue();
@@ -3996,8 +4002,8 @@ namespace JPLOPS.Landform
                         }
                     }
                 }
-                lock (options.UseDefaultAWSProfileForEC2Client && options.UseDefaultAWSProfileForSQSClient ?
-                      new Object() : credentialRefreshLock)
+                lock ((options.NoUseDefaultAWSProfileForEC2Client || options.NoUseDefaultAWSProfileForSQSClient) ?
+                      credentialRefreshLock : new Object())
                 {
                     var queue = orbitalWorkerQueue ?? workerQueue;
                     bool cullExisting = !options.RecreateExistingOrbital;
@@ -4060,7 +4066,7 @@ namespace JPLOPS.Landform
                 Dictionary<int, List<SiteDrive>> changedSDsBySol = null;
                 if (urls.ContainsKey(rdrDir))
                 {
-                    lock (options.UseDefaultAWSProfileForS3Client ? new Object() : longRunningCredentialRefreshLock)
+                    lock (options.NoUseDefaultAWSProfileForS3Client ? longRunningCredentialRefreshLock : new Object())
                     {
                         sdLists = LoadSiteDriveLists(rdrDir, urls[rdrDir]);
                     }
@@ -4167,8 +4173,8 @@ namespace JPLOPS.Landform
                     }
                 }
 
-                lock (options.UseDefaultAWSProfileForEC2Client && options.UseDefaultAWSProfileForSQSClient ?
-                      new Object() : credentialRefreshLock)
+                lock ((options.NoUseDefaultAWSProfileForEC2Client || options.NoUseDefaultAWSProfileForSQSClient) ?
+                      credentialRefreshLock : new Object())
                 {
                     bool cullExisting = options.NoRecreateExistingContextual;
                     int checkExistingSolRange = cullExisting ? 0 : -1;
@@ -4246,8 +4252,9 @@ namespace JPLOPS.Landform
                     {
                         lastWorkerAutoStartSec = UTCTime.Now();
 
-                        lock (options.UseDefaultAWSProfileForEC2Client && options.UseDefaultAWSProfileForSQSClient ?
-                              new Object() : credentialRefreshLock)
+                        lock ((options.NoUseDefaultAWSProfileForEC2Client ||
+                               options.NoUseDefaultAWSProfileForSQSClient) ?
+                              credentialRefreshLock : new Object())
                         {
                             if (workerQueue != null)
                             {

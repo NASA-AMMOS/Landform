@@ -1165,7 +1165,7 @@ namespace JPLOPS.Pipeline
         /// Get the desired maximum time between credential refresh.
         /// If non-positive then credential refresh is not required.
         /// </summary>
-        public virtual int GetDefaultCredentialRefreshSec()
+        public virtual int GetCredentialDurationSec()
         {
             return 0;
         }
