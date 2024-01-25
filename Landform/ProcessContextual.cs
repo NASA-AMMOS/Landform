@@ -373,10 +373,10 @@ namespace JPLOPS.Landform
         public int MaxOrbitalSiteDrivesPerSol { get; set; }
 
         [Option(Default = null, HelpText = "Comma separated list of PLACES views for which to (re)build contextual tilesets when new solutions are added; null, empty, or \"none\" to disable triggering contextual on PLACES solution notifications")]
-        public string PLACESContextualSolutionViews { get; set; }
+        public string ContextualPLACESSolutionViews { get; set; }
 
         [Option(Default = null, HelpText = "Comma separated list of PLACES views for which to (re)build orbital tilesets when new solutions are added; null, empty, or \"none\" to disable triggering orbital on PLACES solution notifications")]
-        public string PLACESOrbitalSolutionViews { get; set; }
+        public string OrbitalPLACESSolutionViews { get; set; }
 
         [Option(Default = false, HelpText = "Don't search for the latest sol containing sitedrive on PLACES solution notification, if not already known from S3 ObjectCreated messages.")]
         public bool NoSearchForSolContainingSiteDriveOnPLACESNotification { get; set; }
@@ -527,8 +527,8 @@ namespace JPLOPS.Landform
         private DictionaryOfChangedURLs changedContextualURLs = new DictionaryOfChangedURLs();
         private DictionaryOfChangedURLs changedOrbitalURLs = new DictionaryOfChangedURLs();
 
-        private string[] placesContextualSolutionViews;
-        private string[] placesOrbitalSolutionViews;
+        private string[] contextualPlacesSolutionViews;
+        private string[] orbitalPlacesSolutionViews;
 
         private class SolutionNotificationMessage : SNSMessageWrapper
         {
@@ -604,9 +604,12 @@ namespace JPLOPS.Landform
             }
         }
 
-        private List<Stamped<SolutionNotificationMessage>> placesContextualSolutionNotifications =
+        //PLACES solution notifications that have been received by the main thread
+        //and that are waiting to be processed by MasterLoop()
+        //synchronized by locking the list itself
+        private List<Stamped<SolutionNotificationMessage>> contextualPlacesSolutionNotifications =
             new List<Stamped<SolutionNotificationMessage>>();
-        private List<Stamped<SolutionNotificationMessage>> placesOrbitalSolutionNotifications =
+        private List<Stamped<SolutionNotificationMessage>> orbitalPlacesSolutionNotifications =
             new List<Stamped<SolutionNotificationMessage>>();
 
         private class SolAndRDRDir
@@ -1153,23 +1156,23 @@ namespace JPLOPS.Landform
                     else
                     {
                         bool forContextual = false, forOrbital = false;
-                        if (!options.NoSurface && placesContextualSolutionViews != null &&
-                            placesContextualSolutionViews.Any(v => v.Equals(snm.View)))
+                        if (!options.NoSurface && contextualPlacesSolutionViews != null &&
+                            contextualPlacesSolutionViews.Any(v => v.Equals(snm.View)))
                         {
                             forContextual = true;
-                            lock (placesContextualSolutionNotifications)
+                            lock (contextualPlacesSolutionNotifications)
                             {
-                                placesContextualSolutionNotifications
+                                contextualPlacesSolutionNotifications
                                     .Add(new Stamped<SolutionNotificationMessage>(snm));
                             }
                         }
-                        if (!options.NoOrbital && placesOrbitalSolutionViews != null &&
-                            placesOrbitalSolutionViews.Any(v => v.Equals(snm.View)))
+                        if (!options.NoOrbital && orbitalPlacesSolutionViews != null &&
+                            orbitalPlacesSolutionViews.Any(v => v.Equals(snm.View)))
                         {
                             forOrbital = true;
-                            lock (placesOrbitalSolutionNotifications)
+                            lock (orbitalPlacesSolutionNotifications)
                             {
-                                placesOrbitalSolutionNotifications
+                                orbitalPlacesSolutionNotifications
                                     .Add(new Stamped<SolutionNotificationMessage>(snm));
                             }
                         }
@@ -1590,22 +1593,22 @@ namespace JPLOPS.Landform
             if (fdrSearchDirs == null || fdrSearchDirs.Count == 0)
             {
                 pipeline.LogWarn("disabling PLACES solution notifications, no FDR search dirds");
-                options.PLACESContextualSolutionViews = "none";
-                options.PLACESOrbitalSolutionViews = "none";
+                options.ContextualPLACESSolutionViews = "none";
+                options.OrbitalPLACESSolutionViews = "none";
             }
-            if (!string.IsNullOrEmpty(options.PLACESContextualSolutionViews) &&
-                !string.Equals(options.PLACESContextualSolutionViews, "none", StringComparison.OrdinalIgnoreCase))
+            if (!string.IsNullOrEmpty(options.ContextualPLACESSolutionViews) &&
+                !string.Equals(options.ContextualPLACESSolutionViews, "none", StringComparison.OrdinalIgnoreCase))
             {
                 pipeline.LogInfo("(re)building contextual meshes for new PLACES solutions in views: " +
-                                 options.PLACESContextualSolutionViews);
-                placesContextualSolutionViews = StringHelper.ParseList(options.PLACESContextualSolutionViews);
+                                 options.ContextualPLACESSolutionViews);
+                contextualPlacesSolutionViews = StringHelper.ParseList(options.ContextualPLACESSolutionViews);
             }
-            if (!string.IsNullOrEmpty(options.PLACESOrbitalSolutionViews) &&
-                !string.Equals(options.PLACESOrbitalSolutionViews, "none", StringComparison.OrdinalIgnoreCase))
+            if (!string.IsNullOrEmpty(options.OrbitalPLACESSolutionViews) &&
+                !string.Equals(options.OrbitalPLACESSolutionViews, "none", StringComparison.OrdinalIgnoreCase))
             {
                 pipeline.LogInfo("(re)building orbital meshes for new PLACES solutions in views: " +
-                                 options.PLACESOrbitalSolutionViews);
-                placesOrbitalSolutionViews = StringHelper.ParseList(options.PLACESOrbitalSolutionViews);
+                                 options.OrbitalPLACESSolutionViews);
+                orbitalPlacesSolutionViews = StringHelper.ParseList(options.OrbitalPLACESSolutionViews);
             }
 
             options.RebuildContextualAtPreviousEndOfDriveOnPLACESNotification |=
@@ -4043,7 +4046,7 @@ namespace JPLOPS.Landform
                     var snm = msg.Value;
                     try
                     {
-                        //placesContextualSolutionNotifications and placesOrbitalSolutionNotifications contain
+                        //contextualPlacesSolutionNotifications and orbitalPlacesSolutionNotifications contain
                         //references to the same underlying set of SolutionNotificationMessage objects
                         //and AssignSolAndRDRDir() will early out if it's already been run on msg
                         if (AssignSolAndRDRDir(snm))
@@ -4304,10 +4307,10 @@ namespace JPLOPS.Landform
                                                              "orbital");
 
                         var solutionMsgs = new List<Stamped<SolutionNotificationMessage>>();
-                        lock (placesOrbitalSolutionNotifications)
+                        lock (orbitalPlacesSolutionNotifications)
                         {
-                            solutionMsgs.AddRange(placesOrbitalSolutionNotifications);
-                            placesOrbitalSolutionNotifications.Clear();
+                            solutionMsgs.AddRange(orbitalPlacesSolutionNotifications);
+                            orbitalPlacesSolutionNotifications.Clear();
                         }
 
                         if (orbitalURLs.Count > 0 || solutionMsgs.Count > 0)
@@ -4384,10 +4387,10 @@ namespace JPLOPS.Landform
                         var contextualURLs = ProcessChangedURLs(changedContextualURLs, eop > 0, eopMsg, "contextual");
 
                         var solutionMsgs = new List<Stamped<SolutionNotificationMessage>>();
-                        lock (placesContextualSolutionNotifications)
+                        lock (contextualPlacesSolutionNotifications)
                         {
-                            solutionMsgs.AddRange(placesContextualSolutionNotifications);
-                            placesContextualSolutionNotifications.Clear();
+                            solutionMsgs.AddRange(contextualPlacesSolutionNotifications);
+                            contextualPlacesSolutionNotifications.Clear();
                         }
 
                         if (contextualURLs.Count > 0 || solutionMsgs.Count > 0)
