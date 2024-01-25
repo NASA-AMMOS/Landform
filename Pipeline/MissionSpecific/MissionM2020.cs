@@ -50,9 +50,6 @@ namespace JPLOPS.Pipeline
         [ConfigEnvironmentVariable("LANDFORM_CSSO_PASSWORD_PARAMETER_IN_SSM_ENCRYPTED")]
         public bool CSSOPasswordParameterInSSMEncrypted { get; set; } = true;
 
-        [ConfigEnvironmentVariable("LANDFORM_CSSO_CREDENTIAL_REFRESH_SEC")]
-        public int CSSOCredentialRefreshSec { get; set; } = 4 * 60 * 60; //4h
-
         [ConfigEnvironmentVariable("LANDFORM_CSSO_CREDENTIAL_DURATION_SEC")]
         public int CSSOCredentialDurationSec { get; set; } = 8 * 60 * 60; //8h
 
@@ -255,9 +252,9 @@ namespace JPLOPS.Pipeline
             return null;
         }
 
-        public override int GetDefaultCredentialRefreshSec()
+        public override int GetCredentialDurationSec()
         {
-            return MissionM2020Config.Instance.CSSOCredentialRefreshSec;
+            return MissionM2020Config.Instance.CSSOCredentialDurationSec;
         }
 
         //some images have invalid PLANET_DAY_NUMBER
