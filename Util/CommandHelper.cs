@@ -206,14 +206,6 @@ namespace JPLOPS.Util
                             {
                                 //this doesn't work because each call to GetCustomAttribute() returns a new instance
                                 //ba.Default = obj;
-                                bool flag = prop.PropertyType == typeof(bool);
-                                if (flag)
-                                {
-                                    if (!string.IsNullOrEmpty(str) && str.ToLower() == "false")
-                                    {
-                                        throw new Exception($"cannot use {en}=false for flag {va.Name} --{opt}");
-                                    }
-                                }
                                 Config.Log($"using {en}={str} to default {va.Name} --{opt} (may be overridden)");
                                 envArgs.Add(opt, obj);
                             }, parseNonemptyAsTrue: true);
