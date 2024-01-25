@@ -2546,6 +2546,7 @@ namespace JPLOPS.Landform
             }
             try
             {
+                //pipeline.LogInfo("parsing solution notification\n{0}", txt);
                 var msg = JsonHelper.FromJson<SolutionNotificationMessage>(txt, autoTypes: false);
                 return (msg != null && msg.Parse(minSiteDrive.Drive)) ? msg : null;
             }
@@ -2656,13 +2657,17 @@ namespace JPLOPS.Landform
                             string fdrDir = StringHelper.ReplaceIntWildcards(fdrSearchDir, sol);
                             string glob = fdrRegex != null ? options.FDRPattern :
                                 "*" + (mission.PreferIMGToVIC() ? ".IMG" : ".VIC");
+                            pipeline.LogInfo("searching {0} for {1} to assign sol and RDR dir for {2}",
+                                             fdrDir, glob, msg);
                             foreach (var fdrUrl in SearchFiles(fdrDir, glob, recursive: false))
                             {
                                 var fdrSD = GetSiteDrive(StringHelper.NormalizeUrl(fdrUrl));
                                 if (fdrSD.HasValue && fdrSD.Value == sd)
                                 {
-                                    rdrDir = rdrSearchDir;
+                                    pipeline.LogInfo("found FDR to assign sol {0} and RDR dir {1} for {2}: {3}",
+                                                     sol, rdrSearchDir, msg, fdrUrl);
                                     latestSol = sol;
+                                    rdrDir = rdrSearchDir;
                                     break;
                                 }
                             }
@@ -2673,28 +2678,20 @@ namespace JPLOPS.Landform
                         pipeline.LogWarn("could not find sol span in {0} while getting sol for {1}", fdrSearchDir, msg);
                     }
                 }
-            } 
+                
+                if (latestSol >= 0 && !string.IsNullOrEmpty(rdrDir))
+                {
+                    pipeline.LogInfo("using latest sol {0} and RDR directory {1} from S3 search for {2}",
+                                     latestSol, rdrDir, msg);
+                }
+                else
+                {
+                    pipeline.LogWarn("S3 search failed to assign sol and RDR directory for {0}", msg);
+                }
+            }
 
-            if (latestSol >= 0)
-            {
-                msg.sol = latestSol;
-                pipeline.LogInfo("using sol {0} for {1}", latestSol, msg);
-            }
-            else
-            {
-                pipeline.LogWarn("failed to find sol for {1}", msg);
-            }
-
-            if (rdrDir != null)
-            {
-                msg.rdrDir = rdrDir;
-                pipeline.LogInfo("using RDR dir {0} for {1}", rdrDir, msg);
-            }
-            else
-            {
-                msg.rdrDir = "none";
-                pipeline.LogWarn("failed to find RDR dir for {1}", msg);
-            }
+            msg.sol = latestSol;
+            msg.rdrDir = rdrDir ?? "none";
 
             return msg.HasValidSolAndRDRDir();
         }
@@ -3968,23 +3965,27 @@ namespace JPLOPS.Landform
             foreach (var rdrDir in rdrDirs)
             {
                 var omsgs = new List<Stamped<ContextualMeshMessage>>();
-                foreach (var sd in urls[rdrDir].Keys.OrderByDescending(sd => sd).ToList())
+                if (urls.ContainsKey(rdrDir))
                 {
-                    if (urls[rdrDir][sd].Count > 0)
+                    foreach (var sd in urls[rdrDir].Keys.OrderByDescending(sd => sd).ToList())
                     {
-                        int sol = urls[rdrDir][sd]
-                            .Max(entry => SiteDriveList.GetSol(entry.Key, RoverProductId.Parse(entry.Key, mission,
-                                                                                               throwOnFail: false)));
-                        if (sol >= 0)
+                        if (urls[rdrDir][sd].Count > 0)
                         {
-                            long stamp = urls[rdrDir][sd].Max(entry => entry.Value);
-                            var msg = MakeOrbitalMeshMessage(rdrDir, sol, sd);
-                            omsgs.Add(new Stamped<ContextualMeshMessage>(msg, stamp));
-                        }
-                        else
-                        {
-                            pipeline.LogWarn("error getting sol for orbital mesh {0} in {1}, first url {2}",
-                                             sd, rdrDir, urls[rdrDir][sd].First().Key);
+                            int sol = urls[rdrDir][sd]
+                                .Max(entry =>
+                                     SiteDriveList.GetSol(entry.Key, RoverProductId.Parse(entry.Key, mission,
+                                                                                          throwOnFail: false)));
+                            if (sol >= 0)
+                            {
+                                long stamp = urls[rdrDir][sd].Max(entry => entry.Value);
+                                var msg = MakeOrbitalMeshMessage(rdrDir, sol, sd);
+                                omsgs.Add(new Stamped<ContextualMeshMessage>(msg, stamp));
+                            }
+                            else
+                            {
+                                pipeline.LogWarn("error getting sol for orbital mesh {0} in {1}, first url {2}",
+                                                 sd, rdrDir, urls[rdrDir][sd].First().Key);
+                            }
                         }
                     }
                 }
@@ -4047,40 +4048,47 @@ namespace JPLOPS.Landform
             foreach (var rdrDir in rdrDirs)
             {
                 Dictionary<SiteDrive, Stamped<SiteDriveList>> sdLists = null;
-                lock (options.UseDefaultAWSProfileForS3Client ? new Object() : longRunningCredentialRefreshLock)
+                List<SiteDrive> changedSDs = null;
+                Dictionary<SiteDrive, SiteDriveList> allSDs = null;
+                Dictionary<int, List<SiteDrive>> changedSDsBySol = null;
+                if (urls.ContainsKey(rdrDir))
                 {
-                    sdLists = LoadSiteDriveLists(rdrDir, urls[rdrDir]);
-                }
-                
-                var changedSDs = urls[rdrDir].Keys
-                    .Where(sd => sdLists.ContainsKey(sd))
-                    .OrderByDescending(sd => sd)
-                    .ToList();
-                
-                if (changedSDs.Count < 1)
-                {
-                    pipeline.LogWarn("failed to load sitedrive lists for RDR dir {0} " +
-                                     "with {1} changed URLs in {2} changed sitedrives {3}",
-                                     rdrDir, urls[rdrDir].Values.Sum(u => u.Count),
-                                     urls[rdrDir].Count, string.Join(",", urls[rdrDir].Keys));
-                    continue;
-                }
-                
-                var allSDs = new Dictionary<SiteDrive, SiteDriveList>();
-                foreach (var entry in sdLists)
-                {
-                    allSDs[entry.Key] = entry.Value.Value;
-                }
-                
-                var changedSDsBySol = new Dictionary<int, List<SiteDrive>>();
-                foreach (var sd in changedSDs)
-                {
-                    int sol = allSDs[sd].MaxSol;
-                    if (!changedSDsBySol.ContainsKey(sol))
+                    lock (options.UseDefaultAWSProfileForS3Client ? new Object() : longRunningCredentialRefreshLock)
                     {
-                        changedSDsBySol[sol] = new List<SiteDrive>();
+                        sdLists = LoadSiteDriveLists(rdrDir, urls[rdrDir]);
                     }
-                    changedSDsBySol[sol].Add(sd);
+                    
+                    changedSDs = urls[rdrDir].Keys
+                        .Where(sd => sdLists.ContainsKey(sd))
+                        .OrderByDescending(sd => sd)
+                        .ToList();
+                    
+                    if (changedSDs.Count > 0)
+                    {
+                        allSDs = new Dictionary<SiteDrive, SiteDriveList>();
+                        foreach (var entry in sdLists)
+                        {
+                            allSDs[entry.Key] = entry.Value.Value;
+                        }
+                        
+                        changedSDsBySol = new Dictionary<int, List<SiteDrive>>();
+                        foreach (var sd in changedSDs)
+                        {
+                            int sol = allSDs[sd].MaxSol;
+                            if (!changedSDsBySol.ContainsKey(sol))
+                            {
+                                changedSDsBySol[sol] = new List<SiteDrive>();
+                            }
+                            changedSDsBySol[sol].Add(sd);
+                        }
+                    }
+                    else
+                    {
+                        pipeline.LogWarn("failed to load sitedrive lists for RDR dir {0} " +
+                                         "with {1} changed URLs in {2} changed sitedrives {3}",
+                                         rdrDir, urls[rdrDir].Values.Sum(u => u.Count),
+                                         urls[rdrDir].Count, string.Join(",", urls[rdrDir].Keys));
+                    }
                 }
                 
                 //try to connect to PlacesDB just for this pass
@@ -4095,21 +4103,26 @@ namespace JPLOPS.Landform
                 lock (usePlaces && !reinitPlaces ? longRunningCredentialRefreshLock : new Object())
                 {
                     var placesDB = usePlaces ? InitPlacesDB() : null;
-                    foreach (var changedSD in changedSDs)
+
+                    if (sdLists != null && changedSDs != null && allSDs != null && changedSDsBySol != null)
                     {
-                        try
+                        foreach (var changedSD in changedSDs)
                         {
-                            var msg = MakeContextualMeshMessage(changedSD, changedSDsBySol, allSDs, placesDB);
-                            if (msg != null)
+                            try
                             {
-                                msgs.Add(new Stamped<ContextualMeshMessage>(msg, sdLists[changedSD].Timestamp));
+                                var msg = MakeContextualMeshMessage(changedSD, changedSDsBySol, allSDs, placesDB);
+                                if (msg != null)
+                                {
+                                    msgs.Add(new Stamped<ContextualMeshMessage>(msg, sdLists[changedSD].Timestamp));
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                pipeline.LogException(ex, "error processing sitedrive " + changedSD);
                             }
                         }
-                        catch (Exception ex)
-                        {
-                            pipeline.LogException(ex, "error processing sitedrive " + changedSD);
-                        }
                     }
+
                     foreach (var msg in solutionMsgs.Where(msg => msg.Value.rdrDir == rdrDir))
                     {
                         var snm = msg.Value;
@@ -4146,6 +4159,7 @@ namespace JPLOPS.Landform
                         }
                     }
                 }
+
                 lock (options.UseDefaultAWSProfileForEC2Client && options.UseDefaultAWSProfileForSQSClient ?
                       new Object() : credentialRefreshLock)
                 {
