@@ -1245,7 +1245,7 @@ namespace JPLOPS.Landform
                             {
                                 if (!latestSolAndRDRDir.ContainsKey(key) || latestSolAndRDRDir[key].Sol < sol)
                                 {
-                                    pipeline.LogInfo("setting latest RDR sol to {0} in RDR dir {1} for sitedrive {2}",
+                                    pipeline.LogInfo("setting latest RDR sol to {0}, RDR dir {1} for sitedrive \"{2}\"",
                                                      sol, rdrDir, key);
                                     latestSolAndRDRDir[key] = new SolAndRDRDir(sol, rdrDir);
                                 }
@@ -2586,19 +2586,22 @@ namespace JPLOPS.Landform
 
             lock (latestSolAndRDRDir)
             {
-                foreach (string key in new string[] { sd.ToString(), "any" })
+                string sdStr = sd.ToString();
+                foreach (string key in new string[] { sdStr, "any" })
                 {
                     if (latestSolAndRDRDir.ContainsKey(key))
                     {
                         var val = latestSolAndRDRDir[key];
                         latestSol = val.Sol;
                         rdrDir = val.RDRDir;
-                        if (key == "any")
-                        {
-                            pipeline.LogWarn("no S3 notifications for sitedrive {0}, " +
-                                             "using latest sol and RDR directory across all sitedrives", sd);
-                        }
+                        pipeline.LogInfo("using latest sol {0} and RDR directory {1} for sitedrive \"{2}\" " +
+                                         "from S3 notifications for {3}", latestSol, rdrDir, key, msg);
                         break;
+                    }
+                    else
+                    {
+                        pipeline.LogWarn("no S3 notifications for sitedrive \"{0}\" " +
+                                         "to assign sol and RDR directory for {1}", key, msg);
                     }
                 }
             }
@@ -2615,12 +2618,12 @@ namespace JPLOPS.Landform
             }
             else
             {
-                pipeline.LogInfo("searching for latest sol and RDR directory containing sitedrive for {1}", msg);
+                pipeline.LogInfo("searching for latest sol and RDR directory containing sitedrive for {0}", msg);
 
                 var fdrSearchDirs = mission.GetFDRSearchDirs();
                 if (fdrSearchDirs == null || fdrSearchDirs.Count == 0)
                 {
-                    pipeline.LogWarn("failed to find RDR dir for {1}, mission has no FDR search dirs", msg);
+                    pipeline.LogWarn("failed to find RDR dir for {0}, mission has no FDR search dirs", msg);
                     return false;
                 }
                 fdrSearchDirs = fdrSearchDirs
@@ -2639,8 +2642,9 @@ namespace JPLOPS.Landform
                             foreach (var s3Url in storageHelper.SearchObjects(solSearchDir, recursive: false,
                                                                               folders: true, files: false))
                             {
-                                var url = StringHelper.NormalizeUrl(s3Url); //e.g. s3://BUCKET/ods/VER/sol/00534/
-                                string solStr = StringHelper.GetLastUrlPathSegment(url.TrimEnd('/')); //e.g. 00534
+                                var solUrl = StringHelper.NormalizeUrl(s3Url); //e.g. s3://BUCKET/ods/VER/sol/00534/
+                                pipeline.LogVerbose("found sol dir {0}", solUrl);
+                                string solStr = StringHelper.GetLastUrlPathSegment(solUrl.TrimEnd('/')); //e.g. 00534
                                 if (int.TryParse(solStr, out int sol))
                                 {
                                     sols.Add(sol);
@@ -2655,8 +2659,10 @@ namespace JPLOPS.Landform
                         {
                             //e.g. s3://BUCKET/ods/VER/sol/00534/ids/fdr/ncam/
                             string fdrDir = StringHelper.ReplaceIntWildcards(fdrSearchDir, sol);
-                            string glob = fdrRegex != null ? options.FDRPattern :
-                                "*" + (mission.PreferIMGToVIC() ? ".IMG" : ".VIC");
+                            string pat = !string.IsNullOrEmpty(options.FDRPattern) &&
+                                !string.Equals(options.FDRPattern, "none", StringComparison.OrdinalIgnoreCase) ?
+                                options.FDRPattern : DEF_FDR_PATTERN;
+                            string glob = ParseRDRExtension(pat, "FDR");
                             pipeline.LogInfo("searching {0} for {1} to assign sol and RDR dir for {2}",
                                              fdrDir, glob, msg);
                             foreach (var fdrUrl in SearchFiles(fdrDir, glob, recursive: false))
@@ -3549,7 +3555,8 @@ namespace JPLOPS.Landform
                 newMsgsOldestToNewest = keep;
             }
 
-            pipeline.LogInfo("coalescing {0} new {1} messages with existing", newMsgsOldestToNewest.Count, what);
+            pipeline.LogInfo("coalescing {0} new {1} messages{2}",
+                             newMsgsOldestToNewest.Count, what, includeExistingMessages ? " with existing" : "");
 
             //keep only unique messages
             //this is where ContextualMeshMessage GetHashCode() and Equals() get used
