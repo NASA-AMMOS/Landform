@@ -345,9 +345,16 @@ namespace JPLOPS.Util
                         string opt = "--" + entry.Key;
                         if (!explicitOpts.Contains(opt))
                         {
-                            fullArgs.Add(opt);
-                            if (!(entry.Value is bool))
+                            if (entry.Value is bool)
                             {
+                                if ((bool)(entry.Value))
+                                {
+                                    fullArgs.Add(opt);
+                                }
+                            }
+                            else
+                            {
+                                fullArgs.Add(opt);
                                 fullArgs.Add(entry.Value.ToString());
                             }
                         }
