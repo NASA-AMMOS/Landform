@@ -702,6 +702,8 @@ namespace JPLOPS.Landform
                     return false;
                 }
 
+                //we now pre-normalize rdrDir before creating any ContextualMeshMessage
+                //but keeping this here to cover corner cases where old messages may still be in queues
                 if (ProcessContextual.NormalizeRDRDir(rdrDir) != ProcessContextual.NormalizeRDRDir(other.rdrDir))
                 {
                     if (logger != null)
@@ -1226,6 +1228,7 @@ namespace JPLOPS.Landform
                     pipeline.LogWarn("failed to parse RDR dir from URL {0}", url);
                     return true; //drop message
                 }
+                rdrDir = NormalizeRDRDir(rdrDir);
                 var idStr = StringHelper.GetLastUrlPathSegment(url, stripExtension: true);
                 var id = RoverProductId.Parse(idStr, mission, throwOnFail: false);
                 var sd = GetSiteDrive(url, id);
@@ -2665,35 +2668,43 @@ namespace JPLOPS.Landform
                         }
 
                         //e.g. s3://BUCKET/ods/VER/sol/#####/ids/fdr/
-                        string rdrSearchDir = SiteDriveList.GetRDRDir(fdrSearchDir);
-                        foreach (int sol in sols.OrderByDescending(s => s).Where(sol => sol > latestSol).ToList())
+                        string rdrSearchDir = NormalizeRDRDir(SiteDriveList.GetRDRDir(fdrSearchDir));
+                        if (!string.IsNullOrEmpty(rdrSearchDir))
                         {
-                            //e.g. s3://BUCKET/ods/VER/sol/00534/ids/fdr/ncam/
-                            string fdrDir = StringHelper.ReplaceIntWildcards(fdrSearchDir, sol);
-                            string pat = !string.IsNullOrEmpty(options.FDRPattern) &&
-                                !string.Equals(options.FDRPattern, "none", StringComparison.OrdinalIgnoreCase) ?
-                                options.FDRPattern : DEF_FDR_PATTERN;
-                            string glob = ParseRDRExtension(pat, "FDR");
-                            pipeline.LogInfo("searching {0} for {1} to assign sol and RDR dir for {2}",
-                                             fdrDir, glob, msg);
-                            bool found = false;
-                            foreach (var fdrUrl in SearchFiles(fdrDir, glob, recursive: false))
+                            foreach (int sol in sols.OrderByDescending(s => s).Where(sol => sol > latestSol).ToList())
                             {
-                                var fdrSD = GetSiteDrive(StringHelper.NormalizeUrl(fdrUrl));
-                                if (fdrSD.HasValue && fdrSD.Value == sd)
+                                //e.g. s3://BUCKET/ods/VER/sol/00534/ids/fdr/ncam/
+                                string fdrDir = StringHelper.ReplaceIntWildcards(fdrSearchDir, sol);
+                                string pat = !string.IsNullOrEmpty(options.FDRPattern) &&
+                                    !string.Equals(options.FDRPattern, "none", StringComparison.OrdinalIgnoreCase) ?
+                                    options.FDRPattern : DEF_FDR_PATTERN;
+                                string glob = ParseRDRExtension(pat, "FDR");
+                                pipeline.LogInfo("searching {0} for {1} to assign sol and RDR dir for {2}",
+                                                 fdrDir, glob, msg);
+                                bool found = false;
+                                foreach (var fdrUrl in SearchFiles(fdrDir, glob, recursive: false))
                                 {
-                                    pipeline.LogInfo("found FDR to assign sol {0} and RDR dir {1} for {2}: {3}",
-                                                     sol, rdrSearchDir, msg, fdrUrl);
-                                    latestSol = sol;
-                                    rdrDir = rdrSearchDir;
-                                    found = true;
-                                    break; //inner loop
+                                    var fdrSD = GetSiteDrive(StringHelper.NormalizeUrl(fdrUrl));
+                                    if (fdrSD.HasValue && fdrSD.Value == sd)
+                                    {
+                                        pipeline.LogInfo("found FDR to assign sol {0} and RDR dir {1} for {2}: {3}",
+                                                         sol, rdrSearchDir, msg, fdrUrl);
+                                        latestSol = sol;
+                                        rdrDir = rdrSearchDir;
+                                        found = true;
+                                        break; //inner loop
+                                    }
+                                }
+                                if (found)
+                                {
+                                    break; //outer loop
                                 }
                             }
-                            if (found)
-                            {
-                                break; //outer loop
-                            }
+                        }
+                        else
+                        {
+                            pipeline.LogWarn("failed to get RDR dir from FDR search dir {0} while getting sol for {1}",
+                                             fdrSearchDir, msg);
                         }
                     }
                     else
@@ -4162,10 +4173,13 @@ namespace JPLOPS.Landform
                                 {
                                     var psd = placesDB.GetPreviousEndOfDrive(sd, snm.View);
                                     var pmm = MakeContextualMeshMessage(snm.rdrDir, snm.sol, psd);
-                                    pipeline.LogInfo(
-                                        "creating contextual mesh message for {0} at previous end-of-drive: {1}",
-                                        snm, DescribeMessage(pmm, verbose: true));
-                                    forceMsgs.Add(new Stamped<ContextualMeshMessage>(pmm, msg.Timestamp));
+                                    if (pmm != null)
+                                    {
+                                        pipeline.LogInfo(
+                                            "creating contextual mesh message for {0} at previous end-of-drive: {1}",
+                                            snm, DescribeMessage(pmm, verbose: true));
+                                        forceMsgs.Add(new Stamped<ContextualMeshMessage>(pmm, msg.Timestamp));
+                                    }
                                 }
                                 catch (Exception ex)
                                 {
@@ -4175,9 +4189,12 @@ namespace JPLOPS.Landform
                             if (!options.OnlyRebuildContextualAtPreviousEndOfDriveOnPLACESNotification)
                             {
                                 var cmm = MakeContextualMeshMessage(snm.rdrDir, snm.sol, sd);
-                                pipeline.LogInfo("creating contextual mesh message for {0}: {1}",
-                                                 snm, DescribeMessage(cmm, verbose: true));
-                                forceMsgs.Add(new Stamped<ContextualMeshMessage>(cmm, msg.Timestamp));
+                                if (cmm != null)
+                                {
+                                    pipeline.LogInfo("creating contextual mesh message for {0}: {1}",
+                                                     snm, DescribeMessage(cmm, verbose: true));
+                                    forceMsgs.Add(new Stamped<ContextualMeshMessage>(cmm, msg.Timestamp));
+                                }
                             }
                         }
                         catch (Exception ex)
