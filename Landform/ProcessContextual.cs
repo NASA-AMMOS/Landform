@@ -2683,6 +2683,7 @@ namespace JPLOPS.Landform
                             string glob = ParseRDRExtension(pat, "FDR");
                             pipeline.LogInfo("searching {0} for {1} to assign sol and RDR dir for {2}",
                                              fdrDir, glob, msg);
+                            bool found = false;
                             foreach (var fdrUrl in SearchFiles(fdrDir, glob, recursive: false))
                             {
                                 var fdrSD = GetSiteDrive(StringHelper.NormalizeUrl(fdrUrl));
@@ -2692,8 +2693,13 @@ namespace JPLOPS.Landform
                                                      sol, rdrSearchDir, msg, fdrUrl);
                                     latestSol = sol;
                                     rdrDir = rdrSearchDir;
-                                    break;
+                                    found = true;
+                                    break; //inner loop
                                 }
+                            }
+                            if (found)
+                            {
+                                break; //outer loop
                             }
                         }
                     }
