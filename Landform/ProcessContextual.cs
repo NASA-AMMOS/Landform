@@ -2041,11 +2041,15 @@ namespace JPLOPS.Landform
                                            msg.orbitalOnly ? "_orbital" : "");
             string url = $"{destDir}/{project}/";
             pipeline.LogVerbose("checking for tileset under {0}", url);
-            bool absent = true, done = false;
+            bool absent = true, sameMsg = false, hasTileset = false;
             foreach (var f in SearchFiles(url, recursive: false))
             {
                 absent = false;
-                if (f.EndsWith(MESSAGE_JSON))
+                if (f.EndsWith(TILESET_JSON))
+                {
+                    hasTileset = true;
+                }
+                else if (f.EndsWith(MESSAGE_JSON))
                 {
                     try
                     {
@@ -2053,7 +2057,7 @@ namespace JPLOPS.Landform
                         var existingMsg = JsonHelper.FromJson<ContextualMeshMessage>(existingJson);
                         if (existingMsg.SameTileset(msg, pipeline))
                         {
-                            done = true; //unless we also see a matching PID
+                            sameMsg = true;
                         }
                     }
                     catch (Exception ex)
@@ -2089,7 +2093,7 @@ namespace JPLOPS.Landform
                     }
                 }
             }
-            return done ? TilesetStatus.done : absent ? TilesetStatus.absent : TilesetStatus.found;
+            return (sameMsg && hasTileset) ? TilesetStatus.done : absent ? TilesetStatus.absent : TilesetStatus.found;
         }
 
         private class ContextualPIDContent : ServicePIDContent
