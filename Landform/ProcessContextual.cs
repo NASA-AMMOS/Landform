@@ -2850,8 +2850,8 @@ namespace JPLOPS.Landform
             Regex wr = wedgeRegex != null ? MakeURLRegex(options.WedgePattern, pdsExts) : null;
             Regex tr = textureRegex != null ? MakeURLRegex(options.TexturePattern, pdsExts) : null;
             string wtr = MakeWedgeAndTextureRegex(pdsExts);
-            string what = "wedges" + (tr != null ? " and textures" : "") + " matching " + wtr;
-            what += " (" + wr + (tr != null ? (", " + tr) : "") + ")";
+            string what = "wedges" + (tr != null ? " and textures" : "") + " matching \"" + wtr + "\"";
+            what += " (wedge: \"" + wr + "\"" + (tr != null ? (", texture: \"" + tr + "\"") : "") + ")";
             foreach (string dir in instDirs)
             {
                 pipeline.LogInfo("recursively searching {0} for {1}", dir, what);
@@ -3144,9 +3144,9 @@ namespace JPLOPS.Landform
                 string wtr = MakeWedgeAndTextureRegex(pdsExts);
                 string what =
                     (wr != null && tr != null) ?
-                    $"wedges and textures matching {wtr} ({wr}, {tr})" :
-                    wr != null ? $"wedges matching {wtr} ({wr})" :
-                    tr != null ? $"textures matching {wtr} ({tr})" :
+                    $"wedges and textures matching \"{wtr}\" (wedge: \"{wr}\", texture: \"{tr}\")" :
+                    wr != null ? $"wedges matching \"{wtr}\" (\"{wr}\")" :
+                    tr != null ? $"textures matching \"{wtr}\" (\"{tr}\")" :
                     "nothing"; //should not get here since at least one of wedgeRegex and/or textureRegex is non-null
                 pipeline.LogInfo("searching for additional {0} in RDR dir {1} for sols {2}-{3}",
                                  what, rdrDir, minSol, maxSol);
