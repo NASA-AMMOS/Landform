@@ -551,7 +551,7 @@ namespace JPLOPS.Landform
 #pragma warning restore 0649
             }
 
-            public bool Parse(int minDrive = 0, ILogger logger = null)
+            public bool Parse(ILogger logger = null)
             {
                 try
                 {
@@ -559,7 +559,7 @@ namespace JPLOPS.Landform
                     if (sn.site >= 0 && !string.IsNullOrEmpty(sn.view))
                     {
                         Site = sn.site;
-                        Drive = Math.Max(minDrive, sn.drive);
+                        Drive = sn.drive; //-1 for SITE
                         View = sn.view;
                         return true;
                     }
@@ -577,7 +577,7 @@ namespace JPLOPS.Landform
 
             public SiteDrive GetSiteDrive()
             {
-                return new SiteDrive(Site, Drive);
+                return new SiteDrive(Site, Math.Max(0, Drive));
             }
 
             public bool AssignedSolOrRDRDir()
@@ -592,7 +592,8 @@ namespace JPLOPS.Landform
 
             public override string ToString()
             {
-                string ret = $"PLACES solution notification for ROVER({Site},{Drive}) in {View}";
+                string rmc = Drive >= 0 ? $"ROVER({Site},{Drive})" : $"SITE({Site})";
+                string ret = $"PLACES solution notification for {rmc} in {View}";
                 if (sol >= 0)
                 {
                     ret += $", sol {sol}";
@@ -1154,7 +1155,7 @@ namespace JPLOPS.Landform
                 if (msg is SolutionNotificationMessage)
                 {
                     var snm = msg as SolutionNotificationMessage;
-                    if (snm.Site < minSiteDrive.Site || snm.Drive < minSiteDrive.Drive)
+                    if (snm.Site < minSiteDrive.Site)
                     {
                         pipeline.LogWarn("ignoring {0}, invalid RMC", snm);
                     }
@@ -2564,7 +2565,7 @@ namespace JPLOPS.Landform
             {
                 //pipeline.LogInfo("parsing solution notification\n{0}", txt);
                 var msg = JsonHelper.FromJson<SolutionNotificationMessage>(txt, autoTypes: false);
-                return (msg != null && msg.Parse(minSiteDrive.Drive)) ? msg : null;
+                return (msg != null && msg.Parse()) ? msg : null;
             }
             catch (Exception)
             {
@@ -2598,7 +2599,7 @@ namespace JPLOPS.Landform
             int latestSol = -1;
             string rdrDir = null;
 
-            var sd = new SiteDrive(msg.Site, msg.Drive);
+            var sd = msg.GetSiteDrive();
 
             lock (latestSolAndRDRDir)
             {
