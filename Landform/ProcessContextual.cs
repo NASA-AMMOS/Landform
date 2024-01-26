@@ -2902,8 +2902,8 @@ namespace JPLOPS.Landform
                 {
                     pipeline.LogException(ex, $"error searching for sitedrives under {dir}");
                 }
-                pipeline.LogInfo("found {0} wedges, {1} textures, {2} new sitedrives from {3} URLs ({4} accepted)",
-                                 nw, nt, ns, nu, na);
+                pipeline.LogVerbose("found {0} wedges, {1} textures, {2} new sitedrives from {3} URLs ({4} accepted)",
+                                    nw, nt, ns, nu, na);
             }
 
             //keep only latest version of each product, remove non-preferred stereo eye, non-preferred lin/nonlin, etc
