@@ -1480,6 +1480,14 @@ namespace JPLOPS.Landform
 
         private Mesh DecimateMesh(Mesh mesh, string what, int targetFaces)
         {
+            int nf = mesh.Faces.Count;
+            if (nf <= targetFaces)
+            {
+                pipeline.LogInfo("not decimating {0} mesh with {1}, mesh already has {2} <= {3} faces",
+                                 what, options.MeshDecimator, Fmt.KMG(nf), Fmt.KMG(targetFaces));
+                return mesh;
+            }
+
             pipeline.LogInfo("decimating {0} mesh with {1}, target {2} faces",
                              what, options.MeshDecimator, Fmt.KMG(targetFaces));
 
