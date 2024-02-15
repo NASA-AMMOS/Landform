@@ -80,10 +80,16 @@ namespace JPLOPS.Landform
         [Option(HelpText = "Maximum faces per tile", Default = TilingDefaults.MAX_FACES_PER_TILE)]
         public int MaxFacesPerTile { get; set; }
 
-        [Option(Default = TilingDefaults.MAX_TILE_RESOLUTION, HelpText = "Max tile image resolution, negative for unlimited, 0 disables texturing")]
+        [Option(HelpText = "Max resolution per tile, 0 disables texturing, negative for unlimited or default", Default = TilingDefaults.MAX_TILE_RESOLUTION)]
         public int MaxTileResolution { get; set; }
 
-        [Option(HelpText = "Minium tile bounds extent", Default = TilingDefaults.MIN_TILE_EXTENT)]
+        [Option(HelpText = "Min resolution per tile", Default = TilingDefaults.MIN_TILE_RESOLUTION)]
+        public int MinTileResolution { get; set; }
+
+        [Option(HelpText = "Maximum tile bounds extent, negative for unlimited or default", Default = TilingDefaults.MAX_TILE_EXTENT)]
+        public double MaxTileExtent { get; set; }
+
+        [Option(HelpText = "Minimum tile bounds extent", Default = TilingDefaults.MIN_TILE_EXTENT)]
         public double MinTileExtent { get; set; }
 
         [Option(HelpText = "Minium tile bounds extent relative to mesh size", Default = TilingDefaults.MIN_TILE_EXTENT_REL)]
@@ -815,6 +821,12 @@ namespace JPLOPS.Landform
 
             args.Add("--maxtileresolution");
             args.Add(lsopts.MaxTileResolution.ToString());
+
+            args.Add("--mintileresolution");
+            args.Add(lsopts.MinTileResolution.ToString());
+
+            args.Add("--maxtileextent");
+            args.Add(lsopts.MaxTileExtent.ToString());
 
             args.Add("--mintileextent");
             args.Add(lsopts.MinTileExtent.ToString());

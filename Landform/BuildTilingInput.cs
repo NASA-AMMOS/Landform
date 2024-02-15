@@ -95,7 +95,7 @@ namespace JPLOPS.Landform
         [Option(HelpText = "Ratio of observation pixels to tile texels that would trigger a split", Default = TilingDefaults.TEX_SPLIT_MAX_PIXELS_PER_TEXEL)]
         public double SplitByTextureMaxPixelsPerTexel { get; set; }
 
-        [Option(HelpText = "Tiling scheme (Bin, QuadX, QuadY, QuadZ, QuadAuto, Oct, Flat)", Default = TilingDefaults.TILING_SCHEME)]
+        [Option(HelpText = "Tiling scheme (Bin, QuadX, QuadY, QuadZ, QuadAuto, Oct, Flat, Progressive)", Default = TilingDefaults.TILING_SCHEME)]
         public TilingScheme TilingScheme { get; set; }
 
         [Option(Default = "auto", HelpText = "Texture mode (None, Clip, Bake, Backproject, auto)")]
@@ -346,6 +346,12 @@ namespace JPLOPS.Landform
                     pipeline.LogInfo("no available PDS version of input texture {0}", options.InputTexture);
                 }
             }
+
+            if (options.MinTileExtent <= 0)
+            {
+                throw new Exception("invalid --mintileextent " + options.MinTileExtent);
+            }
+            options.MaxTileExtent = Math.Max(options.MaxTileExtent, options.MinTileExtent);
 
             return true;
         }
@@ -766,9 +772,9 @@ namespace JPLOPS.Landform
 
         private bool CanUseTextureSplit()
         {
-            if (options.TilingScheme == TilingScheme.Flat)
+            if (options.TilingScheme == TilingScheme.Flat || options.TilingScheme == TilingScheme.Progressive)
             {
-                pipeline.LogInfo("texture split disabled, flat tiling scheme");
+                pipeline.LogInfo("texture split disabled, {0} tiling scheme", options.TilingScheme);
                 return false;
             }
 
@@ -878,7 +884,8 @@ namespace JPLOPS.Landform
 
             double minTileExtent = options.MinTileExtent;
             var meshBounds = BoundingBoxExtensions.Union(meshOpForLOD.Select(o => o.Bounds).ToArray());
-            if (!meshBounds.IsEmpty() && options.MinTileExtentRel > 0)
+            if (!meshBounds.IsEmpty() && options.MinTileExtentRel > 0 &&
+                options.TilingScheme != TilingScheme.Flat && options.TilingScheme != TilingScheme.Progressive)
             {
                 Vector2 meshSize = meshBounds.GetFaceSizePerpendicularToAxis(meshBounds.MinAxis());
                 minTileExtent = Math.Min(minTileExtent, options.MinTileExtentRel * Math.Min(meshSize.X, meshSize.Y));
@@ -892,7 +899,11 @@ namespace JPLOPS.Landform
 
             if (options.TilingScheme == TilingScheme.Flat)
             {
-                BuildFlatTileTree(meshBounds);
+                BuildFlatTileTree(meshBounds, options.MinTileExtent);
+            }
+            else if (options.TilingScheme == TilingScheme.Progressive)
+            {
+                BuildProgressiveTileTree(meshBounds, options.MinTileExtent, options.MaxTileExtent);
             }
             else if (meshLOD.Count > 1)
             {
@@ -924,24 +935,27 @@ namespace JPLOPS.Landform
             pipeline.Debug = wasDebug;
         }
 
-        private void BuildFlatTileTree(BoundingBox bounds)
+        private void BuildFlatTileTree(BoundingBox bounds, double tileExtent, int firstTile = 0)
         {
-            float sx = (float)(bounds.Max.X - bounds.Min.X);
-            float sy = (float)(bounds.Max.Y - bounds.Min.Y);
-            int nx = (int)Math.Ceiling(sx / options.MinTileExtent);
-            int ny = (int)Math.Ceiling(sy / options.MinTileExtent);
-            float tx = sx / nx;
-            float ty = sy / ny;
-            pipeline.LogInfo("building {0}x{1} flat tile tree for {2:f3}x{3:f3}m scene, tile size {4:f3}x{5:f3}m",
-                             nx, ny, sx, sy, tx, ty);
+            double sx = bounds.Max.X - bounds.Min.X;
+            double sy = bounds.Max.Y - bounds.Min.Y;
+            int nx = (int)Math.Ceiling(sx / tileExtent);
+            int ny = (int)Math.Ceiling(sy / tileExtent);
+            double tx = sx / nx;
+            double ty = sy / ny;
 
-            tileTree = new SceneNode("root");
-            tileTree.AddComponent<NodeBounds>().Bounds = bounds;
-            float sd = (float)Math.Sqrt(sx * sx + sy * sy);
-            tileTree.AddComponent<NodeGeometricError>().Error = sd; //high enough that root shouldn't get used
-
+            if (firstTile == 0)
+            {
+                pipeline.LogInfo("building {0}x{1} flat tile tree for {2:f3}x{3:f3}m scene, tile size {4:f3}x{5:f3}m",
+                                 nx, ny, sx, sy, tx, ty);
+                tileTree = new SceneNode("root");
+                tileTree.AddComponent<NodeBounds>().Bounds = bounds;
+                float sd = (float)Math.Sqrt(sx * sx + sy * sy);
+                tileTree.AddComponent<NodeGeometricError>().Error = sd; //high enough that root shouldn't get used
+            }
+                
             //mission surface frames are X north, Y right, Z down
-            int k = 0;
+            int k = firstTile;
             for (int i = 0; i < nx; i++)
             {
                 for (int j = 0; j < ny; j++)
@@ -953,6 +967,68 @@ namespace JPLOPS.Landform
                     leaf.AddComponent(new NodeBounds(leafBounds));
                     leaf.AddComponent<NodeGeometricError>().Error = 0;
                 }
+            }
+        }
+
+        private void BuildProgressiveTileTree(BoundingBox bounds, double minTileExtent, double maxTileExtent,
+                                              int firstTile = 0)
+        {
+            double sx = bounds.Max.X - bounds.Min.X;
+            double sy = bounds.Max.Y - bounds.Min.Y;
+            int nx = (int)Math.Ceiling(sx / maxTileExtent);
+            int ny = (int)Math.Ceiling(sy / maxTileExtent);
+            double tx = sx / nx;
+            double ty = sy / ny;
+
+            if (maxTileExtent <= minTileExtent || (0.5 * maxTileExtent) < minTileExtent || nx <= 2 || ny <= 2)
+            {
+                pipeline.LogInfo("finishing progressive tile tree with {0}x{1} flat tiling of " +
+                                 "{2:f3}x{3:f3}m tiles within central {4:f3}x{5:f3}m subscene",
+                                 nx, ny, tx, ty, sx, sy);
+                BuildFlatTileTree(bounds, maxTileExtent, firstTile);
+            }
+            else
+            {
+                if (firstTile == 0)
+                {
+                    pipeline.LogInfo("building progressive tile tree for {0:f3}x{1:f3}m scene, " +
+                                     "tile size {2:f3} to {3:f3}m", sx, sy, minTileExtent, maxTileExtent);
+                    tileTree = new SceneNode("root");
+                    tileTree.AddComponent<NodeBounds>().Bounds = bounds;
+                    float sd = (float)Math.Sqrt(sx * sx + sy * sy);
+                    tileTree.AddComponent<NodeGeometricError>().Error = sd; //high enough that root shouldn't get used
+                }
+                
+                //mission surface frames are X north, Y right, Z down
+                int k = firstTile;
+                void addLeaf(int i, int j)
+                {
+                    var min = new Vector3(bounds.Min.X + i       * tx, bounds.Min.Y + j       * ty, bounds.Min.Z);
+                    var max = new Vector3(bounds.Min.X + (i + 1) * tx, bounds.Min.Y + (j + 1) * ty, bounds.Max.Z);
+                    var leafBounds = new BoundingBox(min, max);
+                    var leaf = new SceneNode((k++).ToString(), tileTree.Transform);
+                    leaf.AddComponent(new NodeBounds(leafBounds));
+                    leaf.AddComponent<NodeGeometricError>().Error = 0;
+                    pipeline.LogVerbose("added progressive tile tree leaf {0} " +
+                                        "from ({1:f3}, {2:f3}) to ({3:f3}, {4:f3})", k, min.X, min.Y, max.X, max.Y);
+                }
+                for (int i = 0; i < nx; i++)
+                {
+                    addLeaf(i, 0); //left col
+                    addLeaf(i, ny - 1); //right col
+                }
+                for (int j = 1; j < ny - 1; j++)
+                {
+                    addLeaf(0, j); //bottom row
+                    addLeaf(nx - 1, j); //top row
+                }
+
+                bounds.Min.X += tx;
+                bounds.Max.X -= tx;
+                bounds.Min.Y += ty;
+                bounds.Max.Y -= ty;
+
+                BuildProgressiveTileTree(bounds, minTileExtent, 0.5 * maxTileExtent, k);
             }
         }
 
@@ -1250,7 +1326,7 @@ namespace JPLOPS.Landform
                 ParentNames = new List<string>(),
             };
 
-            if (options.TilingScheme == TilingScheme.Flat)
+            if (options.TilingScheme == TilingScheme.Flat || options.TilingScheme == TilingScheme.Progressive)
             {
                 tileList.ParentNames.Add(tileTree.Name); //root is only parent in flat tiling
             }
