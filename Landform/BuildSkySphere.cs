@@ -137,9 +137,6 @@ namespace JPLOPS.Landform
         [Option(HelpText = "Option disabled for this command", Default = ObsSelectionStrategyName.Spatial)]
         public override ObsSelectionStrategyName ObsSelectionStrategy { get; set; }
 
-        [Option(HelpText = "Tile image resolution, should be power of 2", Default = TilingDefaults.MAX_TILE_RESOLUTION)]
-        public override int MaxTileResolution { get; set; }
-
         [Option(HelpText = "Prefer color images (Never, Always, EquivalentScores, auto)", Default = "auto")]
         public string SkyPreferColor { get; set; }
 
