@@ -158,8 +158,12 @@ namespace JPLOPS.Landform
                 options.RedoBlendedTexture = true;
             }
 
+            options.RedoBlurredTexture |= options.RedoBlurredObservationTextures;
             options.RedoBlurredTexture |= options.RedoShrinkwrapMesh;
+
             options.RedoBlendedTexture |= options.RedoBlurredTexture;
+
+            options.RedoBlendedObservationTextures |= options.RedoBlendedTexture;
         }
 
         public int Run()
@@ -558,7 +562,7 @@ namespace JPLOPS.Landform
 
         private void BuildBlendedObservationImages()
         {
-            BuildBlendedObservationImages(blendedTexture);
+            BuildBlendedObservationImages(blendedTexture, preadjustLuminance: options.PreadjustLuminance);
         }
         
         private Func<Vector2, Vector2> CreatePixelWarpFunction()

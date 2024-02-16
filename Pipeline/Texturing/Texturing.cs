@@ -46,6 +46,6 @@ namespace JPLOPS.Pipeline
         public const int DIFF_BLUR_RADIUS = 7;
         public const int BLEND_TEXTURE_RESOLUTION = 4096;
         public const double BLEND_PREADJUST_LUMINANCE = 0.2;
-        public const double SKY_PREADJUST_LUMINANCE = 1;
+        public const double SKY_PREADJUST_LUMINANCE = 0.2;
     }
 }

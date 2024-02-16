@@ -568,7 +568,7 @@ namespace JPLOPS.Landform
 
         protected void BuildBlendedObservationImages(Image blendedTexture, Image backprojectIndex = null,
                                                      TextureVariant textureVariant = TextureVariant.Blended,
-                                                     bool forceRedo = false)
+                                                     bool forceRedo = false, double preadjustLuminance = 0)
         {
             backprojectIndex = backprojectIndex ?? this.backprojectIndex;
 
@@ -660,9 +660,18 @@ namespace JPLOPS.Landform
 
             double colorizeHue = tcopts.Colorize ? medianHue : -1;
 
+            double lumaMed = -1, lumaMAD = -1;
+            if (preadjustLuminance > 0)
+            {
+                Backproject.GetImageStats(pipeline, project,
+                                          winners.Keys.Select(idx => observationCache.GetObservation(idx)),
+                                          out lumaMed, out lumaMAD, out double hueMed);
+            }
+
             int no = indexedImages.Count;
-            pipeline.LogInfo("creating {0} images for {1} observations{2}",
-                             textureVariant, no, colorizeHue >= 0 ? ", colorizing monochrome images" : "");
+            pipeline.LogInfo("creating {0} images for {1} observations{2}{3}",
+                             textureVariant, no, colorizeHue >= 0 ? ", colorizing monochrome images" : "",
+                             preadjustLuminance > 0 ? (", preadjust luminance " + preadjustLuminance) : "");
             pipeline.LogInfo("barycentric interp: {0}, inpaint diff: {1}, blur diff: {2}, fill avg: {3}",
                              tcopts.BarycentricInterpolateWinners, tcopts.InpaintDiff, tcopts.BlurDiff,
                              !tcopts.NoFillBlendWithAverageDiff);
@@ -736,6 +745,17 @@ namespace JPLOPS.Landform
                 writeDebug(img, obs, "");
 
                 Image blr = pipeline.GetDataProduct<PngDataProduct>(project, obs.BlurredGuid, noCache: true).Image;
+
+                if (preadjustLuminance > 0 && lumaMed >= 0 && obs.StatsGuid != Guid.Empty)
+                {
+                    var st = pipeline.GetDataProduct<ImageStats>(project, obs.StatsGuid, noCache: true);
+                    img = new Image(img); //don't mutate cached image
+                    img.AdjustLuminanceDistribution(st.LuminanceMedian, st.LuminanceMedianAbsoluteDeviation,
+                                                    lumaMed, lumaMAD, preadjustLuminance);
+                    blr = new Image(blr); //don't mutate cached image
+                    blr.AdjustLuminanceDistribution(st.LuminanceMedian, st.LuminanceMedianAbsoluteDeviation,
+                                                    lumaMed, lumaMAD, preadjustLuminance);
+                }
 
                 if (colorizeHue >= 0 && img.Bands == 1)
                 {
