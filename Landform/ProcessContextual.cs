@@ -33,7 +33,7 @@ using DictionaryOfChangedURLs =
 /// 7. build-tileset
 /// 8. build-sky-sphere
 /// 9. update-scene-manifest (manifest just for the contextual mesh tileset with relative URLs)
-/// 10. update-scene-manifest (optional combined manifest for the scene with abolute URLs)
+/// 10. update-scene-manifest (optional combined manifest for the scene with absolute URLs)
 ///
 /// As a service, process-contextual is designed to run over a long period of time, receiving messages on an SQS queue,
 /// creating contextual meshes, and uploading them back to S3.
