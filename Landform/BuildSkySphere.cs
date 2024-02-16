@@ -149,7 +149,7 @@ namespace JPLOPS.Landform
 
     public class BuildSkySphere : TilingCommand
     {
-        public const SkyMode DEF_SKY_MODE = SkyMode.Sphere;
+        public const SkyMode DEF_SKY_MODE = SkyMode.Auto;
 
         public const double DEF_SCENE_RADIUS = 45;
 
