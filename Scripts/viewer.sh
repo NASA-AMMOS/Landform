@@ -80,7 +80,7 @@ fi
 
 for url in "$@"; do
     query="?Tileset="
-    if [[ $url == *_scene.json ]]; then query="?Scene="; fi
+    if [[ $url == *scene.json ]]; then query="?Scene="; fi
     if [[ "$url" ==  $out/* ]] || [[ "$url" == ./$out/* ]]; then
         url=${url#$out/}
         url=${url#./$out/}
