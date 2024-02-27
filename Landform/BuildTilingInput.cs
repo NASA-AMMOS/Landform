@@ -98,6 +98,9 @@ namespace JPLOPS.Landform
         [Option(HelpText = "Tiling scheme (Bin, QuadX, QuadY, QuadZ, QuadAuto, Oct, Flat, Progressive)", Default = TilingDefaults.TILING_SCHEME)]
         public TilingScheme TilingScheme { get; set; }
 
+        [Option(HelpText = "Progressive tiling factor, in the range (0.0, 1.0)", Default = TilingDefaults.PROGRESSIVE_TILING_FACTOR)]
+        public double ProgressiveTilingFactor { get; set; }
+
         [Option(Default = "auto", HelpText = "Texture mode (None, Clip, Bake, Backproject, auto)")]
         public string TextureMode { get; set; }
 
@@ -352,6 +355,12 @@ namespace JPLOPS.Landform
                 throw new Exception("invalid --mintileextent " + options.MinTileExtent);
             }
             options.MaxTileExtent = Math.Max(options.MaxTileExtent, options.MinTileExtent);
+
+            if (options.TilingScheme == TilingScheme.Progressive &&
+                (options.ProgressiveTilingFactor < 0.0 || options.ProgressiveTilingFactor > 1.0))
+            {
+                throw new Exception("invalid --progressivetilingfactor " + options.ProgressiveTilingFactor);
+            }
 
             return true;
         }
@@ -980,7 +989,9 @@ namespace JPLOPS.Landform
             double tx = sx / nx;
             double ty = sy / ny;
 
-            if (maxTileExtent <= minTileExtent || (0.5 * maxTileExtent) < minTileExtent || nx <= 2 || ny <= 2)
+            double factor = options.ProgressiveTilingFactor;
+
+            if (maxTileExtent <= minTileExtent || (factor * maxTileExtent) < minTileExtent || nx <= 2 || ny <= 2)
             {
                 pipeline.LogInfo("finishing progressive tile tree with {0}x{1} flat tiling of " +
                                  "{2:f3}x{3:f3}m tiles within central {4:f3}x{5:f3}m subscene",
@@ -991,8 +1002,8 @@ namespace JPLOPS.Landform
             {
                 if (firstTile == 0)
                 {
-                    pipeline.LogInfo("building progressive tile tree for {0:f3}x{1:f3}m scene, " +
-                                     "tile size {2:f3} to {3:f3}m", sx, sy, minTileExtent, maxTileExtent);
+                    pipeline.LogInfo("building progressive tile tree (factor {0:f3}) for {1:f3}x{2:f3}m scene, " +
+                                     "tile size {3:f3} to {4:f3}m", factor, sx, sy, minTileExtent, maxTileExtent);
                     tileTree = new SceneNode("root");
                     tileTree.AddComponent<NodeBounds>().Bounds = bounds;
                     float sd = (float)Math.Sqrt(sx * sx + sy * sy);
@@ -1028,7 +1039,7 @@ namespace JPLOPS.Landform
                 bounds.Min.Y += ty;
                 bounds.Max.Y -= ty;
 
-                BuildProgressiveTileTree(bounds, minTileExtent, 0.5 * maxTileExtent, k);
+                BuildProgressiveTileTree(bounds, minTileExtent, factor * maxTileExtent, k);
             }
         }
 
@@ -1328,7 +1339,7 @@ namespace JPLOPS.Landform
 
             if (options.TilingScheme == TilingScheme.Flat || options.TilingScheme == TilingScheme.Progressive)
             {
-                tileList.ParentNames.Add(tileTree.Name); //root is only parent in flat tiling
+                tileList.ParentNames.Add(tileTree.Name); //root is only parent in flat or progressive tiling
             }
 
             tileList.RootTransform = meshTransform.HasValue ? Matrix.Invert(meshTransform.Value) : Matrix.Identity;
