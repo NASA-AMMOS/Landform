@@ -671,6 +671,7 @@ namespace JPLOPS.Landform
             public long timestamp; //UTC milliseconds since epoch when message was created
             public int numFailedAttempts;
             public double extent = -1; //in meters, non-positive to use default
+            public bool force; //rebuild even if tileset appears to already exist
 #pragma warning restore 0649
 
             public override int GetHashCode()
@@ -2111,7 +2112,7 @@ namespace JPLOPS.Landform
             return JsonHelper.ToJson(new ContextualPIDContent(pid, status, currentMessage), autoTypes: false);
         }
 
-        private string AssignVersionAndSavePID(string destDir, ref string project)
+        private string AssignVersionAndSavePID(string destDir, ref string project, bool force)
         {
             string projSfx = "_orbital";
             if (project.EndsWith(projSfx))
@@ -2157,9 +2158,18 @@ namespace JPLOPS.Landform
                     var status = CheckForTileset(currentMessage as ContextualMeshMessage, destDir, i);
                     if (status == TilesetStatus.done || status == TilesetStatus.processing)
                     {
-                        pipeline.LogInfo("aborting {0}, already {1} at {2}/{3}",
-                                         project, status, destDir, versionedProject);
-                        return null;
+                        if (!force)
+                        {
+                            pipeline.LogInfo("aborting {0}, already {1} at {2}/{3}",
+                                             project, status, destDir, versionedProject);
+                            return null;
+                        }
+                        else
+                        {
+                            pipeline.LogInfo("force rebuilding {0} with a new version, already {1} at {2}/{3}",
+                                             project, status, destDir, versionedProject);
+                            status = TilesetStatus.found;
+                        }
                     }
                     if (status == TilesetStatus.found)
                     {
@@ -2314,7 +2324,7 @@ namespace JPLOPS.Landform
 
                 Configure(venue);
 
-                string pidFile = AssignVersionAndSavePID(destDir, ref project);
+                string pidFile = AssignVersionAndSavePID(destDir, ref project, cmm.force);
                 if (string.IsNullOrEmpty(pidFile))
                 {
                     return;
@@ -3597,8 +3607,7 @@ namespace JPLOPS.Landform
                     {
                         //only checking version 0 here
                         //this could return false negative if e.g. version 0 went zombie but a later version is done
-                        //for contextual meshes things like that should get handled later in AssignVersionAndSavePID()
-                        //for orbital this might mean we recreate the tileset even though it exists in another sol
+                        //this might mean we recreate the tileset even though it exists in another sol
                         //but that's not the end of the world
                         string solDir = StringHelper.ReplaceIntWildcards(rdrDir, sol);
                         var status = CheckForTileset(msg, GetDestDir(solDir, quiet: true), 0, sol);
@@ -3803,7 +3812,13 @@ namespace JPLOPS.Landform
 
             if (forceMsgs != null && forceMsgs.Count > 0)
             {
-                coalesced.AddRange(forceMsgs.OrderBy(sm => sm.Timestamp).Select(sm => sm.Value));
+                coalesced.AddRange(forceMsgs.OrderBy(sm => sm.Timestamp)
+                                   .Select(sm =>
+                                   {
+                                       var msg = sm.Value;
+                                       msg.force = true;
+                                       return msg;
+                                   }));
                 try
                 {
                     coalesced = CoalesceMessages(coalesced, what, queue, rdrDir, -1, false, -1);
