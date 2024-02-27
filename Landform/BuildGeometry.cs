@@ -237,8 +237,8 @@ namespace JPLOPS.Landform
         public const int DEF_TARGET_SURFACE_MESH_FACES = 2000000;
         public const double DEF_ORBITAL_FILL_PADDING = 2;
         public const int DEF_ORBITAL_FILL_POINTS_PER_METER = 8;
-        public const double DEF_ORBITAL_FILL_POISSON_CONFIDENCE = 0.05;
-        public const OrbitalFillAdjust DEF_ORBITAL_FILL_ADJUST = OrbitalFillAdjust.None;
+        public const double DEF_ORBITAL_FILL_POISSON_CONFIDENCE = 0.5;
+        public const OrbitalFillAdjust DEF_ORBITAL_FILL_ADJUST = OrbitalFillAdjust.Med;
         public const double DEF_ORBITAL_FILL_ADJUST_BLEND = 0.9;
         public const int DEF_ORBITAL_FILL_ADJUST_WIDTH = -1;
         public const double DEF_LINEAR_MIN_POISSON_CONFIDENCE = 0.1;
