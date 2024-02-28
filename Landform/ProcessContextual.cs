@@ -2324,7 +2324,9 @@ namespace JPLOPS.Landform
 
                 Configure(venue);
 
-                string pidFile = AssignVersionAndSavePID(destDir, ref project, cmm.force);
+                bool force = cmm.force ||
+                    (orbitalOnly ? options.RecreateExistingOrbital : !options.NoRecreateExistingContextual);
+                string pidFile = AssignVersionAndSavePID(destDir, ref project, force);
                 if (string.IsNullOrEmpty(pidFile))
                 {
                     return;
