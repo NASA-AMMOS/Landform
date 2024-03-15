@@ -67,4 +67,4 @@ Landform and its underlying matrix library XNAMath (ported from [MonoGame](https
 
 Images are accessed by pixel using zero based rows and columns with the origin at the top left of the image. Integer pixel coordinats are at the top left corner of the pixel.  Some of the camera model code uses pixel center conventions so be aware of half-pixel offsets.
 
-Landform expects that texture coordinates for meshes follow the OpenGL convention of the lower-left of an image being the origin. This means that texture coordinates require a vertical coordinate swap to map between pixels and uvs. GenericImage.cs provides functions to do this Image.PixelToUV and Image.UVToPixel.
+Landform expects that texture coordinates for meshes follow the OpenGL convention of the lower-left of an image being the origin. This means that texture coordinates require a vertical coordinate swap to map between pixels and uvs.
