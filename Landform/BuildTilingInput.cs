@@ -101,6 +101,9 @@ namespace JPLOPS.Landform
         [Option(HelpText = "Progressive tiling factor, in the range (0.0, 1.0)", Default = TilingDefaults.PROGRESSIVE_TILING_FACTOR)]
         public double ProgressiveTilingFactor { get; set; }
 
+        [Option(HelpText = "Determine tile resolution for progressive tiling by interpolating from --maxtextureresolution at innermost ring to --mintextureresolution at outermost", Default = false)]
+        public bool ProgressiveTileResolution { get; set; }
+
         [Option(Default = "auto", HelpText = "Texture mode (None, Clip, Bake, Backproject, auto)")]
         public string TextureMode { get; set; }
 
@@ -176,6 +179,8 @@ namespace JPLOPS.Landform
 
         private bool tacticalFrame;
         private string inputTexturePDS;
+
+        private int numProgressiveRings;
 
         private TextureSplitOptions textureSplitOptions;
 
@@ -953,10 +958,25 @@ namespace JPLOPS.Landform
             double tx = sx / nx;
             double ty = sy / ny;
 
+            int numRings = 0, maxXRing = 0, maxYRing = 0;
+            if (options.TilingScheme == TilingScheme.Progressive)
+            {
+                int numXRings = (int)Math.Ceiling(0.5 * nx); //nx=1 -> 1, nx=2 -> 1, nx=3 -> 2, nx=4-> 2, nx=5 -> 3, ...
+                int numYRings = (int)Math.Ceiling(0.5 * ny);
+                maxXRing = numProgressiveRings + numXRings - 1;
+                maxYRing = numProgressiveRings + numYRings - 1;
+                numRings = Math.Min(numXRings, numYRings);
+            }
+
+            if (firstTile == 0 || numRings > 0)
+            {
+                pipeline.LogInfo
+                    ("building {0}x{1} flat tile tree for {2:f3}x{3:f3}m bounds, tile size {4:f3}x{5:f3}m{6}",
+                     nx, ny, sx, sy, tx, ty, numRings > 0 ? (", " + numRings + " rings") : "");
+            }
+
             if (firstTile == 0)
             {
-                pipeline.LogInfo("building {0}x{1} flat tile tree for {2:f3}x{3:f3}m scene, tile size {4:f3}x{5:f3}m",
-                                 nx, ny, sx, sy, tx, ty);
                 tileTree = new SceneNode("root");
                 tileTree.AddComponent<NodeBounds>().Bounds = bounds;
                 float sd = (float)Math.Sqrt(sx * sx + sy * sy);
@@ -965,17 +985,37 @@ namespace JPLOPS.Landform
                 
             //mission surface frames are X north, Y right, Z down
             int k = firstTile;
-            for (int i = 0; i < nx; i++)
+            int xRing = numProgressiveRings, xRingIncr = 1;
+            for (int i = 0; i < nx; i++, xRing += xRingIncr)
             {
-                for (int j = 0; j < ny; j++)
+                if (xRing >= maxXRing)
                 {
+                    xRingIncr = -1;
+                }
+                int yRing = numProgressiveRings, yRingIncr = 1;
+                for (int j = 0; j < ny; j++, yRing += yRingIncr)
+                {
+                    if (yRing >= maxYRing)
+                    {
+                        yRingIncr = -1;
+                    }
                     var min = new Vector3(bounds.Min.X + i       * tx, bounds.Min.Y + j       * ty, bounds.Min.Z);
                     var max = new Vector3(bounds.Min.X + (i + 1) * tx, bounds.Min.Y + (j + 1) * ty, bounds.Max.Z);
                     var leafBounds = new BoundingBox(min, max);
-                    var leaf = new SceneNode((k++).ToString(), tileTree.Transform);
+                    var name = (k++).ToString();
+                    if (options.TilingScheme == TilingScheme.Progressive)
+                    {
+                        name += "_" + Math.Min(xRing, yRing);
+                    }
+                    var leaf = new SceneNode(name, tileTree.Transform);
                     leaf.AddComponent(new NodeBounds(leafBounds));
                     leaf.AddComponent<NodeGeometricError>().Error = 0;
                 }
+            }
+
+            if (numRings > 0)
+            {
+                numProgressiveRings += numRings;
             }
         }
 
@@ -1017,11 +1057,12 @@ namespace JPLOPS.Landform
                     var min = new Vector3(bounds.Min.X + i       * tx, bounds.Min.Y + j       * ty, bounds.Min.Z);
                     var max = new Vector3(bounds.Min.X + (i + 1) * tx, bounds.Min.Y + (j + 1) * ty, bounds.Max.Z);
                     var leafBounds = new BoundingBox(min, max);
-                    var leaf = new SceneNode((k++).ToString(), tileTree.Transform);
+                    string name = (k++) + "_" + numProgressiveRings;
+                    var leaf = new SceneNode(name, tileTree.Transform);
                     leaf.AddComponent(new NodeBounds(leafBounds));
                     leaf.AddComponent<NodeGeometricError>().Error = 0;
-                    pipeline.LogVerbose("added progressive tile tree leaf {0} " +
-                                        "from ({1:f3}, {2:f3}) to ({3:f3}, {4:f3})", k, min.X, min.Y, max.X, max.Y);
+                    pipeline.LogInfo("added progressive tile tree leaf {0} at ring {1} from ({2:f3}, {3:f3}) " +
+                                        "to ({4:f3}, {5:f3})", name, numProgressiveRings, min.X, min.Y, max.X, max.Y);
                 }
                 for (int i = 0; i < nx; i++)
                 {
@@ -1038,6 +1079,8 @@ namespace JPLOPS.Landform
                 bounds.Max.X -= tx;
                 bounds.Min.Y += ty;
                 bounds.Max.Y -= ty;
+
+                numProgressiveRings++;
 
                 BuildProgressiveTileTree(bounds, minTileExtent, factor * maxTileExtent, k);
             }
@@ -1595,6 +1638,20 @@ namespace JPLOPS.Landform
             if (minTileResolution == maxTileResolution)
             {
                 return maxTileResolution;
+            }
+
+            if (options.TilingScheme == TilingScheme.Progressive && options.ProgressiveTileResolution &&
+                tileName != null)
+            {
+                string[] parts = tileName.Split('_');
+                if (parts.Length > 1 && int.TryParse(parts[1], out int ring))
+                {
+                    double t = numProgressiveRings > 1 ? ((double)ring / (double)(numProgressiveRings - 1)) : 1;
+                    int res = (int)(maxTileResolution * t + minTileResolution * (1.0 - t));
+                    pipeline.LogInfo("progressive tile resolution: using resolution {0} for tile {1} at ring {2}/{3}",
+                                     res, tileName, ring, numProgressiveRings);
+                    return res;
+                }
             }
 
             double texelsPerMeter =
