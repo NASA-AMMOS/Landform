@@ -131,6 +131,9 @@ namespace JPLOPS.Landform
         [Option(HelpText = "Option disabled for this command", Default = false)]
         public override bool NoSurface { get; set; }
 
+        [Option(HelpText = "Don't discard backface raycast hits", Default = false)]
+        public bool KeepBackfaceRaycasts { get; set; }
+
         [Option(HelpText = "Option disabled for this command", Default = 0)]
         public override double TextureFarClip { get; set; }
 
@@ -601,7 +604,8 @@ namespace JPLOPS.Landform
                         var dir = Vector3.Normalize(sample.Point - sphereCenter);
                         var ray = new Ray(sphereCenter, dir);
                         var hit = orbitalScene.Raycast(ray);
-                        if (hit != null && Vector3.Dot(hit.FaceNormal, dir) < 0) //yes, embree returns backface hits
+                        //yes, embree returns backface hits
+                        if (hit != null && (options.KeepBackfaceRaycasts || Vector3.Dot(hit.FaceNormal, dir) < 0))
                         {
                             sample.Point = hit.Position;
                         }
