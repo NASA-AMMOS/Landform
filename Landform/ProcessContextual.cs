@@ -2496,11 +2496,12 @@ namespace JPLOPS.Landform
 
                 FetchData.ExpireEDRCache(msg => pipeline.LogInfo(msg));
             }
-            catch
+            catch (Exception ex)
             {
                 pipeline.LogError("fatal error producing contextual tileset {0}", project);
+                pipeline.LogException(ex); 
                 Cleanup(venueDir);
-                throw; //will spew detailed error
+                throw;
             }
         }
 
