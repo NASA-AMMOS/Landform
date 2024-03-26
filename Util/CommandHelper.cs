@@ -204,6 +204,10 @@ namespace JPLOPS.Util
                         {
                             Config.ParseEnvVal(str, prop.PropertyType, obj =>
                             {
+                                if (va.Name.Contains("PASSWORD"))
+                                {
+                                    str = "******";
+                                }
                                 //this doesn't work because each call to GetCustomAttribute() returns a new instance
                                 //ba.Default = obj;
                                 Config.Log($"using {en}={str} to default {va.Name} --{opt} (may be overridden)");
