@@ -64,6 +64,9 @@ namespace JPLOPS.Pipeline
         [ConfigEnvironmentVariable("LANDFORM_ALLOW_MULTI_FRAME")]
         public bool AllowMultiFrame { get; set; } = true;
 
+        [ConfigEnvironmentVariable("LANDFORM_ALLOW_GRAYSCALE_FOR_TEXTURING")]
+        public bool AllowGrayscaleForTexturing { get; set; } = true;
+
         [ConfigEnvironmentVariable("LANDFORM_PREFER_LINEAR_GEOMETRY_PRODUCTS")]
         public bool PreferLinearGeometryProducts { get; set; } = true;
 
@@ -564,6 +567,14 @@ namespace JPLOPS.Pipeline
         }
 
         /// <summary>
+        /// whether to allow grayscale images for texturing
+        /// </summary>
+        public virtual bool AllowGrayscaleForTexturing()
+        {
+            return MissionConfig.Instance.AllowGrayscaleForTexturing;
+        }
+
+        /// <summary>
         /// whether to allow multi-frame products such as unified meshes
         /// </summary>
         public virtual bool AllowMultiFrame()
@@ -823,12 +834,12 @@ namespace JPLOPS.Pipeline
 
         public bool UseForMeshing(PDSParser parser)
         {
-            return UseForMeshing(GetCamera(parser));
+            return UseForMeshing(GetCamera(parser)) && RoverProduct.IsGeometry(GetProductType(parser));
         }
 
         public bool UseForMeshing(RoverProductId id)
         {
-            return UseForMeshing(id.Camera);
+            return UseForMeshing(id.Camera) && RoverProduct.IsGeometry(id.ProductType);
         }
 
         public virtual bool UseForMeshing(RoverProductCamera cam)
@@ -839,14 +850,20 @@ namespace JPLOPS.Pipeline
                 (IsArmcam(cam) && UseArmcamForMeshing());
         }
 
+        protected bool UseForTexturing(RoverProductCamera cam, RoverProductType pt, bool color)
+        {
+            return UseForTexturing(cam) && RoverProduct.IsRaster(pt) &&
+                (RoverProduct.IsMask(pt) || color || AllowGrayscaleForTexturing());
+        }
+
         public bool UseForTexturing(PDSParser parser)
         {
-            return UseForTexturing(GetCamera(parser));
+            return UseForTexturing(GetCamera(parser), GetProductType(parser), parser.metadata.Bands > 1);
         }
 
         public bool UseForTexturing(RoverProductId id)
         {
-            return UseForTexturing(id.Camera);
+            return UseForTexturing(id.Camera, id.ProductType, id.Color == RoverProductColor.FullColor);
         }
 
         public virtual bool UseForTexturing(RoverProductCamera cam)

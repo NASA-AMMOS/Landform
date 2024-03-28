@@ -1266,7 +1266,8 @@ namespace JPLOPS.Pipeline
             string obsName = "Orbital" + StringHelper.UppercaseFirst(what);
             string url = StringHelper.NormalizeUrl(Path.GetFullPath(filePath), "file://");
             Observation.Create(pipeline, orbitalFrame, obsName, url, cmod, day: 0, version: 0, index: obsIndex,
-                               useForAlignment: isDEM, useForMeshing: isDEM, useForTexturing: isImg,
+                               useForAlignment: isDEM, useForMeshing: isDEM,
+                               useForTexturing: isImg && (asset.Bands > 1 || mission.AllowGrayscaleForTexturing()),
                                width: asset.Width, height: asset.Height, bands: asset.Bands,
                                bits: gisCam != null ? gisCam.Bits : isDEM ? 32 : 8);
 
