@@ -104,6 +104,15 @@ namespace JPLOPS.Landform
         [Option(HelpText = "Only include faces that intersect these observations, comma separated", Default = null)]
         public string OnlyFacesForObs { get; set; }
 
+        [Option(HelpText = "Apply alternate wedge mesh decimation settings to observations with hulls that include at least one of these points. Semicolon separated list of X,Y,Z points in scene frame", Default = null)]
+        public string AlternateWedgeMeshDecimationPoints { get; set; }
+
+        [Option(HelpText = "Alternate wedge mesh decimation blocksize, 0 to disable, -1 for auto", Default = -1)]
+        public virtual int AlternateWedgeMeshDecimation { get; set; }
+
+        [Option(HelpText = "Alternate wedge mesh auto decimation target resolution", Default = 4096)]
+        public virtual int AlternateTargetWedgeMeshResolution { get; set; }
+
         [Option(HelpText = "Pre-clip observation point clouds to XY box of this size in meters around mesh frame origin if positive", Default = 0)]
         public double PreClipPointCloudExtent { get; set; }
 
@@ -257,6 +266,8 @@ namespace JPLOPS.Landform
         private int dbgMeshCount;
 
         private RoverObservation[] onlyForObs;
+
+        private List<Vector3> alternateWedgeMeshDecimationPoints;
 
         private Dictionary<string, string> wedgeWhitelist;
 
@@ -413,6 +424,16 @@ namespace JPLOPS.Landform
                 .Where(obs => obs is RoverObservation)
                 .Cast<RoverObservation>()
                 .ToArray();
+
+            if (!string.IsNullOrEmpty(options.AlternateWedgeMeshDecimationPoints))
+            {
+                alternateWedgeMeshDecimationPoints = new List<Vector3>();
+                foreach (var pt in StringHelper.ParseList(options.AlternateWedgeMeshDecimationPoints, ';'))
+                {
+                    var xyz = StringHelper.ParseFloatListSafe(pt, ',');
+                    alternateWedgeMeshDecimationPoints.Add(new Vector3(xyz[0], xyz[1], xyz[2]));
+                }
+            }
 
             if (!string.IsNullOrEmpty(options.WedgeWhitelist))
             {
@@ -600,9 +621,41 @@ namespace JPLOPS.Landform
                 }
 
                 var mo = wedgeMeshOpts.Clone();
-                mo.Decimate = WedgeObservations.AutoDecimate(obs.Points, options.DecimateWedgeMeshes,
-                                                             options.TargetWedgeMeshResolution);
-                if (mo.Decimate > 1 && mo.Decimate != options.DecimateWedgeMeshes && !options.NoProgress)
+                int decimateBlocksize = options.DecimateWedgeMeshes;
+                int autoDecimateTargetRes = options.TargetWedgeMeshResolution;
+
+                if (alternateWedgeMeshDecimationPoints != null)
+                {
+                    try
+                    {
+                        var hull = obs.BuildFrustumHull(pipeline, frameCache, mo, uncertaintyInflated: false);
+                        if (hull == null)
+                        {
+                            throw new Exception("failed to build hull");
+                        }
+                        foreach (var pt in alternateWedgeMeshDecimationPoints)
+                        {
+                            if (hull.Contains(pt))
+                            {
+                                decimateBlocksize = options.AlternateWedgeMeshDecimation;
+                                autoDecimateTargetRes = options.AlternateTargetWedgeMeshResolution;
+                                pipeline.LogInfo("using alternate wedge mesh decimation blocksize {0}{1} for {2}: " +
+                                                 "frustum hull contains point {3}", decimateBlocksize,
+                                                 decimateBlocksize < 0 ?
+                                                 $" (auto, target resolution {autoDecimateTargetRes})" : "",
+                                                 ptsName, pt);
+                                break;
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        pipeline.LogWarn("error creating observation frustum hull: " + ex.Message);
+                    }
+                }
+
+                mo.Decimate = WedgeObservations.AutoDecimate(obs.Points, decimateBlocksize, autoDecimateTargetRes);
+                if (mo.Decimate > 1 && mo.Decimate != decimateBlocksize && !options.NoProgress)
                 {
                     pipeline.LogVerbose("auto decimating point cloud for observation {0} with blocksize {1}",
                                         ptsName, mo.Decimate);
