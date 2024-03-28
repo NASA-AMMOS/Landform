@@ -69,7 +69,7 @@ namespace JPLOPS.Landform
         [Option(HelpText = "Only create products for observations marked for use in specific phases, comma separated list of (alignment,meshing,texturing)", Default = null)]
         public string OnlyForPhases { get; set; }
 
-        [Option(HelpText = "Only include observations with frustum hulls that include at least one of these points. Semicolon list of X,Y,Z points in scene frame", Default = null)]
+        [Option(HelpText = "Only include observations with frustum hulls that include at least one of these points. Semicolon separated list of X,Y,Z points in scene frame", Default = null)]
         public string OnlyForPoints { get; set; }
 
         [Option(HelpText = "Only create products for observations with normals", Default = false)]
@@ -427,7 +427,7 @@ namespace JPLOPS.Landform
                     }
                     catch (Exception ex)
                     {
-                        pipeline.LogWarn("error creating hull mesh: " + ex.Message);
+                        pipeline.LogWarn("error creating observation frustum hull: " + ex.Message);
                     }
                 }
 
