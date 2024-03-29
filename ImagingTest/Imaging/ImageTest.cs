@@ -165,7 +165,7 @@ namespace ImageTest
                 img[1, 0, 1] = 10;
                 img[1, 1, 1] = 20;
                 img[0, 0, 1] = -2;
-                img.ApplyStdDevStretch();
+                img.ApplyStdDevStretch(applySameStretchToAllbands: false);
                 Assert.AreNotEqual(4, img[0, 0, 0]);
                 Assert.AreNotEqual(10, img[1, 0, 1]);
                 Assert.AreNotEqual(20, img[1, 1, 1]);
@@ -184,7 +184,7 @@ namespace ImageTest
                 img[0, 0, 0] = 17;
                 img[0, 0, 1] = 7;
                 img[0, 0, 2] = 7;
-                img.ApplyStdDevStretch();
+                img.ApplyStdDevStretch(applySameStretchToAllbands: false);
                 Assert.AreEqual(17, img[0, 0, 0]);
                 Assert.AreEqual(7, img[0, 0, 1]);
                 Assert.AreEqual(7, img[0, 0, 2]);
