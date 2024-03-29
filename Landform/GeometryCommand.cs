@@ -31,9 +31,6 @@ namespace JPLOPS.Landform
         [Option(HelpText = "Ease surface pixels per meter factor", Default = TexturingDefaults.EASE_SURFACE_PPM_FACTOR)]
         public double EaseSurfacePPMFactor { get; set; }
 
-        [Option(HelpText = "Length of the convex hull to use when finding observations to texture width (meters)", Default = TexturingDefaults.TEXTURE_FAR_CLIP)]
-        public virtual double TextureFarClip { get; set; }
-
         [Option(HelpText = "Orbital sampling rate, non-positive to use DEM resolution", Default = -1)]
         public double OrbitalPointsPerMeter { get; set; }
 

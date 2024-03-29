@@ -9,6 +9,7 @@ using JPLOPS.Util;
 using JPLOPS.Imaging;
 using JPLOPS.Geometry;
 using JPLOPS.Pipeline;
+using JPLOPS.Pipeline.AlignmentServer;
 
 ///<summary>
 /// Utility to create debug products for observation meshes and images.
@@ -83,15 +84,6 @@ namespace JPLOPS.Landform
 
         [Option(HelpText = "Don't write observation images (and don't texture wedge meshes)", Default = false)]
         public bool NoWedgeImages { get; set; }
-
-        [Option(HelpText = "Use blended observation textures if available", Default = false)]
-        public bool UseBlendedTextures { get; set; }
-
-        [Option(HelpText = "Optimize color contrast", Default = false)]
-        public bool StretchContrast { get; set; }
-
-        [Option(HelpText = "Optimize color contrast number of standard deviations", Default = 2)]
-        public double StretchStdDev { get; set; }
 
         [Option(HelpText = "Create point clouds instead of triangle meshes", Default = false)]
         public bool PointCloud { get; set; }
@@ -277,6 +269,11 @@ namespace JPLOPS.Landform
                 if (!ParseArgumentsAndLoadCaches())
                 {
                     return 0; //help
+                }
+
+                if (options.TextureVariant == TextureVariant.Stretched)
+                {
+                    RunPhase("build stretched observation images", BuildStretchedObservationImages);
                 }
 
                 RunPhase("generate observation products", GenerateObservationProducts);
@@ -594,7 +591,8 @@ namespace JPLOPS.Landform
                             }
                             mesh.ColorBy(options.ColorMeshesBy,
                                          options.ConvertNormalsToTilts ? options.TiltMode : TiltMode.None,
-                                         stretch: options.StretchContrast, nStddev: options.StretchStdDev);
+                                         stretch: options.StretchMode == StretchMode.StandardDeviation,
+                                         nStddev: options.StretchNumStdDev);
                         }
                         SaveMesh(mesh, sdPrefix + obs.Name,
                                  (withTextures && img != null) ? (obs.Name + imageExt) : null);
@@ -700,11 +698,12 @@ namespace JPLOPS.Landform
             Image img = null;
             try
             {
-                if (options.UseBlendedTextures && obs.Texture.BlendedGuid != Guid.Empty)
+                var textureVariant = obs.Texture.GetTextureVariantWithFallback(options.TextureVariant);
+                if (textureVariant != TextureVariant.Original)
                 {
-                    img =
-                        pipeline.GetDataProduct<PngDataProduct>(project, obs.Texture.BlendedGuid, noCache: true).Image;
-                }
+                    var guid = obs.Texture.GetTextureVariantGuid(textureVariant);
+                    img = pipeline.GetDataProduct<PngDataProduct>(project, guid, noCache: true).Image;
+                } 
                 else
                 {
                     img = pipeline.LoadImage(obs.Texture.Url);
@@ -716,10 +715,6 @@ namespace JPLOPS.Landform
                         pipeline.LogVerbose("auto decimating wedge image {0} with blocksize {1}", obs.Name, ibs);
                     }
                     img = img.Decimated(ibs);
-                }
-                if (options.StretchContrast)
-                {
-                    img.ApplyStdDevStretch();
                 }
             }
             catch (Exception ex)
@@ -767,8 +762,7 @@ namespace JPLOPS.Landform
                 normals = (new PDSImage(normals)).ConvertNormals(scale, points.ConvertPoints());
                 if (normals != null)
                 {
-                    normals = OrganizedPointCloud.MaskAndDecimateNormals(normals, mbs, mask,
-                                                                         normalize: options.ConvertNormalsToTilts);
+                    normals = OrganizedPointCloud.MaskAndDecimateNormals(normals, mbs, mask, normalize: true);
                     if (options.ConvertNormalsToTilts)
                     {
                         normals = OrganizedPointCloud.NormalsToTilt(normals, options.TiltMode);
@@ -804,8 +798,8 @@ namespace JPLOPS.Landform
                     var normals = (new PDSImage(pipeline.LoadImage(obs.Normals.Url))).ConvertNormals();
                     points = OrganizedPointCloud.MaskAndDecimatePoints(points, mbs, mask);
                     normals = OrganizedPointCloud.MaskAndDecimateNormals(normals, mbs, mask, normalize: true);
-                    curvatures = OrganizedPointCloud.Curvatures(points, normals, !options.StretchContrast,
-                                                                options.CurvatureNeighborhood);
+                    curvatures = OrganizedPointCloud.Curvatures(points, normals, normalize: true,
+                                                                neighborhood: options.CurvatureNeighborhood);
                 }
             }
             catch (Exception ex)
@@ -831,7 +825,7 @@ namespace JPLOPS.Landform
                 if (points != null)
                 {
                     points = OrganizedPointCloud.MaskAndDecimatePoints(points, mbs, mask);
-                    elevations = OrganizedPointCloud.Elevations(points, normalize: !options.StretchContrast);
+                    elevations = OrganizedPointCloud.Elevations(points, normalize: true);
                 }
             }
             catch (Exception ex)
@@ -913,7 +907,8 @@ namespace JPLOPS.Landform
                         mesh.ColorBy(options.ColorMeshesBy,
                                      options.ConvertNormalsToTilts ? options.TiltMode : TiltMode.None,
                                      allowAdjustColors: true,
-                                     stretch: options.StretchContrast, nStddev: options.StretchStdDev);
+                                     stretch: options.StretchMode == StretchMode.StandardDeviation,
+                                     nStddev: options.StretchNumStdDev);
                     }
                     
                     if (mesh.HasVertices && (options.PointCloud || mesh.HasFaces))
@@ -959,10 +954,15 @@ namespace JPLOPS.Landform
                 return;
             }
 
-            if (options.StretchContrast)
+            if (options.StretchMode == StretchMode.StandardDeviation)
             {
-                img = img.ApplyStdDevStretch(options.StretchStdDev);
+                img.ApplyStdDevStretch(options.StretchNumStdDev);
             }
+            else if (options.StretchMode == StretchMode.HistogramPercent)
+            {
+                img.HistogramPercentStretch();
+            }
+
             if (options.InpaintImages > 0)
             {
                 //we're going to call Inpaint() to try to fill in small holes
