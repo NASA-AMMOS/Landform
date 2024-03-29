@@ -1702,16 +1702,17 @@ namespace JPLOPS.Landform
                 surfaceExtent = originalSurfaceExtent;
             }
             
+            Mesh tmp = mesh;
+            if (tmp.HasColors)
+            {
+                tmp = new Mesh(mesh);
+                tmp.HasColors = false;
+            }
+
             var sceneMesh = SceneMesh.Find(pipeline, project.Name, MeshVariant.Default);
             if (sceneMesh != null)
             {
                 sceneMesh.SetBounds(mesh.Bounds());
-                Mesh tmp = mesh;
-                if (tmp.HasColors)
-                {
-                    tmp = new Mesh(mesh);
-                    tmp.HasColors = false;
-                }
                 var meshProd = new PlyGZDataProduct(tmp);
                 pipeline.SaveDataProduct(project, meshProd, noCache: true);
                 sceneMesh.MeshGuid = meshProd.Guid;
@@ -1720,14 +1721,14 @@ namespace JPLOPS.Landform
             }
             else
             {
-                SceneMesh.Create(pipeline, project, mesh: mesh, surfaceExtent: surfaceExtent);
+                SceneMesh.Create(pipeline, project, mesh: tmp, surfaceExtent: surfaceExtent);
             }
         
             if (!string.IsNullOrEmpty(options.OutputMesh))
             {
                 TemporaryFile.GetAndDelete(StringHelper.GetUrlExtension(options.OutputMesh), tmpFile =>
                 {
-                    mesh.Save(tmpFile);
+                    tmp.Save(tmpFile);
                     pipeline.SaveFile(tmpFile, options.OutputMesh, constrainToStorage: false);
                 });
             }
