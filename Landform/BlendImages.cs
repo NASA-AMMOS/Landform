@@ -101,9 +101,6 @@ namespace JPLOPS.Landform
         [Option(HelpText = "Scene mesh texture resolution, should be power of two", Default = TexturingDefaults.BLEND_TEXTURE_RESOLUTION)]
         public override int TextureResolution { get; set; }
 
-        [Option(HelpText = "Option disabled for this command - always uses blurred observation textures", Default = TextureVariant.Blurred)]
-        public override TextureVariant TextureVariant { get; set; }
-
         [Option(HelpText = "Canned blend strategy (Default, Barycentric, Inpaint)", Default = BlendStrategy.Auto)]
         public BlendStrategy BlendStrategy { get; set; }
 
@@ -200,6 +197,10 @@ namespace JPLOPS.Landform
                 {
                     RunPhase("check or generate observation frustum hulls", BuildObservationImageHulls);
                 }
+                if (options.TextureVariant == TextureVariant.Stretched)
+                {
+                    RunPhase("check or generate stretched observation images", BuildStretchedObservationImages);
+                }
                 if (options.PreadjustLuminance > 0 || options.Colorize)
                 {
                     RunPhase("check or generate observation image stats", BuildObservationImageStats);
@@ -234,7 +235,7 @@ namespace JPLOPS.Landform
                     
                     if (saveMesh)
                     {
-                        RunPhase("save mesh", () => SaveSceneMesh(options.OutputMesh));
+                        RunPhase("save mesh", () => SaveSceneMesh(options.OutputMesh, TextureVariant.Blended));
                     }
                 }
             }
@@ -251,11 +252,6 @@ namespace JPLOPS.Landform
 
         private bool ParseArgumentsAndLoadCaches()
         {
-            if (options.TextureVariant != TextureVariant.Blurred)
-            {
-                throw new Exception("this command only supports --texturevariant=Blurred");
-            }
-
             if (!base.ParseArgumentsAndLoadCaches(OUT_DIR))
             {
                 return false; //help
@@ -726,8 +722,8 @@ namespace JPLOPS.Landform
                 backprojectIndex = originalBackprojectIndex;
                 BuildBackprojectResultsFromIndex();
             }
-            sceneTexture = BuildBackprojectTexture(srcTextureVariant: TextureVariant.Blended,
-                                                   dstTextureVariant: TextureVariant.Original);
+            var dst = sceneMesh.StretchedTextureGuid != Guid.Empty ? TextureVariant.Stretched : TextureVariant.Original;
+            sceneTexture = BuildBackprojectTexture(srcTextureVariant: TextureVariant.Blended, dstTextureVariant: dst);
         }
     }
 }

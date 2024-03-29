@@ -107,7 +107,7 @@ namespace JPLOPS.Landform
         [Option(Default = "auto", HelpText = "Texture mode (None, Clip, Bake, Backproject, auto)")]
         public string TextureMode { get; set; }
 
-        [Option(HelpText = "Preferred observation image texture variant (Original, Blurred, Blended), falls back to Original", Default = TextureVariant.Blended)]
+        [Option(HelpText = "Preferred observation image texture variant (Original, Stretched, Blurred, Blended), Blended falls back to Stretched, Stretched falls back to Original", Default = TextureVariant.Blended)]
         public override TextureVariant TextureVariant { get; set; }
 
         [Option(HelpText = "Don't inpaint output to fill seams and holes when backprojecting", Default = false)]
@@ -218,9 +218,16 @@ namespace JPLOPS.Landform
                         RunPhase("check or generate observation image masks", BuildObservationImageMasks);
                         RunPhase("check or generate observation frustum hulls", BuildObservationImageHulls);
                     }
-                    if (textureMode == TextureMode.Backproject && options.Colorize)
+                    if (textureMode == TextureMode.Backproject)
                     {
-                        RunPhase("check or generate observation image stats", BuildObservationImageStats);
+                        if (options.TextureVariant == TextureVariant.Stretched)
+                        {
+                            RunPhase("check or generate stretched observation images", BuildStretchedObservationImages);
+                        }
+                        if (options.Colorize)
+                        {
+                            RunPhase("check or generate observation image stats", BuildObservationImageStats);
+                        }
                     }
                 }
 
@@ -738,6 +745,7 @@ namespace JPLOPS.Landform
                 switch (options.TextureVariant)
                 {
                     case TextureVariant.Original: texGuid = sceneMesh.TextureGuid; break;
+                    case TextureVariant.Stretched: texGuid = sceneMesh.StretchedTextureGuid; break;
                     case TextureVariant.Blurred: texGuid = sceneMesh.BlurredTextureGuid; break;
                     case TextureVariant.Blended: texGuid = sceneMesh.BlendedTextureGuid; break;
                     default: throw new Exception("unhandled texture variant: " + options.TextureVariant);
