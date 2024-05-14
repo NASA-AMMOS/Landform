@@ -269,7 +269,6 @@ namespace JPLOPS.Pipeline.AlignmentServer
 
         public TextureVariant GetTextureVariantWithFallback(TextureVariant variant)
         {
-            var fallback = TextureVariant.Original;
             switch (variant)
             {
                 case TextureVariant.Original: return TextureVariant.Original;
