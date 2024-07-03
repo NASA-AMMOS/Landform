@@ -190,12 +190,12 @@ namespace JPLOPS.Geometry
                     PLYSerializer.Write(pointCloud, inputFile, plyWriter);
                     
                     string arguments = "--in " + inputFile + " --out " + outputFile;
-                    
-                    if(options.OctreeDepth != 0 && options.MinOctreeCellWidthMeters != 0.0)
+
+                    if (options != null && options.OctreeDepth != 0 && options.MinOctreeCellWidthMeters != 0.0)
                     {
                         throw new MeshException("OctreeDepth and MinOctreeCellWidthMeters are mutually exclusive");
                     }
-                    else if (options.OctreeDepth == 0 && options.MinOctreeCellWidthMeters == 0)
+                    else if (options != null && options.OctreeDepth == 0 && options.MinOctreeCellWidthMeters == 0)
                     {
                         throw new MeshException("either OctreeDepth and MinOctreeCellWidthMeters must be specified");
                     }
