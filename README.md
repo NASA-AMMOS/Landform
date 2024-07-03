@@ -57,7 +57,7 @@ These are managed with the NuGet package manager and will be automatically downl
 * [RestSharp](https://restsharp.dev)
 * [Embree dot NET](https://github.com/TomCrypto/Embree.NET)
 * [PoissonRecon](https://github.com/mkazhdan/PoissonRecon)
-* [fssrecon](https://github.com/pmoulon/fssr)
+* [fssrecon](https://github.com/simonfuhrmann/mve/blob/master/apps/fssrecon)
 
 Many Landform workflows currently require access to Mars 2020 or MSL ground data subsystems including the mission Places database server and the mission operational datastore.  In principle it should be possible to replace these functions with data from the [Mars 2020 Planetary Data System (PDS) Archive](https://pds-geosciences.wustl.edu/missions/mars2020/), but that will require some development work.
 
