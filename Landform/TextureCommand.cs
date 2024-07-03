@@ -1053,8 +1053,9 @@ namespace JPLOPS.Landform
                     {
                         if (src.Faces.Count - target > 10000)
                         {
-                            pipeline.LogInfo("decimating {0} LOD {1} from {2} to {3} triangles for fixed up lod {4}",
-                                             st, s, Fmt.KMG(src.Faces.Count), Fmt.KMG(target), i);
+                            pipeline.LogInfo("decimating {0} LOD {1} from {2} to {3} triangles " +
+                                             "for fixed up lod {4} with {5}", st, s, Fmt.KMG(src.Faces.Count),
+                                             Fmt.KMG(target), i, tcopts.MeshDecimator);
                         }
                         newLODs[i] = src.Decimated(target, tcopts.MeshDecimator, logger: pipeline);
                         pipeline.LogInfo("decimated {0} tri {1} LOD {2} for fixed up LOD {3} ({4}-{5}) " +
