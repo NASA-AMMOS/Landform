@@ -23,9 +23,14 @@ namespace JPLOPS.Geometry
         /// Constructs a SurfacePointSampler with an optional seed to specify the deterministic sample results
         /// </summary>
         /// <param name="seed">Seed for the random generator to provide deterministic samples</param>
-        public SurfacePointSampler(int seed = 0)
+        public SurfacePointSampler(int seed)
         {
             randomSeed = seed;
+        }
+
+        public SurfacePointSampler()
+        {
+            randomSeed = NumberHelper.RandomSeed ?? 0;
         }
 
         /// <summary>
