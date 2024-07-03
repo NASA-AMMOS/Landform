@@ -317,6 +317,10 @@ namespace JPLOPS.Pipeline
             while (packedWidth <= maxPackedWidth && packedHeight <= maxPackedHeight)
             {
                 var parameter = new BinPackParameter(packedWidth, packedHeight, 1, 0, allowRotation, cuboids);
+                if (NumberHelper.RandomSeed.HasValue)
+                {
+                    parameter.ShuffleCount = 0; //make deterministic
+                }
                 var binPacker = BinPacker.GetDefault(BinPackerVerifyOption.BestOnly);
                 packed = binPacker.Pack(parameter);
                 if (packed != null && packed.BestResult != null && packed.BestResult.Count == 1)
