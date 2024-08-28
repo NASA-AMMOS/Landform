@@ -55,6 +55,21 @@ These are managed with the NuGet package manager and will be automatically downl
 
 Many Landform workflows currently require access to Mars 2020 or MSL ground data subsystems including the mission Places database server and the mission operational datastore.  In principle it should be possible to replace these functions with data from the [Mars 2020 Planetary Data System (PDS) Archive](https://pds-geosciences.wustl.edu/missions/mars2020/), but that will require some development work.
 
+## Building
+
+Landform currently only builds with Visual Studio 2019 on Windows, and only runs on Intel Windows platforms.
+
+In addition to Visual Studio 2019, you will need to install the Visual Studio 2013 and Visual Studio 2019 redistributables installed.  You can get these directly from Microsoft or use the installers in the [Deploy](./Deploy) subdirectory.
+
+You may also need to install the [.NET framework 4.8 developer pack from Microsoft](https://dotnet.microsoft.com/en-us/download/dotnet-framework/net48).
+
+Visual studio should automatically install the requisite dependencies.  In case it doesn't, try the following:
+1. Open [Landform.sln](./Landform.sln) in Visual Studio 2019
+1. Open the package manager console from `Tools > Nuget Package Manager > Package Manager Console`
+1. Run `update-package -reinstall`  (do not replace `GDalConfiguration.cs` file if asked)
+
+Normally Landform is run from a release (vs debug) build.  Once you have successfully compiled it, the executable should be available at `./Landform/bin/Release/Landform.exe`.
+
 ## Compatible Visualization Software
 
 Landform 3DTiles products are typically viewed by Mars mission ground software such as ASTTRO which downloads the tileset data on demand and integrates with mission-specific interfaces.  ASTTRO uses the open-source AMMOS [Unity3DTiles](https://github.com/NASA-AMMOS/Unity3DTiles) component to load and render 3DTiles tilesets.  The Unity3DTiles software also includes a simple stand-alone web-based viewer.  A similar JavasScript component was also recently developed, AMMOS [3DTilesRendererJS](https://github.com/NASA-AMMOS/3DTilesRendererJS).
