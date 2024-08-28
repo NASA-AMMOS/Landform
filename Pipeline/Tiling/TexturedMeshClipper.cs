@@ -73,7 +73,7 @@ namespace JPLOPS.Pipeline
             if (area > 0)
             {
                 maxTextureSize = SceneNodeTilingExtensions.
-                    GetTileResolution(area, maxTextureSize, maxTexelsPerMeter, powerOfTwoTextures);
+                    GetTileResolution(area, maxTextureSize, -1, maxTexelsPerMeter, powerOfTwoTextures);
             }
             return ClipAndRemapPatches(patches, maxTextureSize);
         }
@@ -93,7 +93,7 @@ namespace JPLOPS.Pipeline
             if (maxTextureSize < 0 && maxTexelsPerMeter > 0)
             {
                 maxTextureSize = SceneNodeTilingExtensions.
-                    GetTileResolution(clippedMesh, maxTextureSize, maxTexelsPerMeter, powerOfTwoTextures);
+                    GetTileResolution(clippedMesh, maxTextureSize, -1, maxTexelsPerMeter, powerOfTwoTextures);
             }
             var patches = ComputePatches(clippedMesh, fullImage, fullImageIndex);
             return ClipAndRemapPatches(patches, maxTextureSize, clippedMesh);
@@ -317,6 +317,10 @@ namespace JPLOPS.Pipeline
             while (packedWidth <= maxPackedWidth && packedHeight <= maxPackedHeight)
             {
                 var parameter = new BinPackParameter(packedWidth, packedHeight, 1, 0, allowRotation, cuboids);
+                if (NumberHelper.RandomSeed.HasValue)
+                {
+                    parameter.ShuffleCount = 0; //make deterministic
+                }
                 var binPacker = BinPacker.GetDefault(BinPackerVerifyOption.BestOnly);
                 packed = binPacker.Pack(parameter);
                 if (packed != null && packed.BestResult != null && packed.BestResult.Count == 1)

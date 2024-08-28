@@ -4,10 +4,12 @@ using System.Collections.Generic;
 using System.Collections.Concurrent;
 using System.Threading;
 using CommandLine;
+using Microsoft.Xna.Framework;
 using JPLOPS.Util;
 using JPLOPS.Imaging;
 using JPLOPS.Geometry;
 using JPLOPS.Pipeline;
+using JPLOPS.Pipeline.AlignmentServer;
 
 ///<summary>
 /// Utility to create debug products for observation meshes and images.
@@ -24,6 +26,7 @@ using JPLOPS.Pipeline;
 /// RDRs.
 ///
 /// observation-products can create
+/// * camera frustum hull meshes
 /// * per-wedge texture images
 /// * per-wedge point clouds
 /// * per-wedge textured meshes
@@ -44,6 +47,7 @@ using JPLOPS.Pipeline;
 /// Generate merged aligned sitedrive meshes:
 ///
 /// Landform.exe observation-products windjana --onlymergedsitedrivemeshes --onlyforphases=meshing
+/// Landform.exe observation-products windjana --onlymergedsitedrivefrustumhullmeshes --onlyforphases=texturing
 ///
 /// Just spew stats:
 ///
@@ -66,6 +70,9 @@ namespace JPLOPS.Landform
         [Option(HelpText = "Only create products for observations marked for use in specific phases, comma separated list of (alignment,meshing,texturing)", Default = null)]
         public string OnlyForPhases { get; set; }
 
+        [Option(HelpText = "Only include observations with frustum hulls that include at least one of these points. Semicolon separated list of X,Y,Z points in scene frame", Default = null)]
+        public string OnlyForPoints { get; set; }
+
         [Option(HelpText = "Only create products for observations with normals", Default = false)]
         public bool RequireNormals { get; set; }
 
@@ -77,15 +84,6 @@ namespace JPLOPS.Landform
 
         [Option(HelpText = "Don't write observation images (and don't texture wedge meshes)", Default = false)]
         public bool NoWedgeImages { get; set; }
-
-        [Option(HelpText = "Use blended observation textures if available", Default = false)]
-        public bool UseBlendedTextures { get; set; }
-
-        [Option(HelpText = "Optimize color contrast", Default = false)]
-        public bool StretchContrast { get; set; }
-
-        [Option(HelpText = "Optimize color contrast number of standard deviations", Default = 2)]
-        public double StretchStdDev { get; set; }
 
         [Option(HelpText = "Create point clouds instead of triangle meshes", Default = false)]
         public bool PointCloud { get; set; }
@@ -114,14 +112,29 @@ namespace JPLOPS.Landform
         [Option(HelpText = "Write camera frustum hull meshes", Default = false)]
         public bool FrustumHullMeshes { get; set; }
 
+        [Option(HelpText = "Write merged sitedrive camera frustum hull meshes", Default = false)]
+        public bool MergedSiteDriveFrustumHullMeshes { get; set; }
+
         [Option(HelpText = "Write uncertainty inflated camera frustum hull meshes", Default = false)]
         public bool UncertaintyInflatedFrustumHullMeshes { get; set; }
+
+        [Option(HelpText = "Frustum hull near clip distance in meters", Default = ConvexHull.DEF_NEAR_CLIP)]
+        public double FrustumHullNearClip { get; set; }
+
+        [Option(HelpText = "Frustum hull far clip distance in meters", Default = ConvexHull.DEF_FAR_CLIP)]
+        public double FrustumHullFarClip { get; set; }
+
+        [Option(HelpText = "Assume camera models are linear CAHV for frustum hull geometry", Default = false)]
+        public bool FrustumHullForceLinear { get; set; }
 
         [Option(HelpText = "Write merged site drive meshes", Default = false)]
         public bool MergedSiteDriveMeshes { get; set; }
 
         [Option(HelpText = "Write only merged site drive meshes", Default = false)]
         public bool OnlyMergedSiteDriveMeshes { get; set; }
+
+        [Option(HelpText = "Write only merged site drive frustum hull meshes", Default = false)]
+        public bool OnlyMergedSiteDriveFrustumHullMeshes { get; set; }
 
         [Option(HelpText = "Stereo eye to prefer for wedges with geometry", Default = "auto")]
         public string StereoEye { get; set; }
@@ -179,10 +192,16 @@ namespace JPLOPS.Landform
 
         private List<WedgeObservations> wedgeObservations;
 
+        private List<Vector3> onlyForPoints;
+
         //sitedrive name => (observation, mesh, image), (observation, mesh, image), ...
-        private ConcurrentDictionary<string, ConcurrentBag<Tuple<WedgeObservations, Mesh, Image>>> mergeInputs =
+        private ConcurrentDictionary<string, ConcurrentBag<Tuple<WedgeObservations, Mesh, Image>>> mergeWedges =
             new ConcurrentDictionary<string, ConcurrentBag<Tuple<WedgeObservations, Mesh, Image>>>();
         
+        //sitedrive name => (observation, hull), (observation, hull), ...
+        private ConcurrentDictionary<string, ConcurrentBag<Tuple<WedgeObservations, ConvexHull>>> mergeHulls =
+            new ConcurrentDictionary<string, ConcurrentBag<Tuple<WedgeObservations, ConvexHull>>>();
+
         public ObservationProducts(ObservationProductsOptions options) : base(options)
         {
             this.options = options;
@@ -194,6 +213,21 @@ namespace JPLOPS.Landform
                 options.NoWedgeImages = true;
                 options.FrustumHullMeshes = false;
                 options.UncertaintyInflatedFrustumHullMeshes = false;
+                options.MergedSiteDriveFrustumHullMeshes = false;
+                options.MaskImages = false;
+                options.NormalsImages = false;
+                options.CurvatureImages = false;
+                options.ElevationImages = false;
+            }
+
+            if (options.OnlyMergedSiteDriveFrustumHullMeshes)
+            {
+                options.MergedSiteDriveMeshes = false;
+                options.NoWedgeMeshes = true;
+                options.NoWedgeImages = true;
+                options.FrustumHullMeshes = false;
+                options.UncertaintyInflatedFrustumHullMeshes = false;
+                options.MergedSiteDriveFrustumHullMeshes = true;
                 options.MaskImages = false;
                 options.NormalsImages = false;
                 options.CurvatureImages = false;
@@ -205,6 +239,7 @@ namespace JPLOPS.Landform
                 options.MergedSiteDriveMeshes = true;
                 options.FrustumHullMeshes = true;
                 options.UncertaintyInflatedFrustumHullMeshes = true;
+                options.MergedSiteDriveFrustumHullMeshes = true;
                 options.MaskImages = true;
                 options.NormalsImages = true;
                 options.CurvatureImages = true;
@@ -219,6 +254,7 @@ namespace JPLOPS.Landform
                 options.NoWedgeImages = true;
                 options.FrustumHullMeshes = false;
                 options.UncertaintyInflatedFrustumHullMeshes = false;
+                options.MergedSiteDriveFrustumHullMeshes = false;
                 options.MaskImages = false;
                 options.NormalsImages = false;
                 options.CurvatureImages = false;
@@ -235,11 +271,22 @@ namespace JPLOPS.Landform
                     return 0; //help
                 }
 
+                if (options.TextureVariant == TextureVariant.Stretched)
+                {
+                    RunPhase("build stretched observation images", BuildStretchedObservationImages);
+                }
+
                 RunPhase("generate observation products", GenerateObservationProducts);
 
                 if (options.MergedSiteDriveMeshes)
                 {
                     RunPhase("generate merged site drive meshes", GenerateMergedSiteDriveMeshes);
+                }
+
+                if (options.MergedSiteDriveFrustumHullMeshes)
+                {
+                    RunPhase("generate merged site drive frustum hull meshes",
+                             GenerateMergedSiteDriveFrustumHullMeshes);
                 }
             }
             catch (Exception ex)
@@ -293,6 +340,16 @@ namespace JPLOPS.Landform
 
             wedgeObservations = WedgeObservations.Collect(frameCache, observationCache, opts);
 
+            if (!string.IsNullOrEmpty(options.OnlyForPoints))
+            {
+                onlyForPoints = new List<Vector3>();
+                foreach (var pt in StringHelper.ParseList(options.OnlyForPoints, ';'))
+                {
+                    var xyz = StringHelper.ParseFloatListSafe(pt, ',');
+                    onlyForPoints.Add(new Vector3(xyz[0], xyz[1], xyz[2]));
+                }
+            }
+
             return true;
         }
 
@@ -337,12 +394,6 @@ namespace JPLOPS.Landform
 
                 Interlocked.Increment(ref np);
 
-                if (!options.NoProgress)
-                {
-                    pipeline.LogInfo("computing products for {0} observations in parallel, completed {1}/{2}",
-                                     np, nc, no);
-                }
-                
                 string siteDrive = obs.SiteDrive.ToString();
                 string sdPrefix = !options.SuppressSiteDriveDirectories ? siteDrive + "/" : "";
 
@@ -351,11 +402,6 @@ namespace JPLOPS.Landform
                 int mbs = WedgeObservations.AutoDecimate(mbsObs, //null ok
                                                          options.DecimateWedgeMeshes,
                                                          options.TargetWedgeMeshResolution);
-
-                if (mbs > 1 && mbs != options.DecimateWedgeMeshes)
-                {
-                    pipeline.LogVerbose("auto decimating wedge mesh {0} with blocksize {1}", obs.Name, mbs);
-                }
                 wedgeDecimation[obs.FrameName] = mbs;
 
                 var mo = meshOpts.Clone();
@@ -366,11 +412,83 @@ namespace JPLOPS.Landform
                     mo.LoadedFrame = mission.GetTacticalMeshFrame(mbsObs.Name);
                 }
 
+                ConvexHull hull = null;
+                if ((options.FrustumHullMeshes || options.MergedSiteDriveFrustumHullMeshes || onlyForPoints != null) &&
+                    (obs.Texture != null || obs.Points != null))
+                {
+                    try
+                    {
+                        hull = obs.BuildFrustumHull(pipeline, frameCache, mo, uncertaintyInflated: false,
+                                                    options.FrustumHullNearClip, options.FrustumHullFarClip,
+                                                    options.FrustumHullForceLinear);
+                    }
+                    catch (Exception ex)
+                    {
+                        pipeline.LogWarn("error creating observation frustum hull: " + ex.Message);
+                    }
+                }
+
+                if (hull != null && onlyForPoints != null)
+                {
+                    foreach (var pt in onlyForPoints)
+                    {
+                        if (!hull.Contains(pt))
+                        {
+                            //pipeline.LogVerbose("excluding {0}: frustum hull does not contain {1}", obs.Name, pt);
+                            Interlocked.Decrement(ref np);
+                            Interlocked.Increment(ref nc);
+                            return;
+                        }
+                    }
+                    pipeline.LogVerbose("including {0}: frustum hull contains all {1} specified points",
+                                        obs.Name, onlyForPoints.Count);
+                }
+
+                if (!options.NoProgress)
+                {
+                    pipeline.LogInfo("computing products for {0} observations in parallel, completed {1}/{2}",
+                                     np, nc, no);
+                }
+                
+                if (hull != null && options.FrustumHullMeshes)
+                {
+                    SaveMesh(hull.Mesh, sdPrefix + "Frusta/" + obs.Name);
+                }
+
+                if (options.UncertaintyInflatedFrustumHullMeshes && (obs.Texture != null || obs.Points != null))
+                {
+                    try
+                    {
+                        var iHull = obs.BuildFrustumHull(pipeline, frameCache, mo, uncertaintyInflated: true,
+                                                         options.FrustumHullNearClip, options.FrustumHullFarClip,
+                                                         options.FrustumHullForceLinear);
+                        SaveMesh(iHull.Mesh, sdPrefix + "InflatedFrusta/" + obs.Name);
+                    }
+                    catch (Exception ex)
+                    {
+                        pipeline.LogWarn("error creating uncertainty inflated hull mesh: " + ex.Message);
+                    }
+                }
+                
+                if (options.MergedSiteDriveFrustumHullMeshes && hull != null)
+                {
+                    var input = new Tuple<WedgeObservations, ConvexHull>(obs, hull);
+                    mergeHulls
+                        .AddOrUpdate(siteDrive,
+                                     _ => new ConcurrentBag<Tuple<WedgeObservations, ConvexHull>>(new [] { input }),
+                                     (_, bag) => { bag.Add(input); return bag; });
+                }
+
                 int npts = 0, nn = 0, nt = 0;
                 Mesh mesh = null;
                 if (buildWedgeMeshes && ((options.UseMeshRDRs && obs.Meshable) ||
                                          (!options.UseMeshRDRs && obs.Reconstructable)))
                 {
+                    if (mbs > 1 && mbs != options.DecimateWedgeMeshes)
+                    {
+                        pipeline.LogVerbose("auto decimating wedge mesh {0} with blocksize {1}", obs.Name, mbs);
+                    }
+
                     Exception ex = null;
                     try
                     {
@@ -458,15 +576,6 @@ namespace JPLOPS.Landform
                     }
                 }
 
-                if (options.MergedSiteDriveMeshes && mesh != null)
-                {
-                    var input = new Tuple<WedgeObservations, Mesh, Image>(obs, mesh, withTextures ? img : null);
-                    mergeInputs
-                    .AddOrUpdate(siteDrive,
-                                 _ => new ConcurrentBag<Tuple<WedgeObservations, Mesh, Image>>(new [] { input }),
-                                 (_, bag) => { bag.Add(input); return bag; });
-                }
-
                 //save the wedge mesh now that we have both it and its texture
                 if (mesh != null && !options.NoWedgeMeshes)
                 {
@@ -482,7 +591,8 @@ namespace JPLOPS.Landform
                             }
                             mesh.ColorBy(options.ColorMeshesBy,
                                          options.ConvertNormalsToTilts ? options.TiltMode : TiltMode.None,
-                                         stretch: options.StretchContrast, nStddev: options.StretchStdDev);
+                                         stretch: options.StretchMode == StretchMode.StandardDeviation,
+                                         nStddev: options.StretchNumStdDev);
                         }
                         SaveMesh(mesh, sdPrefix + obs.Name,
                                  (withTextures && img != null) ? (obs.Name + imageExt) : null);
@@ -491,6 +601,15 @@ namespace JPLOPS.Landform
                     {
                         pipeline.LogWarn("error saving mesh: " + ex.Message);
                     }
+                }
+
+                if (mesh != null && options.MergedSiteDriveMeshes)
+                {
+                    var input = new Tuple<WedgeObservations, Mesh, Image>(obs, mesh, withTextures ? img : null);
+                    mergeWedges
+                    .AddOrUpdate(siteDrive,
+                                 _ => new ConcurrentBag<Tuple<WedgeObservations, Mesh, Image>>(new [] { input }),
+                                 (_, bag) => { bag.Add(input); return bag; });
                 }
                 
                 Image mask = null;
@@ -534,42 +653,16 @@ namespace JPLOPS.Landform
                         pipeline.LogWarn("error creating elevation image: " + ex.Message);
                     }
                 }
-                
-                if (options.FrustumHullMeshes && (obs.Texture != null || obs.Points != null))
-                {
-                    try
-                    {
-                        var hull = obs.BuildFrustumHull(pipeline, frameCache, mo, uncertaintyInflated: false);
-                        SaveMesh(hull.Mesh, sdPrefix + "Frusta/" + obs.Name);
-                    }
-                    catch (Exception ex)
-                    {
-                        pipeline.LogWarn("error creating hull mesh: " + ex.Message);
-                    }
-                }
-                
-                if (options.UncertaintyInflatedFrustumHullMeshes && (obs.Texture != null || obs.Points != null))
-                {
-                    try
-                    {
-                        var hull = obs.BuildFrustumHull(pipeline, frameCache, mo, uncertaintyInflated: true);
-                        SaveMesh(hull.Mesh, sdPrefix + "InflatedFrusta/" + obs.Name);
-                    }
-                    catch (Exception ex)
-                    {
-                        pipeline.LogWarn("error creating uncertainty inflated hull mesh: " + ex.Message);
-                    }
-                }
-                
+
                 Interlocked.Decrement(ref np);
                 Interlocked.Increment(ref nc);
             });
 
             foreach (var obs in wedgeObservations)
             {
-                if (buildWedgeMeshes)
+                var fn = obs.FrameName;
+                if (buildWedgeMeshes && numPoints.ContainsKey(fn))
                 {
-                    var fn = obs.FrameName;
                     pipeline.LogInfo("{0}: {1} points, {2} normals, {3} triangles{4}{5}{6}{7}",
                                      fn, numPoints[fn], numNormals[fn], numTriangles[fn],
                                      wedgeDecimation[fn] > 1 ?
@@ -605,11 +698,12 @@ namespace JPLOPS.Landform
             Image img = null;
             try
             {
-                if (options.UseBlendedTextures && obs.Texture.BlendedGuid != Guid.Empty)
+                var textureVariant = obs.Texture.GetTextureVariantWithFallback(options.TextureVariant);
+                if (textureVariant != TextureVariant.Original)
                 {
-                    img =
-                        pipeline.GetDataProduct<PngDataProduct>(project, obs.Texture.BlendedGuid, noCache: true).Image;
-                }
+                    var guid = obs.Texture.GetTextureVariantGuid(textureVariant);
+                    img = pipeline.GetDataProduct<PngDataProduct>(project, guid, noCache: true).Image;
+                } 
                 else
                 {
                     img = pipeline.LoadImage(obs.Texture.Url);
@@ -621,10 +715,6 @@ namespace JPLOPS.Landform
                         pipeline.LogVerbose("auto decimating wedge image {0} with blocksize {1}", obs.Name, ibs);
                     }
                     img = img.Decimated(ibs);
-                }
-                if (options.StretchContrast)
-                {
-                    img.ApplyStdDevStretch();
                 }
             }
             catch (Exception ex)
@@ -672,8 +762,7 @@ namespace JPLOPS.Landform
                 normals = (new PDSImage(normals)).ConvertNormals(scale, points.ConvertPoints());
                 if (normals != null)
                 {
-                    normals = OrganizedPointCloud.MaskAndDecimateNormals(normals, mbs, mask,
-                                                                         normalize: options.ConvertNormalsToTilts);
+                    normals = OrganizedPointCloud.MaskAndDecimateNormals(normals, mbs, mask, normalize: true);
                     if (options.ConvertNormalsToTilts)
                     {
                         normals = OrganizedPointCloud.NormalsToTilt(normals, options.TiltMode);
@@ -709,8 +798,8 @@ namespace JPLOPS.Landform
                     var normals = (new PDSImage(pipeline.LoadImage(obs.Normals.Url))).ConvertNormals();
                     points = OrganizedPointCloud.MaskAndDecimatePoints(points, mbs, mask);
                     normals = OrganizedPointCloud.MaskAndDecimateNormals(normals, mbs, mask, normalize: true);
-                    curvatures = OrganizedPointCloud.Curvatures(points, normals, !options.StretchContrast,
-                                                                options.CurvatureNeighborhood);
+                    curvatures = OrganizedPointCloud.Curvatures(points, normals, normalize: true,
+                                                                neighborhood: options.CurvatureNeighborhood);
                 }
             }
             catch (Exception ex)
@@ -736,7 +825,7 @@ namespace JPLOPS.Landform
                 if (points != null)
                 {
                     points = OrganizedPointCloud.MaskAndDecimatePoints(points, mbs, mask);
-                    elevations = OrganizedPointCloud.Elevations(points, normalize: !options.StretchContrast);
+                    elevations = OrganizedPointCloud.Elevations(points, normalize: true);
                 }
             }
             catch (Exception ex)
@@ -749,12 +838,12 @@ namespace JPLOPS.Landform
 
         private void GenerateMergedSiteDriveMeshes()
         {
-            pipeline.LogInfo("generating merged meshes for {0} sitedrives", mergeInputs.Count);
+            pipeline.LogInfo("generating merged meshes for {0} sitedrives", mergeWedges.Count);
 
-            foreach (var siteDrive in mergeInputs.Keys.OrderBy(name => name))
+            foreach (var siteDrive in mergeWedges.Keys.OrderBy(name => name))
             {
                 //ensure inputs are in a canonical order
-                var inputs = mergeInputs[siteDrive]
+                var inputs = mergeWedges[siteDrive]
                     .OrderBy(inp => inp.Item1.FrameName) //order by observation frame
                     .Distinct() //ConcurrentBag is not necessarily a set
                     .ToArray();
@@ -818,7 +907,8 @@ namespace JPLOPS.Landform
                         mesh.ColorBy(options.ColorMeshesBy,
                                      options.ConvertNormalsToTilts ? options.TiltMode : TiltMode.None,
                                      allowAdjustColors: true,
-                                     stretch: options.StretchContrast, nStddev: options.StretchStdDev);
+                                     stretch: options.StretchMode == StretchMode.StandardDeviation,
+                                     nStddev: options.StretchNumStdDev);
                     }
                     
                     if (mesh.HasVertices && (options.PointCloud || mesh.HasFaces))
@@ -837,6 +927,26 @@ namespace JPLOPS.Landform
             }
         }
 
+        private void GenerateMergedSiteDriveFrustumHullMeshes()
+        {
+            pipeline.LogInfo("generating merged frustum hull meshes for {0} sitedrives", mergeHulls.Count);
+
+            foreach (var siteDrive in mergeHulls.Keys.OrderBy(name => name))
+            {
+                //ensure inputs are in a canonical order
+                var inputs = mergeHulls[siteDrive]
+                    .OrderBy(inp => inp.Item1.FrameName) //order by observation frame
+                    .Distinct() //ConcurrentBag is not necessarily a set
+                    .ToArray();
+
+                pipeline.LogInfo("generating merged frustum hull mesh for site drive {0} from {1} observations",
+                                 siteDrive, inputs.Length);
+                
+                var mesh = MeshMerge.Join(inputs.Select(pr => pr.Item2.Mesh).ToArray());
+                SaveMesh(mesh, siteDrive + "_hulls");
+            }
+        }
+
         private void FinishImage(Image img, Image mask, int decimateBlocksize, string name, string kind)
         {
             if (img == null)
@@ -844,10 +954,15 @@ namespace JPLOPS.Landform
                 return;
             }
 
-            if (options.StretchContrast)
+            if (options.StretchMode == StretchMode.StandardDeviation)
             {
-                img = img.ApplyStdDevStretch(options.StretchStdDev);
+                img.ApplyStdDevStretch(options.StretchNumStdDev);
             }
+            else if (options.StretchMode == StretchMode.HistogramPercent)
+            {
+                img.HistogramPercentStretch();
+            }
+
             if (options.InpaintImages > 0)
             {
                 //we're going to call Inpaint() to try to fill in small holes

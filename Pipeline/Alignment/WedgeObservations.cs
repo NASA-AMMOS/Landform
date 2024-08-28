@@ -865,7 +865,10 @@ namespace JPLOPS.Pipeline
         /// logs warning and returns null if the hull could not be built for any reason
         /// </summary>
         public ConvexHull BuildFrustumHull(PipelineCore pipeline, FrameCache frameCache, MeshOptions opts, 
-                                           bool uncertaintyInflated = false, double farClip = 20)
+                                           bool uncertaintyInflated = false,
+                                           double nearClip = ConvexHull.DEF_NEAR_CLIP,
+                                           double farClip = ConvexHull.DEF_FAR_CLIP,
+                                           bool forceLinear = false)
         {
             Observation obs = Texture ?? Points;
             if (obs == null)
@@ -888,7 +891,7 @@ namespace JPLOPS.Pipeline
                 return null;
             }
 
-            ConvexHull ret = ConvexHull.FromImage(img, farClip: farClip);
+            ConvexHull ret = ConvexHull.FromImage(img, nearClip, farClip, forceLinear);
 
             var xform = frameCache.GetObservationTransform(obs, opts.Frame, opts.UsePriors, opts.OnlyAligned);
             if (xform == null)

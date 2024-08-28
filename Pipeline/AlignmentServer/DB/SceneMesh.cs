@@ -29,6 +29,8 @@ namespace JPLOPS.Pipeline.AlignmentServer
 
         public Guid BackprojectIndexGuid;
 
+        public Guid StretchedTextureGuid;
+
         public Guid BlurredTextureGuid;
 
         public Guid BlendedTextureGuid;

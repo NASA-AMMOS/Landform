@@ -242,7 +242,7 @@ namespace JPLOPS.Util
 
         public static void For(int fromInclusive, int toExclusive, Action<int> action)
         {            
-            int i = -1;
+            int i = fromInclusive - 1;
             Parallel.For(fromInclusive, toExclusive,
                          new ParallelOptions() { MaxDegreeOfParallelism = maxParallelism },
                          randomIndex => action(Interlocked.Increment(ref i)));
@@ -252,7 +252,7 @@ namespace JPLOPS.Util
         public static void For<TLocal>(int fromInclusive, int toExclusive, Func<TLocal> localInit,
                                        Func<int,TLocal,TLocal> action, Action<TLocal> localFinally)
         {            
-            int i = -1;
+            int i = fromInclusive - 1;
             Parallel.For(fromInclusive, toExclusive,
                          new ParallelOptions() { MaxDegreeOfParallelism = maxParallelism }, localInit,
                          (randomIndex, opts, local) => action(Interlocked.Increment(ref i), local), localFinally);

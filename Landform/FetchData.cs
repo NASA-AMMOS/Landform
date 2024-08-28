@@ -371,11 +371,11 @@ namespace JPLOPS.Landform
             }
 
             includeRegex = StringHelper.ParseList(options.IncludePattern)
-                .Select(s => StringHelper.WildcardToRegularExpression(s))
+                .Select(s => StringHelper.WildcardToRegularExpression(s, allowAlternation: true))
                 .ToList();
 
             excludeRegex = StringHelper.ParseList(options.ExcludePattern)
-                .Select(s => StringHelper.WildcardToRegularExpression(s))
+                .Select(s => StringHelper.WildcardToRegularExpression(s, allowAlternation: true))
                 .ToList();
 
             acceptedExtensions = new HashSet<string>();
@@ -399,7 +399,6 @@ namespace JPLOPS.Landform
                 (string.Equals(options.PreferIMGToVIC, "true", StringComparison.OrdinalIgnoreCase) ||
                  (string.Equals(options.PreferIMGToVIC, "auto", StringComparison.OrdinalIgnoreCase) &&
                   (mission == null || mission.PreferIMGToVIC())));
-                
 
             if (options.WithPNG)
             {
@@ -782,6 +781,10 @@ namespace JPLOPS.Landform
                 }
                 else
                 {
+                    if (ShouldTrace(url))
+                    {
+                        logger.InfoFormat("accepted {0}", url);
+                    }
                     return true;
                 }
             }
@@ -1225,11 +1228,8 @@ namespace JPLOPS.Landform
                     {
                         totalTrimmedUrls++;
                         totalTrimmedBytes += nb;
-                        if (ShouldTrace(url))
-                        {
-                            logger.InfoFormat("trimmed download {0}: {1} to download + {2} > {3}", url,
-                                              Fmt.Bytes(newBytes), Fmt.Bytes(nb), Fmt.Bytes(maxNewBytes));
-                        }
+                        logger.InfoFormat("trimmed download {0}: {1} to download + {2} > {3}", url,
+                                          Fmt.Bytes(newBytes), Fmt.Bytes(nb), Fmt.Bytes(maxNewBytes));
                     }
                 }
             }
@@ -1255,10 +1255,7 @@ namespace JPLOPS.Landform
                 return 0;
             }
             PathHelper.EnsureExists(Path.GetDirectoryName(localPath));
-            if (options.Verbose)
-            {
-                logger.InfoFormat("downloading {0} -> {1}", url, localPath);
-            }
+            logger.InfoFormat("downloading {0} -> {1}", url, localPath);
             TemporaryFile.GetAndMove(localPath, f =>
             {
                 bool success = false;
@@ -1334,14 +1331,11 @@ namespace JPLOPS.Landform
                 long remoteModified = RemoteMSSinceEpoch(url);
                 if (localModified >= 0 && remoteModified >= 0 && localModified >= remoteModified)
                 {
-                    if (options.Verbose)
-                    {
-                        logger.InfoFormat("not downloading {0}: local file {1} already downloaded ({2} = {2} bytes)" +
-                                          "local timestamp {3} >= remote timestamp {4}",
-                                          url, localPath, Fmt.Bytes(localBytes),
-                                          UTCTime.MSSinceEpochToDate(localModified),
-                                          UTCTime.MSSinceEpochToDate(remoteModified));
-                    }
+                    logger.InfoFormat("not downloading {0}: local file {1} already downloaded ({2} = {2} bytes)" +
+                                      "local timestamp {3} >= remote timestamp {4}",
+                                      url, localPath, Fmt.Bytes(localBytes),
+                                      UTCTime.MSSinceEpochToDate(localModified),
+                                      UTCTime.MSSinceEpochToDate(remoteModified));
                     alreadyDownloaded.Add(localPath);
                     return false;
                 }
@@ -1535,14 +1529,11 @@ namespace JPLOPS.Landform
                 try
                 {
                     long bytes = file.Length;
-                    if (options.Verbose)
-                    {
-                        logger.InfoFormat("deleting least-recently used file {0} ({1} bytes, last access {2}), " +
-                                          "{3}/{4} bytes currently free, target min free bytes {5}",
-                                          file.FullName, Fmt.Bytes(bytes), file.LastAccessTime,
-                                          Fmt.Bytes(maxBytes - diskBytes), //may be negative
-                                          Fmt.Bytes(maxBytes), Fmt.Bytes(minFreeBytes));
-                    }
+                    logger.InfoFormat("deleting least-recently used file {0} ({1} bytes, last access {2}), " +
+                                      "{3}/{4} bytes currently free, target min free bytes {5}",
+                                      file.FullName, Fmt.Bytes(bytes), file.LastAccessTime,
+                                      Fmt.Bytes(maxBytes - diskBytes), //may be negative
+                                      Fmt.Bytes(maxBytes), Fmt.Bytes(minFreeBytes));
                     file.Delete();
                     diskBytes -= bytes;
                     deletedBytes += bytes;

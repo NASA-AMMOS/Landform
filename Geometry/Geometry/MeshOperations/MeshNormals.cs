@@ -59,6 +59,25 @@ namespace JPLOPS.Geometry
         }
 
         /// <summary>
+        /// Rescale all (non-zero) normals.
+        /// </summary>
+        public static void RescaleNormals(this Mesh mesh, Func<double, double> func)
+        {
+            foreach (Vertex vertex in mesh.Vertices)
+            {
+                double l = vertex.Normal.Length();
+                if (l > MathHelper.Epsilon)
+                {
+                    double nl = func(l);
+                    if (nl != l)
+                    {
+                        vertex.Normal *= (nl / l);
+                    }
+                }
+            }
+        }
+
+        /// <summary>
         /// For each vertex, compute a ray from the vertex to the observation point
         /// If the normal for the vertex points away (more than 90 degrees) from this ray
         /// flip the normal.  This method is useful when points have been captured from a 

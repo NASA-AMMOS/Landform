@@ -204,16 +204,12 @@ namespace JPLOPS.Util
                         {
                             Config.ParseEnvVal(str, prop.PropertyType, obj =>
                             {
+                                if (va.Name.Contains("PASSWORD"))
+                                {
+                                    str = "******";
+                                }
                                 //this doesn't work because each call to GetCustomAttribute() returns a new instance
                                 //ba.Default = obj;
-                                bool flag = prop.PropertyType == typeof(bool);
-                                if (flag)
-                                {
-                                    if (!string.IsNullOrEmpty(str) && str.ToLower() == "false")
-                                    {
-                                        throw new Exception($"cannot use {en}=false for flag {va.Name} --{opt}");
-                                    }
-                                }
                                 Config.Log($"using {en}={str} to default {va.Name} --{opt} (may be overridden)");
                                 envArgs.Add(opt, obj);
                             }, parseNonemptyAsTrue: true);
@@ -353,9 +349,16 @@ namespace JPLOPS.Util
                         string opt = "--" + entry.Key;
                         if (!explicitOpts.Contains(opt))
                         {
-                            fullArgs.Add(opt);
-                            if (!(entry.Value is bool))
+                            if (entry.Value is bool)
                             {
+                                if ((bool)(entry.Value))
+                                {
+                                    fullArgs.Add(opt);
+                                }
+                            }
+                            else
+                            {
+                                fullArgs.Add(opt);
                                 fullArgs.Add(entry.Value.ToString());
                             }
                         }

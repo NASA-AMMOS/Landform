@@ -7,7 +7,7 @@ using JPLOPS.Util;
 
 namespace JPLOPS.Pipeline.AlignmentServer
 {
-    public enum TextureVariant { Original, Blurred, Blended, SkyBlended };
+    public enum TextureVariant { Original, Stretched, Blurred, Blended, SkyBlended };
 
     /// <summary>
     /// Represents an image or 3D shape measurement of the environment
@@ -65,6 +65,8 @@ namespace JPLOPS.Pipeline.AlignmentServer
         public Guid HullGuid; //camera model frustum hull
 
         public Guid FeaturesGuid;
+
+        public Guid StretchedGuid;
 
         public Guid BlurredGuid;
 
@@ -140,6 +142,7 @@ namespace JPLOPS.Pipeline.AlignmentServer
             this.MaskGuid = Guid.Empty;
             this.HullGuid = Guid.Empty;
             this.FeaturesGuid = Guid.Empty;
+            this.StretchedGuid = Guid.Empty;
             this.BlurredGuid = Guid.Empty;
             this.BlendedGuid = Guid.Empty;
             this.SkyBlendedGuid = Guid.Empty;
@@ -266,13 +269,34 @@ namespace JPLOPS.Pipeline.AlignmentServer
 
         public TextureVariant GetTextureVariantWithFallback(TextureVariant variant)
         {
-            var fallback = TextureVariant.Original;
             switch (variant)
             {
-                case TextureVariant.Original: return variant;
-                case TextureVariant.Blurred: return BlurredGuid != Guid.Empty ? variant : fallback;
-                case TextureVariant.Blended: return BlendedGuid != Guid.Empty ? variant : fallback;
-                case TextureVariant.SkyBlended: return SkyBlendedGuid != Guid.Empty ? variant : fallback;
+                case TextureVariant.Original: return TextureVariant.Original;
+                case TextureVariant.Stretched:
+                {
+                    return StretchedGuid != Guid.Empty ? TextureVariant.Stretched : TextureVariant.Original;
+                }
+                case TextureVariant.Blurred:
+                {
+                    return
+                        BlurredGuid != Guid.Empty ? TextureVariant.Blurred :
+                        StretchedGuid != Guid.Empty ? TextureVariant.Stretched :
+                        TextureVariant.Original;
+                }
+                case TextureVariant.Blended:
+                {
+                    return
+                        BlendedGuid != Guid.Empty ? TextureVariant.Blended :
+                        StretchedGuid != Guid.Empty ? TextureVariant.Stretched :
+                        TextureVariant.Original;
+                }
+                case TextureVariant.SkyBlended:
+                {
+                    return
+                        SkyBlendedGuid != Guid.Empty ? TextureVariant.SkyBlended :
+                        StretchedGuid != Guid.Empty ? TextureVariant.Stretched :
+                        TextureVariant.Original;
+                }
                 default: throw new Exception("unknown texture variant: " + variant);
             }
         }
@@ -281,6 +305,7 @@ namespace JPLOPS.Pipeline.AlignmentServer
         {
             switch (variant)
             {
+                case TextureVariant.Stretched: return StretchedGuid;
                 case TextureVariant.Blurred: return BlurredGuid;
                 case TextureVariant.Blended: return BlendedGuid;
                 case TextureVariant.SkyBlended: return SkyBlendedGuid;
@@ -292,6 +317,7 @@ namespace JPLOPS.Pipeline.AlignmentServer
         {
             switch (variant)
             {
+                case TextureVariant.Stretched: StretchedGuid = guid; break;
                 case TextureVariant.Blurred: BlurredGuid = guid; break;
                 case TextureVariant.Blended: BlendedGuid = guid; break;
                 case TextureVariant.SkyBlended: SkyBlendedGuid = guid; break;

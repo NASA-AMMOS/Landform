@@ -39,14 +39,15 @@ namespace JPLOPS.Pipeline
             m.Save(Path.Combine(directory, node.Name + meshExtension), imgName);
         }
 
-        public static int GetTileResolution(Mesh mesh, int maxRes = -1, double maxTexelsPerMeter = -1,
+        public static int GetTileResolution(Mesh mesh, int maxRes = -1, int minRes = -1, double maxTexelsPerMeter = -1,
                                             bool powerOfTwoTextures = false, Action<string> info = null)
         {
-            return GetTileResolution(mesh.SurfaceArea(), maxRes, maxTexelsPerMeter, powerOfTwoTextures, info);
+            return GetTileResolution(mesh.SurfaceArea(), maxRes, minRes, maxTexelsPerMeter, powerOfTwoTextures, info);
         }
 
-        public static int GetTileResolution(double meshArea, int maxRes = -1, double maxTexelsPerMeter = -1,
-                                            bool powerOfTwoTextures = false, Action<string> info = null)
+        public static int GetTileResolution(double meshArea, int maxRes = -1, int minRes = -1,
+                                            double maxTexelsPerMeter = -1, bool powerOfTwoTextures = false,
+                                            Action<string> info = null)
         {
             if (maxRes == 0)
             {
@@ -58,6 +59,18 @@ namespace JPLOPS.Pipeline
                 maxRes = TilingDefaults.MAX_TILE_RESOLUTION;
             }
 
+            if (minRes < 0)
+            {
+                minRes = TilingDefaults.MIN_TILE_RESOLUTION;
+            }
+
+            minRes = Math.Min(minRes, maxRes);
+
+            if (minRes == maxRes)
+            {
+                return maxRes;
+            }
+
             int res = maxRes;
 
             double squareTexelsPerSquareMeter = -1;
@@ -67,7 +80,7 @@ namespace JPLOPS.Pipeline
                 squareTexelsPerSquareMeter = maxTexelsPerMeter * maxTexelsPerMeter;
                 texelArea = meshArea * squareTexelsPerSquareMeter;
 
-                res = Math.Max(TilingDefaults.MIN_TILE_RESOLUTION, (int)Math.Sqrt(texelArea));
+                res = Math.Max(minRes, (int)Math.Sqrt(texelArea));
 
                 if (powerOfTwoTextures)
                 {
@@ -82,7 +95,7 @@ namespace JPLOPS.Pipeline
                 info(string.Format("computed tile resolution {0}, min {1}, max {2}, max texels/meter {3}, " +
                                    "max square texels/square meter {4}, mesh area {5:F3}m^2, max texels {6}, " +
                                    "res for max texels {7}, power of two required {8}",
-                                   res, TilingDefaults.MIN_TILE_RESOLUTION, maxRes, maxTexelsPerMeter,
+                                   res, minRes, maxRes, maxTexelsPerMeter,
                                    Fmt.KMG(squareTexelsPerSquareMeter), meshArea, Fmt.KMG(texelArea),
                                    (int)Math.Sqrt(texelArea), powerOfTwoTextures));
             }
@@ -302,7 +315,7 @@ namespace JPLOPS.Pipeline
                 orbitalTile = project.IsOrbitalTile(parentBounds);
                 tileType = orbitalTile ? "orbital " : "";
                 double texelsPerMeter = orbitalTile ? project.MaxOrbitalTexelsPerMeter : project.MaxTexelsPerMeter;
-                textureSize = GetTileResolution(parentMesh, project.MaxTextureResolution, texelsPerMeter,
+                textureSize = GetTileResolution(parentMesh, project.MaxTextureResolution, -1, texelsPerMeter,
                                                 project.PowerOfTwoTextures, info);
             }
 

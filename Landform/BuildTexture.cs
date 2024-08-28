@@ -1,6 +1,7 @@
 ﻿using System;
 using CommandLine;
 using JPLOPS.Util;
+using JPLOPS.Pipeline.AlignmentServer;
 
 /// <summary>
 /// Generate a full-scene texture by backprojecting observation images in a Landform alignment project.
@@ -95,6 +96,11 @@ namespace JPLOPS.Landform
 
                 if (!options.OnlyIndex)
                 {
+                    if (options.TextureVariant == TextureVariant.Stretched)
+                    {
+                        RunPhase("build stretched observation images", BuildStretchedObservationImages);
+                    }
+
                     RunPhase(string.Format("generate {0} backproject texture", options.TextureVariant),
                              () => { sceneTexture = BuildBackprojectTexture(options.TextureVariant); });
                 }

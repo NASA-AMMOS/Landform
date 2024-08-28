@@ -21,13 +21,46 @@ namespace JPLOPS.Geometry
             Inpaint
         }
 
-        public static Mesh BuildGrid(Mesh mesh, int width, int height, VertexProjection.ProjectionAxis axis)
+        public static Mesh BuildGrid(Mesh mesh, int width, int height, VertexProjection.ProjectionAxis axis,
+                                     double inset = 0)
         {
-            return BuildGrid(mesh.Bounds(), width, height, axis);
+            return BuildGrid(mesh.Bounds(), width, height, axis, inset);
         }
 
-        public static Mesh BuildGrid(BoundingBox bounds, int width, int height, VertexProjection.ProjectionAxis axis)
+        public static Mesh BuildGrid(BoundingBox bounds, int width, int height, VertexProjection.ProjectionAxis axis,
+                                     double inset = 0)
         {
+            if (inset > 0)
+            {
+                switch (axis)
+                {
+                    case VertexProjection.ProjectionAxis.X:
+                    {
+                        bounds.Min.Y += inset;
+                        bounds.Min.Z += inset;
+                        bounds.Max.Y -= inset;
+                        bounds.Max.Z -= inset;
+                        break;
+                    }
+                    case VertexProjection.ProjectionAxis.Y:
+                    {
+                        bounds.Min.X += inset;
+                        bounds.Min.Z += inset;
+                        bounds.Max.X -= inset;
+                        bounds.Max.Z -= inset;
+                        break;
+                    }
+                    case VertexProjection.ProjectionAxis.Z:
+                    {
+                        bounds.Min.X += inset;
+                        bounds.Min.Y += inset;
+                        bounds.Max.X -= inset;
+                        bounds.Max.Y -= inset;
+                        break;
+                    }
+                }
+            }
+
             Mesh outMesh = new Mesh();
 
             //Handles projection based on axis

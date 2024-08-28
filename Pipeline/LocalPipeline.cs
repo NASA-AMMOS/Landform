@@ -219,7 +219,7 @@ namespace JPLOPS.Pipeline
             }
             dir = StringHelper.EnsureTrailingSlash(dir);
             var opts = ignoreCase ? RegexOptions.IgnoreCase : RegexOptions.None;
-            var regex = StringHelper.WildcardToRegularExpression(globPattern, opts);
+            var regex = StringHelper.WildcardToRegularExpression(globPattern, opts: opts);
             //LogInfo("SearchFiles dir={0}, stem={1}, globPattern={2}, recursive={3}, regex={4}",
             //         dir, stem, globPattern, recursive, regex);
             foreach (var f in PathHelper.ListFiles(dir, recursive: recursive))

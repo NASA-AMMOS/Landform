@@ -21,10 +21,16 @@ namespace JPLOPS.Landform
         [Option(HelpText = "Maximum faces per tile", Default = TilingDefaults.MAX_FACES_PER_TILE)]
         public int MaxFacesPerTile { get; set; }
 
-        [Option(HelpText = "Max resolution per tile, 0 disables texturing, negative for unlimited (only when clipping textures) or default", Default = TilingDefaults.MAX_TILE_RESOLUTION)]
-        public virtual int MaxTileResolution { get; set; }
+        [Option(HelpText = "Max resolution per tile, 0 disables texturing, negative for unlimited or default", Default = TilingDefaults.MAX_TILE_RESOLUTION)]
+        public int MaxTileResolution { get; set; }
 
-        [Option(HelpText = "Minium tile bounds extent", Default = TilingDefaults.MIN_TILE_EXTENT)]
+        [Option(HelpText = "Min resolution per tile", Default = TilingDefaults.MIN_TILE_RESOLUTION)]
+        public int MinTileResolution { get; set; }
+
+        [Option(HelpText = "Maximum tile bounds extent, negative for unlimited or default", Default = TilingDefaults.MAX_TILE_EXTENT)]
+        public double MaxTileExtent { get; set; }
+
+        [Option(HelpText = "Minimum tile bounds extent", Default = TilingDefaults.MIN_TILE_EXTENT)]
         public double MinTileExtent { get; set; }
 
         [Option(HelpText = "Minium tile bounds extent relative to mesh size", Default = TilingDefaults.MIN_TILE_EXTENT_REL)]
@@ -111,7 +117,7 @@ namespace JPLOPS.Landform
 
         protected TilingCommandOptions tilingOpts;
 
-        protected int maxTileResolution;
+        protected int maxTileResolution, minTileResolution;
         protected bool withTextures;
 
         protected TilingProject tilingProject;
@@ -227,7 +233,7 @@ namespace JPLOPS.Landform
 
             if (maxTileResolution > 0 && !NumberHelper.IsPowerOfTwo(maxTileResolution) && tilingOpts.PowerOfTwoTextures)
             {
-                pipeline.LogWarn("tile texture resolution {0} not a power of two", maxTileResolution);
+                pipeline.LogWarn("max tile texture resolution {0} not a power of two", maxTileResolution);
             }
 
             if (maxTileResolution < 0 && !AllowUnlimitedTileResolution())
@@ -236,6 +242,15 @@ namespace JPLOPS.Landform
             }
 
             withTextures = !tilingOpts.NoTextures && maxTileResolution != 0;
+
+            minTileResolution = tilingOpts.MinTileResolution;
+            minTileResolution = Math.Max(0, minTileResolution);
+            minTileResolution = Math.Min(maxTileResolution, minTileResolution);
+
+            if (minTileResolution > 0 && !NumberHelper.IsPowerOfTwo(minTileResolution) && tilingOpts.PowerOfTwoTextures)
+            {
+                pipeline.LogWarn("min tile texture resolution {0} not a power of two", minTileResolution);
+            }
 
             string texMsg = withTextures ? (" and " + tilingOpts.ImageFormat + " textures") : "";
             pipeline.LogInfo("{0}saving {1} tile meshes{2} to {3}",
@@ -706,6 +721,10 @@ namespace JPLOPS.Landform
                 resolution = resolution >= 0 ? resolution : maxTileResolution;
 
                 bool quiet = !(pipeline.Verbose || pipeline.Debug || tilingOpts.VerboseBackproject);
+                if (tileList != null && tileList.LeafNames.Count <= 16)
+                {
+                    quiet = false;
+                }
                 var results = BackprojectObservations(mip.Mesh, resolution, meshCaster, occlusionScene,
                                                       out Backproject.Stats stats, strategy, tileName, quiet);
                 

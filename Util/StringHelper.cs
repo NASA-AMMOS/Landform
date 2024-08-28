@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Globalization;
 using System.Text.RegularExpressions;
 using System.Security.Cryptography;
 
@@ -15,22 +16,22 @@ namespace JPLOPS.Util
         /// <param name="value"></param>
         /// <returns></returns>
         public static string WildcardToRegularExpressionString(string value, bool fullMatch = true,
-                                                               bool matchSlashes = true)
+                                                               bool matchSlashes = true,
+                                                               bool allowAlternation = false)
         {
             string any = matchSlashes ? "." : @"[^/\\]";
             string regex = Regex.Escape(value).Replace("\\?", any).Replace("\\*", any + "*");
+            if (allowAlternation) {
+                regex = regex.Replace("\\(", "(").Replace("\\)", ")").Replace("\\|", "|");
+            }
             return fullMatch ? ("^" + regex + "$") : regex;
         }
 
         public static Regex WildcardToRegularExpression(string value, bool fullMatch = true, bool matchSlashes = true,
+                                                        bool allowAlternation = false,
                                                         RegexOptions opts = RegexOptions.None)
         {
-            return new Regex(WildcardToRegularExpressionString(value, fullMatch, matchSlashes), opts);
-        }
-
-        public static Regex WildcardToRegularExpression(string value, RegexOptions opts)
-        {
-            return WildcardToRegularExpression(value, true, true, opts);
+            return new Regex(WildcardToRegularExpressionString(value, fullMatch, matchSlashes, allowAlternation), opts);
         }
 
         public static string ReplaceIntWildcards(string str, int value, char wildcardChar = '#')
@@ -262,6 +263,28 @@ namespace JPLOPS.Util
         public static string[] ParseList(string list, char sep = ',')
         {
             return (list ?? "").Split(sep).Select(s => s.Trim()).Where(s => !string.IsNullOrEmpty(s)).ToArray();
+        }
+
+        public static float[] ParseFloatListSafe(string list, char sep = ',')
+        {
+            string[] fl = ParseList(list, sep);
+            try
+            {
+                float[] ret = new float[fl.Length];
+                for (int i = 0; i < fl.Length; i++)
+                {
+                    ret[i] = float.Parse(fl[i], CultureInfo.InvariantCulture);
+                }
+                return ret;
+            }
+            catch (FormatException)
+            {
+                return null;
+            }
+            catch (OverflowException)
+            {
+                return null;
+            }
         }
 
         public static List<string> ParseExts(string extsStr, bool bothCases = false)

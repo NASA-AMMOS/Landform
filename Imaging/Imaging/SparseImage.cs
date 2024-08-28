@@ -858,18 +858,25 @@ namespace JPLOPS.Imaging
         public const int CHUNK_SIZE = 512;
         public const int CHUNK_CACHE_SIZE = 400; //important: cache size > 0 limits memory usage
 
-        public SparseGISImage(string path, CameraModel cameraModel = null)
+        private bool byteDataIssRGB;
+
+        public SparseGISImage(string path, CameraModel cameraModel = null, bool byteDataIssRGB = true)
             : base(path, chunkSize: CHUNK_SIZE, cacheSize: CHUNK_CACHE_SIZE)
         {
             this.CameraModel = cameraModel;
+            this.byteDataIssRGB = byteDataIssRGB;
         }
 
-        public SparseGISImage(int bands, int width, int height)
+        public SparseGISImage(int bands, int width, int height, bool byteDataIssRGB = true)
             : base(bands, width, height, CHUNK_SIZE, CHUNK_CACHE_SIZE)
-        { }
+        {
+            this.byteDataIssRGB = byteDataIssRGB;
+        }
 
         public SparseGISImage(SparseGISImage that) : base(that)
-        { }
+        {
+            this.byteDataIssRGB = that.byteDataIssRGB;
+        }
 
         public override Image Instantiate(int bands, int width, int height)
         {
@@ -879,6 +886,18 @@ namespace JPLOPS.Imaging
         public override object Clone()
         {
             return new SparseGISImage(this);
+        }
+
+        protected override IImageConverter GetReadConverter()
+        {
+            return byteDataIssRGB ?
+                ImageConverters.ValueRangeSRGBToNormalizedImageLinearRGB : ImageConverters.ValueRangeToNormalizedImage;
+        }
+
+        protected override IImageConverter GetWriteConverter()
+        {
+            return byteDataIssRGB ?
+                ImageConverters.NormalizedImageLinearRGBToValueRangeSRGB : ImageConverters.NormalizedImageToValueRange;
         }
     }
 }

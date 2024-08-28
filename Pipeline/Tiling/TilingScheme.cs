@@ -5,7 +5,9 @@ using JPLOPS.Geometry;
 
 namespace JPLOPS.Pipeline
 {
-    public enum TilingScheme { Bin, QuadX, QuadY, QuadZ, QuadAuto, QuadAutoWithFallback, Oct, UserDefined, Flat } 
+    public enum TilingScheme {
+        Bin, QuadX, QuadY, QuadZ, QuadAuto, QuadAutoWithFallback, Oct, UserDefined, Flat, Progressive
+    } 
 
     public abstract class TilingSchemeBase
     {
