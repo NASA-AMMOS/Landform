@@ -52,6 +52,7 @@
     <Compile Include="Imaging\Image.cs" />
     <Compile Include="Imaging\ImageCoordinate.cs" />
     <Compile Include="Imaging\ImageException.cs" />
+    <Compile Include="Imaging\ImageHistogram.cs" />
     <Compile Include="Imaging\ImageMetadata.cs" />
     <Compile Include="Imaging\ImageStatistics.cs" />
     <Compile Include="Imaging\LimberDMG.cs" />

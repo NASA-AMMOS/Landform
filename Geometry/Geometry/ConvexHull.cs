@@ -10,6 +10,8 @@ namespace JPLOPS.Geometry
 {
     public class ConvexHull
     {
+        public const double DEF_NEAR_CLIP = 0.1, DEF_FAR_CLIP = 20;
+
         public Mesh Mesh { get; private set; }
 
         public List<Plane> Planes { get; private set; }
@@ -175,17 +177,19 @@ namespace JPLOPS.Geometry
             return ConvexHull.Create(hulls.SelectMany(h => h.Vertices.Select(vtx => vtx.Position)));
         }
 
-        public static ConvexHull FromImage(Image image, double nearClip = 0.1, double farClip = 20)
+        public static ConvexHull FromImage(Image image, double nearClip = DEF_NEAR_CLIP, double farClip = DEF_FAR_CLIP,
+                                           bool forceLinear = false)
         {
-            return FromParams(image.CameraModel, image.Width, image.Height, nearClip, farClip);
+            return FromParams(image.CameraModel, image.Width, image.Height, nearClip, farClip, forceLinear);
         }
 
         public static ConvexHull FromParams(CameraModel camera, double width, double height,
-                                            double nearClip = 0.1, double farClip = 20)
+                                            double nearClip = DEF_NEAR_CLIP, double farClip = DEF_FAR_CLIP,
+                                            bool forceLinear = false)
         {
             // Get points - just corners for linear models, denser otherwise
             int subdiv = 2;
-            if (!camera.Linear)
+            if (!forceLinear && !camera.Linear)
             {
                 subdiv = 5;
             }

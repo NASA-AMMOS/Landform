@@ -138,10 +138,7 @@ namespace JPLOPS.Pipeline
             {
                 throw new Exception("no PlacesDB views");
             }
-            if (logger != null)
-            {
-                logger.LogInfo("PlacesDB url: {0}; views {1}", config.Url, String.Join(",", views));
-            }
+            Debug("PlacesDB url: {0}; views {1}", config.Url, String.Join(",", views));
 
             if (!string.IsNullOrEmpty(config.AuthCookieValue))
             {
@@ -160,10 +157,7 @@ namespace JPLOPS.Pipeline
                 }
                 try
                 {
-                    if (logger != null)
-                    {
-                        logger.LogInfo("reading PlacesDB auth cookie from file \"{0}\"", path);
-                    }
+                    Debug("reading PlacesDB auth cookie from file \"{0}\"", path);
                     cookieValue = File.ReadAllText(path);
                     if (string.IsNullOrEmpty(cookieValue))
                     {
@@ -245,9 +239,15 @@ namespace JPLOPS.Pipeline
                         response.StatusCode == HttpStatusCode.OK)
                     {
                         string content = response.Content;
-                        cache[query] = content;
-                        Debug("request: {0}, response:\n{1}", config.Url + "/" + query, content);
-                        return content;
+                        if (content.StartsWith("{") || IsValidXml(content)) {
+                            cache[query] = content;
+                            Debug("request: {0}/{1}, response:\n{2}", config.Url, query, content);
+                            return content;
+                        } else {
+                            Debug("invalid response content for query {0}/{1}: not valid JSON or XML:\n{2}",
+                                  config.Url, query, content);
+                            break;
+                        }
                     }
                     else
                     {
@@ -310,6 +310,19 @@ namespace JPLOPS.Pipeline
             {
                 throw new Exception(string.Format("PlacesDB: error parsing response for request {0}: {1}",
                                                   query, ex.Message));
+            }
+        }
+
+        private bool IsValidXml(string response)
+        {
+            try
+            {
+                (new XmlDocument()).LoadXml(response);
+                return true;
+            }
+            catch (System.Xml.XmlException)
+            {
+                return false;
             }
         }
 
@@ -852,6 +865,56 @@ namespace JPLOPS.Pipeline
 #endif
                 throw makeException();
             }
+        }
+
+        public SiteDrive GetPreviousEndOfDrive(SiteDrive sd, string view)
+        {
+            //modeled after gov/nasa/jpl/ammos/ids/places/client/Plinth.java in https://github.jpl.nasa.gov/MIPL/PLACES
+
+            int landingSite = 0;
+
+            // Go back 5 sites (to avoid taking too long)
+            string searchStart = $"SITE({Math.Max(landingSite, sd.Site - 5)})";
+
+            //always use SITE(x) instead of ROVER(x) or ROVER(x,0)
+            string searchEnd = null;
+            if (sd.Drive > 1) {
+                searchEnd = $"ROVER({sd.Site},{sd.Drive - 1},^)";
+            } else if (sd.Drive == 1) {
+                searchEnd = $"SITE({sd.Site})";
+            } else if (sd.Site > landingSite) {
+                searchEnd = $"ROVER({sd.Site - 1},^,^)";
+            } else {
+                throw new Exception("no end-of-drive RMC prior to " + sd);
+            }
+
+            string query = $"view/{view}/rmcs?from={searchStart}&to={searchEnd}";
+            string response = Fetch(query);
+
+            XmlDocument doc = ParseXml(query, response);
+
+            XmlNodeList nodes = doc.GetElementsByTagName("rmc");
+            if (nodes.Count == 0)
+            {
+                throw new Exception($"error getting previous end-of-drive for {sd}: query {query} returned no results");
+            }
+
+            //the RMC are returned in descending order - the first returned RMC is the newest
+            //(and the list may be truncated due to pagination, but it's the *older* entries that are truncated) 
+            var elt = nodes[0];
+            string site = elt.Attributes["site"]?.Value;
+            string drive = elt.Attributes["drive"]?.Value; //null ok
+            if (site != null && int.TryParse(site, out int s))
+            {
+                int d = 0;
+                if (drive == null || int.TryParse(drive, out d))
+                {
+                    return new SiteDrive(s, d);
+                }
+            }
+
+            throw new Exception($"error getting previous end-of-drive for {sd}: " +
+                                $"failed to parse site={site}, drive={drive}");
         }
     }
 }

@@ -64,6 +64,9 @@ namespace JPLOPS.Pipeline
         [ConfigEnvironmentVariable("LANDFORM_ALLOW_MULTI_FRAME")]
         public bool AllowMultiFrame { get; set; } = true;
 
+        [ConfigEnvironmentVariable("LANDFORM_ALLOW_GRAYSCALE_FOR_TEXTURING")]
+        public bool AllowGrayscaleForTexturing { get; set; } = true;
+
         [ConfigEnvironmentVariable("LANDFORM_PREFER_LINEAR_GEOMETRY_PRODUCTS")]
         public bool PreferLinearGeometryProducts { get; set; } = true;
 
@@ -79,6 +82,12 @@ namespace JPLOPS.Pipeline
         [ConfigEnvironmentVariable("LANDFORM_USE_ERROR_MAPS")]
         public bool UseErrorMaps { get; set; } = false;
 
+        [ConfigEnvironmentVariable("LANDFORM_USE_HAZCAM_FOR_CONTEXTUAL_TRIGGERING")]
+        public bool UseHazcamForContextualTriggering { get; set; } = true;
+
+        [ConfigEnvironmentVariable("LANDFORM_USE_HAZCAM_FOR_ORBITAL_TRIGGERING")]
+        public bool UseHazcamForOrbitalTriggering { get; set; } = true;
+
         [ConfigEnvironmentVariable("LANDFORM_USE_HAZCAM_FOR_ALIGNMENT")]
         public bool UseHazcamForAlignment { get; set; } = true;
 
@@ -87,6 +96,12 @@ namespace JPLOPS.Pipeline
 
         [ConfigEnvironmentVariable("LANDFORM_USE_HAZCAM_FOR_TEXTURING")]
         public bool UseHazcamForTexturing { get; set; } = true;
+
+        [ConfigEnvironmentVariable("LANDFORM_USE_REAR_HAZCAM_FOR_CONTEXTUAL_TRIGGERING")]
+        public bool UseRearHazcamForContextualTriggering { get; set; } = true;
+
+        [ConfigEnvironmentVariable("LANDFORM_USE_REAR_HAZCAM_FOR_ORBITAL_TRIGGERING")]
+        public bool UseRearHazcamForOrbitalTriggering { get; set; } = true;
 
         [ConfigEnvironmentVariable("LANDFORM_USE_REAR_HAZCAM_FOR_ALIGNMENT")]
         public bool UseRearHazcamForAlignment { get; set; } = true;
@@ -97,6 +112,12 @@ namespace JPLOPS.Pipeline
         [ConfigEnvironmentVariable("LANDFORM_USE_REAR_HAZCAM_FOR_TEXTURING")]
         public bool UseRearHazcamForTexturing { get; set; } = true;
 
+        [ConfigEnvironmentVariable("LANDFORM_USE_NAVCAM_FOR_CONTEXTUAL_TRIGGERING")]
+        public bool UseNavcamForContextualTriggering { get; set; } = true;
+
+        [ConfigEnvironmentVariable("LANDFORM_USE_NAVCAM_FOR_ORBITAL_TRIGGERING")]
+        public bool UseNavcamForOrbitalTriggering { get; set; } = true;
+
         [ConfigEnvironmentVariable("LANDFORM_USE_NAVCAM_FOR_ALIGNMENT")]
         public bool UseNavcamForAlignment { get; set; } = true;
 
@@ -106,6 +127,12 @@ namespace JPLOPS.Pipeline
         [ConfigEnvironmentVariable("LANDFORM_USE_NAVCAM_FOR_TEXTURING")]
         public bool UseNavcamForTexturing { get; set; } = true;
 
+        [ConfigEnvironmentVariable("LANDFORM_USE_MASTCAM_FOR_CONTEXTUAL_TRIGGERING")]
+        public bool UseMastcamForContextualTriggering { get; set; } = true;
+
+        [ConfigEnvironmentVariable("LANDFORM_USE_MASTCAM_FOR_ORBITAL_TRIGGERING")]
+        public bool UseMastcamForOrbitalTriggering { get; set; } = true;
+
         [ConfigEnvironmentVariable("LANDFORM_USE_MASTCAM_FOR_ALIGNMENT")]
         public bool UseMastcamForAlignment { get; set; } = false;
 
@@ -114,6 +141,12 @@ namespace JPLOPS.Pipeline
 
         [ConfigEnvironmentVariable("LANDFORM_USE_MASTCAM_FOR_TEXTURING")]
         public bool UseMastcamForTexturing { get; set; } = true;
+
+        [ConfigEnvironmentVariable("LANDFORM_USE_ARMCAM_FOR_CONTEXTUAL_TRIGGERING")]
+        public bool UseArmcamForContextualTriggering { get; set; } = true;
+
+        [ConfigEnvironmentVariable("LANDFORM_USE_ARMCAM_FOR_ORBITAL_TRIGGERING")]
+        public bool UseArmcamForOrbitalTriggering { get; set; } = true;
 
         [ConfigEnvironmentVariable("LANDFORM_USE_ARMCAM_FOR_ALIGNMENT")]
         public bool UseArmcamForAlignment { get; set; } = false;
@@ -247,9 +280,14 @@ namespace JPLOPS.Pipeline
             return "root";
         }
 
-        public virtual SiteDrive GetLandingSiteDrive()
+        public virtual SiteDrive GetMinSiteDrive()
         {
             return new SiteDrive(1, 0);
+        }
+
+        public virtual SiteDrive GetLandingSiteDrive()
+        {
+            return GetMinSiteDrive();
         }
 
         public virtual Vector2? GetExpectedLandingLonLat()
@@ -529,6 +567,14 @@ namespace JPLOPS.Pipeline
         }
 
         /// <summary>
+        /// whether to allow grayscale images for texturing
+        /// </summary>
+        public virtual bool AllowGrayscaleForTexturing()
+        {
+            return MissionConfig.Instance.AllowGrayscaleForTexturing;
+        }
+
+        /// <summary>
         /// whether to allow multi-frame products such as unified meshes
         /// </summary>
         public virtual bool AllowMultiFrame()
@@ -570,6 +616,16 @@ namespace JPLOPS.Pipeline
             return MissionConfig.Instance.UseErrorMaps;
         }
 
+        public virtual bool UseHazcamForContextualTriggering()
+        {
+            return MissionConfig.Instance.UseHazcamForContextualTriggering;
+        }
+
+        public virtual bool UseHazcamForOrbitalTriggering()
+        {
+            return MissionConfig.Instance.UseHazcamForOrbitalTriggering;
+        }
+
         public virtual bool UseHazcamForAlignment()
         {
             return MissionConfig.Instance.UseHazcamForAlignment;
@@ -583,6 +639,16 @@ namespace JPLOPS.Pipeline
         public virtual bool UseHazcamForTexturing()
         {
             return MissionConfig.Instance.UseHazcamForTexturing;
+        }
+
+        public virtual bool UseRearHazcamForContextualTriggering()
+        {
+            return MissionConfig.Instance.UseRearHazcamForContextualTriggering;
+        }
+
+        public virtual bool UseRearHazcamForOrbitalTriggering()
+        {
+            return MissionConfig.Instance.UseRearHazcamForOrbitalTriggering;
         }
 
         public virtual bool UseRearHazcamForAlignment()
@@ -600,6 +666,16 @@ namespace JPLOPS.Pipeline
             return MissionConfig.Instance.UseRearHazcamForTexturing;
         }
 
+        public virtual bool UseNavcamForContextualTriggering()
+        {
+            return MissionConfig.Instance.UseNavcamForContextualTriggering;
+        }
+
+        public virtual bool UseNavcamForOrbitalTriggering()
+        {
+            return MissionConfig.Instance.UseNavcamForOrbitalTriggering;
+        }
+
         public virtual bool UseNavcamForAlignment()
         {
             return MissionConfig.Instance.UseNavcamForAlignment;
@@ -615,6 +691,16 @@ namespace JPLOPS.Pipeline
             return MissionConfig.Instance.UseNavcamForTexturing;
         }
 
+        public virtual bool UseMastcamForContextualTriggering()
+        {
+            return MissionConfig.Instance.UseMastcamForContextualTriggering;
+        }
+
+        public virtual bool UseMastcamForOrbitalTriggering()
+        {
+            return MissionConfig.Instance.UseMastcamForOrbitalTriggering;
+        }
+
         public virtual bool UseMastcamForAlignment()
         {
             return MissionConfig.Instance.UseMastcamForAlignment;
@@ -628,6 +714,16 @@ namespace JPLOPS.Pipeline
         public virtual bool UseMastcamForTexturing()
         {
             return MissionConfig.Instance.UseMastcamForTexturing;
+        }
+
+        public virtual bool UseArmcamForContextualTriggering()
+        {
+            return MissionConfig.Instance.UseArmcamForContextualTriggering;
+        }
+
+        public virtual bool UseArmcamForOrbitalTriggering()
+        {
+            return MissionConfig.Instance.UseArmcamForOrbitalTriggering;
         }
 
         public virtual bool UseArmcamForAlignment()
@@ -680,6 +776,44 @@ namespace JPLOPS.Pipeline
             return MissionConfig.Instance.UnifiedMeshProductType.Replace("auto", GetImageProductType());
         }
 
+        public bool UseForContextualTriggering(PDSParser parser)
+        {
+            return UseForContextualTriggering(GetCamera(parser));
+        }
+
+        public bool UseForContextualTriggering(RoverProductId id)
+        {
+            return UseForContextualTriggering(id.Camera);
+        }
+
+        public virtual bool UseForContextualTriggering(RoverProductCamera cam)
+        {
+            return (IsHazcam(cam) && UseHazcamForContextualTriggering() &&
+                    (!IsRearHazcam(cam) || UseRearHazcamForContextualTriggering())) ||
+                (IsNavcam(cam) && UseNavcamForContextualTriggering()) ||
+                (IsMastcam(cam) && UseMastcamForContextualTriggering()) ||
+                (IsArmcam(cam) && UseArmcamForContextualTriggering());
+        }
+
+        public bool UseForOrbitalTriggering(PDSParser parser)
+        {
+            return UseForOrbitalTriggering(GetCamera(parser));
+        }
+
+        public bool UseForOrbitalTriggering(RoverProductId id)
+        {
+            return UseForOrbitalTriggering(id.Camera);
+        }
+
+        public virtual bool UseForOrbitalTriggering(RoverProductCamera cam)
+        {
+            return (IsHazcam(cam) && UseHazcamForOrbitalTriggering() &&
+                    (!IsRearHazcam(cam) || UseRearHazcamForOrbitalTriggering())) ||
+                (IsNavcam(cam) && UseNavcamForOrbitalTriggering()) ||
+                (IsMastcam(cam) && UseMastcamForOrbitalTriggering()) ||
+                (IsArmcam(cam) && UseArmcamForOrbitalTriggering());
+        }
+
         public bool UseForAlignment(PDSParser parser)
         {
             return UseForAlignment(GetCamera(parser));
@@ -700,12 +834,12 @@ namespace JPLOPS.Pipeline
 
         public bool UseForMeshing(PDSParser parser)
         {
-            return UseForMeshing(GetCamera(parser));
+            return UseForMeshing(GetCamera(parser)) && RoverProduct.IsGeometry(GetProductType(parser));
         }
 
         public bool UseForMeshing(RoverProductId id)
         {
-            return UseForMeshing(id.Camera);
+            return UseForMeshing(id.Camera) && RoverProduct.IsGeometry(id.ProductType);
         }
 
         public virtual bool UseForMeshing(RoverProductCamera cam)
@@ -716,14 +850,20 @@ namespace JPLOPS.Pipeline
                 (IsArmcam(cam) && UseArmcamForMeshing());
         }
 
+        protected bool UseForTexturing(RoverProductCamera cam, RoverProductType pt, bool color)
+        {
+            return UseForTexturing(cam) && RoverProduct.IsRaster(pt) &&
+                (RoverProduct.IsMask(pt) || color || AllowGrayscaleForTexturing());
+        }
+
         public bool UseForTexturing(PDSParser parser)
         {
-            return UseForTexturing(GetCamera(parser));
+            return UseForTexturing(GetCamera(parser), GetProductType(parser), parser.metadata.Bands > 1);
         }
 
         public bool UseForTexturing(RoverProductId id)
         {
-            return UseForTexturing(id.Camera);
+            return UseForTexturing(id.Camera, id.ProductType, id.Color == RoverProductColor.FullColor);
         }
 
         public virtual bool UseForTexturing(RoverProductCamera cam)
@@ -1042,7 +1182,7 @@ namespace JPLOPS.Pipeline
         /// Get the desired maximum time between credential refresh.
         /// If non-positive then credential refresh is not required.
         /// </summary>
-        public virtual int GetDefaultCredentialRefreshSec()
+        public virtual int GetCredentialDurationSec()
         {
             return 0;
         }
@@ -1162,7 +1302,7 @@ namespace JPLOPS.Pipeline
 
         public virtual string FilterContextualMeshWedge(RoverProductId id, string url)
         {
-            string reason = FilterContextualmeshProduct(id, url);
+            string reason = FilterContextualMeshProduct(id, url);
             if (reason != null)
             {
                 return reason;
@@ -1187,7 +1327,7 @@ namespace JPLOPS.Pipeline
 
         public virtual string FilterContextualMeshTexture(RoverProductId id, string url)
         {
-            string reason = FilterContextualmeshProduct(id, url);
+            string reason = FilterContextualMeshProduct(id, url);
             if (reason != null)
             {
                 return reason;
@@ -1205,7 +1345,7 @@ namespace JPLOPS.Pipeline
             return null;
         }
 
-        protected virtual string FilterContextualmeshProduct(RoverProductId id, string url)
+        protected virtual string FilterContextualMeshProduct(RoverProductId id, string url)
         {
             if (id is OPGSProductId)
             {
@@ -1402,6 +1542,11 @@ namespace JPLOPS.Pipeline
         public virtual bool GetServiceSSMEncrypted()
         {
             return MissionConfig.Instance.ServiceSSMEncrypted;
+        }
+
+        public virtual List<string> GetFDRSearchDirs()
+        {
+            return null;
         }
     }
 }

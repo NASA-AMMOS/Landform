@@ -50,10 +50,6 @@ namespace JPLOPS.Pipeline
         [ConfigEnvironmentVariable("LANDFORM_CSSO_PASSWORD_PARAMETER_IN_SSM_ENCRYPTED")]
         public bool CSSOPasswordParameterInSSMEncrypted { get; set; } = true;
 
-        [ConfigEnvironmentVariable("LANDFORM_CSSO_CREDENTIAL_REFRESH_SEC")]
-        //public int CSSOCredentialRefreshSec { get; set; } = 4 * 60 * 60; //4h
-        public int CSSOCredentialRefreshSec { get; set; } = 0; //https://jira.jpl.nasa.gov/browse/MSTRIAGE-8139
-
         [ConfigEnvironmentVariable("LANDFORM_CSSO_CREDENTIAL_DURATION_SEC")]
         public int CSSOCredentialDurationSec { get; set; } = 8 * 60 * 60; //8h
 
@@ -90,6 +86,16 @@ namespace JPLOPS.Pipeline
         [ConfigEnvironmentVariable("LANDFORM_WATCHDOG_CLOUDWATCH_COMMAND")]
         public string WatchdogCloudWatchCommand { get; set; } =
             "powershell -Command \"& {cwagentctl} -a fetch-config -m ec2 -s -c file:C:\\landform\\config_files\\amazon-cloudwatch-agent.json\"";
+
+        //comma separated list of S3 URLs of FDR directories with sol number replaced by #####
+        //{venue} will be replaced
+        //for testing in dev venue override like this in contextual master EC2 userdata:
+        //set LANDFORM_FDR_SEARCH_DIRS=s3://m20-ids-g-landform/M2020/sol/####/ids/fdr/ncam/
+        [ConfigEnvironmentVariable("LANDFORM_FDR_SEARCH_DIRS")]
+        public string FDRSearchDirs { get; set; } =
+            "s3://m20-{venue}-ods/ods/surface/sol/#####/ids/fdr/fcam/," +
+            "s3://m20-{venue}-ods/ods/surface/sol/#####/ids/fdr/rcam/," +
+            "s3://m20-{venue}-ods/ods/surface/sol/#####/ids/fdr/ncam/";
     }
     
     public class MissionM2020 : MissionSpecific
@@ -141,14 +147,14 @@ namespace JPLOPS.Pipeline
             {
                 using (var ps = new ParameterStore(awsProfile, awsRegion))
                 {
-                    logger.LogInfo("opened parameter store to fetch CSSO credentials, profile={0}, region={1}",
-                                   awsProfile, awsRegion);
+                    logger.LogVerbose("opened parameter store to fetch CSSO credentials, profile={0}, region={1}",
+                                      awsProfile, awsRegion);
 
                     string userKey = cfg.CSSOUsernameParameterInSSM.Replace("{venue}", venue);
                     bool userEncrypted = cfg.CSSOUsernameParameterInSSMEncrypted;
                     if (logger != null)
                     {
-                        logger.LogInfo("fetching CSSO username from {0}, encrypted={1}", userKey, userEncrypted);
+                        logger.LogVerbose("fetching CSSO username from {0}, encrypted={1}", userKey, userEncrypted);
                     }
                     user = ps.GetParameter(userKey, userEncrypted);
                     if (string.IsNullOrEmpty(user))
@@ -161,7 +167,7 @@ namespace JPLOPS.Pipeline
                     bool passEncrypted = cfg.CSSOPasswordParameterInSSMEncrypted;
                     if (logger != null)
                     {
-                        logger.LogInfo("fetching CSSO password from {0}, encrypted={1}", passKey, passEncrypted);
+                        logger.LogVerbose("fetching CSSO password from {0}, encrypted={1}", passKey, passEncrypted);
                     }
                     pass = ps.GetParameter(passKey, passEncrypted);
                     if (string.IsNullOrEmpty(user))
@@ -212,7 +218,7 @@ namespace JPLOPS.Pipeline
 
             if (logger != null)
             {
-                logger.LogInfo("{0}running {1} {2}", dryRun ? "dry " : "", credssExe, cmd);
+                logger.LogVerbose("{0}running {1} {2}", dryRun ? "dry " : "", credssExe, cmd);
             }
 
             //avoid plaintexting credentials in log
@@ -247,9 +253,9 @@ namespace JPLOPS.Pipeline
             return null;
         }
 
-        public override int GetDefaultCredentialRefreshSec()
+        public override int GetCredentialDurationSec()
         {
-            return MissionM2020Config.Instance.CSSOCredentialRefreshSec;
+            return MissionM2020Config.Instance.CSSOCredentialDurationSec;
         }
 
         //some images have invalid PLANET_DAY_NUMBER
@@ -845,6 +851,13 @@ namespace JPLOPS.Pipeline
             string cmd = MissionM2020Config.Instance.WatchdogCloudWatchCommand.Replace("{venue}", venue);
             return cmd.Replace("{cwagentctl}",
                                "'C:\\Program Files\\Amazon\\AmazonCloudWatchAgent\\amazon-cloudwatch-agent-ctl.ps1'");
+        }
+
+        public override List<string> GetFDRSearchDirs()
+        {
+            return MissionM2020Config.Instance.FDRSearchDirs.Split(',')
+                .Select(d => d.Replace("{venue}", venue))
+                .ToList();
         }
     }
 }

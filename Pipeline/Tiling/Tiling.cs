@@ -13,7 +13,9 @@ namespace JPLOPS.Pipeline
     public static class TilingDefaults
     {
         public const TilingScheme TILING_SCHEME = TilingScheme.QuadAuto;
+        public const double PROGRESSIVE_TILING_FACTOR = 0.5;
         public const double MIN_TILE_EXTENT = 0.5;
+        public const double MAX_TILE_EXTENT = -1;
         public const double MIN_TILE_EXTENT_REL = 0.1;
         public const double MAX_LEAF_AREA = 128;
         public const MeshReconstructionMethod PARENT_RECONSTRUCTION_METHOD = MeshReconstructionMethod.FSSR;

@@ -1,5 +1,3 @@
-//#define DBG_BLURRED
-//#define DBG_FRUSTA
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -42,9 +40,6 @@ namespace JPLOPS.Landform
         [Option(HelpText = "Occlusion mesh in same frame as input mesh, defaults to input mesh", Default = null)]
         public string OcclusionMesh { get; set; }
 
-        [Option(HelpText = "Observation image texture variant (Original, Blurred, Blended)", Default = TextureVariant.Original)]
-        public virtual TextureVariant TextureVariant { get; set; }
-
         [Option(HelpText = "A tunable parameter for the Observation Selection Strategy used in backproject (range 0-1)", Default = TexturingDefaults.BACKPROJECT_QUALITY)]
         public virtual double BackprojectQuality { get; set; }
 
@@ -72,32 +67,17 @@ namespace JPLOPS.Landform
         [Option(HelpText = "Redo blended observation textures", Default = false)]
         public bool RedoBlendedObservationTextures { get; set; }
 
-        [Option(HelpText = "Redo observation image masks", Default = false)]
-        public bool RedoObservationMasks { get; set; }
-
-        [Option(HelpText = "Redo observation image stats", Default = false)]
-        public bool RedoObservationStats { get; set; }
-
-        [Option(HelpText = "Redo observation image hulls", Default = false)]
-        public bool RedoObservationHulls { get; set; }
-
         [Option(HelpText = "Number of inpaint missing pixels for backproject, 0 to disable inpaint, negative for unlimited", Default = TexturingDefaults.BACKPROJECT_INPAINT_MISSING)]
         public int BackprojectInpaintMissing { get; set; }
 
         [Option(HelpText = "Number of inpaint gutter pixels for backproject, 0 to disable inpaint, negative for unlimited", Default = TexturingDefaults.BACKPROJECT_INPAINT_GUTTER)]
         public int BackprojectInpaintGutter { get; set; }
 
-        [Option(HelpText = "Just show list of image observations selected for texturing", Default = false)]
-        public bool ListImageObservations { get; set; }
-
         [Option(HelpText = "Prefer color images (Never, Always, EquivalentScores)", Default = TexturingDefaults.OBS_SEL_PREFER_COLOR)]
         public virtual PreferColorMode PreferColor { get; set; }
 
         [Option(HelpText = "Colorize mono images to median chrominance", Default = false)]
         public bool Colorize { get; set; }
-
-        [Option(HelpText = "Override median hue [0-360], negative disables (e.g. 33)", Default = -1)]
-        public double OverrideMedianHue { get; set; }
 
         [Option(HelpText = "Disable generating UVs by texture projection", Default = false)]
         public bool NoTextureProjection { get; set; }
@@ -134,17 +114,16 @@ namespace JPLOPS.Landform
 
         [Option(HelpText = "Higher values will cause sharper transitions between images but better conform to the inputs", Default = LimberDMG.DEF_LAMBDA)]
         public double BlendLambda { get; set; }
+
+        [Option(HelpText = "Don't blend leaves parallel", Default = false)]
+        public bool NoBlendLeavesInParallel { get; set; }
     }
 
     public class TextureCommand : GeometryCommand
     {
-        public const int SPEW_INTERVAL_SEC = 10;
-
         public const string DEF_FIXUP_LODS = "90000-300000,20000-100000,4000-30000,1000-5000,100-2000";
 
         protected TextureCommandOptions tcopts;
-
-        protected IDictionary<string, ConvexHull> obsToHull;
 
         protected SceneCaster sceneCaster;
 
@@ -154,12 +133,6 @@ namespace JPLOPS.Landform
         protected Image backprojectIndex;
 
         protected TileList tileList;
-
-        protected List<Observation> imageObservations;
-        protected List<Observation> orbitalImages;
-        protected List<RoverObservation> roverImages;
-        protected static bool reverseNextRoverImagesIteration;
-        protected Dictionary<int, Observation> indexedImages;
 
         protected SceneMesh sceneMesh;
         protected Image sceneTexture;
@@ -171,8 +144,6 @@ namespace JPLOPS.Landform
         protected List<MeshOperator> meshOpForLOD; //meshOpForLOD[0] = meshOp, coarser LODs populated iff --loadlods
         protected Matrix? meshTransform;
 
-        protected double medianHue = -1;
-
         protected int numProjectAtlas;
 
         protected TextureCommand(TextureCommandOptions tcopts) : base(tcopts)
@@ -180,9 +151,6 @@ namespace JPLOPS.Landform
             this.tcopts = tcopts;
             if (tcopts.Redo)
             {
-                tcopts.RedoObservationMasks = true;
-                tcopts.RedoObservationHulls = true;
-                tcopts.RedoObservationStats = true;
                 tcopts.RedoBlurredObservationTextures = true;
                 tcopts.RedoBlendedObservationTextures = true;
             }
@@ -194,11 +162,6 @@ namespace JPLOPS.Landform
             {
                 pipeline.LogInfo("disabling LRU image cache");
                 pipeline.SetImageCacheCapacity(0);
-            }
-
-            if (tcopts.TextureFarClip > 0)
-            {
-                PDSImage.farLimit = tcopts.TextureFarClip;
             }
 
             if (tcopts.DecimateWedgeImages < 0 || tcopts.DecimateWedgeImages > 1)
@@ -227,24 +190,6 @@ namespace JPLOPS.Landform
             //some workflows do not load observations, for example tiling an M2020 tactical mesh
             if (observationCache != null)
             {
-                orbitalImages = observationCache.GetAllObservations().Where(obs => obs.IsOrbitalImage).ToList();
-
-                roverImages = GetRoverObservations(obs => obs.ObservationType == RoverProductType.Image);
-
-                FilterRoverImages();
-
-                imageObservations = roverImages.Cast<Observation>().ToList();
-                imageObservations.AddRange(orbitalImages);
-                
-                pipeline.LogInfo("{0} image observations ({1} surface, {2} orbital)", imageObservations.Count,
-                                 imageObservations.Count - orbitalImages.Count, orbitalImages.Count);
-
-                indexedImages = new Dictionary<int, Observation>();
-                foreach (var obs in imageObservations)
-                {
-                    indexedImages[obs.Index] = obs;
-                }
-
                 if (!tcopts.NoOrbital)
                 {
                     bool ok = LoadOrbitalTexture();
@@ -259,64 +204,9 @@ namespace JPLOPS.Landform
                 }
             }
 
-            if (tcopts.ListImageObservations)
-            {
-                ListImageObservations();
-                return false;
-            }
-
-            if (tcopts.OverrideMedianHue >= 0 && tcopts.OverrideMedianHue <= 360)
-            {
-                medianHue = tcopts.OverrideMedianHue;
-            }
-
             return true;
         }
 
-        protected virtual bool DisableOrbitalIfNoOrbitalTexture()
-        {
-            return true;
-        }
-
-        protected virtual void FilterRoverImages()
-        {
-            var comparator = new RoverObservationComparator(mission, pipeline);
-            roverImages = comparator
-                .KeepBestRoverObservations(roverImages, RoverObservationComparator.LinearVariants.Best,
-                                           RoverProductType.Image)
-                .OrderBy(obs => obs.Name)
-                .ToList();
-        }
-
-        private void ListImageObservations()
-        {
-            if (imageObservations != null)
-            {
-                var allRoverObservations = observationCache.GetAllObservations()
-                    .Where(obs => (obs is RoverObservation) &&
-                           ((RoverObservation)obs).ObservationType == RoverProductType.Image)
-                    .ToList();
-
-                pipeline.LogInfo("{0} surface image observations, {1} linear variants selected for texturing:",
-                                 allRoverObservations, roverImages.Count);
-                foreach (var obs in allRoverObservations.OrderBy(obs => obs.Name))
-                {
-                    pipeline.LogInfo("{0} {1}selected for texturing", obs.Name,
-                                     indexedImages.ContainsKey(obs.Index) ? "" : "not ");
-                }
-
-                pipeline.LogInfo("{0} orbital image observations:", orbitalImages.Count);
-                foreach (var obs in orbitalImages.OrderBy(obs => obs.Name))
-                {
-                    pipeline.LogInfo(obs.Name);
-                }
-            }
-            else
-            {
-                pipeline.LogInfo("no image observations");
-            }
-        }
-            
         protected override bool ObservationFilter(RoverObservation obs)
         {
             return obs.UseForTexturing && (obs.ObservationType == RoverProductType.Image ||
@@ -328,162 +218,9 @@ namespace JPLOPS.Landform
             return " texturing images and masks";
         }
 
-        protected static bool ReverseNextRoverImagesIteration()
+        protected virtual bool DisableOrbitalIfNoOrbitalTexture()
         {
-            bool ret = reverseNextRoverImagesIteration;
-            reverseNextRoverImagesIteration = !ret;
-            return ret;
-        }
-
-        protected IEnumerable<RoverObservation> GetRoverImagesInNextIterationOrder()
-        {
-            return ReverseNextRoverImagesIteration() ?
-                roverImages.OrderByDescending(obs => obs.Name).ToList() : roverImages;
-        }
-
-        protected void BuildObservationImageMasks()
-        {
-            int no = roverImages.Count;
-            int np = 0, nc = 0, nl = 0, nf = 0;
-            double lastSpew = UTCTime.Now();
-            CoreLimitedParallel.ForEachNoPartition(GetRoverImagesInNextIterationOrder(), obs =>
-            {
-                if (!tcopts.RedoObservationMasks && obs.MaskGuid != Guid.Empty)
-                {
-                    Interlocked.Increment(ref nc);
-                    Interlocked.Increment(ref nl);
-                    return;
-                }
-                
-                Interlocked.Increment(ref np);
-
-                double now = UTCTime.Now();
-                if (!tcopts.NoProgress && (pipeline.Verbose || ((now - lastSpew) > SPEW_INTERVAL_SEC)))
-                {
-                    pipeline.LogInfo("creating mask for observation {0}, processing {1} in parallel, " +
-                                     "completed {2}/{3}, {4} cached, {5} failed", obs.Name, np, nc, no, nl, nf);
-                    lastSpew = now;
-                }
-                    
-                try
-                {
-                    Image img = pipeline.LoadImage(obs.Url);
-
-                    var maskObs = GetBestMaskObservation(obs);
-                    
-                    Image maskImage = ImageMasker.MakeMask(pipeline, masker, maskObs != null ? maskObs.Url : null, img);
-                    
-                    if (!tcopts.NoSave)
-                    {
-                        var maskProd = new PngDataProduct(maskImage);
-                        pipeline.SaveDataProduct(project, maskProd); //leave cache enabled
-                        obs.MaskGuid = maskProd.Guid;
-                        obs.Save(pipeline);
-                    }
-
-                    Interlocked.Increment(ref nc);
-                }
-                catch (Exception ex)
-                {
-                    Interlocked.Increment(ref nf);
-                    pipeline.LogException(ex, $"error creating mask for observation {obs.Name}");
-                }
-
-                Interlocked.Decrement(ref np);
-            });
-
-            pipeline.LogInfo("built masks for {0} observations, {1} cached, {2} failed", nc - nl, nl, nf);
-        }
-
-        protected void BuildObservationImageHulls()
-        {
-            BuildObservationImageHulls(false, false);
-        }
-
-        protected void BuildObservationImageHulls(bool forceRedo = false, bool noSave = false)
-        {
-            obsToHull = Backproject.BuildFrustumHulls(pipeline, frameCache, meshFrame, tcopts.UsePriors,
-                                                      tcopts.OnlyAligned, GetRoverImagesInNextIterationOrder(), project,
-                                                      tcopts.RedoObservationHulls || forceRedo, tcopts.NoSave || noSave,
-                                                      farClip: tcopts.TextureFarClip);
-#if DBG_FRUSTA
-            if (tcopts.WriteDebug)
-            {
-                foreach (var entry in obsToHull)
-                {
-                    SaveMesh(entry.Value.Mesh, "Frusta/" + entry.Key);
-                }
-            }
-#endif
-        }
-
-        protected void BuildObservationImageStats()
-        {
-            int no = roverImages.Count;
-            int np = 0, nc = 0, nl = 0, nf = 0;
-            double lastSpew = UTCTime.Now();
-            CoreLimitedParallel.ForEachNoPartition(GetRoverImagesInNextIterationOrder(), obs =>
-            {
-                if (!tcopts.RedoObservationStats && obs.StatsGuid != Guid.Empty)
-                {
-                    Interlocked.Increment(ref nc);
-                    Interlocked.Increment(ref nl);
-                    return;
-                }
-                
-                Interlocked.Increment(ref np);
-                
-                double now = UTCTime.Now();
-                if (!tcopts.NoProgress && (pipeline.Verbose || ((now - lastSpew) > SPEW_INTERVAL_SEC)))
-                {
-                    pipeline.LogInfo("computing stats for observation {0}, processing {1} in parallel, " +
-                                     "completed {2}/{3}, {4} cached, {5} failed", obs.Name, np, nc, no, nl, nf);
-                    lastSpew = now;
-                }
-
-                try
-                {
-                    var img = pipeline.LoadImage(obs.Url);
-                    if (obs.MaskGuid != Guid.Empty)
-                    {
-                        //let the masks stay in the LRU cache here
-                        //they might be used in BuildBlurredObservationImages()
-                        //and most commands clear the image cache entirely after all Build*() phases are done
-                        var mask = pipeline.GetDataProduct<PngDataProduct>(project, obs.MaskGuid).Image;
-                        img = new Image(img); //don't mutate cached image
-                        img.UnionMask(mask, new float[] { 0 }); //0 means bad, 1 means good
-                    }
-                    if (!tcopts.NoSave)
-                    {
-                        var statsProd = new ImageStats(img);
-                        pipeline.SaveDataProduct(project, statsProd, noCache: true);
-                        obs.StatsGuid = statsProd.Guid;
-                        obs.Save(pipeline);
-                    }
-                    Interlocked.Increment(ref nc);
-                }
-                catch (Exception ex)
-                {
-                    Interlocked.Increment(ref nf);
-                    pipeline.LogException(ex, $"error computing stats for observation {obs.Name}");
-                }
-
-                Interlocked.Decrement(ref np);
-            });
-
-            pipeline.LogInfo("built image stats for {0} observations, {1} cached, {2} failed", nc - nl, nl, nf);
-
-            int numColor = Backproject.GetImageStats(pipeline, project,
-                                                     roverImages, //doesn't load images, don't toggle order
-                                                     out double lumaMed, out double lumaMAD, out double hueMed);
-
-            if (numColor > 0 && tcopts.OverrideMedianHue < 0)
-            {
-                medianHue = hueMed;
-            }
-
-            pipeline.LogInfo("global luminance median {0:f3}, MAD {1:f3}, hue median {2:f3}, {3}/{4} images color",
-                             lumaMed, lumaMAD, hueMed, numColor, roverImages.Count);
+            return true;
         }
 
         protected void BuildBlurredObservationImages()
@@ -521,13 +258,21 @@ namespace JPLOPS.Landform
 
                 try
                 {
-                    Image img = pipeline.LoadImage(obs.Url);
-                    
-                    if (obs.MaskGuid != Guid.Empty)
+                    Image img = null;
+                    if (tcopts.TextureVariant == TextureVariant.Stretched && obs.StretchedGuid != Guid.Empty)
                     {
-                        var mask = pipeline.GetDataProduct<PngDataProduct>(project, obs.MaskGuid, noCache: true).Image;
-                        img = new Image(img); //don't mutate cached image
-                        img.UnionMask(mask, new float[] { 0 }); //0 means bad, 1 means good
+                        img = pipeline.GetDataProduct<PngDataProduct>(project, obs.StretchedGuid, noCache: true).Image;
+                    }
+                    else
+                    {
+                        img = pipeline.LoadImage(obs.Url);
+                        if (obs.MaskGuid != Guid.Empty)
+                        {
+                            var mask =
+                                pipeline.GetDataProduct<PngDataProduct>(project, obs.MaskGuid, noCache: true).Image;
+                            img = new Image(img); //don't mutate cached image
+                            img.UnionMask(mask, new float[] { 0 }); //0 means bad, 1 means good
+                        }
                     }
 
                     //notes from TerrainTools PDSImageRoutines.cs
@@ -565,7 +310,7 @@ namespace JPLOPS.Landform
 
         protected void BuildBlendedObservationImages(Image blendedTexture, Image backprojectIndex = null,
                                                      TextureVariant textureVariant = TextureVariant.Blended,
-                                                     bool forceRedo = false)
+                                                     bool forceRedo = false, double preadjustLuminance = 0)
         {
             backprojectIndex = backprojectIndex ?? this.backprojectIndex;
 
@@ -657,9 +402,18 @@ namespace JPLOPS.Landform
 
             double colorizeHue = tcopts.Colorize ? medianHue : -1;
 
+            double lumaMed = -1, lumaMAD = -1;
+            if (preadjustLuminance > 0)
+            {
+                Backproject.GetImageStats(pipeline, project,
+                                          winners.Keys.Select(idx => observationCache.GetObservation(idx)),
+                                          out lumaMed, out lumaMAD, out double hueMed);
+            }
+
             int no = indexedImages.Count;
-            pipeline.LogInfo("creating {0} images for {1} observations{2}",
-                             textureVariant, no, colorizeHue >= 0 ? ", colorizing monochrome images" : "");
+            pipeline.LogInfo("creating {0} images for {1} observations{2}{3}",
+                             textureVariant, no, colorizeHue >= 0 ? ", colorizing monochrome images" : "",
+                             preadjustLuminance > 0 ? (", preadjust luminance " + preadjustLuminance) : "");
             pipeline.LogInfo("barycentric interp: {0}, inpaint diff: {1}, blur diff: {2}, fill avg: {3}",
                              tcopts.BarycentricInterpolateWinners, tcopts.InpaintDiff, tcopts.BlurDiff,
                              !tcopts.NoFillBlendWithAverageDiff);
@@ -733,6 +487,17 @@ namespace JPLOPS.Landform
                 writeDebug(img, obs, "");
 
                 Image blr = pipeline.GetDataProduct<PngDataProduct>(project, obs.BlurredGuid, noCache: true).Image;
+
+                if (preadjustLuminance > 0 && lumaMed >= 0 && obs.StatsGuid != Guid.Empty)
+                {
+                    var st = pipeline.GetDataProduct<ImageStats>(project, obs.StatsGuid, noCache: true);
+                    img = new Image(img); //don't mutate cached image
+                    img.AdjustLuminanceDistribution(st.LuminanceMedian, st.LuminanceMedianAbsoluteDeviation,
+                                                    lumaMed, lumaMAD, preadjustLuminance);
+                    blr = new Image(blr); //don't mutate cached image
+                    blr.AdjustLuminanceDistribution(st.LuminanceMedian, st.LuminanceMedianAbsoluteDeviation,
+                                                    lumaMed, lumaMAD, preadjustLuminance);
+                }
 
                 if (colorizeHue >= 0 && img.Bands == 1)
                 {
@@ -895,13 +660,12 @@ namespace JPLOPS.Landform
 
             pipeline.LogInfo("replacing leaf textures in {0} with {1} variant",
                              pipeline.GetStorageUrl(leafFolder, project.Name), textureVariant);
+
             int curLeafNum = 0, leafCount = tileList.LeafNames.Count;
             int numSurfacePixels = 0, numOrbitalPixels = 0, numMissingPixels = 0, numFallbacks = 0;
             double lastSpew = UTCTime.Now();
-            //order access to improve cache coherence
-            //(either forward or reverse ordering would group leaves spatially
-            //but reverse order builds deepest leaves first, which might be a little better)
-            CoreLimitedParallel.ForEach(tileList.LeafNames.OrderByDescending(name => name), leaf =>
+
+            void blendLeaf(string leaf)
             {
                 Interlocked.Increment(ref curLeafNum);
                 double now = UTCTime.Now();
@@ -929,9 +693,35 @@ namespace JPLOPS.Landform
                 {
                     texture.Save<byte>(tmpFile);
                     string textureUrl = pipeline.GetStorageUrl(leafFolder, project.Name, leaf + tileList.ImageExt);
+                    if (pipeline.FileExists(textureUrl))
+                    {
+                        pipeline.LogInfo("overwriting {0} with {1} variant", textureUrl, textureVariant);
+                        string unblendedUrl = pipeline.GetStorageUrl(leafFolder, project.Name,
+                                                                     leaf + "_unblended" + tileList.ImageExt);
+                        if (tcopts.WriteDebug && !File.Exists(unblendedUrl))
+                        {
+                            pipeline.LogInfo("saving backup of {0} to {1}", textureUrl, unblendedUrl);
+                            pipeline.GetFile(textureUrl, tmp => pipeline.SaveFile(tmp, unblendedUrl));
+                        }
+                    }
                     pipeline.SaveFile(tmpFile, textureUrl);
                 });
-            });
+            }
+
+            //order access to improve cache coherence
+            //(either forward or reverse ordering would group leaves spatially
+            //but reverse order builds deepest leaves first, which might be a little better)
+            var leaves = tileList.LeafNames.OrderByDescending(name => name).ToList();
+
+            if (!tcopts.NoBlendLeavesInParallel)
+            {
+                CoreLimitedParallel.ForEach(leaves, blendLeaf);
+            }
+            else
+            {
+                pipeline.LogInfo("blending leaves serially");
+                Serial.ForEach(leaves, blendLeaf);
+            }
 
             pipeline.LogInfo("built {0} leaf textures using {1} surface pixels, {2} orbital pixels, " +
                              "{3} missing pixels, {4} fallbacks to original observation textures",
@@ -1263,8 +1053,9 @@ namespace JPLOPS.Landform
                     {
                         if (src.Faces.Count - target > 10000)
                         {
-                            pipeline.LogInfo("decimating {0} LOD {1} from {2} to {3} triangles for fixed up lod {4}",
-                                             st, s, Fmt.KMG(src.Faces.Count), Fmt.KMG(target), i);
+                            pipeline.LogInfo("decimating {0} LOD {1} from {2} to {3} triangles " +
+                                             "for fixed up lod {4} with {5}", st, s, Fmt.KMG(src.Faces.Count),
+                                             Fmt.KMG(target), i, tcopts.MeshDecimator);
                         }
                         newLODs[i] = src.Decimated(target, tcopts.MeshDecimator, logger: pipeline);
                         pipeline.LogInfo("decimated {0} tri {1} LOD {2} for fixed up LOD {3} ({4}-{5}) " +
@@ -1721,6 +1512,7 @@ namespace JPLOPS.Landform
                 switch (dstTextureVariant.Value)
                 {
                     case TextureVariant.Original: sceneMesh.TextureGuid = texProd.Guid; break;
+                    case TextureVariant.Stretched: sceneMesh.StretchedTextureGuid = texProd.Guid; break;
                     case TextureVariant.Blurred: sceneMesh.BlurredTextureGuid = texProd.Guid; break;
                     case TextureVariant.Blended: sceneMesh.BlendedTextureGuid = texProd.Guid; break;
                     default: throw new Exception("unknown texture variant " + dstTextureVariant.Value);
@@ -1784,6 +1576,11 @@ namespace JPLOPS.Landform
 
         protected void SaveSceneMesh(string outputMesh, bool withIndex = false)
         {
+            SaveSceneMesh(outputMesh, tcopts.TextureVariant, withIndex);
+        }
+
+        protected void SaveSceneMesh(string outputMesh, TextureVariant textureVariant, bool withIndex = false)
+        {
             var meshURL = CheckOutputURL(outputMesh, project.Name, outputFolder, MeshSerializers.Instance);
             var imgURL = StringHelper.ChangeUrlExtension(meshURL, imageExt);
 
@@ -1816,9 +1613,10 @@ namespace JPLOPS.Landform
             if (texture == null)
             {
                 Guid texGuid = Guid.Empty;
-                switch (tcopts.TextureVariant)
+                switch (textureVariant)
                 {
                     case TextureVariant.Original: texGuid = sceneMesh.TextureGuid; break;
+                    case TextureVariant.Stretched: texGuid = sceneMesh.StretchedTextureGuid; break;
                     case TextureVariant.Blurred: texGuid = sceneMesh.BlurredTextureGuid; break;
                     case TextureVariant.Blended: texGuid = sceneMesh.BlendedTextureGuid; break;
                     default: throw new Exception("unknown texture variant " + tcopts.TextureVariant);

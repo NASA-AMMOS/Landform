@@ -98,8 +98,8 @@ namespace JPLOPS.Landform
         [Option(Default = null, HelpText = "EC2 auto scale group name, required with --idleshutdownmethod=ScaleToZero or --idleshutdownmethod=LogIdleProtected")]
         public string AutoScaleGroup { get; set; }
 
-        [Option(HelpText = "Use default AWS profile (vs profile from credential refresh) for SQS client", Default = false)]
-        public bool UseDefaultAWSProfileForSQSClient { get; set; }
+        [Option(HelpText = "Don't use default AWS profile (vs profile from credential refresh) for SQS client", Default = false)]
+        public bool NoUseDefaultAWSProfileForSQSClient { get; set; }
 
         [Option(Default = LandformService.DEF_WATCHDOG_PERIOD, HelpText = "Watchdog period (seconds), non-positive to disable")]
         public double WatchdogPeriod { get; set; }
@@ -470,17 +470,22 @@ namespace JPLOPS.Landform
             return true;
         }
 
+        protected override bool RequiresCredentialRefresh()
+        {
+            return lvopts.NoUseDefaultAWSProfileForSQSClient || base.RequiresCredentialRefresh();
+        }
+
         protected override void RefreshCredentials()
         {
             base.RefreshCredentials();
 
-            if (messageQueue != null)
+            if (messageQueue != null && lvopts.NoUseDefaultAWSProfileForSQSClient)
             {
                 messageQueue.Dispose();
                 messageQueue = GetMessageQueue();
             }
 
-            if (failMessageQueue != null)
+            if (failMessageQueue != null && lvopts.NoUseDefaultAWSProfileForSQSClient)
             {
                 failMessageQueue.Dispose();
                 failMessageQueue = GetFailMessageQueue();
@@ -725,7 +730,7 @@ namespace JPLOPS.Landform
             {
                 try
                 {
-                    string profile = lvopts.UseDefaultAWSProfileForSQSClient ? null : awsProfile;
+                    string profile = lvopts.NoUseDefaultAWSProfileForSQSClient ? awsProfile : null;
                     bool autoTypes = false;
                     queue = new MessageQueue(name, profile, awsRegion, defTimeoutSec, pipeline, lvopts.Quiet,
                                              landformOwned, autoTypes, autoCreateIfLandformOwned);
@@ -1023,7 +1028,7 @@ namespace JPLOPS.Landform
 
         protected bool CheckCredentials(bool force = false)
         {
-            if (credentialRefreshSec <= 0)
+            if (credentialRefreshSec <= 0 || !RequiresCredentialRefresh())
             {
                 //don't attempt refresh if refresh time is configured as non-positive, even if force
                 return false;
@@ -1401,7 +1406,7 @@ namespace JPLOPS.Landform
                         }
                         catch (Exception ex)
                         {
-                            pipeline.LogException(ex, "updating message timeout");
+                            pipeline.LogError("error updating SQS visibility timeout: {0}", ex.Message);
                             SleepSec(targetPeriod);
                         }
                     }

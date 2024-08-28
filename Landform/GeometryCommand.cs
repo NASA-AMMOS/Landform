@@ -19,7 +19,7 @@ namespace JPLOPS.Landform
         [Option(HelpText = "Max texture stretch, 0 for none, 1 for unlimited", Default = UVAtlas.DEF_MAX_STRETCH)]
         public virtual double MaxTextureStretch { get; set; }
 
-        [Option(HelpText = "Min fraction of texture space to use for surface data", Default =TexturingDefaults.MIN_SURFACE_TEXTURE_FRACTION)]
+        [Option(HelpText = "Min fraction of texture space to use for surface data", Default = TexturingDefaults.MIN_SURFACE_TEXTURE_FRACTION)]
         public double MinSurfaceTextureFraction { get; set; }
 
         [Option(HelpText = "Disable texture space warp", Default = false)]
@@ -31,14 +31,11 @@ namespace JPLOPS.Landform
         [Option(HelpText = "Ease surface pixels per meter factor", Default = TexturingDefaults.EASE_SURFACE_PPM_FACTOR)]
         public double EaseSurfacePPMFactor { get; set; }
 
-        [Option(HelpText = "Length of the convex hull to use when finding observations to texture width (meters)", Default = TexturingDefaults.TEXTURE_FAR_CLIP)]
-        public virtual double TextureFarClip { get; set; }
-
         [Option(HelpText = "Orbital sampling rate, non-positive to use DEM resolution", Default = -1)]
         public double OrbitalPointsPerMeter { get; set; }
 
         [Option(HelpText = "UV generation mode for meshes if texture projection is not available (None, UVAtlas, Heightmap, Naive)", Default = TexturingDefaults.ATLAS_MODE)]
-        public AtlasMode AtlasMode { get; set; }
+        public virtual AtlasMode AtlasMode { get; set; }
 
         [Option(HelpText = "Max runtime for UVAtlas", Default = 10 * 60)]
         public virtual int MaxUVAtlasSec { get; set; }
@@ -200,7 +197,12 @@ namespace JPLOPS.Landform
 
         protected virtual void AtlasMesh(Mesh mesh, int resolution, string name = null)
         {
-            switch (gcopts.AtlasMode)
+            AtlasMesh(mesh, resolution, name, gcopts.AtlasMode);
+        }
+
+        protected virtual void AtlasMesh(Mesh mesh, int resolution, string name, AtlasMode mode)
+        {
+            switch (mode)
             {
                 case AtlasMode.None: throw new Exception($"cannot atlas mesh, atlassing disabled");
                 case AtlasMode.UVAtlas: UVAtlasMesh(mesh, resolution, name); break;
@@ -208,7 +210,7 @@ namespace JPLOPS.Landform
                 case AtlasMode.Project: //fallthrough here, see TextureCommand.AtlasMesh()
                 case AtlasMode.Naive: NaiveAtlasMesh(mesh, name); break;
                 case AtlasMode.Manifold: ManifoldAtlasMesh(mesh, name); break;
-                default: throw new ArgumentException("unsupported atlas mode: " + gcopts.AtlasMode);
+                default: throw new ArgumentException("unsupported atlas mode: " + mode);
             }
         }
 

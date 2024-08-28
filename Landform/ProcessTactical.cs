@@ -1074,6 +1074,8 @@ namespace JPLOPS.Landform
 
                 string pidFile = SavePID(destDir, project, "fetch");
 
+                SaveMessage(destDir, project);
+
                 string meshFile = GetFile(mi.mesh);
                 string imageFile = GetFile(mi.image);
 
@@ -1109,8 +1111,6 @@ namespace JPLOPS.Landform
 
                     SavePID(destDir, project, "save", pidFile);
                     SaveTileset(tilesetDir, project, destDir);
-
-                    SaveMessage(destDir, project);
 
                     DeletePID(destDir, project, pidFile);
                 }

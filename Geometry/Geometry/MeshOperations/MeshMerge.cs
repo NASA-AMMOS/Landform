@@ -10,6 +10,8 @@ namespace JPLOPS.Geometry
 {
     public static class MeshMerge
     {
+        public const float INVALID_ATLAS_VALUE = 0.3f;
+
         /// <summary>
         /// Combine meshes together without merging duplicate vertices.
         /// The latter meshes must have at least the vertex attributes (normals, UVs, colors) that the first one has.
@@ -345,14 +347,14 @@ namespace JPLOPS.Geometry
 
                     atlas.Blit(texture, x, y);
 
-                    var offset = atlas.PixelToUV(new Vector2(x, y + maxHeight - 1));
+                    var llc = atlas.PixelToUV(new Vector2(x, y + texture.Height - 1));
+                    var urc = atlas.PixelToUV(new Vector2(x + texture.Width - 1, y));
                     var mesh = meshes[i];
                     for (int j = 0; j < mesh.Vertices.Count; j++)
                     {
                         var vert = merged.Vertices[index++];
-                        vert.UV.X *= uvScale.X;
-                        vert.UV.Y *= uvScale.Y;
-                        vert.UV += offset;
+                        vert.UV.X = llc.X * (1.0f - vert.UV.X) + urc.X * vert.UV.X;
+                        vert.UV.Y = llc.Y * (1.0f - vert.UV.Y) + urc.Y * vert.UV.Y;
                     }
 
                     col++;
@@ -363,6 +365,14 @@ namespace JPLOPS.Geometry
                     }
                 }
             }
+
+            float[] zeroColor = new float[bands];
+            float[] invalidColor = new float[bands];
+            for (int i = 0; i < bands; i++)
+            {
+                invalidColor[i] = INVALID_ATLAS_VALUE;
+            }
+            atlas.ReplaceBandValues(zeroColor, invalidColor);
 
             return new Tuple<Mesh, Image>(merged, atlas);
         }
