@@ -26,6 +26,17 @@ Individual contributors include Marsette Vona, Bob Crocco, Alexander Menzies, Ch
 
 See [LICENSE.txt](LICENSE.txt).
 
+## Citing this library
+If you are using this library for academic research or publications we ask that you please cite this library as:
+
+```
+@misc{nasa-ammos-landform,
+  author = {arsette Vona and Bob Crocco and Alexander Menzies and Charles Goddard and Thomas Schibler and Gailin Pease and Nicholas Charchut and Nicholas Anastas and Keavon Chambers and Benjamin Nuernberger and Andrew Zhang},
+  title = {Landform Terrain Mesh Processing Toolkit},
+  howpublished = "\url{https://github.com/NASA-AMMOS/Landform}",
+}
+```
+
 ## Dependencies
 
 These are managed with the NuGet package manager and will be automatically downloaded as needed:
