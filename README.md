@@ -31,7 +31,7 @@ If you are using this library for academic research or publications we ask that 
 
 ```
 @misc{nasa-ammos-landform,
-  author = {arsette Vona and Bob Crocco and Alexander Menzies and Charles Goddard and Thomas Schibler and Gailin Pease and Nicholas Charchut and Nicholas Anastas and Keavon Chambers and Benjamin Nuernberger and Andrew Zhang},
+  author = {Marsette Vona and Bob Crocco and Alexander Menzies and Charles Goddard and Thomas Schibler and Gailin Pease and Nicholas Charchut and Nicholas Anastas and Keavon Chambers and Benjamin Nuernberger and Andrew Zhang},
   title = {Landform Terrain Mesh Processing Toolkit},
   howpublished = "\url{https://github.com/NASA-AMMOS/Landform}",
 }
