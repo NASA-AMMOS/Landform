@@ -16,7 +16,7 @@ namespace JPLOPS.RayTrace
         const TraversalFlags TRAVERSAL_FLAGS = TraversalFlags.Single;
 
         private readonly Device device;
-        private readonly Scene<Model> scene;
+        private readonly Scene<EmbreeModel> scene;
         private bool sceneBuilt = false;
 
         /// <summary>
@@ -25,7 +25,7 @@ namespace JPLOPS.RayTrace
         public SceneCaster()
         {
             device = new Device();
-            scene = new Scene<Model>(device, SCENE_FLAGS, TRAVERSAL_FLAGS);
+            scene = new Scene<EmbreeModel>(device, SCENE_FLAGS, TRAVERSAL_FLAGS);
         }
 
         /// <summary>
@@ -56,7 +56,7 @@ namespace JPLOPS.RayTrace
             {
                 throw new Exception("cannot add mesh after scene has been built");
             }
-            var model = new Model(device, mesh, texture, transform, SCENE_FLAGS, TRAVERSAL_FLAGS);
+            var model = new EmbreeModel(device, mesh, texture, transform, SCENE_FLAGS, TRAVERSAL_FLAGS);
             scene.Add(model);
         }
 
@@ -97,7 +97,7 @@ namespace JPLOPS.RayTrace
                 throw new Exception("Must call Build on scene before raycasting");
             }
             var packet = scene.Intersects(new EmbreeRay(ray), (float)near, (float)far);
-            Intersection<Model> hit = packet.ToIntersection<Model>(scene);
+            Intersection<EmbreeModel> hit = packet.ToIntersection<EmbreeModel>(scene);
             return HitToHitData(ray, hit);
         }
 
@@ -109,7 +109,7 @@ namespace JPLOPS.RayTrace
                 throw new Exception("Must call Build on scene before raycasting");
             }
             var packet = scene.Intersects(new EmbreeRay(ray), (float)near, (float)far);
-            Intersection<Model> hit = packet.ToIntersection<Model>(scene);
+            Intersection<EmbreeModel> hit = packet.ToIntersection<EmbreeModel>(scene);
 
             if (hit.HasHit)
             {
@@ -129,7 +129,7 @@ namespace JPLOPS.RayTrace
                 throw new Exception("Must call Build on scene before raycasting");
             }
             var packet = scene.Intersects(new EmbreeRay(ray), (float)near, (float)far);
-            Intersection<Model> hit = packet.ToIntersection<Model>(scene);
+            Intersection<EmbreeModel> hit = packet.ToIntersection<EmbreeModel>(scene);
 
             if (hit.HasHit)
             {
@@ -156,7 +156,7 @@ namespace JPLOPS.RayTrace
 
             var embreeRays = rays.Select(r => new EmbreeRay(r)).ToArray();
             var packet4 = scene.Intersects4(embreeRays, (float)near, (float)far);
-            Intersection<Model>[] hits = packet4.ToIntersection<Model>(scene);
+            Intersection<EmbreeModel>[] hits = packet4.ToIntersection<EmbreeModel>(scene);
 
             HitData[] results = new HitData[4];
             for (int idx = 0; idx < 4; idx++)
@@ -173,7 +173,7 @@ namespace JPLOPS.RayTrace
         /// <param name="ray"></param>
         /// <param name="hit"></param>
         /// <returns></returns>
-        static HitData HitToHitData(Ray ray, Intersection<Model> hit)
+        static HitData HitToHitData(Ray ray, Intersection<EmbreeModel> hit)
         {
             if (hit.HasHit)
             {

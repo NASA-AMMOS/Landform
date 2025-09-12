@@ -520,9 +520,6 @@ namespace JPLOPS.Geometry
                 }
                 else if (applyUVs)
                 {
-                    // TODO: review this half pixel offset
-                    //v.UV =  new Vector2((px.Value.X - 0.5) / (image.Width+1),
-                    //                    1 - ((px.Value.Y - 0.5) / (image.Height+1)));
                     v.UV = Image.PixelToUV(px.Value, imgWidth, imgHeight);
                     v.UV = Vector2.Clamp(v.UV, Vector2.Zero, Vector2.One);
                 }

@@ -278,6 +278,7 @@ namespace JPLOPS.Geometry
                 return MaxRadiusMeters > 0 ? d.GetSubrectMeters(MaxRadiusMeters).Area : d.Area;
             }
 
+            //the sampling may not be particularly uniform if there is a lot of sparsity in the input scenes
             var samples = new List<SamplePair>();
             double totalArea = scenes.Sum(d => getArea(d));
             for (int i = 0; i < scenes.Length; i++)

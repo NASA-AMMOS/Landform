@@ -4,53 +4,6 @@ using System;
 using System.Collections.Generic;
 using JPLOPS.Util;
 
-//This is an implementation of composite image stitching roughly based on 
-//
-//Kazhdan, Surendran, Hoppe.  Distributed Gradient-Domain Processing of Planar and Spherical Images.  ACM Transactions
-//On Graphics, Vol 29, No 2, April 2010. http://www.cs.jhu.edu/~misha/MyPapers/ToG10.pdf
-//
-//The core idea of composite image stitching is to reduce the visibility of seams in an image that is composed of
-//multiple sub-images.
-//
-//Misha Kazhdan provides a reference implementation at http://www.cs.jhu.edu/~misha/Code/DMG and
-//https://github.com/mkazhdan/DMG.  DMG stands for for "Distributed Multigrid".  Both the paper and the reference
-//implementation actually can perform a variety of imaging operations in a distributed multigrid framework, not just
-//composite image stitching but also smoothing, sharpening, and high-low compositing.  The algorithm and implementation
-//can process large (gigapixel) images by splitting the original image into bands which are solved in parallel on
-//multiple CPUs.  The problem is not trivially parallelizable, so this involves carefully scheduled communication
-//between the CPUs.
-//
-//The DMG framework solves the screened Poisson equation https://en.wikipedia.org/wiki/Screened_Poisson_equation to
-//find an image that best fits given constraining (a) value and (b) gradient images.  The composite image stitching
-//problem is mapped to this framework by setting the gradient constraint to 0 at the image seams to be smoothed.
-//
-//DMG appears to be a successor to "Streaming Multigrid" (SMG) https://www.cs.jhu.edu/~misha/Code/SMG.
-//
-//In Landform we are really interested specifically in composite image stitching, but because some of our original
-//implementations were based on calling Misha's DMG.exe, we came to equate the term "DMG" with composite image
-//stitching.
-//
-//Around November 2014, Charley Goddard re-implemented the screened Poisson formulation of composite image stitching in
-//this single C# file as LimberDMG.  "Limber" (presumably with the meaning "lithe or supple") is simply a word that
-//Charley picked, and "DMG" is really a misnomer here, because this implementation is not distributed (though it is
-//multigrid).  It operates on simple monolithic in-core images, though it is parallelized in a few places.
-//
-//Charley wrote:
-//
-//   I took a lot of inspiration from Misha's DMG and SMG but diverged a bit, both for ease of implementation and for
-//   additional functionality. The b-spline basis functions (among other things) got thrown out in favor of simpler
-//   discretized derivatives. I think I more-or-less took the core idea of solving the screened poisson equation, framed
-//   it as an affine transformation to allow pixels to be held constant, and worked out the math on paper.
-//
-//   Section 3 of this paper
-//   https://grail.cs.washington.edu/projects/screenedPoissonEq/screenedPoissonEq_files/screenedPoissonEq.pdf has a
-//   similar derivation to how I probably got the particular equation
-//
-//   \nabla^2f - \lambda f = \lambda u - \nabla \cdot g
-//
-//   Note that it looks like they used a different sign convention. (or maybe I goofed?)
-//
-//Around June 2018, Andrew Zhang adapted LimberDMG to use the Landform Image class.
 namespace JPLOPS.Imaging
 {
     /// <summary>

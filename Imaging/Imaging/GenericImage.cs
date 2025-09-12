@@ -19,6 +19,7 @@ namespace JPLOPS.Imaging
         public CameraModel CameraModel;
 
         //TODO: (architecture) Metadata.{Bands, Width, Height} violates SSOT
+        //because they are redundant with Image.Metadata.{Bands, Width, Height}
         public int Bands { get; protected set; }
         public int Width { get; protected set; }
         public int Height { get; protected set; }

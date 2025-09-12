@@ -9,6 +9,8 @@
 //so we use ImageSharp to serialize JPG, PNG, BMP, and GIF
 //it's fast and it doesn't involve any global locks which is a major factor in parallel workflows
 //we still use GDAL for tiff for extended data types, GeoTIFF, and sparse reads
+//#define ENABLE_GDAL_READ_MT
+//#define ENABLE_GDAL_WRITE_MT
 
 using System;
 using System.Collections.Generic;

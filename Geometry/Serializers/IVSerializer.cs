@@ -24,7 +24,9 @@ namespace JPLOPS.Geometry
     /// https://bitbucket.org/Coin3D/coin
     ///
     /// Our legacy implementation converted binary files to ASCII with ivcat.exe and then parses the ASCII.
-    /// This is problematic for a few reasons.
+    /// This is problematic for a few reasons, including:
+    /// * ivcat.exe will bring up modal dialog boxes in error situations
+    /// * ivcat.exe slilently fails if there is not a working opengl32.dll
     ///
     /// ---
     ///
@@ -857,7 +859,8 @@ namespace JPLOPS.Geometry
             }
 
             //I think we should really expect meshes.Count == screenArea.Count
-            //unfortunately there are examples (e.g. MSL mastcam meshes) where that is not true
+            //unfortunately there are examples (e.g. MSL mastcam meshes like the one in our TestData)
+            //where that is not true
             //if (meshes.Count != expectedNumLOD)
             //{
             //    throw new Exception(string.Format("expected {0} LODs, got {1}", expectedNumLOD, meshes.Count));

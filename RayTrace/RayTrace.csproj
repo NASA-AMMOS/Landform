@@ -55,7 +55,7 @@
     <Compile Include="EmbreeRay.cs" />
     <Compile Include="EmbreeVector.cs" />
     <Compile Include="HitData.cs" />
-    <Compile Include="Model.cs" />
+    <Compile Include="EmbreeModel.cs" />
     <Compile Include="SceneCaster.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>

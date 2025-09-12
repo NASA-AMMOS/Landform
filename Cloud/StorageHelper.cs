@@ -211,6 +211,7 @@ namespace JPLOPS.Cloud
                         if (regex.IsMatch(pfx))
                         {
                             string url = new S3Url(location.BucketName, pfx).Url;
+                            //AmazonUnmarshallingException in ProcessContextual when ODS bucket contains keys with non-printing ASCII chars
                             if (filter == null || filter(url))
                             {
                                 yield return url;
