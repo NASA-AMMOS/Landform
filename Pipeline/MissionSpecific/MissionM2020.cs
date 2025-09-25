@@ -141,44 +141,55 @@ namespace JPLOPS.Pipeline
             awsRegion = awsRegion ?? GetDefaultAWSRegion();
 
             string user = null, pass = null;
-            try
+            if (string.IsNullOrEmpty(user) || string.IsNullOrEmpty(pass))
             {
-                using (var ps = new ParameterStore(awsProfile, awsRegion))
+                try
                 {
-                    logger.LogVerbose("opened parameter store to fetch CSSO credentials, profile={0}, region={1}",
-                                      awsProfile, awsRegion);
+                    using (var ps = new ParameterStore(awsProfile, awsRegion))
+                    {
+                        logger.LogVerbose("opened parameter store to fetch CSSO credentials, profile={0}, region={1}",
+                                          awsProfile, awsRegion);
 
-                    string userKey = cfg.CSSOUsernameParameterInSSM.Replace("{venue}", venue);
-                    bool userEncrypted = cfg.CSSOUsernameParameterInSSMEncrypted;
-                    if (logger != null)
-                    {
-                        logger.LogVerbose("fetching CSSO username from {0}, encrypted={1}", userKey, userEncrypted);
-                    }
-                    user = ps.GetParameter(userKey, userEncrypted);
-                    if (string.IsNullOrEmpty(user))
-                    {
-                        error($"failed to get \"{userKey}\" from SSM, encrypted={userEncrypted}");
-                        return null;
-                    }
-                    
-                    string passKey = cfg.CSSOPasswordParameterInSSM.Replace("{venue}", venue);
-                    bool passEncrypted = cfg.CSSOPasswordParameterInSSMEncrypted;
-                    if (logger != null)
-                    {
-                        logger.LogVerbose("fetching CSSO password from {0}, encrypted={1}", passKey, passEncrypted);
-                    }
-                    pass = ps.GetParameter(passKey, passEncrypted);
-                    if (string.IsNullOrEmpty(user))
-                    {
-                        error($"failed to get \"{passKey}\" from SSM, encrypted={passEncrypted}");
-                        return null;
+                        if (string.IsNullOrEmpty(user))
+                        {
+                            string userKey = cfg.CSSOUsernameParameterInSSM.Replace("{venue}", venue);
+                            bool userEncrypted = cfg.CSSOUsernameParameterInSSMEncrypted;
+                            if (logger != null)
+                            {
+                                logger.LogVerbose("fetching CSSO username from {0}, encrypted={1}",
+                                                  userKey, userEncrypted);
+                            }
+                            user = ps.GetParameter(userKey, userEncrypted);
+                            if (string.IsNullOrEmpty(user))
+                            {
+                                error($"failed to get \"{userKey}\" from SSM, encrypted={userEncrypted}");
+                                return null;
+                            }
+                        }
+
+                        if (string.IsNullOrEmpty(pass))
+                        {
+                            string passKey = cfg.CSSOPasswordParameterInSSM.Replace("{venue}", venue);
+                            bool passEncrypted = cfg.CSSOPasswordParameterInSSMEncrypted;
+                            if (logger != null)
+                            {
+                                logger.LogVerbose("fetching CSSO password from {0}, encrypted={1}",
+                                                  passKey, passEncrypted);
+                            }
+                            pass = ps.GetParameter(passKey, passEncrypted);
+                            if (string.IsNullOrEmpty(user))
+                            {
+                                error($"failed to get \"{passKey}\" from SSM, encrypted={passEncrypted}");
+                                return null;
+                            }
+                        }
                     }
                 }
-            }
-            catch (Exception ex)
-            {
-                error("error getting credentials from SSM: " + ex.Message.Replace("{", "{{").Replace("}", "}}"));
-                return null;
+                catch (Exception ex)
+                {
+                    error("error getting credentials from SSM: " + ex.Message.Replace("{", "{{").Replace("}", "}}"));
+                    return null;
+                }
             }
 
             string credssFilename = "credss.exe";
