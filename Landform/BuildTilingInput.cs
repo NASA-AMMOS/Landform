@@ -71,7 +71,7 @@ namespace JPLOPS.Landform
         [Value(0, Required = false, HelpText = "project name, defaults to input mesh basename if --inputmesh and --input texture are specified", Default = null)]
         public override string ProjectName { get; set; }
 
-        [Option(Default = "None", HelpText = "Mission to use if creating project (only if --inputmesh and --inputtexture (or texturing disabled), optional :venue override, e.g. None, MSL, M2020, M20SOPS, M20SOPS:dev, M20SOPS:sbeta")]
+        [Option(Default = "None", HelpText = "Mission to use if creating project (only if --inputmesh and --inputtexture (or texturing disabled), optional :venue override, e.g. None, MSL, M2020")]
         public string Mission { get; set; }
 
         [Option(HelpText = "Scene mesh coordinate frame: auto, tactical, passthrough", Default = "auto")]

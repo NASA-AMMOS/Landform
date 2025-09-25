@@ -14,7 +14,7 @@ namespace JPLOPS.Landform
 {
     public class LandformShellOptions : LandformCommandOptions
     {
-        [Option(Required = true, Default = "None", HelpText = "Mission flag enables mission specific behavior, optional :venue override, e.g. None, MSL, M2020, M20SOPS, M20SOPS:dev, M20SOPS:sbeta")]
+        [Option(Required = true, Default = "None", HelpText = "Mission flag enables mission specific behavior, optional :venue override, e.g. None, MSL, M2020")]
         public string Mission { get; set; }
 
         [Option(Default = null, HelpText = "Output directory or S3 folder")]

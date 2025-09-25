@@ -121,7 +121,7 @@ namespace JPLOPS.Landform
         [Option(HelpText = "Don't recreate transform priors that already exist", Default = false)]
         public bool NoRedoPriors { get; set; }
 
-        [Option(Default = "None", HelpText = "Mission flag enables mission specific behavior, optional :venue override, e.g. None, MSL, M2020, M20SOPS, M20SOPS:dev, M20SOPS:sbeta")]
+        [Option(Default = "None", HelpText = "Mission flag enables mission specific behavior, optional :venue override, e.g. None, MSL, M2020")]
         public string Mission { get; set; }
 
         [Option(Default = null, HelpText = "Override default orbital DEM file path")]

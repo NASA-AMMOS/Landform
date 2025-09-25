@@ -283,14 +283,6 @@ namespace JPLOPS.Pipeline
 
         public override string GetOrbitalConfigDefaults()
         {
-            //TODO possibly switch to newer assets
-            //though at least for Windjana the older assets (out_XXX.tif) seem to have more definition
-            //s3://bucket/MSL/orbital/MSL_Gale_DEM_Mosaic_1m_v3.tif
-            //s3://bucket/MSL/orbital/MSL_Gale_Orthophoto_Mosaic_25cm_v3.tif
-
-            //TODO possibly switch to color orbital
-            //MSL_Gale_HiRISE-LRGB_16quads.tif
-
             //available PlacesDB metadata entries, from "wardialing" https://places-msl.dev.m20.jpl.nasa.gov
             //0 - seems to be generic entry, has ellipsoid_radius, projection, and a few others, but not {x,y}_scale
             //1 - MSL_Gale_MSLICE_HIRISE_Mosaic_25cm.tif
@@ -315,21 +307,6 @@ namespace JPLOPS.Pipeline
 
         public override string GetPlacesConfigDefaults()
         {
-            //MSL mission server - don't use for dev (and requires separate credentials)
-            //https://mslplaces.jpl.nasa.gov:9443/msl-ops/places
-
-            //MSL views: telemetry, best_tactical, localized_pos, localized_interp 
-            //legacy TerrainTools used localized_interp
-
-            //for a while we had to use this old PLACES instance to get MSL data for M2020 dev
-            //Url: https://places-dev.m20-dev.jpl.nasa.gov
-            //AuthCookieFile: ~/.cssotoken/dev-old/ssosession
-
-            //per Kevin Grimes on 3/11/20 https://places.dev.m20.jpl.nasa.gov has MSL data in it
-
-            //per Kevin Grimes on 3/18/20 MSL data will soon move to
-            //https://places-msl.dev.m20.jpl.nasa.gov
-
             return "{\n" +
                 $"\"Url\": \"https://places-msl.{venue}.m20.jpl.nasa.gov\",\n" +
                 "\"View\": \"localized_interp\",\n" +

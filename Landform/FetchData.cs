@@ -188,7 +188,7 @@ namespace JPLOPS.Landform
         [Option(Default = 3, HelpText = "Max retries for each download")]
         public int MaxRetries { get; set; }
 
-        [Option(Default = "None", HelpText = "Mission flag enables mission specific behavior, optional :venue override, e.g. None, MSL, M2020, M20SOPS, M20SOPS:dev, M20SOPS:sbeta")]
+        [Option(Default = "None", HelpText = "Mission flag enables mission specific behavior, optional :venue override, e.g. None, MSL, M2020")]
         public string Mission { get; set; }
 
         [Option(Default = null, HelpText = "Comma separated list of filename extensions to trace")]

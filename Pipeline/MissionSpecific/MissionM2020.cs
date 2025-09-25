@@ -257,7 +257,6 @@ namespace JPLOPS.Pipeline
         }
 
         //some images have invalid PLANET_DAY_NUMBER
-        //we have seen this in multiple M2020 datasets so far including ROASTT19 and TT4
         public override int DayNumber(PDSParser parser)
         {
             try

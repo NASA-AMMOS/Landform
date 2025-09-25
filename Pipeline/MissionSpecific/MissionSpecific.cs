@@ -9,7 +9,7 @@ using JPLOPS.Pipeline.AlignmentServer;
 
 namespace JPLOPS.Pipeline
 {
-    public enum Mission { None, MSL, M2020, ROASTT19, TT4, ScarecrowEECAM, ROASTT20, ORT11, TT16, M20SOPS }
+    public enum Mission { None, MSL, M2020 }
 
     public class MissionConfig : SingletonConfig<MissionConfig>
     {
