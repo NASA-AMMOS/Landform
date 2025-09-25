@@ -869,8 +869,6 @@ namespace JPLOPS.Pipeline
 
         public SiteDrive GetPreviousEndOfDrive(SiteDrive sd, string view)
         {
-            //modeled after gov/nasa/jpl/ammos/ids/places/client/Plinth.java in https://github.jpl.nasa.gov/MIPL/PLACES
-
             int landingSite = 0;
 
             // Go back 5 sites (to avoid taking too long)

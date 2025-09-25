@@ -523,15 +523,9 @@ namespace JPLOPS.Pipeline
             IEnumerable<RoverProductId> filterEye(IEnumerable<RoverProductId> ids, RoverStereoEye preferEyeForGeometry)
             {
                 var gids = ids.Where(id => isGeom(id)).ToList();
-                //bool hasLeft = gids.Any(id => RoverStereoPair.IsStereoEye(id.Camera, RoverStereoEye.Left));
-                //bool hasRight = gids.Any(id => RoverStereoPair.IsStereoEye(id.Camera, RoverStereoEye.Right));
-                //if (hasLeft && hasRight)
-                //{
-                    return gids
-                        .Where(id => RoverStereoPair.IsStereoEye(id.Camera, preferEyeForGeometry))
-                        .Concat(ids.Where(id => !isGeom(id)));
-                //}
-                //return ids;
+                return gids
+                    .Where(id => RoverStereoPair.IsStereoEye(id.Camera, preferEyeForGeometry))
+                    .Concat(ids.Where(id => !isGeom(id)));
             }
 
             //given a set of ids that only differ in product type, linearness, variants, and version

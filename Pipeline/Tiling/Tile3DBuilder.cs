@@ -56,6 +56,7 @@ namespace JPLOPS.Pipeline
             tileset.Root.Transform = MatrixToList(rootTransform.HasValue ? rootTransform.Value : Matrix.Identity);
             tileset.GeometricError = root.GetOrAddComponent<NodeBounds>().Bounds.MaxDimension(); //default 0
 
+            //TODO this is deprecated; it is ignored by Unity3DTiles, but read and respected by 3DTilesRendererJS
             tileset.Asset.GLTFUpAxis = "z";
 
             return tileset;
