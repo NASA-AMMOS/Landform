@@ -14,7 +14,7 @@ using JPLOPS.Pipeline;
 ///
 /// Example:
 ///
-/// Landform.exe benchmarks3 s3://bucket/ods/roastt/sol --awsprofile=credss-default --awsregion=us-gov-west-1
+/// Landform.exe benchmarks3 s3://bucket/ods/VENUE/sol --awsprofile=credss-default --awsregion=us-gov-west-1
 ///   --maxfiles=10
 ///
 /// </summary>

@@ -1380,7 +1380,8 @@ namespace JPLOPS.Landform
                             double period = -1; //upper bound on time between visibility update
                             lock (credentialRefreshLock)
                             {
-                                //specifically using two locks here
+                                //specifically using two locks here so that message deletion won't get delayed
+                                //longer than visibility timeout
                                 //acquistion order to avoid deadlock: 1) credentialRefreshLock, 2) deleteMessageLock
                                 lock (deleteMessageLock)
                                 {

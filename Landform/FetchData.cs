@@ -47,21 +47,16 @@ using JPLOPS.Pipeline;
 ///
 /// Fetch RDRs for windjana contextual mesh:
 ///
-/// Landform.exe fetch 609-630 out/windjana/rdrs s3://bucket/MSL/ods/surface/sol/#####/opgs/rdr
+/// Landform.exe fetch 609-630 out/windjana/rdrs s3://BUCKET/ods/surface/sol/#####/opgs/rdr
 ///   --mission=MSL --summary
-///
-/// Fetch RDRs for ROASTT20 Dec12 (both tactical meshes and contextual mesh):
-///
-/// Landform.exe fetch 0700 out/roastt20-dec12-d/rdrs s3://bucket/ods/g64/sol/#####/ids/rdr
-///   --mission=ROASTT20 --summary
 ///
 /// Fetch a single specific file (the --mission M2020 flag defines the AWS region and profile to use):
 ///
-/// Landform.exe fetch s3://bucket/Unity3DTilesWeb.zip . --raw --nosubdirs --mission M2020
+/// Landform.exe fetch s3://BUCKET/Unity3DTilesWeb.zip . --raw --nosubdirs --mission M2020
 ///
-/// Fetch mesh RDRs for ORT11:
+/// Fetch mesh RDRs:
 ///
-/// Landform.exe fetch 1-4 out/ort11/rdrs s3://bucket/ods/surface/sol/#####/ids/rdr --mission M2020 --summary
+/// Landform.exe fetch 1-4 out/ort11/rdrs s3://BUCKET/ods/surface/sol/#####/ids/rdr --mission M2020 --summary
 ///   --withpng --useunifiedmeshes=false --onlymeshproducts --onlyforeye=Left
 ///
 ///<Summary>
@@ -76,7 +71,7 @@ namespace JPLOPS.Landform
         [Value(1, Required = true, Default = null, HelpText = "output directory, e.g. c:/Users/$USERNAME/Downloads")]
         public string OutputDir { get; set; }
         
-        [Value(2, Required = false, HelpText = "RDR search locations (only if not using --raw), comma separated, with sol replaced with ##### (e.g. s3://bucket/MSL/ods/surface/sol/#####/opgs/rdr/).")]
+        [Value(2, Required = false, HelpText = "RDR search locations (only if not using --raw), comma separated, with sol replaced with ##### (e.g. s3://BUCKET/ods/surface/sol/#####/opgs/rdr/)")]
         public string SearchLocations { get; set; } = null;
 
         [Option(Default = false, HelpText = "Treat input as raw URLs, not sol numbers")]

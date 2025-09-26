@@ -14,8 +14,6 @@ using JPLOPS.Pipeline.AlignmentServer;
 /// composed of multiple sub-images.  It is used in the Landform blend-images stage (BlendImages.cs) for the contextual
 /// mesh workflow.
 ///
-/// Background:
-///
 /// Example:
 ///
 /// Landform.exe limber-dmg mesh_region_shrink_tex_orbital_adjust.tif mesh_region_shrink_tex_image_numbers.tif

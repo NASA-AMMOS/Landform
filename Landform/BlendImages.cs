@@ -16,8 +16,6 @@ using JPLOPS.Pipeline.AlignmentServer;
 /// Uses LimberDMG to reduce the visibility of seams in a tileset textured by backprojecting multiple observation
 /// images. Also see LimberDMGDriver.cs.
 ///
-/// Background:
-///
 /// The blend-images stage is typically run after build-tiling-input, but it can also be run after build-geometry or
 /// build-texture.  Running after build-gemetry corresponds more directly to the legacy approach in TerrainTools for MSL
 /// OnSight.  It is also acceptable to skip the blend-images stage to build a tileset without blended textures.

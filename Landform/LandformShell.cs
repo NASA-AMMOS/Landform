@@ -1030,6 +1030,7 @@ namespace JPLOPS.Landform
             
         //if the tileset already exists this will overwrite it
         //however, it will orphan existing files that will not end up getting overwritten
+        //TODO kill existing workers when a newer message is available
         protected void SaveTileset(string tilesetDir, string project, string destDir)
         {
             destDir = string.Format("{0}/{1}", destDir, project);

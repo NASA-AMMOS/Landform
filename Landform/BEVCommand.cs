@@ -620,7 +620,7 @@ namespace JPLOPS.Landform
                     }
 
                     //this is a memory pinch point
-                    wedgeMeshes.TryRemove(siteDrive, out _); //https://stackoverflow.com/a/49415372/4970315
+                    wedgeMeshes.TryRemove(siteDrive, out _);
                     inputs = null;
                     pairs = null;
                     CheckGarbage(immediate: true);
