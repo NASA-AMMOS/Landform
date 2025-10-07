@@ -4,6 +4,8 @@ SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
 cd $SCRIPT_DIR
 
+dep_dir="$SCRIPT_DIR/deps"
+
 LINUX=false
 WINDOWS=false
 OSX=false
@@ -93,8 +95,12 @@ if $build_uvatlas; then
   #https://github.com/Microsoft/DirectXMath?tab=readme-ov-file#compiler-support
   # > To build for non-Windows platforms, you need to provide a sal.h header in your include path.
   # > You can obtain an open source version from GitHub.
-  if ! $WINDOWS && [[ ! -f sal.h ]]; then
-      curl -O https://raw.githubusercontent.com/dotnet/runtime/v9.0.8/src/coreclr/pal/inc/rt/sal.h
+  if ! $WINDOWS; then
+    sal_ver=v9.0.8
+    sal_h="$dep_dir/sal-${sal_ver}.h"
+    sal_url=https://raw.githubusercontent.com/dotnet/runtime/$sal_ver/src/coreclr/pal/inc/rt/sal.h
+    [[ -f "$sal_h" ]] || curl -L -o "$sal_h" $sal_url
+    [[ -f sal.h ]] || cp "$sal_h" sal.h
   fi
   
   # there is no malloc.h on OS X; just use stdlib.h
@@ -109,12 +115,9 @@ if $build_uvatlas; then
     pv=($pkg_ver)
     pkg=${pv[0]}
     ver=${pv[1]}
-    zip=${pkg}-${ver}.zip
-    [[ -f $zip ]] || curl -L -o $zip https://github.com/microsoft/$pkg/archive/refs/tags/${ver}.zip
-    if [[ ! -d $pkg ]]; then
-        unzip -o $zip
-        mv `ls -d ${pkg}-*/` $pkg
-    fi
+    zip="$dep_dir/${pkg}-${ver}.zip"
+    [[ -f "$zip" ]] || curl -L -o "$zip" https://github.com/microsoft/$pkg/archive/refs/tags/${ver}.zip
+    if [[ ! -d $pkg ]]; then unzip -o "$zip" > /dev/null && mv `ls -d ${pkg}-*/` $pkg; fi
   done
 
   make=make
@@ -212,12 +215,10 @@ if $build_poisson || $build_trimmer; then
 
   pushd $native_rel/src
 
-  if [[ ! -f PoissonRecon.zip ]]; then
-    sha=eea22ab701d0067e36a2de33f0251c0d0511ac69
-    curl -L -o PoissonRecon.zip https://github.com/mkazhdan/PoissonRecon/archive/${sha}.zip
-  fi
-
-  if [[ ! -d PoissonRecon ]]; then unzip PoissonRecon.zip && mv `ls -d PoissonRecon-*/` PoissonRecon; fi
+  sha=eea22ab701d0067e36a2de33f0251c0d0511ac69
+  zip="$dep_dir/PoissonRecon-${sha}.zip"
+  [[ -f "$zip" ]] || curl -L -o "$zip" https://github.com/mkazhdan/PoissonRecon/archive/${sha}.zip
+  if [[ ! -d PoissonRecon ]]; then unzip "$zip" > /dev/null && mv `ls -d PoissonRecon-*/` PoissonRecon; fi
 
   pushd PoissonRecon
 
@@ -272,17 +273,15 @@ if $build_fssrecon || $build_meshclean; then
 
   pushd $native_rel/src
 
-  if [[ ! -f mve.zip ]]; then
-    if $WINDOWS; then
-      sha=9d0b86ca1af5db3836a8836d3ad2423944e76281
-      curl -L -o mve.zip https://github.com/andre-schulz/mve/archive/${sha}.zip
-    else     
-      sha=d4bc2ee02a6b57130751c012a8893b3bd4d6540c
-      curl -L -o mve.zip https://github.com/simonfuhrmann/mve/archive/${sha}.zip
-    fi
+  git_org=simonfuhrmann
+  sha=d4bc2ee02a6b57130751c012a8893b3bd4d6540c
+  if $WINDOWS; then
+    git_org=andre-schulz
+    sha=9d0b86ca1af5db3836a8836d3ad2423944e76281
   fi
-
-  if [[ ! -d mve ]]; then unzip mve.zip && mv `ls -d mve-*/` mve; fi
+  zip="$dep_dir/mve-${git_org}-${sha}.zip"
+  [[ -f "$zip" ]] || curl -L -o "$zip" https://github.com/$git_org/mve/archive/${sha}.zip
+  if [[ ! -d mve ]]; then unzip "$zip" > /dev/null && mv `ls -d mve-*/` mve; fi
 
   pushd mve
 
