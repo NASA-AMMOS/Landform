@@ -1,0 +1,30 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <ProjectGuid>{C3EC3AB5-8DFD-4DAA-9833-246F0DB6A805}</ProjectGuid>
+    <OutputType>Library</OutputType>
+    <RootNamespace>OPS.Imaging</RootNamespace>
+    <AssemblyName>Imaging</AssemblyName>
+    <TargetFramework>net9.0</TargetFramework>
+    <FileAlignment>512</FileAlignment>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="ColorMinePortable" Version="2.0.4" />
+    <PackageReference Include="SixLabors.ImageSharp" Version="3.1.11" />
+    <PackageReference Include="GDAL.Native" Version="3.11.3" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../MathExtensions/MathExtensions.csproj">
+      <Project>{8c7c8a71-0a4b-4d75-9cb2-32803bd8f86f}</Project>
+      <Name>MathExtensions</Name>
+    </ProjectReference>
+    <ProjectReference Include="../Util/Util.csproj">
+      <Project>{8145aa65-ba61-4e27-81ff-b64217b49929}</Project>
+      <Name>Util</Name>
+    </ProjectReference>
+    <ProjectReference Include="../Xna/Xna.csproj">
+      <Project>{46759719-42d9-473b-a8ad-0848a33bdac6}</Project>
+      <Name>Xna</Name>
+    </ProjectReference>
+  </ItemGroup>
+</Project>

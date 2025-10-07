@@ -1,0 +1,10 @@
+name: landform
+services:
+  landform:        
+    image: landform:4.0
+    tty: true 
+    stdin_open: true
+    command: "sleep infinity"
+    volumes:
+      - ../../src:/home/app/src
+      - ../../packages-docker:/home/app/packages

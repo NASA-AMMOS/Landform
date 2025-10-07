@@ -1,0 +1,36 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <ProjectGuid>{0E8C60BB-4A68-480F-895A-2B326AEC002C}</ProjectGuid>
+    <OutputType>Library</OutputType>
+    <RootNamespace>RayTrace</RootNamespace>
+    <AssemblyName>RayTrace</AssemblyName>
+    <TargetFramework>net9.0</TargetFramework>
+    <FileAlignment>512</FileAlignment>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="TinyEmbree" Version="1.2.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Geometry/Geometry.csproj">
+      <Project>{49a27854-2db1-4e1c-893a-f60bdf5f3c86}</Project>
+      <Name>Geometry</Name>
+    </ProjectReference>
+    <ProjectReference Include="../Imaging/Imaging.csproj">
+      <Project>{c3ec3ab5-8dfd-4daa-9833-246f0db6a805}</Project>
+      <Name>Imaging</Name>
+    </ProjectReference>
+    <ProjectReference Include="../MathExtensions/MathExtensions.csproj">
+      <Project>{8c7c8a71-0a4b-4d75-9cb2-32803bd8f86f}</Project>
+      <Name>MathExtensions</Name>
+    </ProjectReference>
+    <ProjectReference Include="../Util/Util.csproj">
+      <Project>{8145aa65-ba61-4e27-81ff-b64217b49929}</Project>
+      <Name>Util</Name>
+    </ProjectReference>
+    <ProjectReference Include="../Xna/Xna.csproj">
+      <Project>{46759719-42d9-473b-a8ad-0848a33bdac6}</Project>
+      <Name>Xna</Name>
+    </ProjectReference>
+  </ItemGroup>
+</Project>

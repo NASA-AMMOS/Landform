@@ -1,0 +1,11 @@
+name: landform-builder
+services:
+  landform-builder:        
+    image: landform-builder:4.0
+    tty: true 
+    stdin_open: true
+    command: "sleep infinity"
+    volumes:
+      - ../../src:/home/app/src
+      - ../../packages-docker:/home/app/packages
+      - ../../native-docker:/home/app/src/GeometryThirdParty/native-linux

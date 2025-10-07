@@ -1,0 +1,101 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <ProjectGuid>{C45F0CD6-C998-47EC-B67C-AD77196B06A0}</ProjectGuid>
+    <OutputType>Library</OutputType>
+    <RootNamespace>OPS.Pipeline</RootNamespace>
+    <AssemblyName>Pipeline</AssemblyName>
+    <TargetFramework>net9.0</TargetFramework>
+    <FileAlignment>512</FileAlignment>
+    <!-- avoid warning NETSDK1206: Found version-specific or distribution-specific runtime identifier(s): ubuntu-x64.
+         Affected libraries: Emgu.CV.runtime.ubuntu-x64 -->
+    <UseRidGraph>true</UseRidGraph>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="RestSharp" Version="112.1.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Geometry/Geometry.csproj">
+      <Project>{49a27854-2db1-4e1c-893a-f60bdf5f3c86}</Project>
+      <Name>Geometry</Name>
+    </ProjectReference>
+    <ProjectReference Include="../GeometryThirdparty/GeometryThirdparty.csproj">
+      <Project>{3c534889-b71f-4f86-8e75-b24a61cd7b86}</Project>
+      <Name>GeometryThirdparty</Name>
+    </ProjectReference>
+    <ProjectReference Include="../Imaging/Imaging.csproj">
+      <Project>{c3ec3ab5-8dfd-4daa-9833-246f0db6a805}</Project>
+      <Name>Imaging</Name>
+    </ProjectReference>
+    <ProjectReference Include="../ImagingEmgu/ImagingEmgu.csproj">
+      <Project>{9722c3b0-63d5-4b8a-9c4f-3381223bf3a2}</Project>
+      <Name>ImagingEmgu</Name>
+    </ProjectReference>
+    <ProjectReference Include="../ImageFeatures/ImageFeatures.csproj">
+      <Project>{ae1b74cc-7cbb-4aaf-9be6-68534d61d264}</Project>
+      <Name>ImageFeatures</Name>
+    </ProjectReference>
+    <ProjectReference Include="../Cloud/Cloud.csproj">
+      <Project>{52a91b3e-1d95-4715-a7ad-2840b2f9c6ac}</Project>
+      <Name>Cloud</Name>
+    </ProjectReference>
+    <ProjectReference Include="../MathExtensions/MathExtensions.csproj">
+      <Project>{8c7c8a71-0a4b-4d75-9cb2-32803bd8f86f}</Project>
+      <Name>MathExtensions</Name>
+    </ProjectReference>
+    <ProjectReference Include="../RayTrace/RayTrace.csproj">
+      <Project>{0e8c60bb-4a68-480f-895a-2b326aec002c}</Project>
+      <Name>RayTrace</Name>
+    </ProjectReference>
+    <ProjectReference Include="../Util/Util.csproj">
+      <Project>{8145aa65-ba61-4e27-81ff-b64217b49929}</Project>
+      <Name>Util</Name>
+    </ProjectReference>
+    <ProjectReference Include="../Xna/Xna.csproj">
+      <Project>{46759719-42d9-473b-a8ad-0848a33bdac6}</Project>
+      <Name>Xna</Name>
+    </ProjectReference>
+  </ItemGroup>
+</Project>
+
+<!--
+  <package id="CommandLineParser" version="2.9.1" targetFramework="net48" />
+  <package id="log4net" version="2.0.15" targetFramework="net48" />
+  <package id="MathNet.Numerics" version="5.0.0" targetFramework="net48" />
+  <package id="Microsoft.Bcl.AsyncInterfaces" version="6.0.0" targetFramework="net48" />
+  <package id="Newtonsoft.Json" version="13.0.1" targetFramework="net48" />
+  <package id="RestSharp" version="106.15.0" targetFramework="net48" />
+  <package id="RTree" version="1.1.0" targetFramework="net48" />
+  <package id="Sharp3DBinPacking" version="2.0.0" targetFramework="net48" />
+  <package id="System.Buffers" version="4.5.1" targetFramework="net48" />
+  <package id="System.CodeDom" version="6.0.0" targetFramework="net48" />
+  <package id="System.Collections" version="4.3.0" targetFramework="net48" />
+  <package id="System.Console" version="4.3.1" targetFramework="net48" />
+  <package id="System.Diagnostics.Debug" version="4.3.0" targetFramework="net48" />
+  <package id="System.Globalization" version="4.3.0" targetFramework="net48" />
+  <package id="System.IO" version="4.3.0" targetFramework="net48" />
+  <package id="System.Management" version="6.0.0" targetFramework="net48" />
+  <package id="System.Memory" version="4.5.5" targetFramework="net48" />
+  <package id="System.Numerics.Vectors" version="4.5.0" targetFramework="net48" />
+  <package id="System.Reflection" version="4.3.0" targetFramework="net48" />
+  <package id="System.Reflection.Extensions" version="4.3.0" targetFramework="net48" />
+  <package id="System.Reflection.TypeExtensions" version="4.7.0" targetFramework="net48" />
+  <package id="System.Resources.ResourceManager" version="4.3.0" targetFramework="net48" />
+  <package id="System.Runtime" version="4.3.1" targetFramework="net48" />
+  <package id="System.Runtime.CompilerServices.Unsafe" version="6.0.0" targetFramework="net48" />
+  <package id="System.Runtime.Extensions" version="4.3.1" targetFramework="net48" />
+  <package id="System.Text.Encodings.Web" version="6.0.0" targetFramework="net48" />
+  <package id="System.Text.Json" version="6.0.6" targetFramework="net48" />
+  <package id="System.Threading.Tasks.Extensions" version="4.5.4" targetFramework="net48" />
+  <package id="System.ValueTuple" version="4.5.0" targetFramework="net48" />
+-->
+<!--
+    <Reference Include="CommandLine
+    <Reference Include="log4net
+    <Reference Include="MathNet.Numerics
+    <Reference Include="Microsoft.Bcl.AsyncInterfaces
+    <Reference Include="Newtonsoft.Json
+      <HintPath>..\packages\RestSharp.106.15.0\lib\net452\RestSharp.dll</HintPath>
+    <Reference Include="RTree
+    <Reference Include="Sharp3DBinPacking
+-->

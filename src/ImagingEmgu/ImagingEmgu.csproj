@@ -1,0 +1,32 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <ProjectGuid>{9722C3B0-63D5-4B8A-9C4F-3381223BF3A2}</ProjectGuid>
+    <OutputType>Library</OutputType>
+    <RootNamespace>OPS.Imaging.Emgu</RootNamespace>
+    <AssemblyName>ImagingEmgu</AssemblyName>
+    <TargetFramework>net9.0</TargetFramework>
+    <FileAlignment>512</FileAlignment>
+    <!-- avoid warning NETSDK1206: Found version-specific or distribution-specific runtime identifier(s): ubuntu-x64.
+         Affected libraries: Emgu.CV.runtime.ubuntu-x64 -->
+    <UseRidGraph>true</UseRidGraph>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Emgu.CV" Version="4.12.0.5764" />
+  </ItemGroup>
+  <ItemGroup Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::Windows)))' == 'true'">
+    <PackageReference Include="Emgu.CV.runtime.windows" Version="4.12.0.5764" />
+  </ItemGroup>
+  <ItemGroup Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::OSX)))' == 'true'">
+    <PackageReference Include="Emgu.CV.runtime.mini.macos" Version="4.12.0.5764" />
+  </ItemGroup>
+  <ItemGroup Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::Linux)))' == 'true'">
+    <PackageReference Include="Emgu.CV.runtime.ubuntu-x64" Version="4.12.0.5764" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Imaging/Imaging.csproj">
+      <Project>{c3ec3ab5-8dfd-4daa-9833-246f0db6a805}</Project>
+      <Name>Imaging</Name>
+    </ProjectReference>
+  </ItemGroup>
+</Project>
