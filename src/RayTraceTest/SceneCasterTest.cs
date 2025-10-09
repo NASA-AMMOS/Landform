@@ -1,17 +1,13 @@
 ﻿using System;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
-using JPLOPS.Geometry;
 using System.IO;
+using Microsoft.Xna.Framework;
+using JPLOPS.Geometry;
 using JPLOPS.Imaging;
 using JPLOPS.RayTrace;
-using Microsoft.Xna.Framework;
-using JPLOPS.Test;
+using JPLOPS.TestExtensions;
 
 namespace RayTraceTest
 {
-    [TestClass]
-    [DeploymentItem("gdal", "gdal")]
-    [DeploymentItem("x64", "x64")]
     public class SceneCasterTest
     {
         static Image RenderOrtho(SceneCaster sc, Matrix transform, int width, int height, double worldHeight)
@@ -55,7 +51,7 @@ namespace RayTraceTest
                 var hit = hitData[i];
                 if (hit != null)
                 {
-                    var pixel = hit.Texture.UVToPixel(hit.UV.Value);
+                    var pixel = hit.Texture.UVToPixel(hit.UV!.Value);
                     imgData[0][i] = hit.Texture[0, (int)pixel.Y, (int)pixel.X];
                     imgData[1][i] = hit.Texture[1, (int)pixel.Y, (int)pixel.X];
                     imgData[2][i] = hit.Texture[2, (int)pixel.Y, (int)pixel.X];
@@ -70,7 +66,7 @@ namespace RayTraceTest
                     break;
                 }
             }
-            Assert.IsTrue(anyNonFillPixels);
+            Assert.True(anyNonFillPixels);
             bool anyOccluded = false;
             for (int i = 0; i < imgData[0].Length; i++)
             {
@@ -80,8 +76,32 @@ namespace RayTraceTest
                     break;
                 }
             }
-            Assert.IsTrue(anyOccluded);
+            Assert.True(anyOccluded);
             return img;
+        }
+
+        static void RenderRaptor(string filename, Matrix raptorMatrix, Matrix cameraMatrix)
+        {
+            var mesh = Mesh.Load("raptor.obj");
+            var image = Image.Load("raptor.jpg");
+            mesh.Center();
+            var sc = new SceneCaster();            
+            sc.AddMesh(mesh, image, raptorMatrix);
+            sc.Build();
+            var hit = sc.Raycast(new Ray(new Vector3(0, 0, -10), new Vector3(0, 0, 1)));            
+            var img = RenderOrtho(sc, cameraMatrix, 512, 256, 120);
+            Image mask = new Image(img.Bands, img.Width, img.Height);
+            float[] maskData = mask.GetBandData(0);
+            for(int i = 0; i < maskData.Length; i++)
+            {
+                if(img.IsValid(i))
+                {
+                    maskData[i] = 1;
+                }
+            }
+            img.DeleteMask();
+            img.Save<byte>(filename);
+            mask.Save<byte>(filename + "_occlusion.png");
         }
 
         static SceneCaster SimpleMeshSceneCaster(Matrix meshMatrix)
@@ -99,17 +119,31 @@ namespace RayTraceTest
             return sc;
         }
 
+        [Fact]
+        public void SceneCasterRenderTest()
+        {
+            Matrix dinoMat = Matrix.Identity;
+            Matrix cameraMatrix = Matrix.CreateLookAt(new Vector3(0, 0, -10), new Vector3(0, 0, 0), Vector3.Up);
+            RenderRaptor("dinoIdent.png", dinoMat, cameraMatrix);
+            dinoMat = Matrix.CreateTranslation(new Vector3(20, 0, 0));
+            RenderRaptor("dinoNegX.png", dinoMat, cameraMatrix);
+            dinoMat = Matrix.CreateFromAxisAngle(Vector3.Up, Math.PI);
+            RenderRaptor("dinoRotate.png", dinoMat, cameraMatrix);
+            dinoMat = Matrix.CreateScale(0.5);
+            RenderRaptor("dinoScale.png", dinoMat, cameraMatrix);
+        }
+
         private void AlmostEqual(Vector2 a, Vector2 b, string msg)
         {
-            Assert.IsTrue(Vector2.AlmostEqual(a, b), msg + " a=" + a + ", b=" + b);
+            Assert.True(Vector2.AlmostEqual(a, b), msg + " a=" + a + ", b=" + b);
         }
 
         private void AlmostEqual(Vector3 a, Vector3 b, string msg)
         {
-            Assert.IsTrue(Vector3.AlmostEqual(a, b), msg + " a=" + a + ", b=" + b);
+            Assert.True(Vector3.AlmostEqual(a, b), msg + " a=" + a + ", b=" + b);
         }
 
-        [TestMethod]
+        [Fact]
         public void SceneCasterTestMatrix()
         {
             //No rotation
@@ -118,26 +152,26 @@ namespace RayTraceTest
                 var hit = sc.Raycast(new Ray(new Vector3(0, 0, -1), new Vector3(0, 0, 1)));
                 AssertE.AreSimilar(1, hit.Distance, 1E-5);
 
-                AlmostEqual(new Vector2(0.5, 0.5), hit.UV.Value, "uv");
+                AlmostEqual(new Vector2(0.5, 0.5), hit.UV!.Value, "uv");
                 AlmostEqual(hit.Position, Vector3.Zero, "position");
                 AlmostEqual(hit.FaceNormal, new Vector3(0, 0, -1), "face normal");
-                AlmostEqual(hit.PointNormal.Value, new Vector3(0, 0, 1), "point normal");
+                AlmostEqual(hit.PointNormal!.Value, new Vector3(0, 0, 1), "point normal");
 
                 hit = sc.Raycast(new Ray(new Vector3(0.1, 0.1, -1), new Vector3(0, 0, 1)));
                 AlmostEqual(hit.FaceNormal, new Vector3(0, 0, -1), "face normal");
-                AlmostEqual(hit.PointNormal.Value, new Vector3(0, 0, 1), "point normal");
+                AlmostEqual(hit.PointNormal!.Value, new Vector3(0, 0, 1), "point normal");
 
                 hit = sc.Raycast(new Ray(new Vector3(-0.1, -0.1, -1), new Vector3(0, 0, 1)));
                 AlmostEqual(hit.FaceNormal, new Vector3(0, 0, -1), "face normal");
-                AlmostEqual(hit.PointNormal.Value, new Vector3(0, 0, 1), "point normal");
+                AlmostEqual(hit.PointNormal!.Value, new Vector3(0, 0, 1), "point normal");
 
                 hit = sc.Raycast(new Ray(new Vector3(0.1, -0.1, -1), new Vector3(0, 0, 1)));
                 AlmostEqual(hit.FaceNormal, new Vector3(0, 0, -1), "face normal");
-                AlmostEqual(hit.PointNormal.Value, new Vector3(0, 0, 1), "point normal");
+                AlmostEqual(hit.PointNormal!.Value, new Vector3(0, 0, 1), "point normal");
 
                 hit = sc.Raycast(new Ray(new Vector3(-0.1, 0.1, -1), new Vector3(0, 0, 1)));
                 AlmostEqual(hit.FaceNormal, new Vector3(0, 0, -1), "face normal");
-                AlmostEqual(hit.PointNormal.Value, new Vector3(0, 0, 1), "point normal");
+                AlmostEqual(hit.PointNormal!.Value, new Vector3(0, 0, 1), "point normal");
             }
 
             // Rotation and translation
@@ -149,34 +183,34 @@ namespace RayTraceTest
 
                 var hit = sc.Raycast(new Ray(new Vector3(0, 0, -1), new Vector3(0, 0, 1)));
                 AlmostEqual(hit.Position, new Vector3(0, 0, -0.5), "position");
-                AlmostEqual(new Vector2(0.5, 0.5), hit.UV.Value, "uv");
+                AlmostEqual(new Vector2(0.5, 0.5), hit.UV!.Value, "uv");
 
                 AssertE.AreSimilar(0.5, hit.Distance, 1E-5);
                 Vector3 norm = new Vector3(-1, 0, -1);
                 norm.Normalize();
 
                 AlmostEqual(hit.FaceNormal, norm, "face normal");
-                AlmostEqual(hit.PointNormal.Value, -norm, "point normal");
+                AlmostEqual(hit.PointNormal!.Value, -norm, "point normal");
 
                 hit = sc.Raycast(new Ray(new Vector3(0.1, 0.1, -1), new Vector3(0, 0, 1)));
                 AlmostEqual(hit.FaceNormal, norm, "face normal");
-                AlmostEqual(hit.PointNormal.Value, -norm, "point normal");
+                AlmostEqual(hit.PointNormal!.Value, -norm, "point normal");
 
                 hit = sc.Raycast(new Ray(new Vector3(-0.1, -0.1, -1), new Vector3(0, 0, 1)));
                 AlmostEqual(hit.FaceNormal, norm, "face normal");
-                AlmostEqual(hit.PointNormal.Value, -norm, "point normal");
+                AlmostEqual(hit.PointNormal!.Value, -norm, "point normal");
 
                 hit = sc.Raycast(new Ray(new Vector3(0.1, -0.1, -1), new Vector3(0, 0, 1)));
                 AlmostEqual(hit.FaceNormal, norm, "face normal");
-                AlmostEqual(hit.PointNormal.Value, -norm, "point normal");
+                AlmostEqual(hit.PointNormal!.Value, -norm, "point normal");
 
                 hit = sc.Raycast(new Ray(new Vector3(-0.1, 0.1, -1), new Vector3(0, 0, 1)));
                 AlmostEqual(hit.FaceNormal, norm, "face normal");
-                AlmostEqual(hit.PointNormal.Value, -norm, "point normal");
+                AlmostEqual(hit.PointNormal!.Value, -norm, "point normal");
 
                 hit = sc.Raycast(new Ray(new Vector3(2, 0, -0.5), new Vector3(-1, 0, 0)));
                 AlmostEqual(hit.FaceNormal, norm, "face normal");
-                AlmostEqual(hit.PointNormal.Value, -norm, "point normal");
+                AlmostEqual(hit.PointNormal!.Value, -norm, "point normal");
             }
         }
     }
