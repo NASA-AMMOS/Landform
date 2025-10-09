@@ -2,9 +2,11 @@ name: landform
 services:
   landform:        
     image: landform:4.0
+    platform: "linux/x86_64"
     tty: true 
     stdin_open: true
     command: "sleep infinity"
     volumes:
       - ../../src:/home/app/src
-      - ../../packages-docker:/home/app/packages
+      - ../packages-docker:/home/app/packages
+      - ../native-docker:/home/app/src/GeometryThirdParty/native-linux

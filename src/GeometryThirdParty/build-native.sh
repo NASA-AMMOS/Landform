@@ -246,7 +246,7 @@ if $build_poisson || $build_trimmer; then
     cp Bin/Linux/libmyjpg.a Bin/Linux/libjpeg.a
     for f in JPEG/*.h; do ln -s -f $f .; done
 
-    grep unistd.h ZLIB/gzguts.h || patch < ../../../PoissonRecon_ZLIB.patch
+    grep unistd.h ZLIB/gzguts.h || patch -p1 < ../../../PoissonRecon_ZLIB.patch
     pushd ZLIB
     make COMPILER=$comp
     popd
