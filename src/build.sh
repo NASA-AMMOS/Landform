@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
 if [[ `uname -s` == "Linux" ]]; then
+  # including WSL
   echo "building for Linux"
 elif [[ `uname -s` == "Darwin" ]]; then
   echo "building for Darwin (Mac OS X)"

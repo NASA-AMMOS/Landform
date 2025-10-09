@@ -7,6 +7,6 @@ services:
     stdin_open: true
     command: "sleep infinity"
     volumes:
-      - ../../src:/home/app/src
-      - ../packages-docker:/home/app/packages
-      - ../native-docker:/home/app/src/GeometryThirdParty/native-linux
+      - ../..:/home/app/src/Landform
+      - ../packages-docker:/home/app/src/Landform/packages
+      - ../native-docker:/home/app/src/Landform/src/GeometryThirdParty/native-linux
