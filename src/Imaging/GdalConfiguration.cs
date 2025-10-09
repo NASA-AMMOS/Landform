@@ -62,9 +62,17 @@ namespace JPLOPS.Imaging
             {
                 if (!IsWindows)
                 {
-                    const string notSet = "_Not_set_";
-                    string tmp = Gdal.GetConfigOption("GDAL_DATA", notSet);
-                    _usable = tmp != notSet;
+                    // On non-Windows platforms (macOS, Linux), use MaxRev.Gdal which bundles native libraries
+                    try
+                    {
+                        MaxRev.Gdal.Core.GdalBase.ConfigureAll();
+                        _usable = true;
+                    }
+                    catch (Exception e)
+                    {
+                        Trace.WriteLine($"Failed to configure MaxRev.Gdal: {e.Message}", "error");
+                        _usable = false;
+                    }
                     return;
                 }
 

@@ -8,12 +8,12 @@ namespace ImagingTest.Reference
         const int CMOD_CAHVORE_TYPE_PERSPECTIVE = 1;
         const int CMOD_CAHVORE_TYPE_FISHEYE = 2;
         const int CMOD_CAHVORE_TYPE_GENERAL = 3;
-        protected double[] e;
+        protected double[] e = null!;
         protected int mtype;
         protected double mparm;
         protected double linearity = -1;
 
-        public CAHVORE(double[] c, double[] a, double[] h, double[] v, double[] o, double[] r, double[] e, double mparm, int mtype): base (c, a, h, v, o, r) 
+        public CAHVORE(double[] c, double[] a, double[] h, double[] v, double[] o, double[] r, double[] e, double mparm, int mtype): base (c, a, h, v, o, r)
         {
            InitParms(e, mtype, mparm);
         }

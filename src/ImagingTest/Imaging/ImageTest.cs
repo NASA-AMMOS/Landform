@@ -2,63 +2,57 @@
 
 using System;
 using System.IO;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Microsoft.Xna.Framework;
 using JPLOPS.Imaging;
-using JPLOPS.Test;
+using JPLOPS.TestExtensions;
 
 namespace ImageTest
 {
-    [TestClass]
-    [DeploymentItem("gdal", "gdal")]
     public class ImageTest
     {
 
-        [TestMethod]
+        [Fact]
         public void TestImageConstructor()
         {
             Image img = new Image(2, 20, 30);
             img[1, 2, 3] = 7;
-            Assert.AreEqual(img.Bands, 2);
-            Assert.AreEqual(img.Width, 20);
-            Assert.AreEqual(img.Height, 30);
-            Assert.AreEqual(img.Metadata.Bands, 2);
-            Assert.AreEqual(img.Metadata.Width, 20);
-            Assert.AreEqual(img.Metadata.Height, 30);
+            Assert.Equal(2, img.Bands);
+            Assert.Equal(20, img.Width);
+            Assert.Equal(30, img.Height);
+            Assert.Equal(2, img.Metadata.Bands);
+            Assert.Equal(20, img.Metadata.Width);
+            Assert.Equal(30, img.Metadata.Height);
 
             Image img2 = new Image(img);
-            Assert.AreEqual(img2.Bands, 2);
-            Assert.AreEqual(img2.Width, 20);
-            Assert.AreEqual(img2.Height, 30);
-            Assert.AreEqual(img2.Metadata.Bands, 2);
-            Assert.AreEqual(img2.Metadata.Width, 20);
-            Assert.AreEqual(img2.Metadata.Height, 30);
-            Assert.AreEqual(img2[1, 2, 3], 7);
+            Assert.Equal(2, img2.Bands);
+            Assert.Equal(20, img2.Width);
+            Assert.Equal(30, img2.Height);
+            Assert.Equal(2, img2.Metadata.Bands);
+            Assert.Equal(20, img2.Metadata.Width);
+            Assert.Equal(30, img2.Metadata.Height);
+            Assert.Equal(7, img2[1, 2, 3]);
             img[1, 2, 4] = 2;
-            Assert.AreEqual(img2[1, 2, 4], 0);
+            Assert.Equal(0, img2[1, 2, 4]);
         }
 
 
-        [TestMethod]
+        [Fact]
         public void ImageSaveLoad()
         {
             Image imgOrig = new Image(3, 20, 30);
             imgOrig[1, 2, 3] = 43f / 255;
             imgOrig.Save<byte>("load.png");
-            if (!File.Exists("load.png"))
-            {
-                Assert.Fail();
-            }
+            Assert.True(File.Exists("load.png"));
 #if ENABLE_GDAL_JPG_PNG_BMP
             var ser = new GDALSerializer();
 #else
             var ser = new ImageSharpSerializer();
 #endif
             Image imgRead = Image.Load("load.png", ser, ImageConverters.ValueRangeToNormalizedImage);
-            Assert.AreEqual(imgOrig.Bands, imgRead.Bands);
-            Assert.AreEqual(imgOrig.Width, imgRead.Width);
-            Assert.AreEqual(imgOrig.Height, imgRead.Height);
-            Assert.AreEqual(43f / 255, imgRead[1, 2, 3]);
+            Assert.Equal(imgRead.Bands, imgOrig.Bands);
+            Assert.Equal(imgRead.Width, imgOrig.Width);
+            Assert.Equal(imgRead.Height, imgOrig.Height);
+            Assert.Equal(43f / 255, imgRead[1, 2, 3]);
         }
 
 
@@ -73,20 +67,20 @@ namespace ImageTest
             imgOrig.Save<T>("roundOff.tif");
             Image imgRead = Image.Load("roundOff.tif", new GDALSerializer(), ImageConverters.PassThrough);
 
-            Assert.AreEqual(0, imgRead[0, 0, 0]);
-            Assert.AreEqual(Math.Floor(maxValue / 2), imgRead[0, 0, 1]);
-            Assert.AreEqual(maxValue, imgRead[0, 0, 2]);
-            Assert.AreEqual(maxValue - 1, imgRead[0, 0, 3]);
+            Assert.Equal(0, imgRead[0, 0, 0]);
+            Assert.Equal(Math.Floor(maxValue / 2), imgRead[0, 0, 1]);
+            Assert.Equal(maxValue, imgRead[0, 0, 2]);
+            Assert.Equal(maxValue - 1, imgRead[0, 0, 3]);
 
             imgRead = Image.Load("roundOff.tif");
-            Assert.AreEqual(0, imgRead[0, 0, 0]);
-            Assert.IsTrue(Math.Abs(imgRead[0, 0, 1] - Math.Floor(maxValue / 2) / maxValue) < 0.00001f);
-            Assert.AreEqual(1, imgRead[0, 0, 2]);
-            Assert.IsTrue(Math.Abs(imgRead[0, 0, 3] - (maxValue - 1) / maxValue) < 0.00001f);
+            Assert.Equal(0, imgRead[0, 0, 0]);
+            Assert.True(Math.Abs(imgRead[0, 0, 1] - Math.Floor(maxValue / 2) / maxValue) < 0.00001f);
+            Assert.Equal(1, imgRead[0, 0, 2]);
+            Assert.True(Math.Abs(imgRead[0, 0, 3] - (maxValue - 1) / maxValue) < 0.00001f);
 
         }
 
-        [TestMethod]
+        [Fact]
         public void ImageSaveLoadRoundoff()
         {
             RoundOffHelper<byte>(byte.MaxValue);
@@ -108,7 +102,7 @@ namespace ImageTest
                     float[] readBandData = imgRead.GetBandData(b);
                     for (int i = 0; i < origBandData.Length; i++)
                     {
-                        Assert.AreEqual(readBandData[i], origBandData[i]);
+                        Assert.Equal(origBandData[i], readBandData[i]);
                     }
                 }
             }
@@ -122,13 +116,13 @@ namespace ImageTest
                     float[] readBandData = imgRead.GetBandData(b);
                     for (int i = 0; i < origBandData.Length; i++)
                     {
-                        Assert.AreEqual(readBandData[i], origBandData[i]);
+                        Assert.Equal(origBandData[i], readBandData[i]);
                     }
                 }
             }
         }
 
-        [TestMethod]
+        [Fact]
         public void BandScaleValues()
         {
             Image img = new Image(3, 2, 3);
@@ -137,11 +131,11 @@ namespace ImageTest
             img[0, 0, 2] = 40;
             img.ScaleValues(0, 3, 20, -1, 0);
             AssertE.AreSimilar(-1 + (7 - 3) / (double)(20 - 3), img[0, 0, 0], 1E-5);
-            Assert.AreEqual(-1, img[0, 0, 1]);
-            Assert.AreEqual(0, img[0, 0, 2]);
+            Assert.Equal(-1, img[0, 0, 1]);
+            Assert.Equal(0, img[0, 0, 2]);
         }
 
-        [TestMethod]
+        [Fact]
         public void ImageScaleValues()
         {
             Image img = new Image(3, 2, 2);
@@ -150,13 +144,13 @@ namespace ImageTest
             img[1, 1, 1] = 20;
             img[0, 0, 1] = -2;
             img.ScaleValues(0, 10, 20, 40);
-            Assert.AreEqual(28, img[0, 0, 0]);
-            Assert.AreEqual(40, img[1, 0, 1]);
-            Assert.AreEqual(40, img[1, 1, 1]);
-            Assert.AreEqual(20, img[0, 0, 1]);
+            Assert.Equal(28, img[0, 0, 0]);
+            Assert.Equal(40, img[1, 0, 1]);
+            Assert.Equal(40, img[1, 1, 1]);
+            Assert.Equal(20, img[0, 0, 1]);
         }
 
-        [TestMethod]
+        [Fact]
         public void ImageStdStretch()
         {
             {
@@ -166,14 +160,14 @@ namespace ImageTest
                 img[1, 1, 1] = 20;
                 img[0, 0, 1] = -2;
                 img.ApplyStdDevStretch(applySameStretchToAllbands: false);
-                Assert.AreNotEqual(4, img[0, 0, 0]);
-                Assert.AreNotEqual(10, img[1, 0, 1]);
-                Assert.AreNotEqual(20, img[1, 1, 1]);
-                Assert.AreNotEqual(-2, img[0, 0, 1]);
-                Assert.AreEqual(0, img[2, 0, 1]);
+                Assert.NotEqual(4, img[0, 0, 0]);
+                Assert.NotEqual(10, img[1, 0, 1]);
+                Assert.NotEqual(20, img[1, 1, 1]);
+                Assert.NotEqual(-2, img[0, 0, 1]);
+                Assert.Equal(0, img[2, 0, 1]);
                 foreach (double d in img)
                 {
-                    Assert.IsTrue(d >= 0 && d <= 1);
+                    Assert.True(d >= 0 && d <= 1);
                 }
             }
             {
@@ -185,13 +179,13 @@ namespace ImageTest
                 img[0, 0, 1] = 7;
                 img[0, 0, 2] = 7;
                 img.ApplyStdDevStretch(applySameStretchToAllbands: false);
-                Assert.AreEqual(17, img[0, 0, 0]);
-                Assert.AreEqual(7, img[0, 0, 1]);
-                Assert.AreEqual(7, img[0, 0, 2]);
+                Assert.Equal(17, img[0, 0, 0]);
+                Assert.Equal(7, img[0, 0, 1]);
+                Assert.Equal(7, img[0, 0, 2]);
             }
         }
 
-        [TestMethod]
+        [Fact]
         public void TestImageCrop()
         {
             Image img = new Image(2, 4, 7);
@@ -200,17 +194,17 @@ namespace ImageTest
                 img[ic.Band, ic.Row, ic.Col] = ic.Band * 100 + ic.Row * 10 + ic.Col;
             }
             Image crop = img.Crop(1, 2, 2, 3);
-            Assert.AreEqual(2, img.Bands);
-            Assert.AreEqual(2, crop.Width);
-            Assert.AreEqual(3, crop.Height);
+            Assert.Equal(2, img.Bands);
+            Assert.Equal(2, crop.Width);
+            Assert.Equal(3, crop.Height);
             foreach (ImageCoordinate ic in crop.Coordinates(true))
             {
                 int value = (ic.Band) * 100 + (ic.Row + 1) * 10 + (ic.Col + 2);
-                Assert.AreEqual(value, crop[ic.Band, ic.Row, ic.Col]);
+                Assert.Equal(value, crop[ic.Band, ic.Row, ic.Col]);
             }
         }
 
-        [TestMethod]
+        [Fact]
         public void TestImageRotate90()
         {
             Image img = new Image(1, 2, 3);
@@ -221,17 +215,17 @@ namespace ImageTest
             img[0, 2, 0] = 4;
             img[0, 2, 1] = 5;
             Image rotatedImg = img.Rotate90Clockwise();
-            Assert.AreEqual(img.Width, rotatedImg.Height);
-            Assert.AreEqual(img.Height, rotatedImg.Width);
-            Assert.AreEqual(img[0, 0, 0], rotatedImg[0, 0, 2]);
-            Assert.AreEqual(img[0, 0, 1], rotatedImg[0, 1, 2]);
-            Assert.AreEqual(img[0, 1, 0], rotatedImg[0, 0, 1]);
-            Assert.AreEqual(img[0, 1, 1], rotatedImg[0, 1, 1]);
-            Assert.AreEqual(img[0, 2, 0], rotatedImg[0, 0, 0]);
-            Assert.AreEqual(img[0, 2, 1], rotatedImg[0, 1, 0]);
+            Assert.Equal(rotatedImg.Height, img.Width);
+            Assert.Equal(rotatedImg.Width, img.Height);
+            Assert.Equal(rotatedImg[0, 0, 2], img[0, 0, 0]);
+            Assert.Equal(rotatedImg[0, 1, 2], img[0, 0, 1]);
+            Assert.Equal(rotatedImg[0, 0, 1], img[0, 1, 0]);
+            Assert.Equal(rotatedImg[0, 1, 1], img[0, 1, 1]);
+            Assert.Equal(rotatedImg[0, 0, 0], img[0, 2, 0]);
+            Assert.Equal(rotatedImg[0, 1, 0], img[0, 2, 1]);
         }
 
-        [TestMethod()]
+        [Fact]
         public void SampleAsColorTest()
         {
             Image monoImage = new Image(1, 1, 1);
@@ -243,66 +237,66 @@ namespace ImageTest
             colorImage[2, 0, 0] = 0.35f;
 
             float[] monoSamples = monoImage.SampleAsColor(Vector2.Zero);
-            Assert.IsTrue(monoSamples.Length == 3);
-            Assert.IsTrue(monoSamples[0] == 0.75f);
-            Assert.IsTrue(monoSamples[1] == 0.75f);
-            Assert.IsTrue(monoSamples[2] == 0.75f);
+            Assert.True(monoSamples.Length == 3);
+            Assert.True(monoSamples[0] == 0.75f);
+            Assert.True(monoSamples[1] == 0.75f);
+            Assert.True(monoSamples[2] == 0.75f);
 
             float[] colorSamples = colorImage.SampleAsColor(Vector2.Zero);
-            Assert.IsTrue(colorSamples[0] == 0.15f);
-            Assert.IsTrue(colorSamples[1] == 0.25f);
-            Assert.IsTrue(colorSamples[2] == 0.35f);
+            Assert.True(colorSamples[0] == 0.15f);
+            Assert.True(colorSamples[1] == 0.25f);
+            Assert.True(colorSamples[2] == 0.35f);
         }
 
-        [TestMethod()]
+        [Fact]
         public void SampleAsMonoTest()
         {
             //When #502 is resolved add another test here for color to mono
             Image monoImage = new Image(1, 1, 1);
             monoImage[0, 0, 0] = 0.75f;
 
-            Assert.IsTrue(monoImage.SampleAsMono(Vector2.Zero) == 0.75f);
+            Assert.True(monoImage.SampleAsMono(Vector2.Zero) == 0.75f);
         }
 
-        [TestMethod()]
+        [Fact]
         public void SetAsColorTest()
         {
             Image colorImage = new Image(3, 1, 1);
             colorImage.SetAsColor(new float[] { 0.75f }, 0, 0);
-            Assert.IsTrue(colorImage[0, 0, 0] == 0.75f);
-            Assert.IsTrue(colorImage[1, 0, 0] == 0.75f);
-            Assert.IsTrue(colorImage[2, 0, 0] == 0.75f);
+            Assert.True(colorImage[0, 0, 0] == 0.75f);
+            Assert.True(colorImage[1, 0, 0] == 0.75f);
+            Assert.True(colorImage[2, 0, 0] == 0.75f);
 
             colorImage.SetAsColor(new float[] { 0.15f, 0.25f, 0.35f }, 0, 0);
-            Assert.IsTrue(colorImage[0, 0, 0] == 0.15f);
-            Assert.IsTrue(colorImage[1, 0, 0] == 0.25f);
-            Assert.IsTrue(colorImage[2, 0, 0] == 0.35f);
+            Assert.True(colorImage[0, 0, 0] == 0.15f);
+            Assert.True(colorImage[1, 0, 0] == 0.25f);
+            Assert.True(colorImage[2, 0, 0] == 0.35f);
         }
 
-        [TestMethod()]
+        [Fact]
         public void SetAsMonoTest()
         {
             //When #502 is resolved add another test here for color to mono
             Image monoImage = new Image(1, 1, 1);
             monoImage.SetAsMono(new float[] { 0.75f }, 0, 0);
-            Assert.IsTrue(monoImage[0, 0, 0] == 0.75f);
+            Assert.True(monoImage[0, 0, 0] == 0.75f);
         }
 
-        [TestMethod()]
+        [Fact]
         public void InpaintTest()
         {
             Image monoImage = new Image(1, 4, 4);
             monoImage.CreateMask(false);
             monoImage.SetMaskValue(0, 0, true);
             monoImage.Inpaint(1, true);
-            Assert.IsFalse(monoImage.IsValid(0, 0));
-            Assert.IsTrue(monoImage.IsValid(0, 1));
+            Assert.False(monoImage.IsValid(0, 0));
+            Assert.True(monoImage.IsValid(0, 1));
             monoImage.Inpaint(1, false);
-            Assert.IsTrue(monoImage.IsValid(0, 0));
-            Assert.IsTrue(monoImage.IsValid(0, 1));
+            Assert.True(monoImage.IsValid(0, 0));
+            Assert.True(monoImage.IsValid(0, 1));
         }
 
-        [TestMethod()]
+        [Fact]
         public void CreateMaskTest()
         {
             //create image
@@ -321,11 +315,11 @@ namespace ImageTest
                 {
                     if (idxRow == 3 && idxCol == 2)
                     {
-                        Assert.IsFalse(monoImage.IsValid(idxRow, idxCol));
+                        Assert.False(monoImage.IsValid(idxRow, idxCol));
                     }
                     else
                     {
-                        Assert.IsTrue(monoImage.IsValid(idxRow, idxCol));
+                        Assert.True(monoImage.IsValid(idxRow, idxCol));
                     }
                 }
             }

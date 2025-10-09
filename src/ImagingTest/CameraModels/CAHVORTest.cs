@@ -1,13 +1,11 @@
-﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
-using Microsoft.Xna.Framework;
+﻿using Microsoft.Xna.Framework;
 using JPLOPS.Imaging;
 
 namespace ImagingTest
 {
-    [TestClass]
     public class CAHVORTest
     {
-        [TestMethod]
+        [Fact]
         public void TestCAHVOR()
         {
             double[] C = new double[] {8.440591e-01, 6.851400e-01,-1.970154e+00};
@@ -31,12 +29,12 @@ namespace ImagingTest
                 {
                     Ray ray = cahvor.Unproject(new Vector2(x,y));
                     oldcahvor.Project_2d_to_3d(new double[] { x, y }, pos3, uvec3);
-                    Assert.AreEqual(pos3[0], ray.Position.X);
-                    Assert.AreEqual(pos3[1], ray.Position.Y);
-                    Assert.AreEqual(pos3[2], ray.Position.Z);
-                    Assert.AreEqual(uvec3[0], ray.Direction.X);
-                    Assert.AreEqual(uvec3[1], ray.Direction.Y);
-                    Assert.AreEqual(uvec3[2], ray.Direction.Z);
+                    Assert.Equal(pos3[0], ray.Position.X);
+                    Assert.Equal(pos3[1], ray.Position.Y);
+                    Assert.Equal(pos3[2], ray.Position.Z);
+                    Assert.Equal(uvec3[0], ray.Direction.X);
+                    Assert.Equal(uvec3[1], ray.Direction.Y);
+                    Assert.Equal(uvec3[2], ray.Direction.Z);
 
                     for (double r = 0.5; r < 20; r += 2.321)
                     {
@@ -51,32 +49,32 @@ namespace ImagingTest
                         Reference.CAHV.add3(oldPoint, pos3, oldPoint);
                         oldcahvor.Project_3d_to_2d(oldPoint, out oldRange, oldPixelPos);
 
-                        Assert.AreEqual(oldPixelPos[0], pixelPos.X);
-                        Assert.AreEqual(oldPixelPos[1], pixelPos.Y);
+                        Assert.Equal(oldPixelPos[0], pixelPos.X);
+                        Assert.Equal(oldPixelPos[1], pixelPos.Y);
                         // This assert disabled because oldRange believed to be incorrect
-                        //Assert.AreEqual(oldRange, range);
+                        //Assert.Equal(oldRange, range);
 
                         Vector3 pointOther = cahvor.Unproject(new Vector2(x, y), r);
-                        Assert.AreEqual(point, pointOther);
-                        Assert.AreEqual(r, range, 0.0001);
+                        Assert.Equal(point, pointOther);
+                        Assert.Equal(r, range, 0.0001);
                     }
                 }
             }
         }
 
-        [TestMethod]
+        [Fact]
         public void TestCAHVORClone()
         {
             CAHVOR cm = new CAHVOR(new Vector3(1, 2, 3), new Vector3(4, 5, 6), new Vector3(7, 8, 9), new Vector3(10, 11, 12), new Vector3(13,14,15), new Vector3(16,17,18));
             CAHVOR cm2 = (CAHVOR)cm.Clone();
-            Assert.AreEqual(cm.C, cm2.C);
-            Assert.AreEqual(cm.A, cm2.A);
-            Assert.AreEqual(cm.H, cm2.H);
-            Assert.AreEqual(cm.V, cm2.V);
-            Assert.AreEqual(cm.O, cm2.O);
-            Assert.AreEqual(cm.R, cm2.R);
+            Assert.Equal(cm.C, cm2.C);
+            Assert.Equal(cm.A, cm2.A);
+            Assert.Equal(cm.H, cm2.H);
+            Assert.Equal(cm.V, cm2.V);
+            Assert.Equal(cm.O, cm2.O);
+            Assert.Equal(cm.R, cm2.R);
             cm2.C = Vector3.Zero;
-            Assert.AreEqual(new Vector3(1, 2, 3), cm.C);
+            Assert.Equal(new Vector3(1, 2, 3), cm.C);
         }
     }
 }

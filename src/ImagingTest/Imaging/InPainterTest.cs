@@ -1,12 +1,10 @@
-﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
-using JPLOPS.Imaging;
+﻿using JPLOPS.Imaging;
 
 namespace ImagingTest.Imaging
 {
-    [TestClass]
     public class InPainterTest
     {
-        [TestMethod]
+        [Fact]
         public void IpPaintMaskTest()
         {
             Image img = new Image(1, 100, 100);
@@ -17,10 +15,7 @@ namespace ImagingTest.Imaging
             {
                 for (int c = 0; c < 100; c++)
                 {
-                    if (!img.IsValid(r, c))
-                    {
-                        Assert.Fail();
-                    }
+                    Assert.True(img.IsValid(r, c));
                 }
             }
         }

@@ -1,13 +1,11 @@
-﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
-using JPLOPS.Imaging;
+﻿using JPLOPS.Imaging;
 using Microsoft.Xna.Framework;
 
 namespace ImagingTest
 {
-    [TestClass]
     public class OrthographicCameraModelTest
     {
-        [TestMethod]
+        [Fact]
         public void TestOrthographic()
         {
             double r = 10;
@@ -22,7 +20,7 @@ namespace ImagingTest
             double range = 0;
             Vector2 pixel = camera.Project(xyz, out range);
             Vector3 xyzNew = camera.Unproject(pixel, range);
-            Assert.AreEqual(xyz, xyzNew);
+            Assert.Equal(xyz, xyzNew);
         }
     }
 }

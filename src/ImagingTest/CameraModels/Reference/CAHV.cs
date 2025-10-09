@@ -170,7 +170,7 @@ namespace ImagingTest.Reference
             return f;
         }
 
-        public static double[] unit3(double[] a, double[] b)
+        public static double[]? unit3(double[] a, double[] b)
         {
             double mag = Math.Sqrt(a[0] * a[0] + a[1] * a[1] + a[2] * a[2]);
             if (mag < EPSILON)

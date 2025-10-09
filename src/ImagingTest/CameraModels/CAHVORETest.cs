@@ -1,15 +1,13 @@
-﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
-using Microsoft.Xna.Framework;
+﻿using Microsoft.Xna.Framework;
 using JPLOPS.Imaging;
-using JPLOPS.Test;
+using JPLOPS.TestExtensions;
 
 namespace ImagingTest
 {
-    [TestClass]
     public class CAHVORETest
     {
         // TODO: Get actual model with R and E values and test with all perspective, fisheye, and custom linearity
-        [TestMethod]
+        [Fact]
         public void TestCAHVORE()
         {
             double[] C = new double[] {8.440591e-01, 6.851400e-01,-1.970154e+00};
@@ -60,36 +58,36 @@ namespace ImagingTest
 
                         Vector3 pointOther = cahvor.Unproject(new Vector2(x, y), r);
                         Vector3.AlmostEqual(point, pointOther, eps: AssertE.EPSILON);
-                        Assert.AreEqual(r, range, 0.001);
+                        Assert.Equal(r, range, 0.001);
                     }
                 }
             }
         }
 
 
-        [TestMethod]
+        [Fact]
         public void TestCAHVOREClone()
         {
             CAHVORE cm = new CAHVORE(new Vector3(1, 2, 3), new Vector3(4, 5, 6), new Vector3(7, 8, 9), new Vector3(10, 11, 12), new Vector3(13, 14, 15), new Vector3(16, 17, 18), new Vector3(19, 20, 21), 7);
             CAHVORE cm2 = (CAHVORE)cm.Clone();
-            Assert.AreEqual(cm.C, cm2.C);
-            Assert.AreEqual(cm.A, cm2.A);
-            Assert.AreEqual(cm.H, cm2.H);
-            Assert.AreEqual(cm.V, cm2.V);
-            Assert.AreEqual(cm.O, cm2.O);
-            Assert.AreEqual(cm.R, cm2.R);
-            Assert.AreEqual(cm.E, cm2.E);
-            Assert.AreEqual(cm.Linearity, cm2.Linearity);
+            Assert.Equal(cm.C, cm2.C);
+            Assert.Equal(cm.A, cm2.A);
+            Assert.Equal(cm.H, cm2.H);
+            Assert.Equal(cm.V, cm2.V);
+            Assert.Equal(cm.O, cm2.O);
+            Assert.Equal(cm.R, cm2.R);
+            Assert.Equal(cm.E, cm2.E);
+            Assert.Equal(cm.Linearity, cm2.Linearity);
             cm2.C = cm2.A = cm2.H = cm2.V = cm2.O = cm2.R = cm2.E = Vector3.Zero;
             cm2.Linearity = 2;
-            Assert.AreEqual(new Vector3(1, 2, 3), cm.C);
-            Assert.AreEqual(new Vector3(4, 5, 6), cm.A);
-            Assert.AreEqual(new Vector3(7, 8, 9), cm.H);
-            Assert.AreEqual(new Vector3(10, 11, 12), cm.V);
-            Assert.AreEqual(new Vector3(13, 14, 15), cm.O);
-            Assert.AreEqual(new Vector3(16, 17, 18), cm.R);
-            Assert.AreEqual(new Vector3(19, 20, 21), cm.E);
-            Assert.AreEqual(7, cm.Linearity);
+            Assert.Equal(new Vector3(1, 2, 3), cm.C);
+            Assert.Equal(new Vector3(4, 5, 6), cm.A);
+            Assert.Equal(new Vector3(7, 8, 9), cm.H);
+            Assert.Equal(new Vector3(10, 11, 12), cm.V);
+            Assert.Equal(new Vector3(13, 14, 15), cm.O);
+            Assert.Equal(new Vector3(16, 17, 18), cm.R);
+            Assert.Equal(new Vector3(19, 20, 21), cm.E);
+            Assert.Equal(7, cm.Linearity);
         }
     }
 }

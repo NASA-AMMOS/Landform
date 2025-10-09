@@ -11,8 +11,8 @@ EndProject
 #EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Imaging", "Imaging/Imaging.csproj", "{C3EC3AB5-8DFD-4DAA-9833-246F0DB6A805}"
 EndProject
-#Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ImagingTest", "ImagingTest/ImagingTest.csproj", "{94D07323-456B-41DC-8FAC-7C1C77605E50}"
-#EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ImagingTest", "ImagingTest/ImagingTest.csproj", "{94D07323-456B-41DC-8FAC-7C1C77605E50}"
+EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Xna", "Xna/Xna.csproj", "{46759719-42D9-473B-A8AD-0848A33BDAC6}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "XnaTest", "XnaTest/XnaTest.csproj", "{36B0F3D0-4409-4397-BC21-486DFDDF04F2}"

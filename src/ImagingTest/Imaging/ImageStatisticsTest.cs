@@ -1,12 +1,10 @@
-﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
-using JPLOPS.Imaging;
+﻿using JPLOPS.Imaging;
 
 namespace ImagingTest
 {
-    [TestClass]
     public class ImageStatisticsTest
     {
-        [TestMethod]
+        [Fact]
         public void TestImageStatistics()
         {
             Image img = new Image(2, 2, 2);
@@ -19,8 +17,8 @@ namespace ImagingTest
             img[1, 0, 1] = 2;
             img[1, 1, 1] = -17;
             ImageStatistics stats = new ImageStatistics(img);
-            Assert.AreEqual((1+17-2+6) / 4.0, stats.Average(0).Mean);
-            Assert.AreEqual((3 + 7 + 2 - 17) / 4.0, stats.Average(1).Mean);
+            Assert.Equal((1+17-2+6) / 4.0, stats.Average(0).Mean);
+            Assert.Equal((3 + 7 + 2 - 17) / 4.0, stats.Average(1).Mean);
         }
     }
 }

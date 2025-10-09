@@ -1,10 +1,8 @@
-﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
-using JPLOPS.Imaging;
+﻿using JPLOPS.Imaging;
 
 
 namespace ImagingTest
 {
-    [TestClass]
     public class ImageConvertersTest
     {
 
@@ -17,11 +15,11 @@ namespace ImagingTest
                 var r = converter.Convert<T>(img);
                 var expected = output[i];
                 var actual = r[0, 0, 0];
-                Assert.AreEqual(expected, actual);
+                Assert.Equal(expected, actual);
             }
         }
 
-        [TestMethod]
+        [Fact]
         public void TestValueRange2NormalizedImage()
         {
             // byte 
@@ -63,7 +61,7 @@ namespace ImagingTest
         }
 
 
-        [TestMethod]
+        [Fact]
         public void TestNormalizedImage2ValueRange()
         {
             // byte 
@@ -107,7 +105,7 @@ namespace ImagingTest
         }
 
 
-        [TestMethod]
+        [Fact]
         public void TestValuePassThrough()
         {
             // byte 
