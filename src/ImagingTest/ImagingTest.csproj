@@ -21,4 +21,24 @@
     <ProjectReference Include="../TestExtensions/TestExtensions.csproj" />
     <ProjectReference Include="../Xna/Xna.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <Content Include="../../test-data/testPattern.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="../../test-data/FLB_509619692RAS_T0530000FHAZ00323M1.IMG">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="../../test-data/ML0_451292526RCX_S0311094MCAM02555M1.IMG">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="../../test-data/NLB_451649560RNGLF0311330NCAM12813M1.IMG">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="../../test-data/NLB_451025090ARMLF0311052NCAM00493M1.IMG">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="../../test-data/0608ML0025660260301542E01_DRCX.IMG">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
 </Project>

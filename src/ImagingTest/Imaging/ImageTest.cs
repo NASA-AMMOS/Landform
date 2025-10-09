@@ -205,6 +205,105 @@ namespace ImageTest
         }
 
         [Fact]
+        public void TestImageResizeBicubic()
+        {
+            Image img = Image.Load("testPattern.png");
+            Image smaller = img.ResizeBicubic(64, 64);
+            smaller.Save<byte>("testPatternBicubicSmall.png");
+            Image bigger = img.ResizeBicubic(1200, 1401);
+            bigger.Save<byte>("testPatternBicubicBigger.png");
+        }
+
+
+        [Fact]
+        public void TestImageResizeResampling()
+        {
+            Image img = Image.Load("testPattern.png");
+            Image smaller = img.Resize(64, 64);
+            Assert.Equal(64, smaller.Width);
+            Assert.Equal(64, smaller.Height);
+            smaller.Save<byte>("testPatternResamplingSmall.png");
+            Image bigger = img.Resize(1200, 1401);
+            Assert.Equal(1200, bigger.Width);
+            Assert.Equal(1401, bigger.Height);
+            bigger.Save<byte>("testPatternResamplingBigger.png");
+        }
+
+        [Fact]
+        public void TestImageFlipVertically()
+        {
+            Image img = Image.Load("testPattern.png");
+            Image flipped = new Image(img);
+            flipped.FlipVertical();
+            for (int c = 0; c < img.Width; c++)
+            {
+                Assert.Equal(img[0, 50, c], flipped[0, img.Height - 1 - 50, c]);
+                Assert.Equal(img[1, 50, c], flipped[1, img.Height - 1 - 50, c]);
+                Assert.Equal(img[2, 50, c], flipped[2, img.Height - 1 - 50, c]);
+            }
+            flipped.Save<byte>("flipped.png");
+        }
+
+        [Fact]
+        public void TestImageBlur()
+        {
+            Image orig = Image.Load("testPattern.png");
+            {
+                Image img = Image.Load("testPattern.png");
+                img.GaussianBoxBlur(10);
+                img.Save<byte>("blur_10.png");
+
+            }
+            {
+                Image img = Image.Load("testPattern.png");
+                img.CreateMask(false);
+                for (int r = 100; r < 300; r++)
+                {
+                    for (int c = 200; c < 500; c++)
+                    {
+                        img.SetMaskValue(r, c, true);
+                    }
+                }
+                img.GaussianBoxBlur(10);
+                float[] bandData = img.GetBandData(0);
+                for (int i = 0; i < bandData.Length; i++)
+                {
+                    if (!img.IsValid(i))
+                    {
+                        var a = img.GetBandValues(i);
+                        var b = orig.GetBandValues(i);
+                        for (int j = 0; j < img.Bands; j++)
+                        {
+                            Assert.Equal(a[j], b[j]);
+                        }
+                    }
+                    img.SetMaskValue(i, false);
+                }
+                img.Save<byte>("blur_10_mask.png");
+            }
+            {
+                Image img = Image.Load("testPattern.png");
+                img.GaussianBoxBlur(1000);
+                img.Save<byte>("blur_1000.png");
+            }
+            {
+                Image img = Image.Load("testPattern.png");
+                img.GaussianBoxBlur(0);
+                float[] bandData = img.GetBandData(0);
+                for (int i = 0; i < bandData.Length; i++)
+                {
+                    var a = img.GetBandValues(i);
+                    var b = orig.GetBandValues(i);
+                    for (int j = 0; j < img.Bands; j++)
+                    {
+                        Assert.Equal(a[j], b[j]);
+                    }
+                }
+                img.Save<byte>("blur_0.png");
+            }
+        }
+
+        [Fact]
         public void TestImageRotate90()
         {
             Image img = new Image(1, 2, 3);
