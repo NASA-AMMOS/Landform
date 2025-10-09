@@ -49,7 +49,7 @@ We have also written a [whitepaper](doc/Vona__2025__Landform_Contextual_shrink.p
 
 Landform previously required Windows to build and run; the current implementation is multiplatform and builds and runs on Linux `x86_64,` OS X `arm64`, and Windows `x86_64`.  The EmguCV runtime binary packages currently require an Ubuntu-based distribution on Linux.
 
-1. Open a bash command prompt.  On Windows use [git bash](https://git-scm.com/downloads), [MSYS2](https://msys2.org), or [Cygwin](https://cygwin.com); WSL is currently not supported.  If you are using Cygwin you may first need to run `set -o igncr` because `git` on Windows may have converted the included `.sh` scripts to have Windows line endings (though we have a `.gitattributes` file that is supposed to prevent that), and by default the Cygwin bash interpreter does not like that.
+1. Open a bash command prompt.  On Windows use [git bash](https://git-scm.com/downloads), [MSYS2](https://msys2.org), or [Cygwin](https://cygwin.com) (you can use Windows Subsystem for Linux (WSL) but you'll get a Linux build).  If you are using Cygwin you may first need to run `set -o igncr` because `git` on Windows may have converted the included `.sh` scripts to have Windows line endings (though we have a `.gitattributes` file that is supposed to prevent that), and by default the Cygwin bash interpreter does not like that.
 1. Install a [.NET 9.0 SDK](https://dotnet.microsoft.com/en-us/download/dotnet/9.0).  Running `dotnet --version` should return a version in the 9.0.X series.
     * on Ubuntu run `sudo apt-get install dotnet-sdk-9.0`
     * on OS X using the [homebrew package manager](https://brew.sh), run `brew install --cask dotnet-sdk`
@@ -99,6 +99,7 @@ These are managed with the NuGet package manager and will be automatically downl
 * [MathNet.Numerics](https://numerics.mathdotnet.com)
 * [EmguCV](https://www.emgu.com/wiki/index.php) (this dependency has a GPL license)
 * [GDAL](https://gdal.org)
+* [MaxRev gdal.netcore](https://github.com/MaxRev-Dev/gdal.netcore)
 * [SixLabors ImageSharp](https://github.com/SixLabors/ImageSharp)
 * [ColorMinePortable](https://github.com/muak/ColorMinePortable)
 * [Triangle](https://github.com/garykac/triangle.net)

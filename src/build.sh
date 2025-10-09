@@ -1,14 +1,6 @@
 #!/usr/bin/env bash
 
 if [[ `uname -s` == "Linux" ]]; then
-  if [[ `uname -r` == *"WSL"* ]]; then
-    echo "detected WSL (Windows Subsystem for Linux)"
-    echo "building on WSL is not currently supported; use one of the following instead:"
-    echo "git bash: https://git-scm.com/downloads"
-    echo "MYSYS2: https://msys2.org"
-    echo "Cygwin: https://cygwin.com"
-    exit 1
-  fi
   echo "building for Linux"
 elif [[ `uname -s` == "Darwin" ]]; then
   echo "building for Darwin (Mac OS X)"
