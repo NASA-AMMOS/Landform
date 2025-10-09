@@ -227,9 +227,9 @@ if $build_poisson || $build_trimmer; then
     MSBuild.exe PNG.vcxproj -p:Configuration=Release
     MSBuild.exe JPEG.vcxproj -p:Configuration=Release
     MSBuild.exe PoissonRecon.vcxproj -p:Configuration=Release
-    cp Bin/x64/Release/PoissonRecon.exe ../../bin
+    cp Bin/x64/Release/PoissonRecon.exe "$native_abs/bin"
     MSBuild.exe SurfaceTrimmer.vcxproj -p:Configuration=Release
-    cp Bin/x64/Release/SurfaceTrimmer.exe ../../bin
+    cp Bin/x64/Release/SurfaceTrimmer.exe "$native_abs/bin"
   else
     comp=gcc
     $OSX && comp=clang
@@ -253,7 +253,7 @@ if $build_poisson || $build_trimmer; then
     cp Bin/Linux/libmyz.a Bin/Linux/libz.a
 
     make COMPILER=$comp LFLAGS_IMG="-lpng -ljpeg -lz" poissonrecon surfacetrimmer
-    cp Bin/Linux/PoissonRecon Bin/Linux/SurfaceTrimmer ../../bin
+    cp Bin/Linux/PoissonRecon Bin/Linux/SurfaceTrimmer "$native_abs/bin"
 
     if [[ -f ../../bin/PoissonRecon ]] && [[ -f ../../bin/SurfaceTrimmer ]]; then
       rm -f Bin/Linux/*.o
@@ -297,8 +297,8 @@ if $build_fssrecon || $build_meshclean; then
     mkdir -p $dist && pushd $dist
     cmake .. -G "$generator" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$native_abs
     nmake fssrecon meshclean
-    cp apps/fssrecon/fssrecon.exe $native_rel/bin
-    cp apps/meshclean/meshclean.exe $native_rel/bin
+    cp apps/fssrecon/fssrecon.exe "$native_abs/bin"
+    cp apps/meshclean/meshclean.exe "$native_abs/bin"
     popd
   else
     pushd libs
@@ -307,12 +307,12 @@ if $build_fssrecon || $build_meshclean; then
 
     pushd apps/fssrecon
     make
-    cp fssrecon ../../../../bin
+    cp fssrecon "$native_abs/bin"
     popd
 
     pushd apps/meshclean
     make
-    cp meshclean ../../../../bin
+    cp meshclean "$native_abs/bin"
     popd
 
     if [[ -f ../../bin/fssrecon ]] && [[ -f ../../bin/meshclean ]]; then
