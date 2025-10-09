@@ -167,7 +167,8 @@ namespace JPLOPS.Imaging
                 this.CameraModel = null;
             }
             string sampleType = ReadAsString("IMAGE", "SAMPLE_TYPE");
-            if ((sampleType == "MSB_INTEGER" || sampleType == "MSB_UNSIGNED_INTEGER") && BitDepth == 16)
+            if ((sampleType == "MSB_INTEGER" || sampleType == "MSB_SIGNED_INTEGER" ||
+                 sampleType == "MSB_UNSIGNED_INTEGER") && BitDepth == 16)
             {
                 this.SampleType = typeof(ushort);
                 this.BitMask = ushort.MaxValue;

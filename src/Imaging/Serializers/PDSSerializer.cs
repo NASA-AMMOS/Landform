@@ -135,7 +135,9 @@ namespace JPLOPS.Imaging
                     }
                     else
                     {
-                        throw new ImageSerializationException("PDSImage sample type not supported");
+                        throw new ImageSerializationException("PDSImage sample type not supported: " +
+                                                              metadata.SampleType != null ?
+                                                              metadata.SampleType.ToString() : "null");
                     }
                 }
             }            
@@ -198,7 +200,7 @@ END
             }
             else
             {
-                throw new ImageSerializationException("Unsuppprted type");
+                throw new ImageSerializationException("Unsuppprted PDS sample type: " + typeof(T).ToString());
             }
             int headerSize = 2048;
             string header = string.Format(template, headerSize, image.Height, image.Width, type, bits, image.Bands);
