@@ -117,7 +117,7 @@ namespace JPLOPS.Geometry
                                        ILogger logger = null)
         {
             var cfg = PoissonConfig.Instance;
-            string reconstructExe = Path.Combine(PathHelper.GetApplicationPath(), "ExternalApps", cfg.PoissonExe);
+            string reconstructExe = Path.Combine(PathHelper.GetApplicationPath(), cfg.PoissonExe);
 //MP
 #if WINDOWS
             reconstructExe += ".exe";
@@ -362,7 +362,7 @@ namespace JPLOPS.Geometry
             }
 
             var cfg = PoissonConfig.Instance;
-            string trimmerExe = Path.Combine(PathHelper.GetApplicationPath(), "ExternalApps", cfg.TrimmerExe);
+            string trimmerExe = Path.Combine(PathHelper.GetApplicationPath(), cfg.TrimmerExe);
 //MP
 #if WINDOWS
             trimmerExe += ".exe";

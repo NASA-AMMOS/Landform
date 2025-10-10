@@ -90,8 +90,8 @@ namespace JPLOPS.Geometry
                 }
             }
 
-            string fssrExe = Path.Combine(PathHelper.GetApplicationPath(), "ExternalApps", "fssrecon");
-            string cleanExe = Path.Combine(PathHelper.GetApplicationPath(), "ExternalApps", "meshclean");
+            string fssrExe = Path.Combine(PathHelper.GetApplicationPath(), "fssrecon");
+            string cleanExe = Path.Combine(PathHelper.GetApplicationPath(), "meshclean");
 
 //MP
 #if WINDOWS
