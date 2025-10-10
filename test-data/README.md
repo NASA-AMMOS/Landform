@@ -1,4 +1,6 @@
-0606MR0025570000400933E01_DRCX.LBL was created as the header of https://planetarydata.jpl.nasa.gov/img/data/msl/msl_mmm/data_MSLMST/volume_0007_calibrated/SURFACE/0606/0606MR0025570000400933E01_DRCX.IMG
+0606MR0025570000400933E01_DRCX.LBL was created as the header of https://planetarydata.jpl.nasa.gov/img/data/msl/msl_mmm/data_MSLMST/volume_0007_calibrated/SURFACE/0606/0606MR0025570000400933E01_DRCX.IMG with the `^IMAGE` record manually modified to support testing PDS external file reference
+
+0606MR0025570000400933E01_DRCX.IMG was downloaded from https://planetarydata.jpl.nasa.gov/img/data/msl/msl_mmm/data_MSLMST/volume_0007_calibrated/SURFACE/0606/0606MR0025570000400933E01_DRCX.IMG
 
 https://planetarydata.jpl.nasa.gov/img/data/msl/msl_mmm/data_MSLMST/volume_0007_calibrated/SURFACE/0606/0606ML0025550030301440E01_DRCX.IMG was renamed to ML0_451292526RCX_S0311094MCAM02555M1.IMG for testing OPGS style product ID
 

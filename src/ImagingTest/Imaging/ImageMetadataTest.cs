@@ -29,5 +29,16 @@ namespace ImagingTest
             Assert.Equal(4, im.Width);
             Assert.Equal(3, im.Height);
         }
+
+        [Fact]
+        public void PDSLoadFromLBL()
+        {
+            string filename = Path.Combine("0606MR0025570000400933E01_DRCX.LBL");
+            var meta = new PDSMetadata(filename);
+            Assert.True(meta.DataPath != null);
+            var img = Image.Load(filename);
+            Assert.Equal(1344, img.Width);
+            Assert.Equal(1200, img.Height);
+        }
     }
 }

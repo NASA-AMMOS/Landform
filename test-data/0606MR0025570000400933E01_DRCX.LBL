@@ -6,10 +6,10 @@ RECORD_TYPE                         = FIXED_LENGTH
 RECORD_BYTES                        = 2688
 FILE_RECORDS                        = 3611
 LABEL_RECORDS                       = 11
+
 /* Pointers to Data Objects */
 
-^IMAGE = 12
-
+^IMAGE = ("0606MR0025570000400933E01_DRCX.IMG")
 
 /* Identification Data Elements */
 
