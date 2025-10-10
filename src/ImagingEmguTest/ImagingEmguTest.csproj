@@ -5,6 +5,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
+    <!-- avoid warning NETSDK1206: Found version-specific or distribution-specific runtime identifier(s): ubuntu-x64.
+         Affected libraries: Emgu.CV.runtime.ubuntu-x64 -->
+    <UseRidGraph>true</UseRidGraph>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="coverlet.collector" Version="6.0.2" />
