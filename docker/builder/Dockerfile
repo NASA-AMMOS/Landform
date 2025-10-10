@@ -1,6 +1,6 @@
 FROM ubuntu:25.04
 
-RUN apt-get update -y && apt-get install -y vim dotnet-sdk-9.0 build-essential cmake unzip curl 
+RUN apt-get update -y && apt-get install -y vim dotnet-sdk-9.0 build-essential cmake unzip curl git
 
 # Emgu.CV dependencies
 # https://github.com/emgucv/emgucv/blob/4.12.0/platforms/ubuntu/24.04/apt_install_dependency
