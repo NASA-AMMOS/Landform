@@ -47,11 +47,17 @@ We have also written a [whitepaper](doc/Vona__2025__Landform_Contextual_shrink.p
 
 ## Building
 
-Landform previously required Windows to build and run; the current implementation is multiplatform and builds and runs on Linux `x86_64,` OS X `arm64`, and Windows `x86_64`.  The EmguCV runtime binary packages currently require an Ubuntu-based distribution on Linux.
+Landform previously required Windows to build and run; the current implementation is multiplatform and builds and runs on Linux `x86_64,` OS X `arm64`, and Windows `x86_64`.  The EmguCV runtime binary packages currently require an Ubuntu 24.04 distribution on Linux.
 
 1. Open a bash command prompt.  On Windows use [git bash](https://git-scm.com/downloads), [MSYS2](https://msys2.org), or [Cygwin](https://cygwin.com) (Windows Subsystem for Linux (WSL) can work but produces a Linux build).  If you are using Cygwin you may first need to run `set -o igncr` because `git` on Windows may have converted the included `.sh` scripts to have Windows line endings (though we have a `.gitattributes` file that is supposed to prevent that), and by default the Cygwin bash interpreter does not like that.
 1. Install a [.NET 9.0 SDK](https://dotnet.microsoft.com/en-us/download/dotnet/9.0).  Running `dotnet --version` should return a version in the 9.0.X series.
-    * on Ubuntu run `sudo apt-get install dotnet-sdk-9.0`
+    * on Ubuntu 24.04 run
+        ```
+        apt-get install software-properties-common
+        add-apt-repository ppa:dotnet/backports
+        apt-get update 
+        apt-get install dotnet-sdk-9.0 
+        ```
     * on OS X using the [homebrew package manager](https://brew.sh), run `brew install --cask dotnet-sdk`
     * on Windows run the installer manually.  You may also need to add the dotnet installation folder to your bash PATH: `export PATH="$PATH":/c/Program\ Files/dotnet`.
 1. Ensure you can run the commands `unzip`, `curl`, and `cmake`.  If not, install them as appropriate for your environment.  For example:
@@ -69,7 +75,7 @@ Landform previously required Windows to build and run; the current implementatio
 1. Run `cd src; ./build.sh`.  This will automatically download dependencies and compile both native and C# components.
 1. A `clean.sh` script is also provided to remove compiled artifacts.
 
-A [Dockerfile](docker/builder/Dockerfile) is also provided to build an `x86_64` Ubuntu-based Docker image suitable for building Landform.  Launch Docker and then build the image with `cd docker/builder; ./build.sh`.  A convenience script is also provided to run a bash shell on the image: `cd docker/builder; ./up.sh`.
+A [Dockerfile](docker/builder/Dockerfile) is also provided to build an `x86_64` Ubuntu 24.04 Docker image suitable for building Landform.  Launch Docker and then build the image with `cd docker/builder; ./build.sh`.  A convenience script is also provided to run a bash shell on the image: `cd docker/builder; ./up.sh`.
 
 On an `arm64` OS X host you may get build errors within the Docker container unless you enable "Apple Virtualization Framework" and "Use Rosetta for x86_64/amd64 emulation on Apple Silicon" in the Docker Desktop settings.  Also, unfortunately, test workflows involving the `RayTrace` module will still fail in this configuration because `RayTrace` depends on [embree](https://embree.org) which uses Intel AVX instructions, and those are not supported by Rosetta.
 
@@ -78,9 +84,9 @@ On an `arm64` OS X host you may get build errors within the Docker container unl
 The runtime requirements for Landform are
 
 1. A [.NET 9.0 SDK or Runtime](https://dotnet.microsoft.com/en-us/download/dotnet/9.0)
-2. The runtime requirements for Emgu.CV.  On Ubuntu see [here](https://github.com/emgucv/emgucv/blob/4.12.0/platforms/ubuntu/24.04/apt_install_dependency).  On OS X there should be no additional dependencies.
+2. The runtime requirements for Emgu.CV.  On Ubuntu 24.04 see [here](https://github.com/emgucv/emgucv/blob/4.12.0/platforms/ubuntu/24.04/apt_install_dependency).  On OS X there should be no additional dependencies.
 
-A [Dockerfile](docker/runner/Dockerfile) is also provided to build an Ubuntu-based Docker image suitable for running Landform.  Launch Docker and then build the image with `cd docker/runner; ./build.sh`.  A convenience script is also provided to run a bash shell on the image: `cd docker/runner; ./up.sh`.
+A [Dockerfile](docker/runner/Dockerfile) is also provided to build an Ubuntu 24.04 Docker image suitable for running Landform.  Launch Docker and then build the image with `cd docker/runner; ./build.sh`.  A convenience script is also provided to run a bash shell on the image: `cd docker/runner; ./up.sh`.
 
 The top-level command-line entrypoint is in [Landform.cs](./Landform/Landform.cs).  After building run this to get a brief synopsis of the available commands:
 
