@@ -69,7 +69,9 @@ Landform previously required Windows to build and run; the current implementatio
 1. Run `cd src; ./build.sh`.  This will automatically download dependencies and compile both native and C# components.
 1. A `clean.sh` script is also provided to remove compiled artifacts.
 
-A [Dockerfile](docker/builder/Dockerfile) is also provided to build an Ubuntu-based Docker image suitable for building Landform.  Launch Docker and then build the image with `cd docker/builder; ./build.sh`.  A convenience script is also provided to run a bash shell on the image: `cd docker/builder; ./up.sh`.  On an `arm64` OS X host you may get build errors within the Docker container unless you enable "Apple Virtualization Framework" and "Use Rosetta for x86_64/amd64 emulation on Apple Silicon" in the Docker Desktop settings.
+A [Dockerfile](docker/builder/Dockerfile) is also provided to build an `x86_64` Ubuntu-based Docker image suitable for building Landform.  Launch Docker and then build the image with `cd docker/builder; ./build.sh`.  A convenience script is also provided to run a bash shell on the image: `cd docker/builder; ./up.sh`.
+
+On an `arm64` OS X host you may get build errors within the Docker container unless you enable "Apple Virtualization Framework" and "Use Rosetta for x86_64/amd64 emulation on Apple Silicon" in the Docker Desktop settings.  Also, unfortunately, test workflows involving the `RayTrace` module will still fail in this configuration because `RayTrace` depends on [embree](https://embree.org) which uses Intel AVX instructions, and those are not supported by Rosetta.
 
 ## Running
 
