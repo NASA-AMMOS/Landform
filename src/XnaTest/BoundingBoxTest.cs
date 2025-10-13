@@ -1,7 +1,7 @@
 ﻿using Xunit;
 using Microsoft.Xna.Framework;
 
-namespace XnaTest.Geometry
+namespace XnaTest
 {
     public class BoundingBoxTest    
     {

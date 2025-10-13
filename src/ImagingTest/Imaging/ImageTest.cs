@@ -6,7 +6,7 @@ using Microsoft.Xna.Framework;
 using JPLOPS.Imaging;
 using JPLOPS.TestExtensions;
 
-namespace ImageTest
+namespace ImagingTest
 {
     public class ImageTest
     {

@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using JPLOPS.Geometry;
 
-namespace GeometryTest.Serializers
+namespace GeometryTest
 {
     public class GLTFSerializerTest
     {

@@ -1,6 +1,6 @@
 ﻿using JPLOPS.Imaging;
 
-namespace ImagingTest.Imaging
+namespace ImagingTest
 {
     public class InPainterTest
     {

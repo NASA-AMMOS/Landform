@@ -2,7 +2,7 @@
 using Microsoft.Xna.Framework;
 using JPLOPS.Geometry;
 
-namespace GeometryTest.Geometry
+namespace GeometryTest
 {
     public class SurfacePointSamplerTest
     {

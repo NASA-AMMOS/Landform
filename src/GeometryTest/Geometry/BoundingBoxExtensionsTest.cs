@@ -2,7 +2,7 @@
 using JPLOPS.Geometry;
 using Microsoft.Xna.Framework;
 
-namespace GeometryTest.Geometry
+namespace GeometryTest
 {
     public class BoundingBoxExtensionsTest
     {
