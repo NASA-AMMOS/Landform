@@ -436,7 +436,7 @@ namespace GeometryTest
             vertsToRemove.Add(new Vertex(0, 1, 0));
             m.RemoveVertices(vertsToRemove);
             Assert.Equal(4, m.Vertices.Count);
-            Assert.Equal(1, m.Faces.Count);
+            Assert.Single(m.Faces);
             Assert.Equal(new Vertex(0, 0, 0), m.Vertices[0]);
             Assert.Equal(new Vertex(1, 0, 0), m.Vertices[1]);
             Assert.Equal(new Vertex(0, 2, 3), m.Vertices[2]);
@@ -693,7 +693,7 @@ namespace GeometryTest
             Assert.True(Vector3.AlmostEqual(cutBB.Max, originalBB.Max));
             foreach (var t in m.Triangles())
             {
-                Assert.Equal(0, new List<Triangle>(t.Clip(bb)).Count);
+                Assert.Empty(new List<Triangle>(t.Clip(bb)));
             }
         }
 
