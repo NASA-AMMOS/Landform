@@ -84,7 +84,7 @@ On an `arm64` OS X host you may get build errors within the Docker container unl
 The runtime requirements for Landform are
 
 1. A [.NET 9.0 SDK or Runtime](https://dotnet.microsoft.com/en-us/download/dotnet/9.0)
-2. The runtime requirements for Emgu.CV.  On Ubuntu 24.04 see [here](https://github.com/emgucv/emgucv/blob/4.12.0/platforms/ubuntu/24.04/apt_install_dependency).  On OS X there should be no additional dependencies.
+1. The EmguCV runtime binary packages currently require an Ubuntu 24.04 distribution on Linux, plus [these](https://github.com/emgucv/emgucv/blob/4.12.0/platforms/ubuntu/24.04/apt_install_dependency) additional packages.  On OS X there should be no additional dependencies.
 
 A [Dockerfile](docker/runner/Dockerfile) is also provided to build an Ubuntu 24.04 Docker image suitable for running Landform.  Launch Docker and then build the image with `cd docker/runner; ./build.sh`.  A convenience script is also provided to run a bash shell on the image: `cd docker/runner; ./up.sh`.
 
