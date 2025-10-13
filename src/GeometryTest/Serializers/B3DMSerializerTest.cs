@@ -1,13 +1,12 @@
-﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
+﻿using Xunit;
 using JPLOPS.Geometry;
 using System.Collections.Generic;
 
 namespace GeometryTest.Serializers
 {
-    [TestClass]
     public class B3DMSerializerTest
     {
-        [TestMethod]
+        [Fact]
         public void TestB3DMWrite()
         {
             Mesh m = new Mesh(true, true, true);

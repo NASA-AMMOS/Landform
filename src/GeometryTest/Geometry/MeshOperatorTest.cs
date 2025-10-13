@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Linq;
 using System.Collections.Generic;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Xunit;
 using Microsoft.Xna.Framework;
 using JPLOPS.Geometry;
 
@@ -10,11 +10,10 @@ namespace GeometryTest
     /// <summary>
     /// Summary description for MeshOperatorTest
     /// </summary>
-    [TestClass]
     public class MeshOperatorTest
     {
 
-        [TestMethod]
+        [Fact]
         public void MeshOperatorClipTest()
         {
             Random r = new Random(17);
@@ -30,18 +29,18 @@ namespace GeometryTest
             BoundingBox bb = new BoundingBox(new Vector3(-2, -3, -4), new Vector3(-1, -1, -2));
             Mesh clipped = mo.Clipped(bb);
             BoundingBox clippedBB = clipped.Bounds();
-            Assert.IsTrue(Vector3.AlmostEqual(clippedBB.Min, bb.Min));
-            Assert.IsTrue(Vector3.AlmostEqual(clippedBB.Max, bb.Max));
+            Assert.True(Vector3.AlmostEqual(clippedBB.Min, bb.Min));
+            Assert.True(Vector3.AlmostEqual(clippedBB.Max, bb.Max));
 
             m.Clip(bb);
-            Assert.AreEqual(m.Vertices.Count, clipped.Vertices.Count);
-            Assert.AreEqual(m.Faces.Count, clipped.Faces.Count);
-            Assert.IsTrue(mo.CountFaces(bb) > 0);
-            Assert.IsTrue(mo.CountVertices(bb) > 0);
-            Assert.IsFalse(mo.Empty(bb));
+            Assert.Equal(m.Vertices.Count, clipped.Vertices.Count);
+            Assert.Equal(m.Faces.Count, clipped.Faces.Count);
+            Assert.True(mo.CountFaces(bb) > 0);
+            Assert.True(mo.CountVertices(bb) > 0);
+            Assert.False(mo.Empty(bb));
         }
 
-        [TestMethod]
+        [Fact]
         public void MeshOperatorClipPointCloudTest()
         {
             Random r = new Random(17);
@@ -54,18 +53,18 @@ namespace GeometryTest
             BoundingBox bb = new BoundingBox(new Vector3(-4, -4, -4), new Vector3(3, 2, -2));
             Mesh clipped = mo.Clipped(bb);
             BoundingBox clippedBB = clipped.Bounds();
-            Assert.IsTrue(bb.FuzzyContains(clippedBB));
-            Assert.IsTrue(clipped.Vertices.Count > 0);
+            Assert.True(bb.FuzzyContains(clippedBB));
+            Assert.True(clipped.Vertices.Count > 0);
 
             m.Clip(bb);
-            Assert.AreEqual(m.Vertices.Count, clipped.Vertices.Count);
-            Assert.AreEqual(clipped.Vertices.Count, mo.CountVertices(bb));
-            Assert.AreEqual(0, mo.CountFaces(bb));
+            Assert.Equal(m.Vertices.Count, clipped.Vertices.Count);
+            Assert.Equal(clipped.Vertices.Count, mo.CountVertices(bb));
+            Assert.Equal(0, mo.CountFaces(bb));
             mo.CountVertices(bb);
-            Assert.IsFalse(mo.Empty(bb));
+            Assert.False(mo.Empty(bb));
         }
 
-        [TestMethod]
+        [Fact]
         public void MeshOperatorsVerticesIn()
         {
             Mesh m = new Mesh();
@@ -81,12 +80,12 @@ namespace GeometryTest
             BoundingBox bb = new BoundingBox(new Vector3(-1.5, -1.5, -1.5), new Vector3(-0.5, 1.5, -0.5));
             MeshOperator mo = new MeshOperator(m);
             var vertsIn = mo.VerticesIn(bb);
-            Assert.AreEqual(vertsIn.Count, 2);
-            Assert.IsTrue(vertsIn.Contains(new Vertex(new Vector3(-1, -1, -1))));
-            Assert.IsTrue(vertsIn.Contains(new Vertex(new Vector3(-1, 1, -1))));
+            Assert.Equal(2, vertsIn.Count);
+            Assert.Contains(new Vertex(new Vector3(-1, -1, -1)), vertsIn);
+            Assert.Contains(new Vertex(new Vector3(-1, 1, -1)), vertsIn);
         }
 
-        [TestMethod]
+        [Fact]
         public void MeshOperatorUVTest()
         {
             Vertex[] verts = new Vertex[]
@@ -199,17 +198,17 @@ namespace GeometryTest
             {
                 for (int idxRow = 0; idxRow < textureResolution; idxRow++)
                 {
-                    Assert.IsTrue(validMeshPos[idxRow, idxCol] == (idxRow != 0 && idxCol != 0));
+                    Assert.True(validMeshPos[idxRow, idxCol] == (idxRow != 0 && idxCol != 0));
                     if (validMeshPos[idxRow, idxCol])
                     {
                         Vector2 uv = new Vector2(idxCol / (double)textureResolution, 1 - (idxRow / (double)textureResolution));
-                        Assert.AreEqual(meshPosCache[idxRow, idxCol], verts.Where(v => v.UV == uv).First().Position);
+                        Assert.Equal(meshPosCache[idxRow, idxCol], verts.Where(v => v.UV == uv).First().Position);
                     }
                 }
             }
         }
 
-        [TestMethod()]
+        [Fact]
         public void SampleUVSpaceTest()
         {
             //uv origin: lower left
@@ -225,24 +224,24 @@ namespace GeometryTest
             int resolution = 2;
             List<PixelPoint> pxlPts = op.SampleUVSpace(resolution, resolution);
 
-            Assert.IsTrue(pxlPts.Count == 4);
+            Assert.Equal(4, pxlPts.Count);
 
             //sampling function returns location of data (pixel centers)
-            Assert.IsTrue(pxlPts.Select(x => x.Pixel).Contains(new Vector2(0.5, 0.5)));
-            Assert.IsTrue(pxlPts.Select(x => x.Pixel).Contains(new Vector2(0.5, 1.5)));
-            Assert.IsTrue(pxlPts.Select(x => x.Pixel).Contains(new Vector2(1.5, 0.5)));
-            Assert.IsTrue(pxlPts.Select(x => x.Pixel).Contains(new Vector2(1.5, 1.5)));
+            Assert.Contains(new Vector2(0.5, 0.5), pxlPts.Select(x => x.Pixel));
+            Assert.Contains(new Vector2(0.5, 1.5), pxlPts.Select(x => x.Pixel));
+            Assert.Contains(new Vector2(1.5, 0.5), pxlPts.Select(x => x.Pixel));
+            Assert.Contains(new Vector2(1.5, 1.5), pxlPts.Select(x => x.Pixel));
 
             //differences in positions from construction is because the for each of the four corners of the quad, a different pixel corner
             // is matched to the vertex position. also location is pixel centers
-            Assert.IsTrue(pxlPts.Where(x => x.Pixel == new Vector2(0.5, 1.5)).First().Point == new Vector3(0, -0.5, 0.5));
-            Assert.IsTrue(pxlPts.Where(x => x.Pixel == new Vector2(0.5, 0.5)).First().Point == new Vector3(0, -0.5, -0.5));
-            Assert.IsTrue(pxlPts.Where(x => x.Pixel == new Vector2(1.5, 1.5)).First().Point == new Vector3(0, 0.5, 0.5));
-            Assert.IsTrue(pxlPts.Where(x => x.Pixel == new Vector2(1.5, 0.5)).First().Point == new Vector3(0, 0.5, -0.5));
+            Assert.True(pxlPts.Where(x => x.Pixel == new Vector2(0.5, 1.5)).First().Point == new Vector3(0, -0.5, 0.5));
+            Assert.True(pxlPts.Where(x => x.Pixel == new Vector2(0.5, 0.5)).First().Point == new Vector3(0, -0.5, -0.5));
+            Assert.True(pxlPts.Where(x => x.Pixel == new Vector2(1.5, 1.5)).First().Point == new Vector3(0, 0.5, 0.5));
+            Assert.True(pxlPts.Where(x => x.Pixel == new Vector2(1.5, 0.5)).First().Point == new Vector3(0, 0.5, -0.5));
 
         }
 
-        [TestMethod()]
+        [Fact]
         public void SubsampleUVSpaceTest()
         {
             //uv origin: lower left
@@ -259,19 +258,19 @@ namespace GeometryTest
             double pct = 0.5;
             List<PixelPoint> pxlPts = op.SubsampleUVSpace(pct,resolution, resolution);
 
-            Assert.IsTrue(pxlPts.Count == 2);
+            Assert.Equal(2, pxlPts.Count);
             //sampling function returns location of data (pixel centers)
-            Assert.IsTrue(pxlPts.Select(x => x.Pixel).Contains(new Vector2(0.5, 1.5)));
-            Assert.IsTrue(pxlPts.Select(x => x.Pixel).Contains(new Vector2(0.5, 0.5)));
+            Assert.Contains(new Vector2(0.5, 1.5), pxlPts.Select(x => x.Pixel));
+            Assert.Contains(new Vector2(0.5, 0.5), pxlPts.Select(x => x.Pixel));
 
             pct = 1/3.0;
             pxlPts = op.SubsampleUVSpace(pct, resolution, resolution);
-            Assert.IsTrue(pxlPts.Count == 1);
-            Assert.IsTrue(pxlPts.Select(x => x.Pixel).Contains(new Vector2(0.5, 0.5)));
+            Assert.Single(pxlPts);
+            Assert.Contains(new Vector2(0.5, 0.5), pxlPts.Select(x => x.Pixel));
 
         }
 
-        [TestMethod()]
+        [Fact]
         public void SampleUVSpacePartialTest()
         {
             //uv origin: lower left
@@ -287,8 +286,8 @@ namespace GeometryTest
             int resolution = 2;
             List<PixelPoint> pxlPts = op.SampleUVSpace(resolution, resolution);
 
-            Assert.IsTrue(pxlPts.Count == 1);
-            Assert.IsTrue(pxlPts.Select(x => x.Pixel).Contains(new Vector2(0.5, 1.5)));
+            Assert.Single(pxlPts);
+            Assert.Contains(new Vector2(0.5, 1.5), pxlPts.Select(x => x.Pixel));
         }
     }
 }

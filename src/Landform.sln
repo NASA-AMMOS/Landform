@@ -23,8 +23,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MathExtensionsTest", "MathE
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Geometry", "Geometry/Geometry.csproj", "{49A27854-2DB1-4E1C-893A-F60BDF5F3C86}"
 EndProject
-#Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GeometryTest", "GeometryTest/GeometryTest.csproj", "{402A9626-13E2-43F5-B74E-B98BFB9E957F}"
-#EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GeometryTest", "GeometryTest/GeometryTest.csproj", "{402A9626-13E2-43F5-B74E-B98BFB9E957F}"
+EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Util", "Util/Util.csproj", "{8145AA65-BA61-4E27-81FF-B64217B49929}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UtilTest", "UtilTest/UtilTest.csproj", "{65949ADB-C7A1-4353-9133-E606B066DD1B}"

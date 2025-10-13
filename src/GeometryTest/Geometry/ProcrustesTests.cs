@@ -1,15 +1,14 @@
-﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
+﻿using Xunit;
 using System;
 using Microsoft.Xna.Framework;
 using JPLOPS.Geometry;
 
 namespace GeometryTest
 {
-    [TestClass()]
     public class ProcrustesTests
     {
 
-        [TestMethod()]
+        [Fact]
         public void ScaleTest()
         {
             Vector3[] fixedPts =
@@ -33,12 +32,12 @@ namespace GeometryTest
                                      out Vector3 translation, out Quaternion rotation, out double scale,
                                      calcTranslation: false, calcRotation: false, calcScale: true);
 
-            Assert.IsTrue(Math.Abs(appliedScale * scale - 1) < 0.0001);
-            Assert.AreEqual(Vector3.Zero, translation);
-            Assert.AreEqual(Quaternion.Identity, rotation);
+            Assert.True(Math.Abs(appliedScale * scale - 1) < 0.0001);
+            Assert.Equal(Vector3.Zero, translation);
+            Assert.Equal(Quaternion.Identity, rotation);
         }
 
-        [TestMethod()]
+        [Fact]
         public void RotationTest()
         {
             Vector3[] fixedPts =
@@ -64,13 +63,13 @@ namespace GeometryTest
                                      calcTranslation: false, calcRotation: true, calcScale: false);
 
             
-            Assert.AreEqual(1.0, scale);
-            Assert.AreEqual(Vector3.Zero, translation);
-            Assert.IsTrue(Math.Abs((Quaternion.Identity - appliedRotation * rotation).Length()) < 0.001);
+            Assert.Equal(1.0, scale);
+            Assert.Equal(Vector3.Zero, translation);
+            Assert.True(Math.Abs((Quaternion.Identity - appliedRotation * rotation).Length()) < 0.001);
         }
 
 
-        [TestMethod()]
+        [Fact]
         public void TranslationTest()
         {
             Vector3[] fixedPts =
@@ -94,12 +93,12 @@ namespace GeometryTest
                                      out Vector3 translation, out Quaternion rotation, out double scale,
                                      calcTranslation: true, calcRotation: false, calcScale: false);
 
-            Assert.AreEqual(1.0, scale);
-            Assert.IsTrue(Math.Abs((appliedTranslation + translation).Length()) < 0.001);
-            Assert.AreEqual(Quaternion.Identity, rotation);
+            Assert.Equal(1.0, scale);
+            Assert.True(Math.Abs((appliedTranslation + translation).Length()) < 0.001);
+            Assert.Equal(Quaternion.Identity, rotation);
         }
 
-        [TestMethod()]
+        [Fact]
         public void CalculateTest()
         {
             Vector3[] fixedPts =
@@ -131,9 +130,9 @@ namespace GeometryTest
                                      out Vector3 translation, out Quaternion rotation, out double scale,
                                      calcTranslation: true, calcRotation: true, calcScale: true);
 
-            Assert.IsTrue(Math.Abs(appliedScale * scale - 1) < 0.0001);
-            Assert.IsTrue(Math.Abs((Quaternion.Identity - appliedRotation * rotation).Length()) < 0.001);
-            Assert.IsTrue(Math.Abs((appliedTranslation - Vector3.Transform(-translation, appliedRotation) * appliedScale).Length()) < 0.001);
+            Assert.True(Math.Abs(appliedScale * scale - 1) < 0.0001);
+            Assert.True(Math.Abs((Quaternion.Identity - appliedRotation * rotation).Length()) < 0.001);
+            Assert.True(Math.Abs((appliedTranslation - Vector3.Transform(-translation, appliedRotation) * appliedScale).Length()) < 0.001);
         }
     }
 }

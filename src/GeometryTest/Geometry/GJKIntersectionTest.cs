@@ -1,4 +1,4 @@
-﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
+﻿using Xunit;
 using Microsoft.Xna.Framework;
 using JPLOPS.Geometry;
 using System;
@@ -6,10 +6,9 @@ using System.Collections.Generic;
 
 namespace GeometryTest
 {
-    [TestClass]
     public class GJKIntersectionTest
     {
-        [TestMethod]
+        [Fact]
         public void GJKIntersectionCubes()
         {
             List<Vector3> unitCubeVerts = new List<Vector3>();
@@ -34,16 +33,16 @@ namespace GeometryTest
 
             var leftCube = CubeAt(new Vector3(-3, 0, 0), new Vector3(1, 1, 1));
             var rightCube = CubeAt(new Vector3(3, 0, 0), new Vector3(1, 1, 1));
-            Assert.AreEqual(false, leftCube.Intersects(rightCube));
+            Assert.False(leftCube.Intersects(rightCube));
 
             var bigCube = CubeAt(new Vector3(0, 0, 0), new Vector3(8, 8, 8));
-            Assert.AreEqual(true, bigCube.Intersects(leftCube));
-            Assert.AreEqual(true, bigCube.Intersects(rightCube));
+            Assert.True(bigCube.Intersects(leftCube));
+            Assert.True(bigCube.Intersects(rightCube));
 
             var tallCube = CubeAt(new Vector3(0, 0, 0), new Vector3(2, 5, 1));
-            Assert.AreEqual(false, tallCube.Intersects(leftCube));
-            Assert.AreEqual(false, tallCube.Intersects(rightCube));
-            Assert.AreEqual(true, tallCube.Intersects(bigCube));
+            Assert.False(tallCube.Intersects(leftCube));
+            Assert.False(tallCube.Intersects(rightCube));
+            Assert.True(tallCube.Intersects(bigCube));
         }
     }
 }

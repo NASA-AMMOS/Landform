@@ -1,14 +1,13 @@
 ﻿using System.Collections.Generic;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Xunit;
 using JPLOPS.Geometry;
 using Microsoft.Xna.Framework;
 
 namespace GeometryTest
 {
-    [TestClass]
     public class BOBSerializerText
     {
-        [TestMethod]
+        [Fact]
         public void BOBSimpleWriteTest()
         {
             Mesh m = new Mesh();
@@ -25,19 +24,19 @@ namespace GeometryTest
 
             m.Save("SimpleBOBWriteTest.bob");
             Mesh m2 = Mesh.Load("SimpleBOBWriteTest.bob");
-            Assert.AreEqual(m2.Vertices.Count, 6);
-            Assert.AreEqual(m2.Faces.Count, 2);
-            Assert.AreEqual(m2.HasColors, false);
-            Assert.AreEqual(m2.HasNormals, false);
-            Assert.AreEqual(m2.HasUVs, false);
+            Assert.Equal(6, m2.Vertices.Count);
+            Assert.Equal(2, m2.Faces.Count);
+            Assert.False(m2.HasColors);
+            Assert.False(m2.HasNormals);
+            Assert.False(m2.HasUVs);
 
-            Assert.AreEqual(CountNumberOfMatchingVertices(new Vertex(0, 0, 0), m2.Vertices), 2);
-            Assert.AreEqual(CountNumberOfMatchingVertices(new Vertex(0, 1, 0), m2.Vertices), 1);
-            Assert.AreEqual(CountNumberOfMatchingVertices(new Vertex(1, 0, 0), m2.Vertices), 1);
-            Assert.AreEqual(CountNumberOfMatchingVertices(new Vertex(1, 1, 0), m2.Vertices), 2);
+            Assert.Equal(2, CountNumberOfMatchingVertices(new Vertex(0, 0, 0), m2.Vertices));
+            Assert.Equal(1, CountNumberOfMatchingVertices(new Vertex(0, 1, 0), m2.Vertices));
+            Assert.Equal(1, CountNumberOfMatchingVertices(new Vertex(1, 0, 0), m2.Vertices));
+            Assert.Equal(2, CountNumberOfMatchingVertices(new Vertex(1, 1, 0), m2.Vertices));
         }
 
-        [TestMethod]
+        [Fact]
         public void BOBBasicReadWriteTest()
         {
             // Test all combinations of normal, uv, and color
@@ -65,16 +64,16 @@ namespace GeometryTest
                         OBJSerializer.Write(m, "BOBBasicReadWriteTest.obj");
 
                         Mesh m2 = OBJSerializer.Read("BOBBasicReadWriteTest.obj");
-                        Assert.AreEqual(m.Vertices.Count, m2.Vertices.Count);
+                        Assert.Equal(m.Vertices.Count, m2.Vertices.Count);
                         for (int i = 0; i < m.Vertices.Count; i++)
                         {
-                            Assert.AreEqual(m.Vertices[i], m2.Vertices[i]);
+                            Assert.Equal(m.Vertices[i], m2.Vertices[i]);
 
                         }
-                        Assert.AreEqual(m.Faces.Count, m2.Faces.Count);
+                        Assert.Equal(m.Faces.Count, m2.Faces.Count);
                         for (int i = 0; i < m.Faces.Count; i++)
                         {
-                            Assert.AreEqual(m.Faces[i], m2.Faces[i]);
+                            Assert.Equal(m.Faces[i], m2.Faces[i]);
                         }
                     }
                 }

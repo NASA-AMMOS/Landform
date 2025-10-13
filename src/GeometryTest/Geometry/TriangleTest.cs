@@ -1,64 +1,63 @@
 ﻿using System;
 using System.Collections.Generic;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Xunit;
 using Microsoft.Xna.Framework;
 using JPLOPS.Geometry;
 using System.Linq;
 using JPLOPS.MathExtensions;
-using JPLOPS.Test;
+using JPLOPS.TestExtensions;
 
 namespace GeometryTest
 {
     /// <summary>
     /// Test triangle data type
     /// </summary>
-    [TestClass]
     public class TriangleTest
     {
-        [TestMethod]
+        [Fact]
         public void TriangleConstructorTest()
         {
             Triangle t = new Triangle();
-            Assert.AreEqual(t.V0, null);
-            Assert.AreEqual(t.V1, null);
-            Assert.AreEqual(t.V2, null);
+            Assert.Null(t.V0);
+            Assert.Null(t.V1);
+            Assert.Null(t.V2);
 
             Vertex v0 = new Vertex(0, 1, 2);
             Vertex v1 = new Vertex(3, 4, 5);
             Vertex v2 = new Vertex(6, 7, 8);
             Triangle a = new Triangle(v0, v1, v2);
-            Assert.AreEqual(v0 == a.V0, false);
-            Assert.AreEqual(v1 == a.V1, false);
-            Assert.AreEqual(v2 == a.V2, false);
-            Assert.AreEqual(v0, a.V0);
-            Assert.AreEqual(v1, a.V1);
-            Assert.AreEqual(v2, a.V2);
+            Assert.False(v0 == a.V0);
+            Assert.False(v1 == a.V1);
+            Assert.False(v2 == a.V2);
+            Assert.Equal(v0, a.V0);
+            Assert.Equal(v1, a.V1);
+            Assert.Equal(v2, a.V2);
             a.V0.Position.X = 10;
             a.V1.Position.X = 11;
             a.V2.Position.X = 12;
-            Assert.AreNotEqual(v0, a.V0);
-            Assert.AreNotEqual(v1, a.V1);
-            Assert.AreNotEqual(v2, a.V2);
-            Assert.AreEqual(v0, new Vertex(0, 1, 2));
+            Assert.NotEqual(v0, a.V0);
+            Assert.NotEqual(v1, a.V1);
+            Assert.NotEqual(v2, a.V2);
+            Assert.Equal(v0, new Vertex(0, 1, 2));
 
             Triangle b = new Triangle(a);
             b.V0.Position.Z = 42;
-            Assert.AreEqual(a.V0.Position, new Vector3(10, 1, 2));
-            Assert.AreEqual(b.V0.Position, new Vector3(10, 1, 42));
+            Assert.Equal(a.V0.Position, new Vector3(10, 1, 2));
+            Assert.Equal(b.V0.Position, new Vector3(10, 1, 42));
 
             Triangle c = new Triangle(new Vector3(0, 1, 2), new Vector3(3, 4, 5), new Vector3(6, 7, 8));
-            Assert.AreEqual(v0, c.V0);
-            Assert.AreEqual(v1, c.V1);
-            Assert.AreEqual(v2, c.V2);
+            Assert.Equal(v0, c.V0);
+            Assert.Equal(v1, c.V1);
+            Assert.Equal(v2, c.V2);
         }
 
-        [TestMethod]
+        [Fact]
         public void TriangleBoundsTest()
         {
             Triangle a = new Triangle(new Vertex(0, 0, 0), new Vertex(10, 1, 2), new Vertex(-1, -3, 1));
             var b = a.Bounds();
-            Assert.AreEqual(new Vector3(-1, -3, 0), b.Min);
-            Assert.AreEqual(new Vector3(10, 1, 2), b.Max);
+            Assert.Equal(new Vector3(-1, -3, 0), b.Min);
+            Assert.Equal(new Vector3(10, 1, 2), b.Max);
         }
 
         public double AreaUnstable(Triangle t)
@@ -75,47 +74,47 @@ namespace GeometryTest
             return Math.Sqrt(v);
         }
 
-        [TestMethod]
+        [Fact]
         public void TriangleAreaTest()
         {
             Triangle zeroCornerSimpleXY = new Triangle(new Vertex(0, 0, 0), new Vertex(10, 0, 0), new Vertex(5, 5, 0));
-            Assert.AreEqual(25, zeroCornerSimpleXY.Area(), 1e-8);
+            Assert.Equal(25, zeroCornerSimpleXY.Area(), 1e-8);
             AssertE.AreSimilar(AreaUnstable(zeroCornerSimpleXY), zeroCornerSimpleXY.Area());
 
             Triangle zeroCornerSimpleYZ = new Triangle(new Vertex(0, 0, 0), new Vertex(0, 10, 0), new Vertex(0, 5, 5));
-            Assert.AreEqual(25, zeroCornerSimpleYZ.Area(), 1e-8);
+            Assert.Equal(25, zeroCornerSimpleYZ.Area(), 1e-8);
 
             Triangle zeroCornerSimpleZX = new Triangle(new Vertex(0, 0, 0), new Vertex(0, 0, 10), new Vertex(5, 0, 5));
-            Assert.AreEqual(25, zeroCornerSimpleZX.Area(), 1e-8);
+            Assert.Equal(25, zeroCornerSimpleZX.Area(), 1e-8);
 
             Triangle offsetCornerSimpleXY = new Triangle(new Vertex(10, 10, 10), new Vertex(20, 10, 10), new Vertex(15, 15, 10));
-            Assert.AreEqual(25, offsetCornerSimpleXY.Area(), 1e-8);
+            Assert.Equal(25, offsetCornerSimpleXY.Area(), 1e-8);
 
             Triangle offsetCornerSimpleYZ = new Triangle(new Vertex(10, 10, 10), new Vertex(10, 20, 10), new Vertex(10, 15, 15));
-            Assert.AreEqual(25, offsetCornerSimpleYZ.Area(), 1e-8);
+            Assert.Equal(25, offsetCornerSimpleYZ.Area(), 1e-8);
 
             Triangle offsetCornerSimpleZX = new Triangle(new Vertex(10, 10, 10), new Vertex(10, 10, 20), new Vertex(15, 10, 15));
-            Assert.AreEqual(25, offsetCornerSimpleZX.Area(), 1e-8);
+            Assert.Equal(25, offsetCornerSimpleZX.Area(), 1e-8);
 
             Triangle zeroArea = new Triangle(new Vertex(0, 0, 0), new Vertex(10, 0, 0), new Vertex(5, 0, 0));
-            Assert.AreEqual(0, zeroArea.Area(), 1e-8);
+            Assert.Equal(0, zeroArea.Area(), 1e-8);
 
             Triangle allAxisComplex = new Triangle(new Vertex(-1, -1, 0), new Vertex(1, 1, 0), new Vertex(-1, 1, 2));
-            Assert.AreEqual(3.4641016151377557, allAxisComplex.Area(), 1e-8);
+            Assert.Equal(3.4641016151377557, allAxisComplex.Area(), 1e-8);
             AssertE.AreSimilar(AreaUnstable(allAxisComplex), allAxisComplex.Area());
 
         }
 
-        [TestMethod]
+        [Fact]
         public void TriangleVerticesTest()
         {
             Triangle a = new Triangle(new Vertex(0, 0, 0), new Vertex(10, 1, 2), new Vertex(-1, -3, 1));
             var verts = a.Vertices();
-            Assert.AreEqual(a.V0, verts[0]);
-            Assert.AreEqual(a.V1, verts[1]);
-            Assert.AreEqual(a.V2, verts[2]);
+            Assert.Equal(a.V0, verts[0]);
+            Assert.Equal(a.V1, verts[1]);
+            Assert.Equal(a.V2, verts[2]);
             a.V0.Position.X = 7;
-            Assert.AreEqual(7, verts[0].Position.X);
+            Assert.Equal(7, verts[0].Position.X);
         }
 
         void AssertVerticesContain(Triangle t, Vertex[] verts)
@@ -131,29 +130,29 @@ namespace GeometryTest
             }
         }
 
-        [TestMethod]
+        [Fact]
         public void TriangleClipTest()
         {
             Plane p = new Plane(Vector3.Up, -2);
             Triangle t = new Triangle(new Vertex(0, 0, 0), new Vertex(1, 0, 0), new Vertex(1, 1, 0));
             // Test triangle completly below the plane
-            Assert.AreEqual(0, t.Clip(p).ToArray().Count());
+            Assert.Empty(t.Clip(p).ToArray());
             // Test triangle completly above the plane
             p.D = 2;
-            Assert.AreEqual(1, t.Clip(p).ToArray().Count());
+            Assert.Single(t.Clip(p).ToArray());
             Triangle other = t.Clip(p).ToArray()[0];
-            Assert.AreEqual(t.V0, other.V0);
-            Assert.AreEqual(t.V1, other.V1);
-            Assert.AreEqual(t.V2, other.V2);
+            Assert.Equal(t.V0, other.V0);
+            Assert.Equal(t.V1, other.V1);
+            Assert.Equal(t.V2, other.V2);
             // Test triangle with top part above the plane
             p.D = -0.5;
-            Assert.AreEqual(1, t.Clip(p).ToArray().Count());
+            Assert.Single(t.Clip(p).ToArray());
             AssertVerticesContain(t.Clip(p).ToArray()[0],
                 new Vertex[] {new Vertex(0.5, 0.5, 0), new Vertex(1, 0.5, 0), new Vertex(1, 1, 0)});
             // Test triangle with bottom part above the plane
             p.D = 0.5;
             p.Normal *= -1;
-            Assert.AreEqual(2, t.Clip(p).ToArray().Count());
+            Assert.Equal(2, t.Clip(p).ToArray().Count());
             Triangle a = t.Clip(p).ToArray()[0];
             Triangle b = t.Clip(p).ToArray()[1];
             AssertVerticesContain(a, new Vertex[] {new Vertex(0.5, 0.5, 0), new Vertex(1, 0, 0), new Vertex(0, 0, 0)});
@@ -161,7 +160,7 @@ namespace GeometryTest
                 new Vertex[] {new Vertex(0.5, 0.5, 0), new Vertex(1, 0, 0), new Vertex(1, 0.5, 0)});
         }
 
-        [TestMethod]
+        [Fact]
         public void TraingleClipBoxTest()
         {
             BoundingBox box = new BoundingBox(new Vector3(1, 0, 2), new Vector3(3, 2, 4));
@@ -190,7 +189,7 @@ namespace GeometryTest
             }
         }
 
-        [TestMethod]
+        [Fact]
         public void TriangleUVToBarycentricTest()
         {
             Vertex v0 = new Vertex();
@@ -200,80 +199,80 @@ namespace GeometryTest
             v1.UV = new Vector2(1, 2);
             v2.UV = new Vector2(3, 1);
             Triangle tri = new Triangle(v0, v1, v2);
-            Assert.AreEqual(new Vector2(1, 1), tri.UVToBarycentric(new Vector2(1, 1)).UV);
-            Assert.AreEqual(new Vector2(1, 2), tri.UVToBarycentric(new Vector2(1, 2)).UV);
-            Assert.AreEqual(new Vector2(3, 1), tri.UVToBarycentric(new Vector2(3, 1)).UV);
-            Assert.AreEqual(new Vector2(2, 1), tri.UVToBarycentric(new Vector2(2, 1)).UV);
-            Assert.AreEqual(new Vector2(1, 1.5), tri.UVToBarycentric(new Vector2(1, 1.5)).UV);
-            Assert.AreEqual(new Vector2(2, 1.5), tri.UVToBarycentric(new Vector2(2, 1.5)).UV);
-            Assert.AreEqual(new Vector2(2, 1.25), tri.UVToBarycentric(new Vector2(2, 1.25)).UV);
-            Assert.AreEqual(null, tri.UVToBarycentric(new Vector2(3, 2)));
+            Assert.Equal(new Vector2(1, 1), tri.UVToBarycentric(new Vector2(1, 1)).UV);
+            Assert.Equal(new Vector2(1, 2), tri.UVToBarycentric(new Vector2(1, 2)).UV);
+            Assert.Equal(new Vector2(3, 1), tri.UVToBarycentric(new Vector2(3, 1)).UV);
+            Assert.Equal(new Vector2(2, 1), tri.UVToBarycentric(new Vector2(2, 1)).UV);
+            Assert.Equal(new Vector2(1, 1.5), tri.UVToBarycentric(new Vector2(1, 1.5)).UV);
+            Assert.Equal(new Vector2(2, 1.5), tri.UVToBarycentric(new Vector2(2, 1.5)).UV);
+            Assert.Equal(new Vector2(2, 1.25), tri.UVToBarycentric(new Vector2(2, 1.25)).UV);
+            Assert.Null(tri.UVToBarycentric(new Vector2(3, 2)));
         }
 
-        [TestMethod]
+        [Fact]
         public void TriangleClosestPointTest()
         {
             Triangle tri1 = new Triangle(new Vertex(1, 1, 1), new Vertex(1, 2, 2), new Vertex(3, 1, 2));
-            Assert.AreEqual(new Vector3(1, 1, 1), tri1.ClosestPoint(new Vector3(1, 1, 1)).Position);
-            Assert.AreEqual(new Vector3(1, 2, 2), tri1.ClosestPoint(new Vector3(1, 2, 2)).Position);
-            Assert.AreEqual(new Vector3(3, 1, 2), tri1.ClosestPoint(new Vector3(3, 1, 2)).Position);
-            Assert.AreEqual(new Vector3(2, 1, 1.5), tri1.ClosestPoint(new Vector3(2, 1, 1.5)).Position);
-            Assert.AreEqual(new Vector3(1, 1.5, 1.5), tri1.ClosestPoint(new Vector3(1, 1.5, 1.5)).Position);
-            Assert.AreEqual(new Vector3(2, 1.5, 2), tri1.ClosestPoint(new Vector3(2, 1.5, 2)).Position);
-            Assert.AreEqual(new Vector3(2, 1.25, 1.75), tri1.ClosestPoint(new Vector3(2, 1.25, 1.75)).Position);
+            Assert.Equal(new Vector3(1, 1, 1), tri1.ClosestPoint(new Vector3(1, 1, 1)).Position);
+            Assert.Equal(new Vector3(1, 2, 2), tri1.ClosestPoint(new Vector3(1, 2, 2)).Position);
+            Assert.Equal(new Vector3(3, 1, 2), tri1.ClosestPoint(new Vector3(3, 1, 2)).Position);
+            Assert.Equal(new Vector3(2, 1, 1.5), tri1.ClosestPoint(new Vector3(2, 1, 1.5)).Position);
+            Assert.Equal(new Vector3(1, 1.5, 1.5), tri1.ClosestPoint(new Vector3(1, 1.5, 1.5)).Position);
+            Assert.Equal(new Vector3(2, 1.5, 2), tri1.ClosestPoint(new Vector3(2, 1.5, 2)).Position);
+            Assert.Equal(new Vector3(2, 1.25, 1.75), tri1.ClosestPoint(new Vector3(2, 1.25, 1.75)).Position);
 
-            Assert.AreEqual(new Vector3(1, 1, 1), tri1.ClosestPoint(new Vector3(1, 0, -1)).Position);
-            Assert.AreEqual(new Vector3(1, 2, 2), tri1.ClosestPoint(new Vector3(1, 10, 2)).Position);
-            Assert.AreEqual(new Vector3(3, 1, 2), tri1.ClosestPoint(new Vector3(20, 1, 4)).Position);
+            Assert.Equal(new Vector3(1, 1, 1), tri1.ClosestPoint(new Vector3(1, 0, -1)).Position);
+            Assert.Equal(new Vector3(1, 2, 2), tri1.ClosestPoint(new Vector3(1, 10, 2)).Position);
+            Assert.Equal(new Vector3(3, 1, 2), tri1.ClosestPoint(new Vector3(20, 1, 4)).Position);
 
             Triangle tri = new Triangle(new Vertex(1, 1, 0), new Vertex(0, 1, 0), new Vertex(1, 0, 0));
-            Assert.AreEqual(new Vector3(1, 1, 0), tri.ClosestPoint(new Vector3(1, 1, 1)).Position);
-            Assert.AreEqual(new Vector3(.75, .75, 0), tri.ClosestPoint(new Vector3(.75, .75, -1.6456168)).Position);
-            Assert.AreEqual(new Vector3(.5, .5, 0), tri.ClosestPoint(new Vector3(0, 0, 0)).Position);
-            Assert.AreEqual(new Vector3(.5, .5, 0), tri.ClosestPoint(new Vector3(0, 0, 8798797.65)).Position);
-            Assert.AreEqual(new Vector3(1, 0, 0), tri.ClosestPoint(new Vector3(1.5, -7, -654)).Position);
+            Assert.Equal(new Vector3(1, 1, 0), tri.ClosestPoint(new Vector3(1, 1, 1)).Position);
+            Assert.Equal(new Vector3(.75, .75, 0), tri.ClosestPoint(new Vector3(.75, .75, -1.6456168)).Position);
+            Assert.Equal(new Vector3(.5, .5, 0), tri.ClosestPoint(new Vector3(0, 0, 0)).Position);
+            Assert.Equal(new Vector3(.5, .5, 0), tri.ClosestPoint(new Vector3(0, 0, 8798797.65)).Position);
+            Assert.Equal(new Vector3(1, 0, 0), tri.ClosestPoint(new Vector3(1.5, -7, -654)).Position);
         }
 
 
-        [TestMethod]
+        [Fact]
         public void TriangleBarycenterTest()
         {
             Triangle t = new Triangle(new Vertex(1, 1, 1), new Vertex(2, 2, 1), new Vertex(3, 1, 1));
             var b = t.Barycenter();
-            Assert.AreEqual(new Vector3(2, 4/3.0, 1), b);
+            Assert.Equal(new Vector3(2, 4/3.0, 1), b);
         }
         
-        [TestMethod]
+        [Fact]
         public void TriangleBoundingBoxIntersectionTest()
         {
             Triangle t = new Triangle(new Vertex(1, 1, 1), new Vertex(2, 2, 1), new Vertex(3, 1, 1));
             BoundingBox b = new BoundingBox(new Vector3(-1, -1, 1), new Vector3(0, 0, 1));
-            Assert.AreEqual(false, t.Intersects(b));
+            Assert.False(t.Intersects(b));
             b = new BoundingBox(new Vector3(-1, -1, -1), new Vector3(2, 2, 2));
-            Assert.AreEqual(true, t.Intersects(b));
+            Assert.True(t.Intersects(b));
         }
 
-        [TestMethod]
+        [Fact]
         public void TriangleBoundingBoxSquaredDistanceTest()
         {
             Triangle t = new Triangle(new Vertex(1, 1, 1), new Vertex(2, 2, 1), new Vertex(3, 1, 1));
-            Assert.AreEqual(3, t.SquaredDistance(new Vector3(0,0,0)));
+            Assert.Equal(3, t.SquaredDistance(new Vector3(0,0,0)));
         }
 
-        [TestMethod]
+        [Fact]
         public void TestComputeNormal()
         {
             Vector3 norm;
-            Assert.IsFalse(Triangle.ComputeNormal(new Vector3(6546, 646.168, -1654.5165468), new Vector3(6546, 646.168, -1654.5165468), new Vector3(6546, 646.168, -1654.5165468), out norm));
+            Assert.False(Triangle.ComputeNormal(new Vector3(6546, 646.168, -1654.5165468), new Vector3(6546, 646.168, -1654.5165468), new Vector3(6546, 646.168, -1654.5165468), out norm));
             Vector3 v1 = new Vector3(0,0,0);
             Vector3 v2 = new Vector3(1,1,1);
             Vector3 v3 = new Vector3(2,2,2);
             Vector3 v4 = new Vector3(1,-1,2);
             Vector3 v5 = new Vector3(1,0,10);
-            Assert.AreEqual(Triangle.ComputeNormal(v2, v4, v5), new Vector3(-1, 0, 0));
-            Assert.AreEqual(Triangle.ComputeNormal(v1, v2, v5).Length(), 1, 1e-7);
-            Assert.AreEqual(Triangle.ComputeNormal(v1, v3, v5).Length(), 1, 1e-7);
-            Assert.AreEqual(Triangle.ComputeNormal(v1, v4, v2).Length(), 1, 1e-7);
+            Assert.Equal(new Vector3(-1, 0, 0), Triangle.ComputeNormal(v2, v4, v5));
+            Assert.Equal(1, Triangle.ComputeNormal(v1, v2, v5).Length(), 1e-7);
+            Assert.Equal(1, Triangle.ComputeNormal(v1, v3, v5).Length(), 1e-7);
+            Assert.Equal(1, Triangle.ComputeNormal(v1, v4, v2).Length(), 1e-7);
         }
     }
 }

@@ -1,10 +1,9 @@
-﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
+﻿using Xunit;
 using Microsoft.Xna.Framework;
 using JPLOPS.Geometry;
 
 namespace GeometryTest.Geometry
 {
-    [TestClass]
     public class SurfacePointSamplerTest
     {
         private Mesh MeshFactory()
@@ -26,7 +25,7 @@ namespace GeometryTest.Geometry
          *
          * also the expectation that sampler B and C *must* differ is questionable
          *
-        [TestMethod]
+        [Fact]
         public void DeterministicTest()
         {
             Mesh m = MeshFactory();
@@ -38,10 +37,10 @@ namespace GeometryTest.Geometry
             var samplesB = samplerB.Sample(m, 100);
             var samplesC = samplerC.Sample(m, 100);
 
-            Assert.AreEqual(samplesA.Length, samplesB.Length);
+            Assert.Equal(samplesA.Length, samplesB.Length);
             for (int i = 0; i < samplesA.Length; i++)
             {
-                Assert.AreEqual(samplesA[i], samplesB[i]);
+                Assert.Equal(samplesA[i], samplesB[i]);
             }
 
             if (samplesA.Length == samplesC.Length)
@@ -54,12 +53,12 @@ namespace GeometryTest.Geometry
                         equal = false;
                     }
                 }
-                Assert.IsFalse(equal);
+                Assert.False(equal);
             }
         }
         */
 
-        [TestMethod]
+        [Fact]
         public void DensityTest()
         {
             Mesh m = MeshFactory();
@@ -71,17 +70,17 @@ namespace GeometryTest.Geometry
             var d = sampler.Sample(m, 1000);
             var e = sampler.Sample(m, 10000);
 
-            Assert.IsTrue(a.Length < b.Length);
-            Assert.IsTrue(b.Length < c.Length);
-            Assert.IsTrue(c.Length < d.Length);
-            Assert.IsTrue(d.Length < e.Length);
+            Assert.True(a.Length < b.Length);
+            Assert.True(b.Length < c.Length);
+            Assert.True(c.Length < d.Length);
+            Assert.True(d.Length < e.Length);
         }
 
         /*
          * disabled because the new SurfacePointSampler is not totally deterministic even when started with the same
          * random seed due to multithreading
          *
-        [TestMethod]
+        [Fact]
         public void MeshSamplerTest()
         {
             Mesh m = MeshFactory();
@@ -90,15 +89,15 @@ namespace GeometryTest.Geometry
             var vertices = sampler.Sample(m, 100);
             var mesh = sampler.GenerateSampledMesh(m, 100);
 
-            Assert.AreEqual(vertices.Length, mesh.Vertices.Count);
+            Assert.Equal(vertices.Length, mesh.Vertices.Count);
             for (int i = 0; i < vertices.Length; i++)
             {
-                Assert.AreEqual(vertices[i], mesh.Vertices[i]);
+                Assert.Equal(vertices[i], mesh.Vertices[i]);
             }
         }
         */
 
-        [TestMethod]
+        [Fact]
         public void PointsInBounds()
         {
             Mesh m = MeshFactory();
@@ -108,13 +107,13 @@ namespace GeometryTest.Geometry
 
             foreach (Vertex vertex in vertices)
             {
-                Assert.IsTrue(vertex.Position.X >= 0 && vertex.Position.X <= 1);
-                Assert.IsTrue(vertex.Position.Y >= 0 && vertex.Position.Y <= 1);
-                Assert.AreEqual(vertex.Position.Z, 0, 1e-8);
+                Assert.True(vertex.Position.X >= 0 && vertex.Position.X <= 1);
+                Assert.True(vertex.Position.Y >= 0 && vertex.Position.Y <= 1);
+                Assert.Equal(0, vertex.Position.Z, 1e-8);
             }
         }
 
-        [TestMethod]
+        [Fact]
         public void PointsNotTooClose()
         {
             Mesh m = MeshFactory();
@@ -142,7 +141,7 @@ namespace GeometryTest.Geometry
 
             int threshold = (int)(0.1 * vertices.Length);
 
-            Assert.IsTrue(numTooClose < threshold, $"{numTooClose} > {threshold}");
+            Assert.True(numTooClose < threshold, $"{numTooClose} > {threshold}");
         }
     }
 }

@@ -1,6 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Xunit;
 using Microsoft.Xna.Framework;
 using System.IO;
 using JPLOPS.Geometry;
@@ -10,10 +10,9 @@ namespace GeometryTest
     /// <summary>
     /// Summary description for PLYSerializerTest
     /// </summary>
-    [TestClass]
     public class PLYSerializerTest
     {
-        [TestMethod]
+        [Fact]
         public void PLYBasicReadWriteTest()
         {
             // Test all combinations of normal, uv, and color
@@ -43,7 +42,7 @@ namespace GeometryTest
 
                         var testFiles = new List<string>();
 
-                        string fileName = null;
+                        string? fileName = null;
                         try
                         {
                             fileName = "test.ply";
@@ -81,7 +80,7 @@ namespace GeometryTest
 
                         foreach (string testFile in testFiles)
                         {
-                            Mesh rm = null;
+                            Mesh? rm = null;
                             try
                             {
                                 rm = PLYSerializer.Read(testFile);
@@ -90,15 +89,15 @@ namespace GeometryTest
                             {
                                 throw new Exception("error reading " + testFile + msg + ": " + ex.Message, ex);
                             }
-                            Assert.AreEqual(m.Vertices.Count, rm.Vertices.Count, testFile + msg + " vertex count");
+                            Assert.Equal(m.Vertices.Count, rm.Vertices.Count);
                             for (int i = 0; i < m.Vertices.Count; i++)
                             {
-                                Assert.AreEqual(m.Vertices[i], rm.Vertices[i], testFile + msg + " vertex " + i);
+                                Assert.Equal(m.Vertices[i], rm.Vertices[i]);
                             }
-                            Assert.AreEqual(m.Faces.Count, rm.Faces.Count, testFile + msg + " face count");
+                            Assert.Equal(m.Faces.Count, rm.Faces.Count);
                             for (int i = 0; i < m.Faces.Count; i++)
                             {
-                                Assert.AreEqual(m.Faces[i], rm.Faces[i], testFile + msg + " face " + i);
+                                Assert.Equal(m.Faces[i], rm.Faces[i]);
                             }
                         }
                     }
@@ -106,7 +105,7 @@ namespace GeometryTest
             }
         }
 
-        [TestMethod]
+        [Fact]
         public void PLYReadBlender()
         {
             // Note that blender does not write out alpha as part of its RGB so this will test if the reader correctly
@@ -120,28 +119,28 @@ namespace GeometryTest
             Vector4[] cs = new Vector4[] { new Vector4(1, 0, 0, 1), new Vector4(0, 1, 0, 1), new Vector4(0, 0, 1, 1),
                                            new Vector4(0, 0, 1, 1) };
             Face[] faces = new Face[] { new Face(0, 1, 2), new Face(0, 2, 3) };
-            
-            Mesh m = PLYSerializer.Read(Path.Combine("TestData", "mesh", "blender_ascii_nct.ply"));
-            Assert.AreEqual(true, m.HasNormals);
-            Assert.AreEqual(true, m.HasColors);
-            Assert.AreEqual(true, m.HasUVs);
-            Assert.AreEqual(ps.Length, m.Vertices.Count);
-            Assert.AreEqual(faces.Length, m.Faces.Count);
+
+            Mesh m = PLYSerializer.Read("blender_ascii_nct.ply");
+            Assert.True(m.HasNormals);
+            Assert.True(m.HasColors);
+            Assert.True(m.HasUVs);
+            Assert.Equal(ps.Length, m.Vertices.Count);
+            Assert.Equal(faces.Length, m.Faces.Count);
 
             for (int i = 0; i < ps.Length; i++)
             {
-                Assert.AreEqual(ps[i], m.Vertices[i].Position);
-                Assert.AreEqual(ns[i], m.Vertices[i].Normal);           
-                Assert.AreEqual(uvs[i], m.Vertices[i].UV);              
-                Assert.AreEqual(cs[i], m.Vertices[i].Color);
+                Assert.Equal(ps[i], m.Vertices[i].Position);
+                Assert.Equal(ns[i], m.Vertices[i].Normal);
+                Assert.Equal(uvs[i], m.Vertices[i].UV);
+                Assert.Equal(cs[i], m.Vertices[i].Color);
             }
             for (int i = 0; i < faces.Length; i++)
             {
-                Assert.AreEqual(faces[i], m.Faces[i]);
+                Assert.Equal(faces[i], m.Faces[i]);
             }
         }
 
-        [TestMethod]
+        [Fact]
         public void PLYReadCloudCompare()
         {
             // Note that cloud compare doesn't export uvs and also has numerical issues with normals
@@ -155,27 +154,27 @@ namespace GeometryTest
 
             foreach (string kind in new string[] { "ascii", "bin" })
             {
-                Mesh m = PLYSerializer.Read(Path.Combine("TestData", "mesh", "cloudcompare_"+ kind + "_nc_.ply"));
-                Assert.AreEqual(true, m.HasNormals);
-                Assert.AreEqual(true, m.HasColors);
+                Mesh m = PLYSerializer.Read("cloudcompare_"+ kind + "_nc_.ply");
+                Assert.True(m.HasNormals);
+                Assert.True(m.HasColors);
 
-                Assert.AreEqual(ps.Length, m.Vertices.Count);
-                Assert.AreEqual(faces.Length, m.Faces.Count);
+                Assert.Equal(ps.Length, m.Vertices.Count);
+                Assert.Equal(faces.Length, m.Faces.Count);
 
                 for (int i = 0; i < ps.Length; i++)
                 {
-                    Assert.AreEqual(ps[i], m.Vertices[i].Position);
-                    Assert.IsTrue(ns[i].AlmostEqual(m.Vertices[i].Normal, 0.001));
-                    Assert.AreEqual(cs[i], m.Vertices[i].Color);
+                    Assert.Equal(ps[i], m.Vertices[i].Position);
+                    Assert.True(ns[i].AlmostEqual(m.Vertices[i].Normal, 0.001));
+                    Assert.Equal(cs[i], m.Vertices[i].Color);
                 }
                 for (int i = 0; i < faces.Length; i++)
                 {
-                    Assert.AreEqual(faces[i], m.Faces[i]);
+                    Assert.Equal(faces[i], m.Faces[i]);
                 }
             }
         }
 
-        [TestMethod]
+        [Fact]
         public void PLYReadMeshlab()
         {            
             Vector3[] ps = new Vector3[] { new Vector3(0, 0, 0), new Vector3(1, 0, 0), new Vector3(1, 1, 0),
@@ -198,34 +197,33 @@ namespace GeometryTest
                         foreach (string kind in new string[] { "ascii", "bin" })
                         {
                             string endPart = (hasN ? "n" : "_") + (hasC ? "c" : "_") + (hasUV ? "t" : "_");
-                            string filename = Path.Combine("TestData", "mesh",
-                                                           "meshlab_" + kind + "_" + endPart + ".ply");
+                            string filename = "meshlab_" + kind + "_" + endPart + ".ply";
                             Mesh m = PLYSerializer.Read(filename);
-                            Assert.AreEqual(hasN, m.HasNormals);
-                            Assert.AreEqual(hasC, m.HasColors);
-                            Assert.AreEqual(hasUV, m.HasUVs);
-                            Assert.AreEqual(ps.Length, m.Vertices.Count);
-                            Assert.AreEqual(faces.Length, m.Faces.Count);
+                            Assert.Equal(hasN, m.HasNormals);
+                            Assert.Equal(hasC, m.HasColors);
+                            Assert.Equal(hasUV, m.HasUVs);
+                            Assert.Equal(ps.Length, m.Vertices.Count);
+                            Assert.Equal(faces.Length, m.Faces.Count);
 
                             for (int i = 0; i < ps.Length; i++)
                             {
-                                Assert.AreEqual(ps[i], m.Vertices[i].Position);
+                                Assert.Equal(ps[i], m.Vertices[i].Position);
                                 if (hasN)
                                 {
-                                    Assert.AreEqual(ns[i], m.Vertices[i].Normal);
+                                    Assert.Equal(ns[i], m.Vertices[i].Normal);
                                 }
                                 if (hasUV)
                                 {
-                                    Assert.AreEqual(uvs[i], m.Vertices[i].UV);
+                                    Assert.Equal(uvs[i], m.Vertices[i].UV);
                                 }
                                 if (hasC)
                                 {
-                                    Assert.AreEqual(cs[i], m.Vertices[i].Color);
+                                    Assert.Equal(cs[i], m.Vertices[i].Color);
                                 }
                             }
                             for (int i = 0; i < faces.Length; i++)
                             {
-                                Assert.AreEqual(faces[i], m.Faces[i]);
+                                Assert.Equal(faces[i], m.Faces[i]);
                             }
                         }
                     }

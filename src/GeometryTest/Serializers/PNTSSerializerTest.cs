@@ -1,14 +1,13 @@
-﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
+﻿using Xunit;
 using Microsoft.Xna.Framework;
 using JPLOPS.Geometry;
 using System.Collections.Generic;
 
 namespace GeometryTest.Serializers
 {
-    [TestClass]
     public class PNTSSerializerTest
     {
-        [TestMethod]
+        [Fact]
         public void PNTSSimpleWriteTest()
         {
             Mesh m = new Mesh();
@@ -25,17 +24,17 @@ namespace GeometryTest.Serializers
 
             m.Save("PNTSWriteTest.pnts");
             Mesh m2 = Mesh.Load("PNTSWriteTest.pnts");
-            Assert.AreEqual(m2.Vertices.Count, 6);
-            Assert.AreEqual(m2.HasColors, false);
-            Assert.AreEqual(m2.HasNormals, false);
+            Assert.Equal(6, m2.Vertices.Count);
+            Assert.False(m2.HasColors);
+            Assert.False(m2.HasNormals);
 
-            Assert.AreEqual(CountNumberOfMatchingVertices(new Vertex(0, 0, 0), m2.Vertices), 2);
-            Assert.AreEqual(CountNumberOfMatchingVertices(new Vertex(0, 1, 0), m2.Vertices), 1);
-            Assert.AreEqual(CountNumberOfMatchingVertices(new Vertex(1, 0, 0), m2.Vertices), 1);
-            Assert.AreEqual(CountNumberOfMatchingVertices(new Vertex(1, 1, 0), m2.Vertices), 2);
+            Assert.Equal(2, CountNumberOfMatchingVertices(new Vertex(0, 0, 0), m2.Vertices));
+            Assert.Equal(1, CountNumberOfMatchingVertices(new Vertex(0, 1, 0), m2.Vertices));
+            Assert.Equal(1, CountNumberOfMatchingVertices(new Vertex(1, 0, 0), m2.Vertices));
+            Assert.Equal(2, CountNumberOfMatchingVertices(new Vertex(1, 1, 0), m2.Vertices));
         }
 
-        [TestMethod]
+        [Fact]
         public void PNTSBasicReadWriteTest()
         {
             // Test all combinations of normal, uv, and color
@@ -59,10 +58,10 @@ namespace GeometryTest.Serializers
                     m.Save("PNTSBasicReadWriteTest.pnts");
 
                     Mesh m2 = Mesh.Load("PNTSBasicReadWriteTest.pnts");
-                    Assert.AreEqual(m.Vertices.Count, m2.Vertices.Count);
+                    Assert.Equal(m.Vertices.Count, m2.Vertices.Count);
                     for (int i = 0; i < m.Vertices.Count; i++)
                     {
-                        Assert.AreEqual(m.Vertices[i], m2.Vertices[i]);
+                        Assert.Equal(m.Vertices[i], m2.Vertices[i]);
 
                     }
                 }

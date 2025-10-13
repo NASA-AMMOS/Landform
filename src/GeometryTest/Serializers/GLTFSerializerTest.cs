@@ -1,13 +1,12 @@
-﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
+﻿using Xunit;
 using System.Collections.Generic;
 using JPLOPS.Geometry;
 
 namespace GeometryTest.Serializers
 {
-    [TestClass]
     public class GLTFSerializerTest
     {
-        [TestMethod]
+        [Fact]
         public void TestGLTFWrite()
         {
             Mesh m = new Mesh(true, true, true);
