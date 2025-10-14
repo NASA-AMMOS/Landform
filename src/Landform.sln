@@ -31,8 +31,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UtilTest", "UtilTest/UtilTe
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GeometryThirdParty", "GeometryThirdParty/GeometryThirdParty.csproj", "{3C534889-B71F-4F86-8E75-B24A61CD7B86}"
 EndProject
-#Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GeometryThirdPartyTest", "GeometryThirdPartyTest/GeometryThirdPartyTest.csproj", "{31F657A2-7F08-42B0-89DD-7FF679F1587B}"
-#EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GeometryThirdPartyTest", "GeometryThirdPartyTest/GeometryThirdPartyTest.csproj", "{31F657A2-7F08-42B0-89DD-7FF679F1587B}"
+EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Cloud", "Cloud/Cloud.csproj", "{52A91B3E-1D95-4715-A7AD-2840B2F9C6AC}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ImagingEmgu", "ImagingEmgu/ImagingEmgu.csproj", "{9722C3B0-63D5-4B8A-9C4F-3381223BF3A2}"
