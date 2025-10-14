@@ -22,11 +22,12 @@ namespace JPLOPS.Util
         /// <returns></returns>
         public static string GetApplicationPath()
         {
-//MP            string codeBase = Assembly.GetExecutingAssembly().CodeBase;
-            string codeBase = Assembly.GetExecutingAssembly().Location;
-            UriBuilder uri = new UriBuilder(codeBase);
-            string path = Uri.UnescapeDataString(uri.Path);
-            return Path.GetDirectoryName(path);
+//MP
+//            string codeBase = Assembly.GetExecutingAssembly().CodeBase;
+//            UriBuilder uri = new UriBuilder(codeBase);
+//            string path = Uri.UnescapeDataString(uri.Path);
+//            return Path.GetDirectoryName(path);
+            return StringHelper.NormalizeSlashes(AppContext.BaseDirectory);
         }
 
         public static string GetExe(string replaceFilename = null)
