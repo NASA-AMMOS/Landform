@@ -291,6 +291,9 @@ if $build_fssrecon || $build_meshclean; then
   pushd mve
 
   if $WINDOWS; then
+    pushd 3rdparty
+    grep CMAKE_POLICY_VERSION_MINIMUM=3.5 CMakeLists.txt > /dev/null || patch < ../../../../mve_GLEW.patch
+    popd
     # these are slow to build, so don't blow away existing dist/
     generator="NMake Makefiles"
     dist=3rdparty/dist
