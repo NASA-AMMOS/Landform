@@ -6,5 +6,4 @@
 #
 #./test.sh ImagingEmguTest
 
-dotnet test -c Release $@
-
+dotnet test -c Release $@ #--logger html 
