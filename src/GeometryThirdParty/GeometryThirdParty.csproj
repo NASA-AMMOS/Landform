@@ -10,6 +10,9 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <DefaultItemExcludes>$(DefaultItemExcludes);native-*\**</DefaultItemExcludes>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(IS_WSL)' == 'true'">
+    <IntermediateOutputPath>/tmp/Landform/GeometryThirdParty/obj/</IntermediateOutputPath>
+  </PropertyGroup>
   <ItemGroup Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::Windows)))' == 'true'">
     <ContentWithTargetPath Include="native-windows/lib/*UVAtlas*">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>

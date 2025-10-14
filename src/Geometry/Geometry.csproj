@@ -8,6 +8,9 @@
     <TargetFramework>net9.0</TargetFramework>
     <FileAlignment>512</FileAlignment>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(IS_WSL)' == 'true'">
+    <IntermediateOutputPath>/tmp/Landform/Geometry/obj/</IntermediateOutputPath>
+  </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="MIConvexHull" Version="1.1.19.1019" />
     <PackageReference Include="OptimizedPriorityQueue" Version="5.1.0" />

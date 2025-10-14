@@ -8,4 +8,7 @@
     <TargetFramework>net9.0</TargetFramework>
     <FileAlignment>512</FileAlignment>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(IS_WSL)' == 'true'">
+    <IntermediateOutputPath>/tmp/Landform/Xna/obj/</IntermediateOutputPath>
+  </PropertyGroup>
 </Project>

@@ -8,6 +8,9 @@
     <TargetFramework>net9.0</TargetFramework>
     <FileAlignment>512</FileAlignment>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(IS_WSL)' == 'true'">
+    <IntermediateOutputPath>/tmp/Landform/Cloud/obj/</IntermediateOutputPath>
+  </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="AWSSDK.Core" Version="4.0.0.26" />
     <PackageReference Include="AWSSDK.AutoScaling" Version="4.0.3" />

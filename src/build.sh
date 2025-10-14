@@ -1,10 +1,14 @@
 #!/usr/bin/env bash
 
 IS_LINUX=false
+IS_WSL=false
 if [[ `uname -s` == "Linux" ]]; then
   # including WSL
   echo "building for Linux"
   IS_LINUX=true
+  if uname -a | grep WSL > /dev/null; then
+    IS_WSL=true
+  fi
 elif [[ `uname -s` == "Darwin" ]]; then
   echo "building for Darwin (Mac OS X)"
 elif [[ `uname -s` == "MINGW"* ]]; then
@@ -23,7 +27,7 @@ echo "pre-building natives..."
 #work around warning on initial build https://github.com/dotnet/sdk/issues/35128#issuecomment-3049357121
 export DOTNET_SKIP_WORKLOAD_INTEGRITY_CHECK=1
 
-dotnet build -c Release
+dotnet build -c Release -p IS_WSL=$IS_WSL $@
 
 if $IS_LINUX; then
  for proj in */; do

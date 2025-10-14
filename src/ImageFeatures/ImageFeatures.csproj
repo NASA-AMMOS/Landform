@@ -9,6 +9,9 @@
     <FileAlignment>512</FileAlignment>
     <UseRidGraph>true</UseRidGraph>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(IS_WSL)' == 'true'">
+    <IntermediateOutputPath>/tmp/Landform/ImageFeatures/obj/</IntermediateOutputPath>
+  </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../Geometry/Geometry.csproj">
       <Project>{49A27854-2DB1-4E1C-893A-F60BDF5F3C86}</Project>

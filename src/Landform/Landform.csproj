@@ -16,6 +16,9 @@
     <AppConfig>App.config</AppConfig>
     <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(IS_WSL)' == 'true'">
+    <IntermediateOutputPath>/tmp/Landform/Landform/obj/</IntermediateOutputPath>
+  </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../Pipeline/Pipeline.csproj">
       <Project>{c45f0cd6-c998-47ec-b67c-ad77196b06a0}</Project>

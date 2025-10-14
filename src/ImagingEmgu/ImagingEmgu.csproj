@@ -11,6 +11,9 @@
          Affected libraries: Emgu.CV.runtime.ubuntu-x64 -->
     <UseRidGraph>true</UseRidGraph>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(IS_WSL)' == 'true'">
+    <IntermediateOutputPath>/tmp/Landform/ImagingEmgu/obj/</IntermediateOutputPath>
+  </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Emgu.CV" Version="4.12.0.5764" />
   </ItemGroup>
