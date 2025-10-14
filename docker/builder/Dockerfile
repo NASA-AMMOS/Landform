@@ -10,6 +10,10 @@ FROM ubuntu:24.04
 
 RUN apt-get update -y && apt-get install -y vim build-essential cmake unzip curl git
 
+# UVAtlas appears to require at least g++-14 to build
+RUN apt-get install -y gcc-14 g++-14
+RUN update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-14 140 --slave /usr/bin/g++ g++ /usr/bin/g++-14
+
 RUN apt-get install -y software-properties-common && add-apt-repository ppa:dotnet/backports && apt-get update -y && apt-get install -y dotnet-sdk-9.0 
 
 # Emgu.CV dependencies

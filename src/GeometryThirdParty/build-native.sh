@@ -126,6 +126,9 @@ if $build_uvatlas; then
   generator="Unix Makefiles"
   $WINDOWS && generator="NMake Makefiles"
 
+  cxx_flags="-DCMAKE_CXX_FLAGS=\"-fPIC\""
+  $WINDOWS && cxx_flags=
+
   # these are all fast to build
   # so if the lib artifact doesn't exist
   # then just blow away any previous build files
@@ -135,7 +138,7 @@ if $build_uvatlas; then
   if [[ ${#libs[@]} -eq 0 ]]; then
     dist=DirectX-Headers/dist
     rm -rf $dist && mkdir $dist && pushd $dist
-    cmake .. -G "$generator" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$native_abs -DBUILD_TESTING=false -DDXHEADERS_BUILD_GOOGLE_TEST=false -DDXHEADERS_BUILD_TEST=false
+    cmake .. -G "$generator" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$native_abs $cxx_flags -DBUILD_TESTING=false -DDXHEADERS_BUILD_GOOGLE_TEST=false -DDXHEADERS_BUILD_TEST=false
     $make install
     popd
   fi
@@ -143,7 +146,7 @@ if $build_uvatlas; then
   if [[ ! -f ../include/DirectXMath.h ]]; then
     dist=DirectXMath/dist
     rm -rf $dist && mkdir $dist && pushd $dist
-    cmake .. -G "$generator" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$native_abs -DBUILD_TESTING=false
+    cmake .. -G "$generator" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$native_abs $cxx_flags -DBUILD_TESTING=false
     $make install
     popd
   fi
@@ -152,7 +155,7 @@ if $build_uvatlas; then
   if [[ ${#libs[@]} -eq 0 ]]; then
     dist=DirectXMesh/dist
     rm -rf $dist && mkdir $dist && pushd $dist
-    cmake .. -G "$generator" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$native_abs -DBUILD_TOOLS=false
+    cmake .. -G "$generator" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$native_abs $cxx_flags -DBUILD_TOOLS=false
     $make install
     popd
   fi
@@ -161,7 +164,7 @@ if $build_uvatlas; then
   if [[ ${#libs[@]} -eq 0 ]]; then
     dist=UVAtlas/dist
     rm -rf $dist && mkdir $dist && pushd $dist
-    cmake .. -G "$generator" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$native_abs -DBUILD_SHARED_LIBS=true
+    cmake .. -G "$generator" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$native_abs $cxx_flags -DBUILD_SHARED_LIBS=true
     $make install
     popd
   fi
@@ -201,7 +204,7 @@ if $build_uvatlas; then
   
   else
 
-    g++ -shared -o $lib -lUVAtlas -lDirectXMesh -L$native_rel/lib UVAtlasWrapper.o 
+    g++ -shared -Wl,-rpath,'$ORIGIN' -o $lib -L$native_rel/lib -fPIC UVAtlasWrapper.o -lUVAtlas -lDirectXMesh 
 
   fi
 
