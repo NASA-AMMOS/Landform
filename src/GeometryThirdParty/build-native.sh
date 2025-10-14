@@ -193,6 +193,8 @@ if $build_uvatlas; then
       vv=${vvv%.*} #e.g. 15.6
       g++ -dynamiclib -mmacosx-version-min=$vv -o $lib -lUVAtlas -lDirectXMesh -L$native_rel/lib UVAtlasWrapper.o 
   
+      install_name_tool -add_rpath @loader_path $lib
+
   elif $WINDOWS; then
 
     MSYS_NO_PATH_CONV=1 MSYS2_ARG_CONV_EXCL="*" cl /MD /LD UVAtlasWrapper.cpp /I $native_rel/include /link /LIBPATH:./$native_rel/lib DirectXMesh.lib UVAtlas.lib
