@@ -5,6 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
+    <UseRidGraph>true</UseRidGraph>
   </PropertyGroup>
   <PropertyGroup Condition="'$(IS_WSL)' == 'true'">
     <IntermediateOutputPath>/tmp/Landform/PipelineTest/obj/</IntermediateOutputPath>
