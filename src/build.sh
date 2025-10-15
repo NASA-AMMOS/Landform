@@ -7,6 +7,11 @@ if [[ `uname -s` == "Linux" ]]; then
   echo "building for Linux"
   IS_LINUX=true
   if uname -a | grep WSL > /dev/null; then
+    # work around MSB3374: The last access/last write time on file cannot be set
+    # when building in Docker on Windows (which reports as WSL)
+    # should also be harmless for non-Docker WSL
+    # this flag just triggers the csproj files to relocate the obj/
+    # intermediate product output folders to subdirs under /tmp
     IS_WSL=true
   fi
 elif [[ `uname -s` == "Darwin" ]]; then
