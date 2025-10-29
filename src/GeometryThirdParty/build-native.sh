@@ -200,7 +200,7 @@ if $build_uvatlas; then
 
   elif $WINDOWS; then
 
-    MSYS_NO_PATH_CONV=1 MSYS2_ARG_CONV_EXCL="*" cl /MD /LD UVAtlasWrapper.cpp /I $native_rel/include /link /LIBPATH:./$native_rel/lib DirectXMesh.lib UVAtlas.lib
+    MSYS_NO_PATH_CONV=1 MSYS2_ARG_CONV_EXCL="*" cl /MD /LD /DUVATLAS_WRAPPER_EXPORTS UVAtlasWrapper.cpp /I $native_rel/include /link /LIBPATH:./$native_rel/lib DirectXMesh.lib UVAtlas.lib
   
   else
 

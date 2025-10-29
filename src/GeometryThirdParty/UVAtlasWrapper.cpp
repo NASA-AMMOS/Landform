@@ -8,9 +8,9 @@
 
 #include <vector>
 
-extern "C" UVAtlasResult* __cdecl UVAtlas_Compute(UVAtlasMesh* mesh, int maxCharts, float maxStretch, float gutter,
-                                                  int width, int height, uint32_t options, float adjacencyEpsilon,
-                                                  int& returnCode)
+extern "C" UVAtlasResult* UVAtlas_Compute(UVAtlasMesh* mesh, int maxCharts, float maxStretch, float gutter,
+                                          int width, int height, uint32_t options, float adjacencyEpsilon,
+                                          int& returnCode)
 {
 	returnCode = 1;
 
@@ -88,7 +88,7 @@ extern "C" UVAtlasResult* __cdecl UVAtlas_Compute(UVAtlasMesh* mesh, int maxChar
 	return result;
 }
 
-extern "C" void __cdecl UVAtlas_Delete(UVAtlasResult* result)
+extern "C" void UVAtlas_Delete(UVAtlasResult* result)
 {
 	delete result->us;
 	delete result->vs;

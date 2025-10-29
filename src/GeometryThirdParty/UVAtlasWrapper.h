@@ -24,17 +24,21 @@ struct UVAtlasResult {
 
 #pragma pack()
 
+#define UVATLAS_WRAPPER_API
+
 //_WIN32 is defined even on 64 bit Windows
 #ifdef _WIN32
-#define DLLEXPORT __declspec(dllexport) 
+#ifdef UVATLAS_WRAPPER_EXPORTS
+#define UVATLAS_WRAPPER_API __declspec(dllexport) 
 #else
-#define DLLEXPORT
+#define UVATLAS_WRAPPER_API __declspec(dllimport) 
+#endif
 #endif
 
-extern "C" DLLEXPORT UVAtlasResult* UVAtlas_Compute(UVAtlasMesh* mesh, int maxCharts, float maxStretch, float gutter,
-                                                  int width, int height, uint32_t options, float adjacencyEpsilon,
-                                                  int& returnCode);
+extern "C" UVATLAS_WRAPPER_API UVAtlasResult* UVAtlas_Compute(UVAtlasMesh* mesh, int maxCharts, float maxStretch,
+                                                              float gutter, int width, int height, uint32_t options,
+                                                              float adjacencyEpsilon, int& returnCode);
 
-extern "C" DLLEXPORT void UVAtlas_Delete(UVAtlasResult* data);
+extern "C" UVATLAS_WRAPPER_API void UVAtlas_Delete(UVAtlasResult* data);
 
-#undef DLLEXPORT
+#undef UVATLAS_WRAPPER_API
