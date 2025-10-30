@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
 
+if ((BASH_VERSINFO[0] < 4)); then
+  echo "ERROR: this script requires bash 4.x or greater"
+  exit 1
+fi
+
 # list contextual mesh RDRs in date order
 # url=s3://buckdet/ods/dev/sol 
 # ls-rdrs.sh dateorder $url 'L?_[^.]+XYZ_|L?_[^.]+MXY_|L?_[^.]+UVW_|RAS' IMG
