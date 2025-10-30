@@ -14,3 +14,7 @@ tilesets/
 dems
 dems/
 *.pem
+cfg/
+log/
+tmp/
+storage/
