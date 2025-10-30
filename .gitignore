@@ -5,3 +5,10 @@ packages-docker/
 **/native-*/
 OLD/
 NEW/
+Unity3DTilesWeb/
+Unity3DTilesWeb.zip
+Landform-*/
+Landform-*.zip
+tilesets
+tilesets/
+*.pem

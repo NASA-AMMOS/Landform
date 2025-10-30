@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 
+scriptdir=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+rootdir="${scriptdir%/*}"
+cd "$rootdir/src"
+
 rm -rf GeometryThirdParty/native-*/bin
 rm -rf GeometryThirdParty/native-*/lib
 rm -rf GeometryThirdParty/native-*/include

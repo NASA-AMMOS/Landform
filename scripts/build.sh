@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 
+scriptdir=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+rootdir="${scriptdir%/*}"
+cd "$rootdir/src"
+
 IS_LINUX=false
 IS_WSL=false
 if [[ `uname -s` == "Linux" ]]; then

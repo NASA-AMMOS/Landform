@@ -72,8 +72,8 @@ Landform previously required Windows to build and run; the current implementatio
     * on Ubuntu run `sudo apt-get install build-essential`
     * On OS X run `xcode-select --install`.
 1. For Cygwin on Windows run `dos2unix src/*.sh src/*/*.sh` to ensure that the build scripts have Unix line endings.
-1. Run `cd src; ./build.sh`.  This will automatically download dependencies and compile both native and C# components.
-1. A `clean.sh` script is also provided to remove compiled artifacts.
+1. Run `./scripts/build.sh`.  This will automatically download dependencies and compile both native and C# components.
+1. A `./scripts/clean.sh` script is also provided to remove compiled artifacts.
 
 A [Dockerfile](docker/builder/Dockerfile) is also provided to build an `x86_64` Ubuntu 24.04 Docker image suitable for building Landform.  Launch Docker and then build the image with `cd docker/builder; ./build.sh`.  A convenience script is also provided to run a bash shell on the image: `cd docker/builder; ./up.sh`.
 
