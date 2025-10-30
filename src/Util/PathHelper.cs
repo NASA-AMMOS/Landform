@@ -37,6 +37,7 @@ namespace JPLOPS.Util
 //MP                var exe = Assembly.GetEntryAssembly().GetName().CodeBase;
                 var exe = Assembly.GetEntryAssembly().Location;
                 exe = StringHelper.StripProtocol(StringHelper.NormalizeSlashes(exe));
+                if (exe.EndsWith(".dll")) exe = StringHelper.StripUrlExtension(exe);
                 while (exe.StartsWith("/"))
                 {
                     exe = exe.Substring(1);
