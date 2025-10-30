@@ -11,4 +11,6 @@ Landform-*/
 Landform-*.zip
 tilesets
 tilesets/
+dems
+dems/
 *.pem
