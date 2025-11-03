@@ -5,7 +5,7 @@ rootdir="${scriptdir%/*}"
 cd "$rootdir"
 
 arch=x86_64
-if [[ `uname -s` == "Linux" ]]; then os=Linux
+if [[ `uname -s` == "Linux" ]]; then os=Linux_Ubuntu_24.04
 elif [[ `uname -s` == "Darwin" ]]; then os=OSX; arch=`arch`
 elif [[ `uname -s` == "MINGW"* ]]; then os=Windows
 elif [[ `uname -s` == "CYGWIN"* ]]; then os=Windows
