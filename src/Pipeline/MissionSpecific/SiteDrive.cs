@@ -152,44 +152,9 @@ namespace JPLOPS.Pipeline
                 .ToArray();
         }
 
-        /// <summary>
-        /// Convert to an int as if the original SSSDDDD string was parsed directly.
-        ///
-        /// In the case of wildcard patterns like 00023xxxxx then just converts the non-wildcard portion.
-        ///
-        /// Full wildcard like xxxxxxxxxx converts to -1.
-        ///
-        /// The main intended uses of this are
-        /// (a) for GetHashCode() of non-wildcard SiteDrives
-        /// (b) to compute a distance metric between two SiteDrives
-        ///
-        /// When computing the distance metric, other code must ensure that only non-wildcard, wildcard-drive, or
-        /// wildcard-site SiteDrives are compared.  It would probably not make sense to compute the distance between a
-        /// wildcard-site and a wildcard-drive.
-        /// </summary>
-        public static explicit operator int(SiteDrive sd)
-        {
-            if (sd.Site >= 0 && sd.Drive >= 0)
-            {
-                return sd.Site * 10000 + sd.Drive;
-            }
-            else if (sd.Site >= 0) //specific site, wildcard drive
-            {
-                return sd.Site;
-            }
-            else if (sd.Drive >= 0) //wildcard site, specific drive
-            {
-                return sd.Drive;
-            }
-            else //full wildcard
-            {
-                return -1;
-            }
-        }
-        
         public override int GetHashCode()
         {
-            return Site >= 0 && Drive >= 0 ? ((int)this) : HashCombiner.Combine(Site, Drive);
+            return HashCombiner.Combine(Site, Drive);
         }
         
         public override bool Equals(object obj)

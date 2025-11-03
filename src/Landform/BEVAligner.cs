@@ -1275,6 +1275,11 @@ namespace JPLOPS.Landform
             }
         }
 
+        private int TemporalDistanceBetweenSiteDrives(SiteDrive a, SiteDrive b)
+        {
+            return Math.Abs(a.Site - b.Site) * 100000 + Math.Abs(a.Drive - b.Drive); //mult by 100k to avoid D10k bug
+        }
+
         private void SaveCalves(IEnumerable<Node> aligned)
         {
             if (options.CalfMode == CalfMode.None)
@@ -1337,7 +1342,7 @@ namespace JPLOPS.Landform
                             Node closestParent = null;
                             foreach (var node in aligned)
                             {
-                                var d = Math.Abs((int)(calf.siteDrive) - (int)(node.siteDrive));
+                                var d = TemporalDistanceBetweenSiteDrives(calf.siteDrive, node.siteDrive);
                                 if (d < closestDist)
                                 {
                                     closestDist = d;
