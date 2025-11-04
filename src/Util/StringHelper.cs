@@ -123,27 +123,25 @@ namespace JPLOPS.Util
         public static string NormalizeUrl(string url, string protocol = null, bool preserveTrailingSlash = false)
         {
             url = NormalizeSlashes(url, preserveTrailingSlash);
+
             if (!string.IsNullOrEmpty(protocol))
             {
-                return EnsureProtocol(url, protocol);
+                url = EnsureProtocol(url, protocol);
             }
-            else
+
+            int sep = url != null ? url.IndexOf("://") : -1;
+
+            if (sep >= 0 && !url.ToLower().StartsWith("file://")) 
             {
-                int sep = url.IndexOf("://");
-                if (sep >= 0)
+                int nextSlash = url.IndexOf("/", sep + 3);
+                if (nextSlash > sep + 3)
                 {
-                    int nextSlash = url.IndexOf("/", sep + 3);
-                    if (nextSlash > sep + 3)
-                    {
-                        sep = nextSlash;
-                    }
-                    return url.Substring(0, sep).ToLower() + url.Substring(sep);
+                    sep = nextSlash;
                 }
-                else
-                {
-                    return url;
-                }
+                url = url.Substring(0, sep).ToLower() + url.Substring(sep);
             }
+
+            return url;
         }
 
         public static string GetLastUrlPathSegment(string url, bool stripExtension = false)

@@ -347,7 +347,7 @@ namespace JPLOPS.Util
         }
 
         //https://stackoverflow.com/a/21058121/4970315
-        public static String NormalizePath(String pathOrUrl, bool ignoreCase = true)
+        public static String NormalizePath(String pathOrUrl, bool ignoreCase = false)
         {
             if (pathOrUrl.StartsWith("file://", StringComparison.OrdinalIgnoreCase))
             {
