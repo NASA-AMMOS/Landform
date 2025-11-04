@@ -8,7 +8,7 @@
 #FROM ubuntu:25.04
 FROM ubuntu:24.04
 
-RUN apt-get update -y && apt-get install -y vim build-essential cmake unzip curl git
+RUN apt-get update -y && apt-get install -y vim build-essential cmake unzip zip curl git
 
 # UVAtlas appears to require at least g++-14 to build
 RUN apt-get install -y gcc-14 g++-14
