@@ -5,8 +5,7 @@
 # opens one browser tab for each tileset or scene to view
 # launches local web server
 #
-# DEPENDENCIES (all platforms): python 3.7+, sed, openssl
-# DEPENDENCIES (non-Windows): unzip
+# DEPENDENCIES: python 3.7+, sed, openssl, unzip
 #
 # EXAMPLES:
 #
@@ -38,11 +37,7 @@ else
     echo "downloading $u3dturl"
     curl -L -s -O $u3dturl > /dev/null
   fi
-  if [[ `uname -s` == "MINGW"* ]] || [[ `uname -s` == "CYGWIN"* ]]; then
-    powershell $scriptdir/unzip.ps1 ./Unity3DTilesWeb.zip .
-  else
-    unzip ./Unity3DTilesWeb.zip > /dev/null
-  fi
+  unzip ./Unity3DTilesWeb.zip > /dev/null
   if [[ ! -f Unity3DTilesWeb/index.html ]]; then
     "ERROR: failed to download and unpack Unity3DTilesWeb"
     exit 1
