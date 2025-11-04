@@ -29,7 +29,7 @@ while [[ "$#" -gt 0 ]]; do
   esac
 done
 
-$clean && rm -rf $native_rel
+$clean && rm -rf $native_rel/*
 
 build_uvatlas=true
 build_poisson=true
@@ -134,11 +134,13 @@ if $build_uvatlas; then
   # then just blow away any previous build files
   # and rebuild from scratch
 
+  cmake_flags="-DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$native_abs -DCMAKE_INSTALL_LIBDIR=lib"
+
   libs=(../lib/*DirectX-Headers*)
   if [[ ${#libs[@]} -eq 0 ]]; then
     dist=DirectX-Headers/dist
     rm -rf $dist && mkdir $dist && pushd $dist
-    cmake .. -G "$generator" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$native_abs $cxx_flags -DBUILD_TESTING=false -DDXHEADERS_BUILD_GOOGLE_TEST=false -DDXHEADERS_BUILD_TEST=false
+    cmake .. -G "$generator" $cmake_flags $cxx_flags -DBUILD_TESTING=false -DDXHEADERS_BUILD_GOOGLE_TEST=false -DDXHEADERS_BUILD_TEST=false
     $make install
     popd
   fi
@@ -146,7 +148,7 @@ if $build_uvatlas; then
   if [[ ! -f ../include/DirectXMath.h ]]; then
     dist=DirectXMath/dist
     rm -rf $dist && mkdir $dist && pushd $dist
-    cmake .. -G "$generator" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$native_abs $cxx_flags -DBUILD_TESTING=false
+    cmake .. -G "$generator" $cmake_flags $cxx_flags -DBUILD_TESTING=false
     $make install
     popd
   fi
@@ -155,7 +157,7 @@ if $build_uvatlas; then
   if [[ ${#libs[@]} -eq 0 ]]; then
     dist=DirectXMesh/dist
     rm -rf $dist && mkdir $dist && pushd $dist
-    cmake .. -G "$generator" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$native_abs $cxx_flags -DBUILD_TOOLS=false
+    cmake .. -G "$generator" $cmake_flags $cxx_flags -DBUILD_TOOLS=false
     $make install
     popd
   fi
@@ -164,7 +166,7 @@ if $build_uvatlas; then
   if [[ ${#libs[@]} -eq 0 ]]; then
     dist=UVAtlas/dist
     rm -rf $dist && mkdir $dist && pushd $dist
-    cmake .. -G "$generator" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$native_abs $cxx_flags -DBUILD_SHARED_LIBS=true
+    cmake .. -G "$generator" $cmake_flags $cxx_flags -DBUILD_SHARED_LIBS=true
     $make install
     popd
   fi
@@ -298,12 +300,13 @@ if $build_fssrecon || $build_meshclean; then
     generator="NMake Makefiles"
     dist=3rdparty/dist
     mkdir -p $dist && pushd $dist
-    cmake .. -G "$generator" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$native_abs 
+    cmake_flags="-DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$native_abs -DCMAKE_INSTALL_LIBDIR=lib"
+    cmake .. -G "$generator" $cmake_flags
     nmake zlib libpng libtiff libjpeg-turbo glew
     popd
     dist=dist
     mkdir -p $dist && pushd $dist
-    cmake .. -G "$generator" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$native_abs
+    cmake .. -G "$generator" $cmake_flags
     nmake fssrecon meshclean
     cp apps/fssrecon/fssrecon.exe "$native_abs/bin"
     cp apps/meshclean/meshclean.exe "$native_abs/bin"
