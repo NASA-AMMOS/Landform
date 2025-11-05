@@ -740,13 +740,13 @@ namespace JPLOPS.Pipeline
             //color image: M20_PrimeMission_HiRISE_CLR_25cm.tif
             string s3Folder = GetOrbitalS3Folder();
             return "{\n" +
-                "\"DEMURL\": \"" + s3Folder + "M20_PrimeMission_HiRISE_DEM_1m.tif\",\n" +
-                "\"ImageURL\": \"" + s3Folder + "M20_PrimeMission_HiRISE_CLR_25cm.tif\",\n" +
+                "\"DEMURL\": \"" + s3Folder + "M20_HiRISE_DEM_mosaic_1m_v6p1_Merge_nocomp.tif\",\n" +
+                "\"ImageURL\": \"" + s3Folder + "M20_HiRISE_RGB_mosaic_25cm_v6_Merge_nocomp.tif\",\n" +
                 "\"StoragePath\": \"M2020/orbital\",\n" +
                 "\"DEMMetersPerPixel\": 1,\n" +
                 "\"ImageMetersPerPixel\": 0.25,\n" +
-                "\"DEMPlacesDBIndex\": 0,\n" +
-                "\"ImagePlacesDBIndex\": 0\n" +
+                "\"DEMPlacesDBIndex\": 10,\n" +
+                "\"ImagePlacesDBIndex\": 9\n" +
                 "}";
         }
 
