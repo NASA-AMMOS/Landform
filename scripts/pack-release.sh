@@ -18,6 +18,12 @@ fi
 ver=`grep '<Version>' src/Landform/Landform.csproj | cut -f2 -d'>' | cut -f1 -d'<'`
 dir=Landform-$ver-$os-$arch
 
+# exit on error
+set -e
+
+# echo commands
+set -x
+
 rm -rf $dir
 mkdir $dir
 
