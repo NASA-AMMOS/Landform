@@ -202,7 +202,13 @@ namespace JPLOPS.Cloud
             do
             {
                 response = client.ListObjectsV2Async(request).GetAwaiter().GetResult();
-                if (folders)
+                if (response == null)
+                {
+                    throw new CloudException(string.Format("ListObjectsV2Async() response is null; " +
+                                                           "BucketName={0}, Prefix={1}, Delimiter={2}",
+                                                           request.BucketName, request.Prefix, request.Delimiter));
+                }
+                if (folders && response.CommonPrefixes != null)
                 {
                     //CommonPrefixes should be plain text even when URL encoding is used
                     foreach (string pfx in response.CommonPrefixes)
@@ -218,7 +224,7 @@ namespace JPLOPS.Cloud
                         }
                     }
                 }
-                if (files)
+                if (files && response.S3Objects != null)
                 {
                     foreach (S3Object entry in response.S3Objects)
                     {
