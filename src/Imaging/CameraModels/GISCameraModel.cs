@@ -174,9 +174,6 @@ namespace JPLOPS.Imaging
 
             var sphericalBodySpatialRef = Body.MakeSphericalSpatialReference();
 
-            //easting, northing
-            sphericalBodySpatialRef.SetAxisMappingStrategy(AxisMappingStrategy.OAMS_TRADITIONAL_GIS_ORDER);
-
             lonLatElevToEastingNorthingElev =
                 new CoordinateTransformation(sphericalBodySpatialRef, projectionSpatialRef);
             

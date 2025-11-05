@@ -151,6 +151,9 @@ namespace JPLOPS.Imaging
         {
             var ret = new SpatialReference(null);
 
+            //easting, northing
+            ret.SetAxisMappingStrategy(AxisMappingStrategy.OAMS_TRADITIONAL_GIS_ORDER);
+
             //ported from TerrainTools/ImageLib/Pipeline/Mars.cs
             //TODO should this maybe use an ellipsoid or geoid?
             //great care should be taken in attempting such a feat
@@ -158,6 +161,7 @@ namespace JPLOPS.Imaging
             //particularly LonLatToXYZ() and XYZToLonLat(), that assume a simple sphere
             ret.SetGeogCS("Mars Spherical", "SPHERICAL_MARS", "Mars",
                           Radius, 0, "Marsridian", 0.0, "Degree", Math.PI / 180.0);
+
             return ret;
         }
     }
@@ -172,6 +176,9 @@ namespace JPLOPS.Imaging
         {
             var ret = new SpatialReference(null);
 
+            //easting, northing
+            ret.SetAxisMappingStrategy(AxisMappingStrategy.OAMS_TRADITIONAL_GIS_ORDER);
+
             //https://gdal.org/tutorials/osr_api_tut.html#defining-a-geographic-coordinate-reference-system
             //TODO should this maybe use an ellipsoid or geoid?
             //great care should be taken in attempting such a feat
@@ -180,6 +187,7 @@ namespace JPLOPS.Imaging
             ret.SetGeogCS("Earth CRS", "World Geodetic System 1984", "Earth",
                           Osr.SRS_WGS84_SEMIMAJOR, 0 /* Osr.SRS_WGS84_INVFLATTENING */,
                           "Greenwich", 0.0, "Degree", Math.PI / 180.0);
+
             return ret;
         }
     }
