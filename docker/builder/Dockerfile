@@ -1,33 +1,28 @@
-#dotnet-sdk-9.0 is available on Ubuntu 25.04 but not 24.04
-#
-#unfortunately some of the Emgu.CV dependencies in 25.04 are later versions than Emgu.CV will accept, in particular
-#
-#libavcodec-dev libswscale-dev libavformat-dev libvtk9-dev 
-#
-#so use Ubuntu 24.04 but install dotnet-sdk-9.0 from ppa:dotnet/backports
-#FROM ubuntu:25.04
-FROM ubuntu:24.04
+FROM amazonlinux:2023
 
-RUN apt-get update -y && apt-get install -y vim build-essential cmake unzip zip curl git
+RUN dnf update -y
+
+RUN dnf install -y vim cmake make unzip zip git patch && ln -s /usr/bin/vim /usr/bin/vi
 
 # UVAtlas appears to require at least g++-14 to build
-RUN apt-get install -y gcc-14 g++-14
-RUN update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-14 140 --slave /usr/bin/g++ g++ /usr/bin/g++-14
+RUN dnf install -y gcc14 gcc14-c++ && ln -s /usr/bin/gcc14-gcc /usr/bin/gcc && ln -s /usr/bin/gcc14-g++ /usr/bin/g++
 
-RUN apt-get install -y software-properties-common && add-apt-repository ppa:dotnet/backports && apt-get update -y && apt-get install -y dotnet-sdk-9.0 
+RUN dnf install -y libpng-devel libtiff-devel libgeotiff-devel libjpeg-turbo-devel mesa-libGL-devel mesa-libGLU-devel freeglut-devel
+ 
+RUN dnf install -y dotnet-sdk-9.0
 
-# Emgu.CV dependencies
-# https://github.com/emgucv/emgucv/blob/4.12.0/platforms/ubuntu/24.04/apt_install_dependency
-RUN apt-get install -y libgtk-3-dev libgstreamer1.0-dev libavcodec-dev libswscale-dev libavformat-dev libdc1394-dev libv4l-dev ocl-icd-dev freeglut3-dev libgeotiff-dev libusb-1.0-0-dev libvtk9-dev libfreetype-dev libharfbuzz-dev qtbase5-dev libeigen3-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libgflags-dev libgoogle-glog-dev liblapacke-dev libva-dev
+RUN dnf clean all && rm -rf /var/cache/dnf
 
 RUN cd /tmp && curl https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip -o awscli.zip && unzip awscli.zip && ./aws/install && rm awscli.zip && rm -rf aws
 
 RUN echo "root:root" | chpasswd
 
-RUN groupadd -r app && useradd -r -g app app
+RUN groupadd --gid 1001 appgrp && useradd --uid 1001 --gid appgrp -m app
 
 USER app
 
 WORKDIR /home/app
 
-RUN dotnet dev-certs https --trust
+# attempt to silence first-run spew; run this now that we're user "app"
+RUN dotnet dev-certs https --trust || true
+

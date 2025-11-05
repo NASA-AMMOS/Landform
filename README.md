@@ -47,7 +47,7 @@ We have also written a [whitepaper](doc/Vona__2025__Landform_Contextual_shrink.p
 
 ## Building
 
-Landform previously required Windows to build and run; the current implementation is multiplatform and builds and runs on Linux `x86_64,` OS X `arm64`, and Windows `x86_64`.  The EmguCV runtime binary packages currently require an Ubuntu 24.04 distribution on Linux.
+Landform previously required Windows to build and run; the current implementation is multiplatform and builds and runs on Linux `x86_64,` OS X `arm64`, and Windows `x86_64`.  Currently two Linux distributions are supported: Ubuntu 24.04 and Amazon Linux 2023; this is mainly due to the EmguCV dependency.  Binary packages for EmbguCV releases are currently published to NuGet with a native library for Ubuntu 24.04.  For Amazon Linux 2023 we have a [script](./scripts/build-emgucv-min-al2023.sh) that builds a [minimal EmguCV native library for Amazon Linux 2023](./deps/libcvextern-al2023.so).
 
 1. Open a bash command prompt.  On Windows use [git bash](https://git-scm.com/downloads), [MSYS2](https://msys2.org), or [Cygwin](https://cygwin.com) (Windows Subsystem for Linux (WSL) can work but produces a Linux build).  If you are using Cygwin you may first need to run `set -o igncr` because `git` on Windows may have converted the included `.sh` scripts to have Windows line endings (though we have a `.gitattributes` file that is supposed to prevent that), and by default the Cygwin bash interpreter does not like that.
 1. Install a [.NET 9.0 SDK](https://dotnet.microsoft.com/en-us/download/dotnet/9.0).  Running `dotnet --version` should return a version in the 9.0.X series.
@@ -58,24 +58,37 @@ Landform previously required Windows to build and run; the current implementatio
         apt-get update 
         apt-get install dotnet-sdk-9.0 
         ```
+    * on Amazon Linux 2023 run `dnf install -y dotnet-sdk-9.0`
     * on OS X using the [homebrew package manager](https://brew.sh), run `brew install --cask dotnet-sdk`
     * on Windows run the installer manually.  You may also need to add the dotnet installation folder to your bash PATH: `export PATH="$PATH":/c/Program\ Files/dotnet`.
-1. Ensure you can run the commands `unzip`, `curl`, and `cmake`.  If not, install them as appropriate for your environment.  For example:
-    * on Ubuntu run `sudo apt-get install unzip curl cmake`
-    * on OS X `unzip` and `curl` should be pre-installed; for `cmake` run `brew install --cask cmake-app` or `brew install cmake` if using the [homebrew package manager](https://brew.sh), or [install cmake manually](https://cmake.org/download/)
-    * on Windows install [cmake](https://cmake.org/download) manually (the version of `cmake` available in the MSYS2 package manager is unfortunately not compatible), and then add it to your PATH: `export PATH="$PATH":/c/Program\ Files/CMake/bin`
-    * for git bash on Windows `unzip` and `curl` should be pre-installed
-    * for MSYS2 on Windows `curl` should be pre-installed; for `unzip` run `pacman -S unzip`
-    * for Cygwin on Windows use the cygwin setup tool to install `unzip` and `curl` if necessary.
+1. Ensure you can run the commands `unzip`, `zip`, `curl`, `cmake`, `git`, and `patch`.  If not, install them as appropriate for your environment.  For example:
+    * on Ubuntu run `sudo apt-get install unzip zip curl cmake git patch`
+    * on Amazon Linux 2023 run `dnf install -y cmake make unzip zip git patch`
+    * on OS X `unzip`, `zip` and `curl`, and `patch` should be pre-installed; for `cmake` run `brew install --cask cmake-app` or `brew install cmake` if using the [homebrew package manager](https://brew.sh), or [install cmake manually](https://cmake.org/download/); `git` will be installed with the Xcode command line tools below.
+    * on Windows install [cmake](https://cmake.org/download) manually (the version of `cmake` available in the MSYS2 package manager is unfortunately not compatible), and then add it to your PATH: `export PATH="$PATH":/c/Program\ Files/CMake/bin`; also install [git](https://git-scm.com/install/windows) manually.
+    * for git bash on Windows `unzip`, `zip`, `curl`, and `patch` should be pre-installed
+    * for MSYS2 on Windows `curl` and `patch` should be pre-installed; for `unzip` and `zip` run `pacman -S unzip zip`
+    * for Cygwin on Windows use the cygwin setup tool to install `unzip`, `zip`, and `curl` if necessary.
 1. On Windows install [Visual Studio 2022](https://visualstudio.microsoft.com/downloads); either the community edition or just the [command line build tools](https://visualstudio.microsoft.com/downloads/#build-tools-for-visual-studio-2022) should be sufficient.
-1. On OS X or Linux ensure you can run the commands `make` and `g++`.  (On Windows the corresponding tools are `nmake` and `cl`, and they are included with Visual Studio.)
-    * on Ubuntu run `sudo apt-get install build-essential`
+1. On OS X or Linux ensure you can run the commands `make` and `g++`.  (On Windows the corresponding tools are `nmake` and `cl`, and they are included with Visual Studio.)  At least `g++` version 14 is required, run `g++ --version` to check.
+    * on Ubuntu run
+        ```
+        apt-get install build-essential
+        apt-get install -y gcc-14 g++-14
+        update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-14 140 --slave /usr/bin/g++ g++ /usr/bin/g++-14
+        ```
+    * on Amazon Linux 2023 run
+        ```
+        dnf install -y gcc14 gcc14-c++
+        ln -s /usr/bin/gcc14-gcc /usr/bin/gcc
+        ln -s /usr/bin/gcc14-g++ /usr/bin/g++
+        ```
     * On OS X run `xcode-select --install`.
 1. For Cygwin on Windows run `dos2unix src/*.sh src/*/*.sh` to ensure that the build scripts have Unix line endings.
 1. Run `./scripts/build.sh`.  This will automatically download dependencies and compile both native and C# components.
 1. A `./scripts/clean.sh` script is also provided to remove compiled artifacts.
 
-A [Dockerfile](docker/builder/Dockerfile) is also provided to build an `x86_64` Ubuntu 24.04 Docker image suitable for building Landform.  Launch Docker and then build the image with `cd docker/builder; ./build.sh`.  A convenience script is also provided to run a bash shell on the image: `cd docker/builder; ./up.sh`.
+A [Dockerfile](docker/builder/Dockerfile) is also provided to build an `x86_64` Amazon Linux 2023 Docker image suitable for building Landform.  Launch Docker and then build the image with `cd docker/builder; ./build.sh`.  A convenience script is also provided to run a bash shell on the image: `cd docker/builder; ./up.sh`.  An alternative [Dockerfile](docker/builder/Dockerfile-ubuntu24.04) is also provided for Ubuntu 24.04; to use it, rename it to `Dockerfile`.
 
 On an `arm64` OS X host you may get build errors within the Docker container unless you enable "Apple Virtualization Framework" and "Use Rosetta for x86_64/amd64 emulation on Apple Silicon" in the Docker Desktop settings.  Also, unfortunately, test workflows involving the `RayTrace` module will still fail in this configuration because `RayTrace` depends on [embree](https://embree.org) which uses Intel AVX instructions, and those are not supported by Rosetta.
 
@@ -84,9 +97,9 @@ On an `arm64` OS X host you may get build errors within the Docker container unl
 The runtime requirements for Landform are
 
 1. A [.NET 9.0 SDK or Runtime](https://dotnet.microsoft.com/en-us/download/dotnet/9.0)
-1. The EmguCV runtime binary packages currently require an Ubuntu 24.04 distribution on Linux, plus [these](https://github.com/emgucv/emgucv/blob/4.12.0/platforms/ubuntu/24.04/apt_install_dependency) additional packages.  On OS X there should be no additional dependencies.
+1. The EmguCV runtime binary packages on Ubuntu 24.04 require [these](https://github.com/emgucv/emgucv/blob/4.12.0/platforms/ubuntu/24.04/apt_install_dependency) additional packages.  On Amazon Linux 2023 run `dnf install -y libpng libtiff libgeotiff libjpeg-turbo mesa-libGL mesa-libGLU freeglut`.  On OS X and Windows there should be no additional dependencies.
 
-A [Dockerfile](docker/runner/Dockerfile) is also provided to build an Ubuntu 24.04 Docker image suitable for running Landform.  Launch Docker and then build the image with `cd docker/runner; ./build.sh`.  A convenience script is also provided to run a bash shell on the image: `cd docker/runner; ./up.sh`.
+A [Dockerfile](docker/runner/Dockerfile) is also provided to build an Amazon Linux 2023 Docker image suitable for running Landform.  Launch Docker and then build the image with `cd docker/runner; ./build.sh`.  A convenience script is also provided to run a bash shell on the image: `cd docker/runner; ./up.sh`.  An alternative [Dockerfile](docker/runner/Dockerfile-ubuntu24.04) is also provided for Ubuntu 24.04; to use it, rename it to `Dockerfile`.
 
 The top-level command-line entrypoint is in [Landform.cs](./Landform/Landform.cs).  After building run this to get a brief synopsis of the available commands:
 

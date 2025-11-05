@@ -38,12 +38,19 @@ export DOTNET_SKIP_WORKLOAD_INTEGRITY_CHECK=1
 
 dotnet build -c Release -p IS_WSL=$IS_WSL $@
 
+IS_AL2023=false
+[[ -f /etc/os-release ]] && grep Amazon /etc/os-release > /dev/null && IS_AL2023=true
+al2023_cvext="$rootdir/deps/libcvextern-al2023.so"
+
 if $IS_LINUX; then
  for proj in */; do
-    rt=${proj%/}/bin/Release/net9.0/runtimes
-    src=$rt/ubuntu-x64/native/libcvextern.so
-    dst=$rt/linux-x64/native/cvextern.so
-    if [[ -f $src ]] && ! [[ -f $dst ]]; then
+    n9=${proj%/}/bin/Release/net9.0
+    rt=$n9/runtimes
+    dll=$n9/Emgu.CV.dll
+    if [[ -f $dll ]]; then
+      src=$rt/ubuntu-x64/native/libcvextern.so
+      dst=$rt/linux-x64/native/libcvextern.so
+      $IS_AL2023 && [[ -f "$al2023_cvext" ]] && src="$al2023_cvext"
       echo "copying $src to $dst"
       cp $src $dst
     fi

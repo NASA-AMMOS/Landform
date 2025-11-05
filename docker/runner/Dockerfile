@@ -1,24 +1,18 @@
-#dotnet-runtime-9.0 is available on Ubuntu 25.04 but not 24.04
-#
-#unfortunately some of the Emgu.CV dependencies in 25.04 are later versions than Emgu.CV will accept, in particular
-#
-#libavcodec-dev libswscale-dev libavformat-dev libvtk9-dev 
-#
-#so use Ubuntu 24.04 but install dotnet-runtime-9.0 from ppa:dotnet/backports
-#FROM ubuntu:25.04
-FROM ubuntu:24.04
+FROM amazonlinux:2023
 
-RUN apt-get update -y && apt-get install -y vim curl unzip
+RUN dnf update -y
 
-RUN apt-get install -y software-properties-common && add-apt-repository ppa:dotnet/backports && apt-get update -y && apt-get install -y dotnet-runtime-9.0 
+RUN dnf install -y vim zip unzip shadow-utils && ln -s /usr/bin/vim /usr/bin/vi
 
-# Emgu.CV dependencies
-# https://github.com/emgucv/emgucv/blob/4.12.0/platforms/ubuntu/24.04/apt_install_dependency
-RUN apt-get install -y build-essential libgtk-3-dev libgstreamer1.0-dev libavcodec-dev libswscale-dev libavformat-dev libdc1394-dev libv4l-dev ocl-icd-dev freeglut3-dev libgeotiff-dev libusb-1.0-0-dev libvtk9-dev libfreetype-dev libharfbuzz-dev qtbase5-dev libeigen3-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libgflags-dev libgoogle-glog-dev liblapacke-dev libva-dev
+RUN dnf install -y libpng libtiff libgeotiff libjpeg-turbo mesa-libGL mesa-libGLU freeglut
+ 
+RUN dnf install -y dotnet-runtime-9.0
+
+RUN dnf clean all && rm -rf /var/cache/dnf
 
 RUN cd /tmp && curl https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip -o awscli.zip && unzip awscli.zip && ./aws/install && rm awscli.zip && rm -rf aws
 
-RUN groupadd -r app && useradd -r -g app app
+RUN groupadd --gid 1001 appgrp && useradd --uid 1001 --gid appgrp -m app
 
 USER app
 
