@@ -23,6 +23,7 @@ if [[ `uname -s` == "Linux" ]]; then
     IS_WSL=true
   fi
   [[ -f /etc/os-release ]] && grep Amazon /etc/os-release > /dev/null && IS_AL2023=true
+  [[ -f /etc/os-release ]] && grep "Ubuntu 24.04" /etc/os-release > /dev/null && IS_UBUNTU2404=true
 elif [[ `uname -s` == "Darwin" ]]; then
   echo "building for Darwin (Mac OS X)"
   IS_OSX=true
