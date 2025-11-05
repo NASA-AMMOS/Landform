@@ -5,7 +5,10 @@ rootdir="${scriptdir%/*}"
 cd "$rootdir"
 
 arch=x86_64
-if [[ `uname -s` == "Linux" ]]; then os=Linux_Ubuntu_24.04
+if [[ `uname -s` == "Linux" ]]; then
+  os=Linux
+  [[ -f /etc/os-release ]] && grep Amazon /etc/os-release > /dev/null && os=Linux_Amazon_2023
+  [[ -f /etc/os-release ]] && grep "Ubuntu 24.04" /etc/os-release > /dev/null && os=Linux_Ubuntu_24.04
 elif [[ `uname -s` == "Darwin" ]]; then os=OSX; arch=`arch`
 elif [[ `uname -s` == "MINGW"* ]]; then os=Windows
 elif [[ `uname -s` == "CYGWIN"* ]]; then os=Windows
@@ -28,7 +31,7 @@ rm -rf $dir/dist/$bindir/log
 rm -rf $dir/dist/$bindir/tmp
 
 rtdir=$dir/dist/$bindir/runtimes
-[[ $os == Linux ]] && rm -rf $rtdir/osx* && rm -rf $rtdir/win*
+[[ $os == *Linux* ]] && rm -rf $rtdir/osx* && rm -rf $rtdir/win*
 [[ $os == OSX ]] && rm -rf $rtdir/linux* && rm -rf $rtdir/win*
 [[ $os == Windows ]] && rm -rf $rtdir/linux* && rm -rf $rtdir/osx*
 
