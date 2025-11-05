@@ -133,7 +133,7 @@ namespace JPLOPS.Imaging
                 height = gdalDataset.RasterYSize;
                 
                 ProjectionRef = gdalDataset.GetProjectionRef();
-                
+
                 //The default transform is (0, 1, 0, 0, 0, 1) and should be returned even when a CE_Failure error 
                 //is returned, such as for formats that don't support transformation to projection coordinates.
                 //from: https://gdal.org/api/gdaldataset_cpp.html
@@ -168,8 +168,14 @@ namespace JPLOPS.Imaging
         private void Init()
         {
             var projectionSpatialRef = new SpatialReference(ProjectionRef);
-            
+
+            //easting, northing
+            projectionSpatialRef.SetAxisMappingStrategy(AxisMappingStrategy.OAMS_TRADITIONAL_GIS_ORDER);
+
             var sphericalBodySpatialRef = Body.MakeSphericalSpatialReference();
+
+            //easting, northing
+            sphericalBodySpatialRef.SetAxisMappingStrategy(AxisMappingStrategy.OAMS_TRADITIONAL_GIS_ORDER);
 
             lonLatElevToEastingNorthingElev =
                 new CoordinateTransformation(sphericalBodySpatialRef, projectionSpatialRef);
