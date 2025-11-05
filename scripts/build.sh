@@ -30,9 +30,10 @@ elif [[ `uname -s` == "Darwin" ]]; then
 elif [[ `uname -s` == "MINGW"* ]]; then
   # Git bash is based on MSYS2, both report as MINGW
   echo "building for Windows (MINGW)"
-  IS_WiNDOWS=true
+  IS_WINDOWS=true
 elif [[ `uname -s` == "CYGWIN"* ]]; then
   echo "building for Windows (Cygwin)"
+  IS_WINDOWS=true
 else
   echo "ERROR: unsupported OS `uname -s`; aborting"
   exit 1
