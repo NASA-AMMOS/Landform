@@ -147,7 +147,7 @@ namespace JPLOPS.Util
 
             process.WaitForExit();
 
-            if (!process.HasExited) //MP
+            while (!process.HasExited) //MP
             {
                 //this appears to be necessary on Linux
                 process.WaitForExit(5000);
