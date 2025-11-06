@@ -8,7 +8,7 @@
 #FROM ubuntu:25.04
 FROM ubuntu:24.04
 
-RUN apt-get update -y && apt-get install -y vim build-essential cmake unzip zip curl git
+RUN apt-get update -y && apt-get install -y vim build-essential cmake unzip zip curl git software-properties-common
 
 # UVAtlas appears to require at least gcc-14 to build; clang20 also works
 #RUN apt-get install -y gcc-14 g++-14
@@ -16,10 +16,10 @@ RUN apt-get update -y && apt-get install -y vim build-essential cmake unzip zip 
 
 RUN curl https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add -
 RUN add-apt-repository -y "deb http://apt.llvm.org/noble/ llvm-toolchain-noble-20 main"
-RUN apt-get install -y clang-20
+RUN apt-get install -y clang-20 libomp-20-dev
 RUN update-alternatives --install /usr/bin/clang clang /usr/bin/clang-20 140 --slave /usr/bin/clang++ clang++ /usr/bin/clang++-20
 
-RUN apt-get install -y software-properties-common && add-apt-repository ppa:dotnet/backports && apt-get update -y && apt-get install -y dotnet-sdk-9.0 
+RUN add-apt-repository ppa:dotnet/backports && apt-get update -y && apt-get install -y dotnet-sdk-9.0 
 
 # Emgu.CV dependencies
 # https://github.com/emgucv/emgucv/blob/4.12.0/platforms/ubuntu/24.04/apt_install_dependency
