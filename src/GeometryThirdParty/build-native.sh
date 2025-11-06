@@ -246,7 +246,7 @@ if $build_poisson || $build_trimmer; then
     popd
     cp Bin/Linux/libmypng.a Bin/Linux/libpng.a
 
-    grep --std=c++11 JPEG/Makefile || patch -p1 < ../../../PoissonRecon_JPEG.patch
+    grep "std=c++11" JPEG/Makefile || patch -p1 < ../../../PoissonRecon_JPEG.patch
     pushd JPEG
     make COMPILER=$comp
     popd
