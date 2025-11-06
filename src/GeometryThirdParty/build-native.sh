@@ -185,7 +185,7 @@ if $build_uvatlas; then
 
   if ! $WINDOWS; then
     echo "compiling UVAtlasWrapper.cpp..."
-    g++ -O3 -c -Wall -Wno-macro-redefined -Wno-strict-aliasing -Wno-unused-but-set-variable -fPIC -I$native_rel/include -I$native_rel/include/wsl/stubs UVAtlasWrapper.cpp -o UVAtlasWrapper.o
+    clang++ -O3 -c -Wall -Wno-macro-redefined -Wno-strict-aliasing -Wno-unused-but-set-variable -fPIC -I$native_rel/include -I$native_rel/include/wsl/stubs UVAtlasWrapper.cpp -o UVAtlasWrapper.o
   fi
 
   echo "linking $lib..."
@@ -196,7 +196,7 @@ if $build_uvatlas; then
       # we get build warnings if we don't match it
       vvv=`sw_vers -productVersion` #e.g. 15.6.1
       vv=${vvv%.*} #e.g. 15.6
-      g++ -dynamiclib -mmacosx-version-min=$vv -o $lib -lUVAtlas -lDirectXMesh -L$native_rel/lib UVAtlasWrapper.o 
+      clang++ -dynamiclib -mmacosx-version-min=$vv -o $lib -lUVAtlas -lDirectXMesh -L$native_rel/lib UVAtlasWrapper.o 
   
       install_name_tool -add_rpath @loader_path $lib
 
@@ -206,7 +206,7 @@ if $build_uvatlas; then
   
   else
 
-    g++ -shared -Wl,-rpath,'$ORIGIN' -o $lib -L$native_rel/lib -fPIC UVAtlasWrapper.o -lUVAtlas -lDirectXMesh 
+    clang++ -shared -Wl,-rpath,'$ORIGIN' -o $lib -L$native_rel/lib -fPIC UVAtlasWrapper.o -lUVAtlas -lDirectXMesh 
 
   fi
 
@@ -238,8 +238,7 @@ if $build_poisson || $build_trimmer; then
     MSBuild.exe SurfaceTrimmer.vcxproj -p:Configuration=Release
     cp Bin/x64/Release/SurfaceTrimmer.exe "$native_abs/bin"
   else
-    comp=gcc
-    $OSX && comp=clang
+    comp=clang
 
     pushd PNG
     $OSX && sed -i '' 's/include <fp[.]h>/include <math.h>/g' pngconf.h
@@ -247,6 +246,7 @@ if $build_poisson || $build_trimmer; then
     popd
     cp Bin/Linux/libmypng.a Bin/Linux/libpng.a
 
+    grep --std=c++11 JPEG/Makefile || patch -p1 < ../../../PoissonRecon_JPEG.patch
     pushd JPEG
     make COMPILER=$comp
     popd
@@ -313,16 +313,16 @@ if $build_fssrecon || $build_meshclean; then
     popd
   else
     pushd libs
-    make
+    make CC=clang CXX=clang++
     popd
 
     pushd apps/fssrecon
-    make
+    make CC=clang CXX=clang++
     cp fssrecon "$native_abs/bin"
     popd
 
     pushd apps/meshclean
-    make
+    make CC=clang CXX=clang++
     cp meshclean "$native_abs/bin"
     popd
 

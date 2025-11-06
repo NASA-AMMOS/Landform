@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # prebuilt Emgu.CV Linux native binaries on NuGet are currently specific to Ubuntu 24.04
-# this script builds minimal Emgu.CV binaries for Amazon Linux 2023 under deps/emgucv/build
+# this script builds minimal Emgu.CV binaries for Amazon Linux 2023
 
 scriptdir=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 rootdir="${scriptdir%/*}"
@@ -75,5 +75,7 @@ make
 
 cd ..
 
-cp libs/libcvextern.so "$rootdir/deps/libcvextern-al2023.so"
+mkdir -p "$rootdir/deps/al2023/lib"
+
+cp libs/libcvextern.so "$rootdir/deps/al2023/lib/libcvextern.so"
 

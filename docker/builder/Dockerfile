@@ -4,8 +4,9 @@ RUN dnf update -y
 
 RUN dnf install -y vim cmake make unzip zip git patch && ln -s /usr/bin/vim /usr/bin/vi
 
-# UVAtlas appears to require at least g++-14 to build
-RUN dnf install -y gcc14 gcc14-c++ && ln -s /usr/bin/gcc14-gcc /usr/bin/gcc && ln -s /usr/bin/gcc14-g++ /usr/bin/g++
+# UVAtlas appears to require at least gcc-14 to build; clang20 also works
+#RUN dnf install -y gcc14 gcc14-c++ && ln -s /usr/bin/gcc14-gcc /usr/bin/gcc && ln -s /usr/bin/gcc14-g++ /usr/bin/g++
+RUN dnf install -y clang20 && ln -s /usr/bin/clang-20 /usr/bin/clang && ln -s /usr/bin/clang++-20 /usr/bin/clang++
 
 RUN dnf install -y libpng-devel libtiff-devel libgeotiff-devel libjpeg-turbo-devel mesa-libGL-devel mesa-libGLU-devel freeglut-devel
  

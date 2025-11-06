@@ -70,18 +70,19 @@ Landform previously required Windows to build and run; the current implementatio
     * for MSYS2 on Windows `curl` and `patch` should be pre-installed; for `unzip` and `zip` run `pacman -S unzip zip`
     * for Cygwin on Windows use the cygwin setup tool to install `unzip`, `zip`, and `curl` if necessary.
 1. On Windows install [Visual Studio 2022](https://visualstudio.microsoft.com/downloads); either the community edition or just the [command line build tools](https://visualstudio.microsoft.com/downloads/#build-tools-for-visual-studio-2022) should be sufficient.
-1. On OS X or Linux ensure you can run the commands `make` and `g++`.  (On Windows the corresponding tools are `nmake` and `cl`, and they are included with Visual Studio.)  At least `g++` version 14 is required, run `g++ --version` to check.
+1. On OS X or Linux ensure you can run the commands `make` and `clang++`.  (On Windows the corresponding tools are `nmake` and `cl`, and they are included with Visual Studio.)  At least `clang++` version 20 is required, run `clang++ --version` to check.
     * on Ubuntu run
         ```
-        apt-get install build-essential
-        apt-get install -y gcc-14 g++-14
-        update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-14 140 --slave /usr/bin/g++ g++ /usr/bin/g++-14
+        curl https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add -
+        add-apt-repository -y "deb http://apt.llvm.org/noble/ llvm-toolchain-noble-20 main"
+        apt-get install -y clang-20
+        update-alternatives --install /usr/bin/clang clang /usr/bin/clang-20 140 --slave /usr/bin/clang++ clang++ /usr/bin/clang++-20
         ```
     * on Amazon Linux 2023 run
         ```
-        dnf install -y gcc14 gcc14-c++
-        ln -s /usr/bin/gcc14-gcc /usr/bin/gcc
-        ln -s /usr/bin/gcc14-g++ /usr/bin/g++
+        dnf install -y clang20
+        ln -s /usr/bin/clang-20 /usr/bin/clang
+        ln -s /usr/bin/clang++-20 /usr/bin/clang++
         ```
     * On OS X run `xcode-select --install`.
 1. For Cygwin on Windows run `dos2unix src/*.sh src/*/*.sh` to ensure that the build scripts have Unix line endings.
