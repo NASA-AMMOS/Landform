@@ -7,7 +7,7 @@
     <IsPackable>false</IsPackable>
   </PropertyGroup>
   <PropertyGroup Condition="'$(IS_WSL)' == 'true'">
-    <IntermediateOutputPath>/tmp/Landform/GeometryThirdpartyTest/obj/</IntermediateOutputPath>
+    <IntermediateOutputPath>/tmp/Landform/GeometryThirdPartyTest/obj/</IntermediateOutputPath>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="coverlet.collector" Version="6.0.2" />
