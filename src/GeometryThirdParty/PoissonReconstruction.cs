@@ -209,8 +209,12 @@ namespace JPLOPS.Geometry
                         {
                             arguments += " --colors";
                         }
-                        
-                        arguments += " --normals 2"; //emit normals from solver: 1 = sample normals, 2 = gradients
+
+                        //the --normals argument appears to have been removed in version 15
+                        //but a --gradients flag appears to have been added in its place
+                        //arguments += " --normals 2"; //emit normals from solver: 1 = sample normals, 2 = gradients
+                        arguments += " --gradients";
+
                         arguments += " --tempDir " + tmpDir;
                         
                         if (options != null)
@@ -239,7 +243,13 @@ namespace JPLOPS.Geometry
                                 arguments += " --envelope " + envFile;
                             }
                         }
-                    
+
+                        if ((options == null || options.TrimmerLevel <= 0) &&
+                            untrimmedMeshWithValueScaledNormals != null)
+                        {
+                            arguments += " --density";
+                        }
+
                         //a workaround for running on powerful machines. without it there is an ERROR about not
                         // being able to open a file (likely a bug in multithread buffered file reading)
                         //arguments += " --threads 1";
@@ -338,7 +348,7 @@ namespace JPLOPS.Geometry
                         }
                     }
 
-                    if (untrimmedMeshWithValueScaledNormals != null)
+                    if (!cfg.PoissonExeLegacy && untrimmedMeshWithValueScaledNormals != null)
                     {
                         untrimmedMeshWithValueScaledNormals(result);
                     }
