@@ -1427,15 +1427,6 @@ namespace JPLOPS.Landform
             return ret;
         }
 
-        protected override bool PreRun()
-        {
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-            {
-                BuildGeometry.TestThirdPartyExecutables();
-            }
-            return true;
-        }
-
         protected override bool ParseArguments()
         {
             options.RecursiveSearch = !options.NoRecursiveSearch;
@@ -1656,6 +1647,11 @@ namespace JPLOPS.Landform
 
             options.RebuildContextualAtPreviousEndOfDriveOnPLACESNotification |=
                 options.OnlyRebuildContextualAtPreviousEndOfDriveOnPLACESNotification;
+
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            {
+                BuildGeometry.TestThirdPartyExecutables(pipeline);
+            }
 
             return true;
         }
