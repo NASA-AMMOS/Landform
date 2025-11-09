@@ -4,6 +4,7 @@ using System.Linq;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
 using System.Threading;
+using System.Runtime.InteropServices;
 using CommandLine;
 using Microsoft.Xna.Framework;
 using RTree;
@@ -306,6 +307,11 @@ namespace JPLOPS.Landform
                     return 0; //help
                 }
 
+                if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+                {
+                    RunPhase("test third party executables", TestThirdPartyExecutables);
+                }
+
                 if (!options.NoSurface)
                 {
                     RunPhase("build observation point clouds", MakeObservationPointClouds);
@@ -538,6 +544,31 @@ namespace JPLOPS.Landform
             min.Z = minZ;
             max.Z = maxZ;
             return new BoundingBox(min, max);
+        }
+
+        private void TestExecutable(string exe, string msg)
+        {
+            ProgramRunner pr = new ProgramRunner(exe, "", captureOutput: true);
+            try
+            {
+                pr.Run();
+            }
+            catch (Exception)
+            {
+                //ignore
+            }
+            if (!pr.OutputText.Contains(msg))
+            {
+                throw new Exception("failed to run " + exe);
+            }
+        }
+
+        private void TestThirdPartyExecutables()
+        {
+            TestExecutable(PoissonConfig.Instance.PoissonExe, "PoissonRecon");
+            TestExecutable(PoissonConfig.Instance.TrimmerExe, "SurfaceTrimmer");
+            TestExecutable(Path.Combine(PathHelper.GetApplicationPath(), "fssrecon"), "Floating");
+            TestExecutable(Path.Combine(PathHelper.GetApplicationPath(), "meshclean"), "Cleaning");
         }
 
         private void MakeObservationPointClouds()
