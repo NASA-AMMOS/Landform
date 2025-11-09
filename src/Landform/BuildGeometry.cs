@@ -1304,11 +1304,12 @@ namespace JPLOPS.Landform
             {
                 throw new Exception("clipped mesh is empty");
             }
-            SaveDebugMesh(mesh, "clipped-surface");
 
             pipeline.LogInfo("keeping only largest island by vertex count");
             int nr = mesh.RemoveIslands(minIslandRatio: 1.0, useVertexCount: true);
             pipeline.LogInfo("removed {0} islands", nr);
+
+            SaveDebugMesh(mesh, "clipped-surface");
 
             if (options.TargetSurfaceMeshFaces > 0)
             {
