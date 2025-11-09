@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Text.RegularExpressions;
+using System.Runtime.InteropServices;
 using CommandLine;
 using JPLOPS.Util;
 using JPLOPS.Cloud;
@@ -1424,6 +1425,15 @@ namespace JPLOPS.Landform
                 }
             }
             return ret;
+        }
+
+        protected override bool PreRun()
+        {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            {
+                BuildGeometry.TestThirdPartyExecutables();
+            }
+            return true;
         }
 
         protected override bool ParseArguments()

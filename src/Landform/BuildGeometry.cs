@@ -302,14 +302,14 @@ namespace JPLOPS.Landform
         {
             try
             {
-                if (!ParseArgumentsAndLoadCaches())
-                {
-                    return 0; //help
-                }
-
                 if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
                 {
                     RunPhase("test third party executables", TestThirdPartyExecutables);
+                }
+
+                if (!ParseArgumentsAndLoadCaches())
+                {
+                    return 0; //help
                 }
 
                 if (!options.NoSurface)
@@ -546,7 +546,7 @@ namespace JPLOPS.Landform
             return new BoundingBox(min, max);
         }
 
-        private void TestExecutable(string exe, string msg)
+        private static void TestExecutable(string exe, string msg)
         {
             ProgramRunner pr = new ProgramRunner(exe, "", captureOutput: true);
             try
@@ -563,7 +563,7 @@ namespace JPLOPS.Landform
             }
         }
 
-        private void TestThirdPartyExecutables()
+        public static void TestThirdPartyExecutables()
         {
             TestExecutable(PoissonConfig.Instance.PoissonExe, "PoissonRecon");
             TestExecutable(PoissonConfig.Instance.TrimmerExe, "SurfaceTrimmer");

@@ -263,6 +263,11 @@ namespace JPLOPS.Landform
             int exitCode = 0;
             try
             {
+                if (!PreRun())
+                {
+                    return 0; //help
+                }
+
                 if (!ParseArguments())
                 {
                     return 0; //help
@@ -330,6 +335,11 @@ namespace JPLOPS.Landform
             StopStopwatch();
 
             return exitCode;
+        }
+
+        protected virtual bool PreRun()
+        {
+            return true;
         }
 
         protected override bool ParseArguments()
