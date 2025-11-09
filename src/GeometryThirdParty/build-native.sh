@@ -242,7 +242,7 @@ if $build_poisson || $build_trimmer; then
     MSBuild.exe PoissonRecon.vcxproj -p:Configuration=Release
     cp Bin/x64/Release/PoissonRecon.exe "$native_abs/bin/PoissonRecon.V${ver}.exe"
     MSBuild.exe SurfaceTrimmer.vcxproj -p:Configuration=Release
-    cp Bin/x64/Release/SurfaceTrimmer.exe "$native_abs/bin/SurfaceTrimmer.V${VER}.exe"
+    cp Bin/x64/Release/SurfaceTrimmer.exe "$native_abs/bin/SurfaceTrimmer.V${ver}.exe"
   else
 
     [[ -f applied_patch ]] || patch -p1 < ../../../PoissonRecon_V13.72.patch
