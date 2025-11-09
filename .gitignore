@@ -20,3 +20,4 @@ tmp/
 storage/
 TestResults/
 deps/emgucv/
+scripts/osx-signing-cert.p12
