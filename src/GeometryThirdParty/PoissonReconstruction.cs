@@ -2,6 +2,7 @@
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
+using System.Runtime.InteropServices;
 using Microsoft.Xna.Framework;
 using JPLOPS.Util;
 using JPLOPS.Imaging;
@@ -11,13 +12,16 @@ namespace JPLOPS.Geometry
     public class PoissonConfig : SingletonConfig<PoissonConfig>
     {
         [ConfigEnvironmentVariable("LANDFORM_POISSON_EXE")]
-        public string PoissonExe { get; set; } = "PoissonRecon";
+        public string PoissonExe { get; set; } = "PoissonRecon.V13.72";
 
         [ConfigEnvironmentVariable("LANDFORM_POISSON_TRIMMER_EXE")]
-        public string TrimmerExe { get; set; } = "SurfaceTrimmer";
+        public string TrimmerExe { get; set; } = "SurfaceTrimmer.V13.72";
 
+        //PoissonExeLegacy=0 -> assume relatively new PoissonRecon, e.g. >= V18
+        //PoissonExeLegacy=1 -> assume relatively old PoissonRecon, e.g. <= V10
+        //PoissonExeLegacy=2 -> assume old-ish PoissonRecon, e.g ~V13
         [ConfigEnvironmentVariable("LANDFORM_POISSON_EXE_LEGACY")]
-        public bool PoissonExeLegacy { get; set; }
+        public int PoissonExeLegacy { get; set; } = 2;
     }
 
     /// Poisson Surface Reconstruction
@@ -154,7 +158,7 @@ namespace JPLOPS.Geometry
                 if (logger != null) logger.LogWarn("Poisson meshes cannot have UVs - removing");
                 pointCloud.HasUVs = false;
             }
-            if (pointCloud.HasColors && cfg.PoissonExeLegacy)
+            if (pointCloud.HasColors && cfg.PoissonExeLegacy == 1)
             {
                 if (logger != null) logger.LogWarn("Poission (legacy) meshes cannot have colors - removing");
                 pointCloud = new Mesh(pointCloud);
@@ -203,17 +207,24 @@ namespace JPLOPS.Geometry
                         throw new MeshException("either OctreeDepth and MinOctreeCellWidthMeters must be specified");
                     }
                     
-                    if (!cfg.PoissonExeLegacy)
+                    if (cfg.PoissonExeLegacy != 1)
                     {
                         if (pointCloud.HasColors)
                         {
                             arguments += " --colors";
                         }
 
+                        //emit normals from solver: 1 = sample normals, 2 = gradients
                         //the --normals argument appears to have been removed in version 15
                         //but a --gradients flag appears to have been added in its place
-                        //arguments += " --normals 2"; //emit normals from solver: 1 = sample normals, 2 = gradients
-                        arguments += " --gradients";
+                        if (cfg.PoissonExeLegacy == 2)
+                        {
+                            arguments += " --normals 2";
+                        }
+                        else
+                        {
+                            arguments += " --gradients";
+                        }
 
                         arguments += " --tempDir " + tmpDir;
                         
@@ -226,7 +237,7 @@ namespace JPLOPS.Geometry
                             }
                             
                             arguments +=
-                                String.Format(" --bType {0} --samplesPerNode {1} --degree {2}{3}{4}{5}{6}",
+                                String.Format(" --bType {0} --samplesPerNode {1} --degree {2}{3}{4}{5}",
                                               (int)options.Boundary, //0
                                               options.MinOctreeSamplesPerCell, //1
                                               options.BSplineDegree, //2
@@ -234,9 +245,18 @@ namespace JPLOPS.Geometry
                                               (" --width " + options.MinOctreeCellWidthMeters) : "",
                                               options.OctreeDepth > 0 ? //4
                                               (" --depth " + options.OctreeDepth) : "",
-                                              options.ConfidenceExponent != 0 ? //5
-                                              (" --confidence " + options.ConfidenceExponent) : "",
-                                              options.TrimmerLevel > 0 ? " --density" : ""); //6
+                                              options.TrimmerLevel > 0 ? " --density" : ""); //5
+
+                            if (options.ConfidenceExponent > 0)
+                            {
+                                arguments += " --confidence";
+
+                                //recent versions of PoissonRecon don't take an exponent value after --confidence
+                                if (cfg.PoissonExeLegacy == 2)
+                                {
+                                    arguments += " " + options.ConfidenceExponent;
+                                }
+                            }
 
                             if (options.Envelope.HasValue && options.PassEnvelopeToPoisson) //V13+
                             {
@@ -250,10 +270,25 @@ namespace JPLOPS.Geometry
                             arguments += " --density";
                         }
 
-                        //a workaround for running on powerful machines. without it there is an ERROR about not
-                        // being able to open a file (likely a bug in multithread buffered file reading)
-                        //arguments += " --threads 1";
-                        arguments += " --threads " + CoreLimitedParallel.GetMaxDegreeOfParallelism();
+                        //the --threads option is not necessarily available on all platforms
+                        //e.g. on OS X when compiled with xcode clang openmp is not available at build time
+                        //the --threads option defaults to the number of available cores anyway
+                        //arguments += " --threads " + CoreLimitedParallel.GetMaxDegreeOfParallelism();
+
+                        if (RuntimeInformation.ProcessArchitecture == Architecture.Arm64 || 
+                            RuntimeInformation.ProcessArchitecture == Architecture.Arm)
+                        {
+                            //https://github.com/mkazhdan/PoissonRecon/issues/139
+                            //https://github.com/mkazhdan/PoissonRecon/issues/190
+                            if (cfg.PoissonExeLegacy == 0)
+                            {
+                                arguments += " --parallel 1";
+                            }
+                            else
+                            {
+                                arguments += " --threads 1";
+                            }
+                        }
                     }
 
                     ProgramRunner pr = new ProgramRunner(reconstructExe, arguments, captureOutput: true);
@@ -273,7 +308,7 @@ namespace JPLOPS.Geometry
                         //at least some legacy versions of PoissonRecon.exe can error out but still
                         //have zero exit code and write a valid and nonempty output mesh
                         //it seems the only way to detect that is like this
-                        if (cfg.PoissonExeLegacy && !string.IsNullOrEmpty(pr.ErrorText) &&
+                        if ((cfg.PoissonExeLegacy == 1) && !string.IsNullOrEmpty(pr.ErrorText) &&
                             !Regex.Split(pr.ErrorText, "\r\n|\r|\n").All(l => l.StartsWith("[WARNING]")))
                         {
                             throw new MeshException("Poisson nonempty error output");
@@ -312,8 +347,8 @@ namespace JPLOPS.Geometry
                         Mesh envMesh =
                             options != null && options.Envelope.HasValue ? options.Envelope.Value.ToMesh() : null;
                         PreserveErrorInput(envMesh, envFile, plyWriter, "envelope", options, logger);
-                        throw new MeshException("failed to run " + (cfg.PoissonExeLegacy ? "(legacy) " : "") +
-                                                reconstructExe + " " + arguments + ": " + ex.Message);
+                        throw new MeshException("failed to run " + reconstructExe + " " +
+                                                arguments + ": " + ex.Message);
                     }
 
                     if (options != null && options.Envelope.HasValue && options.ClipToEnvelope)
@@ -348,7 +383,7 @@ namespace JPLOPS.Geometry
                         }
                     }
 
-                    if (!cfg.PoissonExeLegacy && untrimmedMeshWithValueScaledNormals != null)
+                    if ((cfg.PoissonExeLegacy != 1) && untrimmedMeshWithValueScaledNormals != null)
                     {
                         untrimmedMeshWithValueScaledNormals(result);
                     }
@@ -411,7 +446,7 @@ namespace JPLOPS.Geometry
                     //at least some legacy versions of PoissonRecon.exe can error out but still
                     //have zero exit code and write a valid and nonempty output mesh
                     //it seems the only way to detect that is like this
-                    if (cfg.PoissonExeLegacy && !string.IsNullOrEmpty(pr.ErrorText) &&
+                    if (cfg.PoissonExeLegacy == 1 && !string.IsNullOrEmpty(pr.ErrorText) &&
                         !Regex.Split(pr.ErrorText, "\r\n|\r|\n").All(l => l.StartsWith("[WARNING]")))
                     {
                         throw new MeshException("trimmer nonempty error output");
@@ -430,8 +465,7 @@ namespace JPLOPS.Geometry
                         logger.LogError(pr.ErrorText);
                     }
                     PreserveErrorInput(meshWithValueScaledNormals, inputFile, plyWriter, "trimmer", options, logger);
-                    throw new MeshException("failed to run " + (cfg.PoissonExeLegacy ? "(legacy) " : "") +
-                                            trimmerExe + " " + arguments + ": " + ex.Message);
+                    throw new MeshException("failed to run " + trimmerExe + " " + arguments + ": " + ex.Message);
                 }
                 
                 result = Mesh.Load(outputFile); //don't scale normals

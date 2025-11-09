@@ -222,7 +222,13 @@ if $build_poisson || $build_trimmer; then
 
   pushd $native_rel/src
 
-  sha=eea22ab701d0067e36a2de33f0251c0d0511ac69
+  #sha=eea22ab701d0067e36a2de33f0251c0d0511ac69
+  #ver=18.74
+
+  sha=65cd5fcadd403c69a15484436016de7177a00c91
+  #sha=28934e8798422aca09e5a54bb439b0e193615582
+  ver=13.72
+
   zip="$dep_dir/PoissonRecon-${sha}.zip"
   [[ -f "$zip" ]] || curl -L -o "$zip" https://github.com/mkazhdan/PoissonRecon/archive/${sha}.zip
   if [[ ! -d PoissonRecon ]]; then unzip "$zip" > /dev/null && mv `ls -d PoissonRecon-*/` PoissonRecon; fi
@@ -234,11 +240,19 @@ if $build_poisson || $build_trimmer; then
     MSBuild.exe PNG.vcxproj -p:Configuration=Release
     MSBuild.exe JPEG.vcxproj -p:Configuration=Release
     MSBuild.exe PoissonRecon.vcxproj -p:Configuration=Release
-    cp Bin/x64/Release/PoissonRecon.exe "$native_abs/bin"
+    cp Bin/x64/Release/PoissonRecon.exe "$native_abs/bin/PoissonRecon.V${ver}.exe"
     MSBuild.exe SurfaceTrimmer.vcxproj -p:Configuration=Release
-    cp Bin/x64/Release/SurfaceTrimmer.exe "$native_abs/bin"
+    cp Bin/x64/Release/SurfaceTrimmer.exe "$native_abs/bin/SurfaceTrimmer.V${VER}.exe"
   else
+
+    [[ -f applied_patch ]] || patch -p1 < ../../../PoissonRecon_V13.72.patch
+
     comp=clang
+
+    pushd ZLIB
+    make COMPILER=$comp
+    popd
+    cp Bin/Linux/libmyz.a Bin/Linux/libz.a
 
     pushd PNG
     $OSX && sed -i '' 's/include <fp[.]h>/include <math.h>/g' pngconf.h
@@ -246,21 +260,15 @@ if $build_poisson || $build_trimmer; then
     popd
     cp Bin/Linux/libmypng.a Bin/Linux/libpng.a
 
-    grep "std=c++11" JPEG/Makefile || patch -p1 < ../../../PoissonRecon_JPEG.patch
     pushd JPEG
     make COMPILER=$comp
     popd
     cp Bin/Linux/libmyjpg.a Bin/Linux/libjpeg.a
     for f in JPEG/*.h; do ln -s -f $f .; done
 
-    grep unistd.h ZLIB/gzguts.h || patch -p1 < ../../../PoissonRecon_ZLIB.patch
-    pushd ZLIB
-    make COMPILER=$comp
-    popd
-    cp Bin/Linux/libmyz.a Bin/Linux/libz.a
-
-    make COMPILER=$comp LFLAGS_IMG="-lpng -ljpeg -lz" poissonrecon surfacetrimmer
-    cp Bin/Linux/PoissonRecon Bin/Linux/SurfaceTrimmer "$native_abs/bin"
+    make COMPILER=$comp CFLAGS="-Wno-missing-template-arg-list-after-template-kw" LFLAGS_IMG="-lpng -ljpeg -lz" poissonrecon surfacetrimmer
+    cp Bin/Linux/PoissonRecon "$native_abs/bin/PoissonRecon.V${ver}"
+    cp Bin/Linux/SurfaceTrimmer "$native_abs/bin/SurfaceTrimmer.V${ver}"
 
     if [[ -f ../../bin/PoissonRecon ]] && [[ -f ../../bin/SurfaceTrimmer ]]; then
       rm -f Bin/Linux/*.o

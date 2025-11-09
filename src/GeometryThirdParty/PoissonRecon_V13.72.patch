@@ -1,0 +1,71 @@
+diff -ruN PoissonRecon-28934e8798422aca09e5a54bb439b0e193615582/JPEG/Makefile PoissonRecon-28934e87-modified/JPEG/Makefile
+--- PoissonRecon-28934e8798422aca09e5a54bb439b0e193615582/JPEG/Makefile	2020-12-27 00:48:54
++++ PoissonRecon-28934e87-modified/JPEG/Makefile	2025-11-09 14:34:56
+@@ -4,7 +4,7 @@
+ COMPILER ?= gcc
+ #COMPILER ?= clang
+ 
+-CFLAGS += -Wno-deprecated -Wno-write-strings
++CFLAGS += -Wno-deprecated -Wno-write-strings --std=c++11
+ 
+ CFLAGS_DEBUG = -DDEBUG -g3
+ LFLAGS_DEBUG =
+diff -ruN PoissonRecon-28934e8798422aca09e5a54bb439b0e193615582/Src/PNG.inl PoissonRecon-28934e87-modified/Src/PNG.inl
+--- PoissonRecon-28934e8798422aca09e5a54bb439b0e193615582/Src/PNG.inl	2020-12-27 00:48:54
++++ PoissonRecon-28934e87-modified/Src/PNG.inl	2025-11-09 14:42:12
+@@ -1,10 +1,10 @@
+ #include <stdio.h>
+ #include <vector>
+-#ifdef _WIN32
++//#ifdef _WIN32
+ #include "PNG/png.h"
+-#else // !_WIN32
+-#include <png.h>
+-#endif // _WIN32
++//#else // !_WIN32
++//#include <png.h>
++//#endif // _WIN32
+ 
+ inline PNGReader::PNGReader( const char* fileName , unsigned int& width , unsigned int& height , unsigned int& channels )
+ {
+diff -ruN PoissonRecon-28934e8798422aca09e5a54bb439b0e193615582/Src/SparseMatrix.inl PoissonRecon-28934e87-modified/Src/SparseMatrix.inl
+--- PoissonRecon-28934e8798422aca09e5a54bb439b0e193615582/Src/SparseMatrix.inl	2020-12-27 00:48:54
++++ PoissonRecon-28934e87-modified/Src/SparseMatrix.inl	2025-11-09 14:45:57
+@@ -464,7 +464,7 @@
+ 	A.resize( aRows );
+ 	for( size_t i=0 ; i<aRows ; i++ ) A.rowSizes[i] = 0;
+ 	for( size_t i=0 ; i<At.rows() ; i++ ) for( const_iterator iter=At.begin(i) ; iter!=At.end(i) ; iter++ ) A.rowSizes[ iter->N ]++;
+-	for( size_t i=0 ; i<A.rows ; i++ )
++	for( size_t i=0 ; i<A.rows() ; i++ )
+ 	{
+ 		size_t t = A.rowSizes[i];
+ 		A.rowSizes[i] = 0;
+@@ -497,7 +497,7 @@
+ 	A.resize( aRows );
+ 	for( size_t i=0 ; i<aRows ; i++ ) A.rowSizes[i] = 0;
+ 	for( size_t i=0 ; i<At.rows() ; i++ ) for( const_iterator iter=At.begin(i) ; iter!=At.end(i) ; iter++ ) A.rowSizes[ iter->N ]++;
+-	for( size_t i=0 ; i<A.rows ; i++ )
++	for( size_t i=0 ; i<A.rows() ; i++ )
+ 	{
+ 		size_t t = A.rowSizes[i];
+ 		A.rowSizes[i] = 0;
+diff -ruN PoissonRecon-28934e8798422aca09e5a54bb439b0e193615582/ZLIB/zconf.h PoissonRecon-28934e87-modified/ZLIB/zconf.h
+--- PoissonRecon-28934e8798422aca09e5a54bb439b0e193615582/ZLIB/zconf.h	2020-12-27 00:48:54
++++ PoissonRecon-28934e87-modified/ZLIB/zconf.h	2025-11-09 14:44:28
+@@ -210,9 +210,9 @@
+ #   define FAR
+ #endif
+ 
+-#if !defined(MACOS) && !defined(TARGET_OS_MAC)
++//#if !defined(MACOS) && !defined(TARGET_OS_MAC)
+ typedef unsigned char  Byte;  /* 8 bits */
+-#endif
++//#endif
+ typedef unsigned int   uInt;  /* 16 bits or more */
+ typedef unsigned long  uLong; /* 32 bits or more */
+ 
+diff -ruN PoissonRecon-28934e8798422aca09e5a54bb439b0e193615582/applied_patch PoissonRecon-28934e87-modified/applied_patch
+--- PoissonRecon-28934e8798422aca09e5a54bb439b0e193615582/applied_patch	1969-12-31 19:00:00
++++ PoissonRecon-28934e87-modified/applied_patch	2025-11-09 15:14:01
+@@ -0,0 +1 @@
++yup
