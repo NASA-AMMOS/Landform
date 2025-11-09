@@ -302,14 +302,14 @@ namespace JPLOPS.Landform
         {
             try
             {
-                if (!ParseArgumentsAndLoadCaches())
-                {
-                    return 0; //help
-                }
-
                 if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
                 {
                     RunPhase("test third party executables", () => TestThirdPartyExecutables(pipeline));
+                }
+
+                if (!ParseArgumentsAndLoadCaches())
+                {
+                    return 0; //help
                 }
 
                 if (!options.NoSurface)

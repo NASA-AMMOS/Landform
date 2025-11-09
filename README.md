@@ -88,6 +88,11 @@ Landform previously required Windows to build and run; the current implementatio
 1. For Cygwin on Windows run `dos2unix src/*.sh src/*/*.sh` to ensure that the build scripts have Unix line endings.
 1. Run `./scripts/build.sh`.  This will automatically download dependencies and compile both native and C# components.
 1. A `./scripts/clean.sh` script is also provided to remove compiled artifacts.
+1. If you rebuilt third party binaries like `PoissonRecon` OS X run
+    ```
+    ./scripts/osx-add-signing-cert.sh
+    ./scripts/osx-sign.sh
+    ```
 
 A [Dockerfile](docker/builder/Dockerfile) is also provided to build an `x86_64` Amazon Linux 2023 Docker image suitable for building Landform.  Launch Docker and then build the image with `cd docker/builder; ./build.sh`.  A convenience script is also provided to run a bash shell on the image: `cd docker/builder; ./up.sh`.  An alternative [Dockerfile](docker/builder/Dockerfile-ubuntu24.04) is also provided for Ubuntu 24.04; to use it, rename it to `Dockerfile`.
 
@@ -109,6 +114,15 @@ The top-level command-line entrypoint is in [Landform.cs](./Landform/Landform.cs
 ```
 
 Additional documentation is provided in the header comments of the corresponding source files in the [Landform](./src/Landform) subproject.
+
+On OS X you will likely need to run
+
+```
+./scripts/osx-add-signing-cert.sh
+./scripts/osx-unquarantine.sh
+```
+
+once for each deployment in order for third-party dependency binaries like `PoissonRecon` to work.
 
 ## Dependencies
 
