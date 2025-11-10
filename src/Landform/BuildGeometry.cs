@@ -548,6 +548,7 @@ namespace JPLOPS.Landform
 
         private static void TestExecutable(string exe, string msg, ILogger logger)
         {
+            exe = Path.Combine(PathHelper.GetApplicationPath(), exe); 
             ProgramRunner pr = new ProgramRunner(exe, "", captureOutput: true);
             try
             {
@@ -568,8 +569,8 @@ namespace JPLOPS.Landform
         {
             TestExecutable(PoissonConfig.Instance.PoissonExe, "PoissonRecon", logger);
             TestExecutable(PoissonConfig.Instance.TrimmerExe, "SurfaceTrimmer", logger);
-            TestExecutable(Path.Combine(PathHelper.GetApplicationPath(), "fssrecon"), "Floating", logger);
-            TestExecutable(Path.Combine(PathHelper.GetApplicationPath(), "meshclean"), "Cleaning", logger);
+            TestExecutable("fssrecon", "Floating", logger);
+            TestExecutable("meshclean", "Cleaning", logger);
         }
 
         private void MakeObservationPointClouds()
