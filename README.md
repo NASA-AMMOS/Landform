@@ -102,11 +102,21 @@ The runtime requirements for Landform are
 
 A [Dockerfile](docker/runner/Dockerfile) is also provided to build an Amazon Linux 2023 Docker image suitable for running Landform.  Launch Docker and then build the image with `cd docker/runner; ./build.sh`.  A convenience script is also provided to run a bash shell on the image: `cd docker/runner; ./up.sh`.  An alternative [Dockerfile](docker/runner/Dockerfile-ubuntu24.04) is also provided for Ubuntu 24.04; to use it, rename it to `Dockerfile`.
 
-The top-level command-line entrypoint is in [Landform.cs](./Landform/Landform.cs).  After building run this to get a brief synopsis of the available commands:
+The top-level command-line entrypoint is in [Landform.cs](./Landform/Landform.cs); it dispatches to a number of sub-commands such as `process-tactical`, `process-contextual`, etc.  To see all the available sub-commands run
 
 ```
-./src/Landform/bin/Release/Landform
+dir=dist # if you unpacked a pre-built release zip
+#dir=src # if you built from source
+./$dir/Landform/bin/Release/net9.0/Landform --help
 ```
+
+Then run e.g.
+
+```
+./$dir/Landform/bin/Release/net9.0/Landform process-contextual --help
+```
+
+to see the specific command line options for a sub-command.
 
 Additional documentation is provided in the header comments of the corresponding source files in the [Landform](./src/Landform) subproject.
 
