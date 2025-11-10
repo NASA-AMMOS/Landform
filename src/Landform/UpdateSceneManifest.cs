@@ -813,7 +813,7 @@ namespace JPLOPS.Landform
                         pipeline.LogInfo("counting {0} backprojected pixels from {1} leaves",
                                          meshVariant, tileList.LeafNames.Count);
 
-                        CoreLimitedParallel.ForEach(tileList.LeafNames, leaf =>
+                        Serial.ForEach(tileList.LeafNames, leaf =>
                         {
                             string indexName = leaf + TilingDefaults.INDEX_FILE_SUFFIX + TilingDefaults.INDEX_FILE_EXT;
                             string indexUrl = pipeline.GetStorageUrl(leafFolder, project.Name, indexName);
