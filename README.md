@@ -110,6 +110,8 @@ The top-level command-line entrypoint is in [Landform.cs](./Landform/Landform.cs
 
 Additional documentation is provided in the header comments of the corresponding source files in the [Landform](./src/Landform) subproject.
 
+On OS X you will likely need to run `./scripts/osx-unquarantine.sh` once for each deployment in order for Landform to invoke third-party dependency executables.
+
 ## Dependencies
 
 These are managed with the NuGet package manager and will be automatically downloaded as needed:
