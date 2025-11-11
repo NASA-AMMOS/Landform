@@ -598,7 +598,8 @@ namespace JPLOPS.Pipeline
                                                  string primarySiteDrive, string solRanges, string siteDrives,
                                                  FrameCache frameCache, bool usePriors, bool onlyAligned,
                                                  List<RoverObservation> images,
-                                                 Dictionary<int, int> backprojectedPixels = null, ILogger logger = null)
+                                                 IDictionary<int, int> backprojectedPixels = null,
+                                                 ILogger logger = null)
         {
             if (logger != null)
             {

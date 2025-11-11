@@ -746,7 +746,7 @@ namespace JPLOPS.Landform
                 .Where(obs => obs.ObservationType == RoverProductType.Image)
                 .ToList();
 
-            var backprojectedPixels = new Dictionary<int, int>();
+            var backprojectedPixels = new ConcurrentDictionary<int, int>();
             var images = FilterImages(imgObs, MeshVariant.Default, TilingCommand.TILING_DIR, backprojectedPixels);
             sceneManifest.AddOrUpdateContextualTileset(tilesetId, tilesetUrl, options.Sol, options.SiteDrive,
                                                        options.Sols, options.SiteDrives,
@@ -786,7 +786,8 @@ namespace JPLOPS.Landform
         }
 
         private List<RoverObservation> FilterImages(List<RoverObservation> images, MeshVariant meshVariant,
-                                                    string leafFolder, Dictionary<int, int> backprojectedPixels)
+                                                    string leafFolder,
+                                                    ConcurrentDictionary<int, int> backprojectedPixels)
         {
             backprojectedPixels.Clear();
             var sceneMesh = SceneMesh.Find(pipeline, project.Name, meshVariant);
@@ -813,7 +814,7 @@ namespace JPLOPS.Landform
                         pipeline.LogInfo("counting {0} backprojected pixels from {1} leaves",
                                          meshVariant, tileList.LeafNames.Count);
 
-                        Serial.ForEach(tileList.LeafNames, leaf =>
+                        CoreLimitedParallel.ForEach(tileList.LeafNames, leaf =>
                         {
                             string indexName = leaf + TilingDefaults.INDEX_FILE_SUFFIX + TilingDefaults.INDEX_FILE_EXT;
                             string indexUrl = pipeline.GetStorageUrl(leafFolder, project.Name, indexName);
@@ -825,14 +826,9 @@ namespace JPLOPS.Landform
                                     int obsIndex = (int)(leafIndex[0, r, c]);
                                     if (obsIndex >= Observation.MIN_INDEX)
                                     {
-                                        if (!backprojectedPixels.ContainsKey(obsIndex))
-                                        {
-                                            backprojectedPixels[obsIndex] = 1;
-                                        }
-                                        else if (backprojectedPixels[obsIndex] < int.MaxValue)
-                                        {
-                                            backprojectedPixels[obsIndex] = backprojectedPixels[obsIndex] + 1;
-                                        }
+                                        backprojectedPixels
+                                            .AddOrUpdate(obsIndex, _ => 1,
+                                                         (_, count) => count < int.MaxValue ? count + 1 : int.MaxValue);
                                     }
                                 }
                             }
