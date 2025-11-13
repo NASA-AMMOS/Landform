@@ -213,7 +213,12 @@ namespace JPLOPS.Landform
                 return;
             }
 
-            meshFrame = meshFrame.ToLower().Trim();
+            meshFrame = meshFrame.Trim();
+
+            if (!SiteDrive.IsSiteDriveString(meshFrame)) //might be e.g. 100A986 for site=100 drive=10986
+            {
+                meshFrame = meshFrame.ToLower();
+            }
 
             if (meshFrame == "auto")
             {
