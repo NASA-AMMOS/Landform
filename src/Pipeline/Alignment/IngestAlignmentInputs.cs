@@ -632,7 +632,10 @@ namespace JPLOPS.Pipeline
                 orbitalFrameName = "project_root";
             }
 
-            orbitalFrameName = orbitalFrameName.ToLower();
+            if (!SiteDrive.IsSiteDriveString(orbitalFrameName)) //might be e.g. 100A986 for site=100 drive=10986
+            {
+                orbitalFrameName = orbitalFrameName.ToLower();
+            }
 
             //by now rootSiteDrive will either be
             //* landing site (common case) if we ingested at least one surface observation and all had full priors
