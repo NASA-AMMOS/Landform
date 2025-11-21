@@ -1,0 +1,60 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <ProjectGuid>{49A27854-2DB1-4E1C-893A-F60BDF5F3C86}</ProjectGuid>
+    <OutputType>Library</OutputType>
+    <RootNamespace>Geometry</RootNamespace>
+    <AssemblyName>Geometry</AssemblyName>
+    <TargetFramework>net9.0</TargetFramework>
+    <FileAlignment>512</FileAlignment>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(IS_WSL)' == 'true'">
+    <IntermediateOutputPath>/tmp/Landform/Geometry/obj/</IntermediateOutputPath>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="MIConvexHull" Version="1.1.19.1019" />
+    <PackageReference Include="OptimizedPriorityQueue" Version="5.1.0" />
+    <PackageReference Include="Sharp3DBinPacking" Version="2.0.0" />
+    <!-- 
+
+      <PackageReference Include="Triangle" Version="0.0.6-Beta3" />
+
+      Triangle.NET is unfortunately not well maintained anymore
+
+      we use it (only) to compute a Delanuay triangulation of a 2D point set
+
+      unfortunately the latest package available on nuget
+      has a transitive depencency on an old version of System.Runtime.InteropServices.PInvoke
+      which causes gnarly build errors in GeometryThirdParty/UVAtlas.cs
+      so instead of depending on the nuget package we now just include the sourcecode under src/Geometry/Triangle/
+
+      cd src/GeometryThirdParty
+      dotnet nuget why System.Runtime.InteropServices.PInvoke
+
+      Geometry (v1.0.0)
+      └─ Triangle (v0.0.6-Beta3)
+         └─ NETStandard.Library (v1.5.0-rc2-24027)
+            ├─ System.IO.Compression (v4.1.0-rc2-24027)
+            │  └─ System.Runtime.InteropServices (v4.1.0-rc2-24027)
+            │     └─ System.Runtime.InteropServices.PInvoke (v4.0.0-rc2-24027)
+    -->
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Imaging/Imaging.csproj">
+      <Project>{C3EC3AB5-8DFD-4DAA-9833-246F0DB6A805}</Project>
+      <Name>Imaging</Name>
+    </ProjectReference>
+    <ProjectReference Include="../MathExtensions/MathExtensions.csproj">
+      <Project>{8c7c8a71-0a4b-4d75-9cb2-32803bd8f86f}</Project>
+      <Name>MathExtensions</Name>
+    </ProjectReference>
+    <ProjectReference Include="../Util/Util.csproj">
+      <Project>{8145AA65-BA61-4E27-81FF-B64217B49929}</Project>
+      <Name>Util</Name>
+    </ProjectReference>
+    <ProjectReference Include="../Xna/Xna.csproj">
+      <Project>{46759719-42d9-473b-a8ad-0848a33bdac6}</Project>
+      <Name>Xna</Name>
+    </ProjectReference>
+  </ItemGroup>
+</Project>

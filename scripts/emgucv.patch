@@ -1,0 +1,13 @@
+diff --git a/Emgu.CV.Extern/CMakeLists.txt b/Emgu.CV.Extern/CMakeLists.txt
+index 5fd185707..7337d0470 100644
+--- a/Emgu.CV.Extern/CMakeLists.txt
++++ b/Emgu.CV.Extern/CMakeLists.txt
+@@ -2261,7 +2261,7 @@ CREATE_VECTOR_CS(
+     "${CMAKE_CURRENT_SOURCE_DIR}/../Emgu.CV/Util" 
+     Emgu.CV.Stitching 
+     "" 
+-    "#include \"stitching_c.h\"" 
++    "//#include \"stitching_c.h\"" 
+     "" 
+     "defined(HAVE_OPENCV_STITCHING)")
+ ############################### stitching code gen END ################################

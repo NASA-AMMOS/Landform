@@ -1,0 +1,20 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <ProjectGuid>{8145AA65-BA61-4E27-81FF-B64217B49929}</ProjectGuid>
+    <OutputType>Library</OutputType>
+    <RootNamespace>Util</RootNamespace>
+    <AssemblyName>Util</AssemblyName>
+    <TargetFramework>net9.0</TargetFramework>
+    <FileAlignment>512</FileAlignment>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(IS_WSL)' == 'true'">
+    <IntermediateOutputPath>/tmp/Landform/Util/obj/</IntermediateOutputPath>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="log4net" Version="3.2.0" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="CommandLineParser" Version="2.9.1" />
+    <PackageReference Include="System.Management" Version="9.0.9" />
+  </ItemGroup>
+</Project>

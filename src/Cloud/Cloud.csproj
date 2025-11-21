@@ -1,0 +1,40 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <ProjectGuid>{52A91B3E-1D95-4715-A7AD-2840B2F9C6AC}</ProjectGuid>
+    <OutputType>Library</OutputType>
+    <RootNamespace>Cloud</RootNamespace>
+    <AssemblyName>Cloud</AssemblyName>
+    <TargetFramework>net9.0</TargetFramework>
+    <FileAlignment>512</FileAlignment>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(IS_WSL)' == 'true'">
+    <IntermediateOutputPath>/tmp/Landform/Cloud/obj/</IntermediateOutputPath>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="AWSSDK.Core" Version="4.0.0.26" />
+    <PackageReference Include="AWSSDK.AutoScaling" Version="4.0.3" />
+    <PackageReference Include="AWSSDK.EC2" Version="4.0.37" />
+    <PackageReference Include="AWSSDK.S3" Version="4.0.7" />
+    <PackageReference Include="AWSSDK.SimpleSystemsManagement" Version="4.0.3.1" />
+    <PackageReference Include="AWSSDK.SQS" Version="4.0.1.2" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Geometry/Geometry.csproj">
+      <Project>{49A27854-2DB1-4E1C-893A-F60BDF5F3C86}</Project>
+      <Name>Geometry</Name>
+    </ProjectReference>
+    <ProjectReference Include="../MathExtensions/MathExtensions.csproj">
+      <Project>{8C7C8A71-0A4B-4D75-9CB2-32803BD8F86F}</Project>
+      <Name>MathExtensions</Name>
+    </ProjectReference>
+    <ProjectReference Include="../Util/Util.csproj">
+      <Project>{8145aa65-ba61-4e27-81ff-b64217b49929}</Project>
+      <Name>Util</Name>
+    </ProjectReference>
+    <ProjectReference Include="../Xna/Xna.csproj">
+      <Project>{46759719-42d9-473b-a8ad-0848a33bdac6}</Project>
+      <Name>Xna</Name>
+    </ProjectReference>
+  </ItemGroup>
+</Project>

@@ -1,0 +1,28 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <ProjectGuid>{8C7C8A71-0A4B-4D75-9CB2-32803BD8F86F}</ProjectGuid>
+    <OutputType>Library</OutputType>
+    <RootNamespace>MathExtensions</RootNamespace>
+    <AssemblyName>MathExtensions</AssemblyName>
+    <TargetFramework>net9.0</TargetFramework>
+    <FileAlignment>512</FileAlignment>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(IS_WSL)' == 'true'">
+    <IntermediateOutputPath>/tmp/Landform/MathExtensions/obj/</IntermediateOutputPath>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="MathNet.Numerics" Version="5.0.0" />
+    <PackageReference Include="RTree" Version="1.1.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Util/Util.csproj">
+      <Project>{8145aa65-ba61-4e27-81ff-b64217b49929}</Project>
+      <Name>Util</Name>
+    </ProjectReference>
+    <ProjectReference Include="../Xna/Xna.csproj">
+      <Project>{46759719-42d9-473b-a8ad-0848a33bdac6}</Project>
+      <Name>Xna</Name>
+    </ProjectReference>
+  </ItemGroup>
+</Project>

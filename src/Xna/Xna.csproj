@@ -1,0 +1,14 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <ProjectGuid>{46759719-42D9-473B-A8AD-0848A33BDAC6}</ProjectGuid>
+    <OutputType>Library</OutputType>
+    <RootNamespace>Xna</RootNamespace>
+    <AssemblyName>Xna</AssemblyName>
+    <TargetFramework>net9.0</TargetFramework>
+    <FileAlignment>512</FileAlignment>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(IS_WSL)' == 'true'">
+    <IntermediateOutputPath>/tmp/Landform/Xna/obj/</IntermediateOutputPath>
+  </PropertyGroup>
+</Project>
