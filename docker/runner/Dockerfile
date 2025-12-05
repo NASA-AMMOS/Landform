@@ -4,7 +4,7 @@ RUN dnf update -y
 
 RUN dnf install -y vim zip unzip shadow-utils && ln -s /usr/bin/vim /usr/bin/vi
 
-RUN dnf install -y libpng libtiff libgeotiff libjpeg-turbo mesa-libGL mesa-libGLU freeglut
+RUN dnf install -y libomp libpng libtiff libgeotiff libjpeg-turbo mesa-libGL mesa-libGLU freeglut
  
 RUN dnf install -y dotnet-runtime-9.0
 
