@@ -863,8 +863,11 @@ namespace JPLOPS.Pipeline
 
         public override string GetSSMWatchdogCommand()
         {
-            //https://docs.aws.amazon.com/systems-manager/latest/userguide/sysman-install-win.html
-            return MissionM2020Config.Instance.WatchdogSSMCommand.Replace("{venue}", venue);
+            string cmd = MissionM2020Config.Instance.WatchdogSSMCommand;
+
+            if (string.IsNullOrEmpty(cmd)) return cmd;
+
+            return cmd.Replace("{venue}", venue);
         }
 
         public override string GetCloudWatchWatchdogProcess()
@@ -874,7 +877,12 @@ namespace JPLOPS.Pipeline
 
         public override string GetCloudWatchWatchdogCommand()
         {
-            string cmd = MissionM2020Config.Instance.WatchdogCloudWatchCommand.Replace("{venue}", venue);
+            string cmd = MissionM2020Config.Instance.WatchdogCloudWatchCommand;
+
+            if (string.IsNullOrEmpty(cmd)) return cmd;
+
+            cmd = cmd.Replace("{venue}", venue);
+
             return cmd.Replace("{cwagentctl}",
 #if WINDOWS
                                "'C:\\Program Files\\Amazon\\AmazonCloudWatchAgent\\amazon-cloudwatch-agent-ctl.ps1'");
