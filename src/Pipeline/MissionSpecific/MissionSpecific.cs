@@ -219,7 +219,7 @@ namespace JPLOPS.Pipeline
             RoverProduct.SetImageRDRType(GetImageProductType());
         }
 
-        public string GetConfigDefaults(string configFilename)
+        public virtual string GetConfigDefaults(string configFilename)
         {
             switch (StringHelper.StripUrlExtension(configFilename))
             {

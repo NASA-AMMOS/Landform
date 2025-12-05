@@ -75,8 +75,7 @@ namespace JPLOPS.Pipeline
 
         //SSM service watchdog restart command, {venue} will be replaced, empty to disable
         [ConfigEnvironmentVariable("LANDFORM_WATCHDOG_SSM_COMMAND")]
-        public string WatchdogSSMCommand { get; set; } =
-            "powershell -Command \"& { Restart-Service AmazonSSMAgent }\"";
+        public string WatchdogSSMCommand { get; set; }
 
         //CloudWatch service watchdog process name, empty to disable
         [ConfigEnvironmentVariable("LANDFORM_WATCHDOG_CLOUDWATCH_PROCESS")]
@@ -84,8 +83,7 @@ namespace JPLOPS.Pipeline
 
         //CloudWatch service watchdog restart command, {venue} and {cwagentctl} will be replaced, empty to disable
         [ConfigEnvironmentVariable("LANDFORM_WATCHDOG_CLOUDWATCH_COMMAND")]
-        public string WatchdogCloudWatchCommand { get; set; } =
-            "powershell -Command \"& {cwagentctl} -a fetch-config -m ec2 -s -c file:C:\\landform\\config_files\\amazon-cloudwatch-agent.json\"";
+        public string WatchdogCloudWatchCommand { get; set; }
 
         //comma separated list of S3 URLs of FDR directories with sol number replaced by #####
         //{venue} will be replaced
@@ -116,6 +114,27 @@ namespace JPLOPS.Pipeline
         public override Mission GetMission()
         {
             return Mission.M2020;
+        }
+
+        public override string GetConfigDefaults(string configFilename)
+        {
+            switch (StringHelper.StripUrlExtension(configFilename))
+            {
+                case MissionM2020Config.CONFIG_FILENAME: return GetM2020ConfigDefaults();
+                default: return base.GetConfigDefaults(configFilename);
+            }
+        }
+
+        private string GetM2020ConfigDefaults()
+        {
+#if WINDOWS
+            return "{\n" +
+                "\"WatchdogSSMCommand\": \"powershell -Command \\\"& { Restart-Service AmazonSSMAgent }\\\"\",\n" +
+                "\"WatchdogCloudWatchCommand\": \"powershell -Command \\\"& {cwagentctl} -a fetch-config -m ec2 -s -c file:C:\\landform\\config_files\\amazon-cloudwatch-agent.json\\\"\"\n" +
+                "}";
+#else
+    return null;
+#endif
         }
 
         public override string RefreshCredentials(string awsProfile = null, string awsRegion = null, bool quiet = true,
@@ -855,10 +874,13 @@ namespace JPLOPS.Pipeline
 
         public override string GetCloudWatchWatchdogCommand()
         {
-            //https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/install-CloudWatch-Agent-on-EC2-Instance-fleet.html#start-CloudWatch-Agent-EC2-fleet
             string cmd = MissionM2020Config.Instance.WatchdogCloudWatchCommand.Replace("{venue}", venue);
             return cmd.Replace("{cwagentctl}",
+#if WINDOWS
                                "'C:\\Program Files\\Amazon\\AmazonCloudWatchAgent\\amazon-cloudwatch-agent-ctl.ps1'");
+#else
+                               "/opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent");
+#endif
         }
 
         public override List<string> GetFDRSearchDirs()

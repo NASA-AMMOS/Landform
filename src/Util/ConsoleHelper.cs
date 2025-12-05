@@ -297,7 +297,7 @@ namespace JPLOPS.Util
                     }
                     for (int i = 0; i < names.Length; i++)
                     {
-                        if (name == names[i])
+                        if (name.EndsWith(names[i]))
                         {
                             requested = true;
                             ret[i] |= !hasExited;
