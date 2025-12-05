@@ -242,6 +242,8 @@ namespace JPLOPS.Cloud
                 throw;
             }
 
+            if (msgs == null) return new T[0];
+
             return msgs.Select(msg =>
             {
                 try
