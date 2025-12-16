@@ -2496,7 +2496,8 @@ namespace JPLOPS.Landform
                     RunCommand("update-scene-manifest", project, allowUnmasked, "--tilesetdir", destDir,
                                "--rdrdir", rdrDir, "--sol", solStr, "--sitedrive", sdStr,
                                "--sols", solRanges, "--sitedrives", sdsStr,
-                               "--awsprofile", awsProfile, "--awsregion", awsRegion);
+                               "--awsprofile", options.NoUseDefaultAWSProfileForS3Client ? awsProfile : "none",
+                               "--awsregion", awsRegion);
                 }
 
                 DeletePID(destDir, project, pidFile);

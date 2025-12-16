@@ -1104,7 +1104,8 @@ namespace JPLOPS.Landform
                     {
                         SavePID(destDir, project, "manifest", pidFile);
                         RunCommand("update-scene-manifest", project, "--mission", fullMissionStr,
-                                   "--awsprofile", awsProfile, "--awsregion", awsRegion,
+                                   "--awsprofile", options.NoUseDefaultAWSProfileForS3Client ? awsProfile : "none",
+                                   "--awsregion", awsRegion,
                                    "--manifestfile", tilesetDir + "/" + SCENE_JSON,
                                    "--nocontextual", "--nourls", "--tacticalpdsimage", imageFile);
                     }

@@ -1090,7 +1090,11 @@ namespace JPLOPS.Landform
                 args.AddRange(new string[] { "--mission", mission.GetMissionWithVenue() });
             }
 
-            if (!string.IsNullOrEmpty(awsProfile))
+            if (!lsopts.NoUseDefaultAWSProfileForS3Client)
+            {
+                args.AddRange(new string[] { "--awsprofile", "none" });
+            }
+            else if (!string.IsNullOrEmpty(awsProfile))
             {
                 args.AddRange(new string[] { "--awsprofile", awsProfile });
             }
