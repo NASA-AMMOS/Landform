@@ -12,8 +12,8 @@ Many Landform workflows currently require access to Mars 2020 or MSL ground data
 
 Most of the datasets produced by Landform for the Mars 2020 mission are not currently publicly available.  However, our colleague Garrett Johnson has released a few as examples for his [JavaScript 3D Tiles renderer](https://github.com/NASA-AMMOS/3DTilesRendererJS):
 
-* [This](https://nasa-ammos.github.io/3DTilesRendererJS/example/bundle/mars.html) is a "Contextual Mesh" produced by Landform, fusing data from multiple surface observations with orbital data.
-* [This](https://nasa-ammos.github.io/3DTilesRendererJS/example/bundle/landformSiteOverlay.html) is a panorama of 3D "wedges" from the Mars 2020 Navcam instrument, which was produced in 3D tiles format by Landform. 
+* [This](https://nasa-ammos.github.io/3DTilesRendererJS/example/bundle/three/mars.html) is a "Contextual Mesh" produced by Landform, fusing data from multiple surface observations with orbital data.
+* [This](https://nasa-ammos.github.io/3DTilesRendererJS/example/bundle/three/landformSiteOverlay.html) is a panorama of 3D "wedges" from the Mars 2020 Navcam instrument, which was produced in 3D tiles format by Landform. 
 
 ## Contributors
 
